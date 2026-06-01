@@ -14,12 +14,15 @@ import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
+import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 @EnableConfigurationProperties(AiCoreProperties.class)
@@ -29,17 +32,20 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     private final AiCoreProperties properties;
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
+    private final ScheduleMonitor scheduleMonitor;
 
     public DefaultAiExecutionDomainService(List<AiProvider> aiProviders,
                                            AiCoreProperties properties,
                                            AiRequestValidator validator,
-                                           AiProviderRequestMapper requestMapper) {
+                                           AiProviderRequestMapper requestMapper,
+                                           ScheduleMonitor scheduleMonitor) {
         for (AiProvider provider : aiProviders) {
             this.providers.put(provider.providerType(), provider);
         }
         this.properties = properties;
         this.validator = validator;
         this.requestMapper = requestMapper;
+        this.scheduleMonitor = scheduleMonitor;
     }
 
     @Override
@@ -55,6 +61,22 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
             throw new IllegalArgumentException("chatStream observer must not be null");
         }
         resolveProvider(request.getProvider()).chatStream(requestMapper.mapChat(request, properties), observer);
+    }
+
+    @Override
+    public void chatStreamAsync(ChatRequest request, ChatStreamObserver observer) {
+        AtomicReference<Long> taskIdRef = new AtomicReference<>();
+        Long taskId = scheduleMonitor.schedule(() -> {
+            try {
+                chatStream(request, observer);
+            } finally {
+                Long id = taskIdRef.get();
+                if (id != null) {
+                    scheduleMonitor.cancel(id);
+                }
+            }
+        }, 1L, TimeUnit.MILLISECONDS);
+        taskIdRef.set(taskId);
     }
 
     @Override
@@ -103,4 +125,3 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
         return provider;
     }
 }
-

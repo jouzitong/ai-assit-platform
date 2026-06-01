@@ -1,42 +1,22 @@
-package ai.platform.aiassist.service.ai.core;
+package ai.platform.aiassist.service.ai.core.controller;
 
-import ai.platform.aiassist.service.ai.api.AiExecutionApi;
-import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
-import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
-import ai.platform.aiassist.service.ai.api.dto.EmbedRequest;
-import ai.platform.aiassist.service.ai.api.dto.EmbedResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbDeleteResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertResponse;
-import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
-import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
+import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseExecutionApi;
+import ai.platform.aiassist.service.ai.core.AiExecutionDomainService;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
-public class AiExecutionController implements AiExecutionApi {
+public class AiKnowledgeBaseController implements AiKnowledgeBaseExecutionApi {
 
     private final AiExecutionDomainService aiExecutionDomainService;
 
-    public AiExecutionController(AiExecutionDomainService aiExecutionDomainService) {
+    public AiKnowledgeBaseController(AiExecutionDomainService aiExecutionDomainService) {
         this.aiExecutionDomainService = aiExecutionDomainService;
-    }
-
-    @Override
-    public ChatResponse chat(ChatRequest request) {
-        return aiExecutionDomainService.chat(request);
-    }
-
-    @Override
-    public EmbedResponse embed(EmbedRequest request) {
-        return aiExecutionDomainService.embed(request);
-    }
-
-    @Override
-    public RerankResponse rerank(RerankRequest request) {
-        return aiExecutionDomainService.rerank(request);
     }
 
     @Override
@@ -54,4 +34,3 @@ public class AiExecutionController implements AiExecutionApi {
         return aiExecutionDomainService.kbSearch(request);
     }
 }
-
