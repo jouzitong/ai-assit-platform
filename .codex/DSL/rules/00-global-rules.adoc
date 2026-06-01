@@ -1,0 +1,52 @@
+= Codex DSL Specification
+:toc: left
+:toclevels: 1
+:sectnums:
+:icons: font
+:source-highlighter: coderay
+:version: 1.0
+
+== 执行规则说明
+
+- Codex 不得修改 DSL 结构，只能修改指定 Block
+- 代码风格遵循 existing project。但是如果你有更好的建议, 可以在执行计划中提出待优化点。
+- `spec/` 目录下定义了很多规范性的内容, 请严格遵守. 如果有异议，请提出待优化点。
+
+== 全局状态机与门禁规则（SSOT）
+
+=== 状态集
+
+- `TODO`：已定义，未满足执行前置条件。
+- `READY`：满足执行前置条件，可进入执行。
+- `DOING`：正在执行中。
+- `DONE`：完成并通过裁决（终态）。
+- `BLOCKED`：被阻塞，需外部条件解除。
+- `CANCELLED`：被主动终止，不再继续（终态）。
+
+=== 允许流转
+
+- 主路径：`TODO -> READY -> DOING -> DONE`
+- 阻塞恢复：`READY -> BLOCKED`、`DOING -> BLOCKED`、`BLOCKED -> READY`
+- 取消：`TODO/READY/DOING/BLOCKED -> CANCELLED`
+
+=== 禁止流转
+
+- `TODO -> DOING`
+- `READY -> DONE`
+- `BLOCKED -> DONE`
+- `DONE -> CANCELLED`
+- `CANCELLED -> *`
+
+=== 全局门禁
+
+- 进入 `READY`：契约字段完整、依赖可解析、会话可追溯。
+- 进入 `DOING`：当前状态为 `READY`，且依赖任务满足。
+- 进入 `DONE`：存在验证结果与交付证据，且满足 completion.success。
+- 进入 `CANCELLED`：必须记录取消原因、已完成部分与收尾动作（如有）。
+
+== 任务存储与命名约束
+
+- 任务文档必须存放在 `.codex/tasks/` 目录下。
+- 任务文档必须按年月分目录，目录格式为 `YYYYMM`（例如：`.codex/tasks/202605/`）。
+- 新建任务时必须优先写入当前业务时间对应的 `YYYYMM` 目录。
+- 任务文件扩展名必须为 `.adoc`。

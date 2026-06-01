@@ -1,0 +1,137 @@
+= Execution Log
+:doctype: book
+:toc: left
+:toclevels: 2
+:sectnums:
+
+== Log Meta
+
+- log.id（日志ID）: LOG-XXXX
+- log.status（日志状态）: DRAFT
+- log.created_at（日志创建时间）: YYYY-MM-DD HH:MM:SS
+- log.owner（日志负责人）: <OWNER>
+- flow.id（流程ID）: TASK_EXECUTION_FLOW
+- flow.version（流程版本）: 1.0
+
+== Task Context
+
+- task.id（任务ID）: TASK-XXXX
+- task.name（任务名称）: <TASK_NAME>
+- task.status（任务状态）: READY
+- task.file（任务文件）: <TASK_FILE_PATH>
+- task.scope.modules（范围模块）:
+  - <MODULE_1>
+- task.scope.excludes（范围排除）:
+  - <EXCLUDE_1>
+
+== Sub Task Execution Logs
+
+.子任务基础信息汇总:
+- sub_task.id（子任务ID）: TASK-XXXX-ST-XX
+  sub_task.name（子任务名称）: <SUB_TASK_NAME>
+  sub_task.status（子任务状态）: READY
+- sub_task.id（子任务ID）: TASK-XXXX-ST-YY
+  sub_task.name（子任务名称）: <SUB_TASK_NAME>
+  sub_task.status（子任务状态）: READY
+
+=== TASK-XXXX-ST-XX
+
+==== Sub Task Context
+
+- sub_task.id（子任务ID）: TASK-XXXX-ST-XX
+- sub_task.name（子任务名称）: <SUB_TASK_NAME>
+- sub_task.status（子任务状态）: READY
+- sub_task.depends_on（依赖子任务）:
+  - <SUB_TASK_ID_1>
+
+==== Step 1: Analyze
+
+- 任务理解说明: <SUMMARY>
+- DSL action 逐条解释:
+  - <ACTION_1>
+  - <ACTION_2>
+- 潜在歧义点: 无
+
+==== Step 2: Plan
+
+- 文件清单:
+  - <PATH_1>
+  - <PATH_2>
+- 修改目标:
+  - <PATH_1>: <GOAL_1>
+  - <PATH_2>: <GOAL_2>
+
+==== Step 3: Execute
+
+- 实际变更摘要: <SUMMARY>
+- 实际修改文件:
+  - <PATH_1>
+  - <PATH_2>
+- 偏差说明: 无
+
+==== Step 4: Validate
+
+- 校验方式与范围: <METHODS>
+- 校验结果: 通过
+- 违规项: 无
+
+==== Step 5: Report
+
+- Execution Report: <REPORT>
+- 修改文件清单:
+  - <PATH_1>
+  - <PATH_2>
+- 假设与风险说明: <ASSUMPTIONS_AND_RISKS>
+
+==== 关键决策记录
+- 决策点: <DECISION_POINT>
+- 结论: <RESULT>
+- 说明: <DETAILS>
+
+=== TASK-XXXX-ST-YY
+
+==== Sub Task Context
+- sub_task.id（子任务ID）: TASK-XXXX-ST-YY
+- sub_task.name（子任务名称）: <SUB_TASK_NAME>
+- sub_task.status（子任务状态）: READY
+- sub_task.depends_on（依赖子任务）:
+  - <SUB_TASK_ID_1>
+
+==== Step 1: Analyze
+- 任务理解说明: <SUMMARY>
+- DSL action 逐条解释:
+  - <ACTION_1>
+  - <ACTION_2>
+- 潜在歧义点: 无
+
+==== Step 2: Plan
+- 文件清单:
+  - <PATH_1>
+  - <PATH_2>
+- 修改目标:
+  - <PATH_1>: <GOAL_1>
+  - <PATH_2>: <GOAL_2>
+
+==== Step 3: Execute
+- 实际变更摘要: <SUMMARY>
+- 实际修改文件:
+  - <PATH_1>
+  - <PATH_2>
+- 偏差说明: 无
+
+==== Step 4: Validate
+- 校验方式与范围: <METHODS>
+- 校验结果: 通过
+- 违规项: 无
+
+==== Step 5: Report
+- Execution Report: <REPORT>
+- 修改文件清单:
+  - <PATH_1>
+  - <PATH_2>
+- 假设与风险说明: <ASSUMPTIONS_AND_RISKS>
+
+==== 关键决策记录
+- 决策点: <DECISION_POINT>
+- 结论: <RESULT>
+- 说明: <DETAILS>

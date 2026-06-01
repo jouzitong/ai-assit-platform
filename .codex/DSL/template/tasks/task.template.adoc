@@ -1,0 +1,191 @@
+= 需求任务模板
+:doctype: book
+:toc: left
+:toclevels: 3
+:sectnums:
+
+// 说明：本模板是任务文件形态唯一来源；核心语义与最小契约以 .codex/DSL/rules/01-task-rules.adoc 为准
+// 用法：替换 <...> 占位内容，保留字段键名（task.* / dev_task.*）
+// 映射：字段完整性与状态门禁请按 01-task-rules 的“规则与模板映射”章节校验
+
+[preface]
+== 前言
+
+[cols="1,3",options="header"]
+|===
+|字段 |值
+
+|id
+|<REQ-YYYYMMDD-XXXX>
+
+|name
+|<需求任务名称>
+
+|type
+|<FUNC/BUGFIX/REFACTOR/DOCS>
+
+|period
+|<P0/P1/P2/P3>
+
+|version
+|<V1.0.0>
+
+| branch
+|<codex/func/REQ-YYYYMMDD-xxxxx>
+
+| task.session_id
+| <SESSION-XXXXX（codex 会话ID）>
+
+|status
+|<TODO / READY / DOING / DONE / BLOCKED / CANCELLED>
+
+|===
+
+== 需求核心信息
+
+=== 需求背景
+
+- <业务背景>
+- <触发原因>
+
+=== 核心需求内容
+
+- <核心需求点-1>
+- <核心需求点-2>
+- <核心需求点-3>
+
+=== 边界定义
+
+==== 范围（task.scope.modules）
+
+- <模块/服务/目录-1>
+- <模块/服务/目录-2>
+
+==== 排除（task.scope.excludes）
+
+- <排除项-1>
+- <排除项-2>
+
+=== 依赖与约束
+
+- <依赖系统/接口/资源>
+- <技术或业务约束>
+
+=== 验收标准
+
+- <验收标准-1（可量化）>
+- <验收标准-2（可验证）>
+
+=== 风险与注意事项
+
+- <风险点-1（触发条件 + 影响）>
+- <风险点-2>
+
+=== 需求任务完成条件
+
+task.completion.success::
+- <成功条件-1>
+- <成功条件-2>
+
+task.completion.failure::
+- <失败条件-1>
+- <失败条件-2>
+
+=== 需求沟通记录（task.communication.inputs）
+
+- 记录目标：沉淀“开发者关键输入”，确保该任务可被重复执行。
+- 记录规则：仅追加，不覆盖历史；每条输入都应可直接指导下一次执行。
+
+.需求沟通记录（按需追加）
+. <补充背景、限制条件、优先级或明确指令>
+. <...>
+
+== 开发任务
+
+.开发任务汇总表
+[cols="1,2,1,1,2",options="header"]
+|===
+|开发任务ID |开发任务名称 |类型 |状态 |依赖
+
+|DEV-TASK-001
+|<开发任务名称-1>
+|DOCS
+|READY
+|无
+
+|DEV-TASK-002
+|<开发任务名称-2>
+|FUNC
+|READY
+|DEV-TASK-001
+
+|DEV-TASK-003
+|<开发任务名称-3>
+|TEST
+|READY
+|DEV-TASK-002
+|===
+
+=== DEV-TASK-001 （按需复制）
+
+.开发任务元信息
+[cols="1,3",options="header"]
+|===
+|字段 |值
+
+| dev_task.id
+| <DEV-TASK-001>
+
+| dev_task.name
+| <开发任务名称>
+
+| dev_task.type
+| <DOCS / FUNC / TEST>
+
+| dev_task.status
+| <TODO / READY / DOING / DONE / BLOCKED / CANCELLED>
+
+| dev_task.depends_on
+| <无 或 DEV-TASK-XXX>
+
+| dev_task.session_ids
+| <[] 或 [SESSION-XXXXX, SESSION-YYYYY]>
+|===
+
+==== 开发任务概述
+
+- 子域：<原型设计/开发实现/系统测试/文档更新等>
+- 目的：<本开发任务要完成什么>
+
+==== 开发任务目标（dev_task.objective）
+
+- <目标-1：本任务最终要产出的能力/结果>
+- <目标-2>
+
+==== 预计修改范围（dev_task.change.scope）
+
+- 涉及模块（dev_task.change.scope.modules）：<模块/服务-1>, <模块/服务-2>
+- 涉及路径（dev_task.change.scope.paths）：<目录/文件路径-1>, <目录/文件路径-2>
+- 是否跨服务/跨仓（dev_task.change.scope.cross_boundary）：<是/否>
+
+==== 预计修改内容（dev_task.change.plan）
+
+- 改动类型（dev_task.change.plan.types）：<新增/重构/修复/删除>
+- 关键改动点（dev_task.change.plan.key_points）：<改动点-1>
+- 数据/接口变更（dev_task.change.plan.api_or_schema_changes）：<无 或 API/Schema/配置变更说明>
+- 高风险改动（dev_task.change.plan.risks）：<无 或 风险点说明>
+
+==== 完成证据（dev_task.validation.proof）
+
+- 必要验证（dev_task.validation.proof.required_checks）：<单测/集成测试/回归>
+- 交付物（dev_task.validation.proof.deliverables）：<PR/提交/测试报告/截图>
+- 验收口径（dev_task.validation.proof.acceptance_criteria）：<满足的指标或验证结论>
+
+==== 开发任务沟通记录（dev_task.communication.log）
+
+- 记录规则：按轮次追加，不覆盖历史；重点记录任务范围调整、技术决策、阻塞与解除方式。
+
+.开发任务沟通记录（按需追加）
+.需求沟通记录
+. <补充背景、限制条件、优先级或明确指令>
+. <...>

@@ -1,0 +1,314 @@
+= Codex 任务执行流程定义（Task Execution Flow）
+:doctype: book
+:toc: left
+:toclevels: 3
+:sectnums:
+
+[perfer]
+== 流程说明
+
+本流程用于规范 Codex 在执行任务（代码实现 / 重构 / 文档生成 / DSL 驱动任务）时的行为，
+确保其执行过程 **可控、可审计、可复盘、可演进**。
+
+本流程不关心具体业务细节，
+仅定义 Codex 在“任务执行”这一行为上的统一规范。
+
+
+== 流程基本信息（Flow Identity）
+
+.flow.identity
+[cols="1,3"]
+|===
+|属性 |值
+
+|flow.id（流程ID）
+|TASK_EXECUTION_FLOW
+
+|flow.name（流程名称）
+|通用任务执行流程
+
+|flow.version（流程版本）
+|1.0
+
+|flow.owner（流程负责人）
+|平台研发团队
+
+|flow.description（流程说明）
+|用于 Codex 执行单一任务的标准流程定义
+|===
+
+
+== 进入条件（Entry Conditions）
+
+只有当以下所有条件满足时，Codex 才允许进入执行流程。
+
+.entry.conditions
+* 任务状态 = `READY`
+* 项目代码规范（Rules）已加载
+* 本次执行的任务文件已明确指定
+* 当前工作分支 ≠ `main` / `master`
+
+.entry.on_fail
+[source,text]
+----
+STOP_AND_REPORT
+----
+
+.进入条件不满足时，Codex 必须：
+- 停止执行
+- 输出原因说明
+- 不得生成或修改任何代码 / 文档
+
+== 执行范围定义（Scope Definition）
+
+Scope 用于约束 Codex 的活动边界，防止越权修改。
+
+=== 允许范围
+
+暂时不做限制
+
+=== 禁止范围
+
+暂时不做限制
+
+=== 修改限制
+
+暂时不做限制
+
+== 任务执行步骤（Execution Steps）
+
+Codex 必须 **严格按照以下顺序** 执行步骤，
+不允许跳过或重排。
+
+=== Step 1：任务与 DSL 理解（Analyze）
+
+.step.1
+[cols="1,3"]
+|===
+|属性 |说明
+
+|step.id
+|ANALYZE
+
+|step.type
+|analyze
+
+|step.goal
+|理解任务目标、DSL 描述与约束条件
+
+|step.output
+|任务理解说明 +
+DSL 逐条解释 +
+潜在歧义点列表
+|===
+
+要求：
+- 必须逐条解释 DSL 中的 action
+- 不允许总结性省略
+- 若存在歧义，必须明确指出
+
+---
+
+=== Step 2：执行计划生成（Plan）
+
+.step.2
+[cols="1,3"]
+|===
+|属性 |说明
+
+|step.id
+|PLAN
+
+|step.type
+|plan
+
+|step.goal
+|制定明确、可验证的执行计划
+
+|step.output
+|将要修改 / 新增的文件清单 +
+每个文件的修改目标
+|===
+
+要求：
+- 文件清单必须具体到路径
+- 不允许“视情况而定”类描述
+
+---
+
+=== Step 3：任务执行（Execute）
+
+.step.3
+[cols="1,3"]
+|===
+|属性 |说明
+
+|step.id
+|EXECUTE
+
+|step.type
+|generate
+
+|step.goal
+|根据执行计划生成或修改代码 / 文档
+
+|step.output
+|实际生成或修改的内容
+|===
+
+要求：
+- 仅允许修改 Step 2 中声明的文件
+- 不允许新增隐含行为
+
+---
+
+=== Step 4：规范与约束校验（Validate）
+
+.step.4
+[cols="1,3"]
+|===
+|属性 |说明
+
+|step.id
+|VALIDATE
+
+|step.type
+|validate
+
+|step.goal
+|校验是否违反代码规范、模块规范或任务约束
+
+|step.output
+|校验结果 +
+违规项（如有）
+|===
+
+要求：
+- 必须显式说明是否通过校验
+- 不得默认“校验通过”
+
+---
+
+=== Step 5：执行结果汇总（Report）
+
+.step.5
+[cols="1,3"]
+|===
+|属性 |说明
+
+|step.id
+|REPORT
+
+|step.type
+|report
+
+|step.goal
+|输出本次任务执行的完整报告
+
+|step.output
+|Execution Report +
+修改文件清单 +
+假设与风险说明
+|===
+
+---
+
+== 6. 关键决策点（Decision Points）
+
+在以下情况下，Codex **必须立即停止执行**。
+
+.decision.rules
+* 发现 DSL 存在歧义 → `REPORT_AND_STOP`
+* 违反代码规范 → `REPORT_AND_STOP`
+* 修改文件超出 Scope → `STOP`
+* 执行目标不明确 → `REPORT_AND_STOP`
+
+任何 STOP 行为：
+- 不得进入后续步骤
+- 必须生成说明报告
+
+---
+
+== 7. 可观测性要求（Observability）
+
+每一次任务执行，必须输出以下信息：
+
+.observability.outputs
+* DSL 理解说明
+* 执行计划
+* 关键决策说明
+* 隐含假设列表
+* 风险与不确定点
+
+这些输出用于：
+- 优化 DSL
+- 优化 Flow
+- 评估 Codex 执行质量
+
+---
+
+== 8. 退出条件（Exit Criteria）
+
+当且仅当满足以下条件时，流程视为成功完成。
+
+.exit.conditions
+* 任务状态更新为 `DONE`
+* 未发生未处理的规范违规
+* Execution Report 已完整生成
+
+=== 8.1 失败退出策略
+
+.exit.on_fail
+[source,text]
+----
+TASK_STATUS = BLOCKED
+----
+
+---
+
+== 9. 任务状态定义（Task Status）
+
+.task.status.enum
+[cols="1,3"]
+|===
+|状态 |说明
+
+|TODO
+|待执行
+
+|READY
+|可执行（满足进入条件）
+
+|DONE
+|已完成
+
+|BLOCKED
+|被阻断，需要人工介入
+|===
+
+---
+
+== 10. 流程使用强约束（Mandatory Rules）
+
+.flow.rules
+* 一次只允许执行一个任务
+* 不允许同时修改多个任务文件
+* 不允许跳过任何执行步骤
+* 未通过校验不得进入完成状态
+* Codex 不得声称执行了任何系统命令
+
+---
+
+== 11. 流程设计原则（给人看的）
+
+* Flow 是 Codex 的“行为边界”，不是建议
+* Scope 是安全底线，优先级高于任务描述
+* 可观测性优先于执行效率
+* 宁可中止，也不要“猜着做”
+
+---
+
+== 12. 流程总结
+
+本流程的目标不是让 Codex “多做事”，
+而是让 Codex **在一个有限、确定、可审计的轨道上做正确的事**。

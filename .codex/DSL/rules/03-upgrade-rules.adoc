@@ -1,0 +1,46 @@
+= Codex DSL Upgrade task rules
+:toc: left
+:toclevels: 1
+:sectnums:
+:icons: font
+:source-highlighter: coderay
+:version: 1.0
+
+== 基本原则
+
+- Codex 只能执行状态为 `READY` 的任务
+- Codex 执行完成后，必须将任务状态改为 `DONE`
+- Codex 可以修改 DSL 结构
+- 任务编号必须全局唯一，禁止重复
+- Codex 你执行的任务来源都来自 .codex/DSL/updates/README.md
+- Codex 如果需要新增的 DSL 升级任务, 应该 .codex/DSL/updates/README.md，状态标记为 *TODO*
+
+== 任务状态定义
+
+.状态定义
+TODO :: 仅定义，未准备好执行
+READY:: 可执行
+DOING:: Codex 执行中（可选）
+DONE:: 已完成
+BLOCKED:: 被阻塞
+
+=== 状态流转规则
+
+- 允许迁移: TODO -> READY -> DOING -> DONE
+- 允许回滚: DOING -> READY, READY -> TODO
+- BLOCKED 可由 READY/DOING 进入，解除后回到 READY
+
+== 任务类型
+
+.任务类型
+功能开发:: DSL Upgrade 任务
+- 编码: *UPGRADE*
+
+== 任务基本结构（Markdown）
+
+=== 规范描述
+
+* Codex [Must] 所有的升级任务只能来源于 .codex/DSL/updates/README.adoc 中的任务, 其他的DSL升级任务来源都不可以执行。
+* Codex 每个升级任务都要有一个详细的执行报告。内容必须包含下面内容（但不局限于此）：
+** 记录更新的目录文件和内容，详细记录更改的内容。记录文件放在 .codex/DSL/updates/logs 目录下。
+** 记录文件命名方式: {日期}-{升级描述}.adoc。采用 adoc 格式内容

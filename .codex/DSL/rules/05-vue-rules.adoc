@@ -1,0 +1,10 @@
+= Codex DSL Vue rules
+:toc: left
+:toclevels: 1
+:sectnums:
+:icons: font
+:source-highlighter: coderay
+:version: 1.0
+
+== 基本原则
+

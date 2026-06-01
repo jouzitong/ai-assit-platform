@@ -1,0 +1,130 @@
+= Codex DSL logs rules
+:toc: left
+:toclevels: 2
+:sectnums:
+:icons: font
+:source-highlighter: coderay
+:version: 1.0
+
+== 规范说明
+
+本文档定义 Codex 在执行任务时的日志规范，
+要求与 `.codex/DSL/flows/task-execution-flow.adoc` 的执行步骤保持一致，
+用于保证执行过程可追踪、可审计、可复盘。
+
+SSOT 说明：
+
+- 日志字段与日志步骤的唯一权威为本文档。
+- 执行步骤顺序以 `.codex/DSL/flows/task-execution-flow.adoc` 为准。
+
+- 适用对象：所有 Task / Sub Task 执行日志
+- 适用范围：代码实现 / 重构 / 文档生成 / DSL 驱动任务
+- 约束强度：必须遵守，不得缺失关键字段
+
+== 日志总体要求
+
+- 每次任务执行必须生成日志
+- 日志必须覆盖 Flow 的 5 个步骤（ANALYZE / PLAN / EXECUTE / VALIDATE / REPORT）
+- 日志必须可读、可追踪、可裁决
+- 禁止伪造或臆测未执行的内容
+- 禁止声称执行过系统命令
+
+== 日志结构规范
+
+日志应按照以下结构组织：
+
+[source,text]
+----
+Execution Log
+├─ Log Meta
+├─ Step 1: Analyze
+├─ Step 2: Plan
+├─ Step 3: Execute
+├─ Step 4: Validate
+└─ Step 5: Report
+----
+
+== Log Meta（日志元信息）
+
+必须字段：
+
+- log.id（日志ID）
+- task.id（任务ID）
+- sub_task.id（子任务ID）
+- flow.id（流程ID）
+- flow.version（流程版本）
+- log.status（日志状态）
+- log.created_at（日志创建时间）
+- log.owner（日志负责人）
+
+字段说明：
+
+log.id（日志ID）:: 日志唯一标识。
+task.id（任务ID）:: 对应 Task ID。
+sub_task.id（子任务ID）:: 对应 Sub Task ID。
+flow.id（流程ID）:: 使用的 Flow ID。
+flow.version（流程版本）:: 使用的 Flow 版本。
+log.status（日志状态）:: 日志状态（DRAFT / FINAL）。
+log.created_at（日志创建时间）:: 日志创建时间。
+log.owner（日志负责人）:: 日志责任人或执行主体。
+
+== Step 1：Analyze 日志规范
+
+必须输出：
+
+- 任务理解说明
+- DSL action 逐条解释
+- 潜在歧义点列表（如无，明确写 "无"）
+
+== Step 2：Plan 日志规范
+
+必须输出：
+
+- 将要修改 / 新增的文件清单（具体到路径）
+- 每个文件的修改目标
+- 不允许“视情况而定”类描述
+
+== Step 3：Execute 日志规范
+
+必须输出：
+
+- 实际修改或生成的内容摘要
+- 实际修改的文件清单（必须与 Plan 对应）
+- 如有偏差，必须说明原因
+
+== Step 4：Validate 日志规范
+
+必须输出：
+
+- 校验方式与范围
+- 校验结果
+- 若不通过，列出具体违规项
+- 必须显式写明“通过 / 不通过”
+
+== Step 5：Report 日志规范
+
+必须输出：
+
+- Execution Report
+- 修改文件清单
+- 假设与风险说明
+
+== 关键决策记录
+
+日志必须记录以下决策点：
+
+- DSL 存在歧义 → `REPORT_AND_STOP`
+- 违反代码规范 → `REPORT_AND_STOP`
+- 修改文件超出 Scope → `STOP`
+- 执行目标不明确 → `REPORT_AND_STOP`
+
+若发生 STOP 行为，必须记录：
+
+- 停止原因
+- 已完成步骤
+- 未进入步骤列表
+
+== 日志状态
+
+DRAFT:: 执行中或待补充的日志，禁止用于裁决
+FINAL:: 执行完成并审阅后的日志，可用于裁决

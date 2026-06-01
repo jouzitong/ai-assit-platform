@@ -1,0 +1,154 @@
+= Codex 任务核心定义规范
+:doctype: book
+:toc: left
+:toclevels: 3
+:sectnums:
+:version: 4.0
+
+== 规范定位
+
+本文档是 Task/Development Task 的核心语义与最小契约 SSOT，回答以下问题：
+
+- 任务必须表达什么信息
+- 任务如何判定可执行、可完成、可失败
+- 任务状态字段如何参与任务裁决
+
+本文档不定义任务文档版式与章节骨架。
+任务文件形态由 `.codex/DSL/template/tasks/task.template.adoc` 唯一提供。
+
+== 基本原则
+
+- 一个需求对应一个需求任务（Task）。
+- 一个需求任务可挂接多个开发任务（Development Task）。
+- 开发任务是最小执行与最小裁决单元。
+- 所有必须完成的开发任务达到 `DONE` 且满足 `task.completion.success`，需求任务才可 `DONE`。
+- 仅 `READY` 状态任务允许进入执行。
+
+== 核心语义
+
+=== 需求任务（Task）
+
+职责边界：
+
+- 描述背景、目标、范围、约束与风险
+- 明确需求级成功/失败判定
+- 维护可追溯的关键输入记录
+
+不承载具体实现步骤与代码级方案。
+
+=== 开发任务（Development Task）
+
+职责边界：
+
+- 定义可独立执行的工作目标
+- 定义预计改动范围与改动计划
+- 定义验证、证据与完成/失败判定
+
+典型类型可覆盖：`DOCS`、`FUNC`、`TEST`。
+
+== 最小契约（MUST）
+
+=== 需求任务最小契约
+
+必须具备：
+
+- 身份与追溯：`task.id`、`task.name`、`task.session_id`
+- 分类与状态：`task.type`、`task.status`、`task.version`
+- 边界：`task.scope.modules`、`task.scope.excludes`
+- 裁决：`task.completion.success`、`task.completion.failure`
+- 关键输入：`task.communication.inputs`
+
+约束：
+
+- `task.id` 全局唯一。
+- `task.scope.*` 必须可判定，禁止“待定/视情况”。
+- `task.completion.*` 必须可验证且可裁决。
+- `task.communication.inputs` 仅追加，不覆盖历史。
+
+=== 开发任务最小契约
+
+必须具备：
+
+- 身份与状态：`dev_task.id`、`dev_task.name`、`dev_task.type`、`dev_task.status`
+- 依赖与追溯：`dev_task.depends_on`、`dev_task.session_ids`
+- 目标：`dev_task.objective`
+- 改动范围：`dev_task.change.scope.modules`、`dev_task.change.scope.paths`、`dev_task.change.scope.cross_boundary`
+- 改动计划：`dev_task.change.plan.types`、`dev_task.change.plan.key_points`、`dev_task.change.plan.api_or_schema_changes`、`dev_task.change.plan.risks`
+- 验证与证据：`dev_task.validation.proof.required_checks`、`dev_task.validation.proof.deliverables`、`dev_task.validation.proof.acceptance_criteria`
+- 裁决：`dev_task.completion.success`、`dev_task.completion.failure`
+
+约束：
+
+- `dev_task.id` 在所属任务内唯一。
+- `dev_task.depends_on` 仅允许 `[]` 或 `[DEV-TASK-001, DEV-TASK-002]`；禁止循环依赖。
+- `dev_task.objective` 仅描述结果，不描述实现步骤。
+- `dev_task.validation.proof.acceptance_criteria` 必须与 `dev_task.completion.success` 对齐。
+
+== 质量约束（MUST/SHOULD）
+
+MUST：
+
+- 成功条件必须可验证。
+- 失败条件必须有明确触发器。
+- 验证项必须是可执行动作。
+- 交付物至少包含一种可追溯证据（如 commit/PR/测试报告/日志）。
+
+SHOULD：
+
+- 目标与范围变更时同步更新对应契约字段。
+- 沟通记录保留时间、发起方、结论与后续动作。
+
+== 状态使用约束
+
+- `task.status` 与 `dev_task.status` 必须使用全局状态机定义。
+- 状态流转与进入门禁以 `.codex/DSL/rules/00-global-rules.adoc` 为准。
+- 本文件仅约束状态字段在任务契约中的存在性与可裁决性。
+
+== 拆分与挂接约束
+
+- 开发任务按“可独立执行、可独立裁决”拆分。
+- 依赖关系必须显式声明。
+- 拆分必须覆盖需求目标达成链路，禁止不可执行拆分。
+
+== 执行约束摘要
+
+- 进入执行前：状态 `READY` 且依赖满足。
+- 执行顺序：`ANALYZE -> PLAN -> EXECUTE -> VALIDATE -> REPORT`。
+- `EXECUTE` 仅允许修改 `PLAN` 声明文件。
+- `VALIDATE` 必须显式给出“通过/不通过”。
+- `REPORT` 必须包含证据与风险结论。
+
+== 规则与模板映射
+
+[cols="1,2,2,2",options="header"]
+|===
+|契约主题 |规则要求（本文件） |模板承载位置 |验收方式
+
+|Task 最小契约
+|字段完整、可追溯、可裁决
+|`template/tasks/task.template.adoc` 需求前言与需求核心信息
+|字段齐全性检查
+
+|Development Task 最小契约
+|目标/范围/计划/验证/裁决完整
+|`template/tasks/task.template.adoc` 开发任务区块
+|区块完整性检查
+
+|状态机与门禁
+|状态字段必须符合全局状态机与门禁
+|`task.status` 与 `dev_task.status` 填写位置
+|状态流转合法性检查
+
+|沟通记录
+|仅追加，不覆盖历史
+|需求沟通记录与开发任务沟通记录
+|追加性与可追溯性检查
+|===
+
+== 非目标
+
+以下内容不在本文件维护：
+
+- 任务章节排版与示例文案
+- 模板占位符设计
+- 执行层实现细节

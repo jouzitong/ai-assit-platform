@@ -1,0 +1,5 @@
+spring:
+  application:
+    name: boot-ai-engine
+server:
+  port: 13101
