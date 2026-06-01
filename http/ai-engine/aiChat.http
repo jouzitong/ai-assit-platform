@@ -1,0 +1,59 @@
+### AI Chat - base vars
+@host = http://127.0.0.1:13101
+@contentType = application/json
+
+### 1) Non-stream chat
+POST {{host}}/api/v1/ai/execution/chat
+Content-Type: {{contentType}}
+Accept: application/json
+
+{
+  "provider": "DASHSCOPE",
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "SYSTEM",
+      "content": "You are a concise assistant."
+    },
+    {
+      "role": "USER",
+      "content": "请用一句话介绍你自己"
+    }
+  ],
+  "options": {
+    "temperature": 0.7,
+    "topP": 0.8,
+    "maxTokens": 256,
+    "timeoutMs": 30000
+  },
+  "meta": {
+    "traceId": "local-http-chat-001",
+    "scene": "manual-http-test"
+  }
+}
+
+### 2) Stream chat (SSE)
+POST {{host}}/api/v1/ai/execution/chat/stream
+Content-Type: {{contentType}}
+Accept: text/event-stream
+
+{
+  "provider": "DASHSCOPE",
+  "model": "qwen-plus",
+  "messages": [
+    {
+      "role": "USER",
+      "content": "请分三点介绍上海"
+    }
+  ],
+  "options": {
+    "temperature": 0.6,
+    "topP": 0.9,
+    "maxTokens": 512,
+    "timeoutMs": 30000
+  },
+  "meta": {
+    "traceId": "local-http-stream-001",
+    "scene": "manual-http-test"
+  }
+}

@@ -6,12 +6,17 @@ import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassist.service.ai.core.AiExecutionDomainService;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 
 @RestController
+@RequestMapping("/api/v1/ai/execution")
 public class AiChatController implements AiChatExecutionApi {
 
     private final AiExecutionDomainService aiExecutionDomainService;
@@ -21,12 +26,14 @@ public class AiChatController implements AiChatExecutionApi {
     }
 
     @Override
-    public ChatResponse chat(ChatRequest request) {
+    @PostMapping("/chat")
+    public ChatResponse chat(@RequestBody ChatRequest request) {
         return aiExecutionDomainService.chat(request);
     }
 
     @Override
-    public SseEmitter chatStream(ChatRequest request) {
+    @PostMapping(value = "/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter chatStream(@RequestBody ChatRequest request) {
         SseEmitter emitter = new SseEmitter(0L);
         aiExecutionDomainService.chatStreamAsync(request, new ChatStreamObserver() {
             @Override
