@@ -1,6 +1,6 @@
 ### AI Chat - base vars
 @host = http://127.0.0.1:13101
-@contentType = application/json
+@contentType = application/json;charset=UTF-8
 
 ### 1) Non-stream chat
 POST {{host}}/api/v1/ai/execution/chat
@@ -9,7 +9,7 @@ Accept: application/json
 
 {
   "provider": "DASHSCOPE",
-  "model": "qwen-plus",
+  "model": "qwen-math-turbo",
   "messages": [
     {
       "role": "SYSTEM",
@@ -35,11 +35,11 @@ Accept: application/json
 ### 2) Stream chat (SSE)
 POST {{host}}/api/v1/ai/execution/chat/stream
 Content-Type: {{contentType}}
-Accept: text/event-stream
+Accept: text/event-stream;charset=UTF-8
 
 {
   "provider": "DASHSCOPE",
-  "model": "qwen-plus",
+  "model": "qwen-math-turbo",
   "messages": [
     {
       "role": "USER",
