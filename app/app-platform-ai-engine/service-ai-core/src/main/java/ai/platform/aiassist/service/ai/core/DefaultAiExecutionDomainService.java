@@ -1,6 +1,5 @@
 package ai.platform.aiassist.service.ai.core;
 
-import ai.platform.aiassist.service.ai.api.AiExecutionApi;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassist.service.ai.api.dto.EmbedRequest;
@@ -16,32 +15,25 @@ import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * AI 统一执行入口默认实现。
- *
- * <p>负责请求校验与提供方路由，不包含具体平台 SDK 细节。</p>
- */
 @Service
-@Primary
 @EnableConfigurationProperties(AiCoreProperties.class)
-public class DefaultAiExecutionService implements AiExecutionApi {
+public class DefaultAiExecutionDomainService implements AiExecutionDomainService {
 
     private final Map<ProviderType, AiProvider> providers = new EnumMap<>(ProviderType.class);
     private final AiCoreProperties properties;
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
 
-    public DefaultAiExecutionService(List<AiProvider> aiProviders,
-                                     AiCoreProperties properties,
-                                     AiRequestValidator validator,
-                                     AiProviderRequestMapper requestMapper) {
+    public DefaultAiExecutionDomainService(List<AiProvider> aiProviders,
+                                           AiCoreProperties properties,
+                                           AiRequestValidator validator,
+                                           AiProviderRequestMapper requestMapper) {
         for (AiProvider provider : aiProviders) {
             this.providers.put(provider.providerType(), provider);
         }
@@ -111,3 +103,4 @@ public class DefaultAiExecutionService implements AiExecutionApi {
         return provider;
     }
 }
+
