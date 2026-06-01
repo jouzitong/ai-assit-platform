@@ -1,0 +1,61 @@
+CREATE TABLE IF NOT EXISTS ai_provider_config (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    provider_code VARCHAR(64) NOT NULL COMMENT '提供商编码',
+    provider_name VARCHAR(128) NOT NULL COMMENT '提供商名称',
+    base_url VARCHAR(512) NOT NULL COMMENT '提供商请求基础地址',
+    connect_timeout_ms INT NOT NULL DEFAULT 3000 COMMENT '连接超时时间（毫秒）',
+    read_timeout_ms INT NOT NULL DEFAULT 30000 COMMENT '读取超时时间（毫秒）',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '启用状态：true启用，false禁用',
+    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '更新者',
+    version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记：0未删除，1已删除',
+    UNIQUE KEY uk_provider_code (provider_code)
+) COMMENT='AI提供商配置表';
+
+CREATE TABLE IF NOT EXISTS ai_model_config (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    model_code VARCHAR(64) NOT NULL COMMENT '模型编码',
+    model_name VARCHAR(128) NOT NULL COMMENT '模型名称',
+    provider_code VARCHAR(64) NOT NULL COMMENT '所属提供商编码',
+    api_model VARCHAR(128) NOT NULL COMMENT '提供商侧模型标识',
+    capability_tags VARCHAR(512) DEFAULT NULL COMMENT '能力标签，多个标签逗号分隔',
+    max_context_tokens INT DEFAULT NULL COMMENT '最大上下文Token数',
+    max_output_tokens INT DEFAULT NULL COMMENT '最大输出Token数',
+    temperature_enabled TINYINT NOT NULL DEFAULT 1 COMMENT '是否启用温度参数：1启用，0禁用',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '启用状态：true启用，false禁用',
+    priority INT NOT NULL DEFAULT 100 COMMENT '优先级，数值越小优先级越高',
+    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '更新者',
+    version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记：0未删除，1已删除',
+    UNIQUE KEY uk_model_code (model_code),
+    KEY idx_provider_code (provider_code)
+) COMMENT='AI模型配置表';
+
+CREATE TABLE IF NOT EXISTS ai_model_credential (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    credential_code VARCHAR(64) NOT NULL COMMENT '密钥配置编码',
+    provider_code VARCHAR(64) NOT NULL COMMENT '提供商编码',
+    model_code VARCHAR(64) NOT NULL COMMENT '模型编码',
+    api_key_ciphertext VARCHAR(2048) NOT NULL COMMENT 'API Key密文',
+    api_key_masked VARCHAR(128) NOT NULL COMMENT 'API Key脱敏展示值',
+    key_version INT NOT NULL DEFAULT 1 COMMENT '密钥版本号',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '启用状态：true启用，false禁用',
+    expire_at DATETIME DEFAULT NULL COMMENT '密钥过期时间',
+    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '更新者',
+    version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记：0未删除，1已删除',
+    UNIQUE KEY uk_credential_code (credential_code),
+    KEY idx_provider_model (provider_code, model_code)
+) COMMENT='AI模型密钥配置表';

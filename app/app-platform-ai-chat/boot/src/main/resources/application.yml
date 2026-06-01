@@ -1,0 +1,6 @@
+server:
+  port: 13102
+
+spring:
+  application:
+    name: app-platform-ai-chat
