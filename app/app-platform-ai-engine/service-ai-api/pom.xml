@@ -15,9 +15,8 @@
 
     <dependencies>
         <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>common</artifactId>
-            <version>${project.version}</version>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-common</artifactId>
         </dependency>
     </dependencies>
 </project>

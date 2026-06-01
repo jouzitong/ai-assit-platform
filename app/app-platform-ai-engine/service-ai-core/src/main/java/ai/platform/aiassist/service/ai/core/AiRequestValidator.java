@@ -1,7 +1,5 @@
 package ai.platform.aiassist.service.ai.core;
 
-import ai.platform.aiassist.common.constant.ParamBizCodeConstant;
-import ai.platform.aiassist.common.exception.BizException;
 import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.EmbedRequest;
@@ -10,6 +8,8 @@ import ai.platform.aiassist.service.ai.api.dto.KbDocument;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
+import org.arthena.framework.common.constant.ParamBizCodeConstant;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;

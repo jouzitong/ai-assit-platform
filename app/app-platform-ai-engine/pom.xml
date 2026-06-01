@@ -13,6 +13,39 @@
     <artifactId>app-platform-ai-engine</artifactId>
     <packaging>pom</packaging>
     <name>app-platform-ai-engine</name>
+<!--    <version>${app.platform.ai.engine.version}</version>-->
+
+    <properties>
+        <app.platform.ai.engine.version>1.0.0-SNAPSHOT</app.platform.ai.engine.version>
+        <spring.ai.version>1.0.7</spring.ai.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.springframework.ai</groupId>
+                <artifactId>spring-ai-bom</artifactId>
+                <version>${spring.ai.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>service-ai-api</artifactId>
+                <version>${app.platform.ai.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>service-ai-core</artifactId>
+                <version>${app.platform.ai.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>service-ai-provider</artifactId>
+                <version>${app.platform.ai.engine.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <modules>
         <module>service-ai-core</module>
