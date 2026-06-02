@@ -1,11 +1,13 @@
 package ai.platform.aiassit.chat.meta.service.impl;
 
+import ai.platform.aiassit.chat.meta.convert.AiProviderConfigConvert;
 import ai.platform.aiassit.chat.meta.entity.dto.AiProviderConfigDTO;
 import ai.platform.aiassit.chat.meta.entity.AiProviderConfigEntity;
 import ai.platform.aiassit.chat.meta.mapper.AiProviderConfigMapper;
 import ai.platform.aiassit.chat.meta.entity.req.AiMetaQueryRequest;
 import ai.platform.aiassit.chat.meta.service.AiProviderConfigService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.athena.framework.data.jdbc.convert.IConvert;
 import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.service.BaseMapperService;
 import org.springframework.stereotype.Service;
@@ -16,12 +18,21 @@ public class AiProviderConfigServiceImpl
         extends BaseMapperService<AiProviderConfigEntity, AiProviderConfigMapper, AiProviderConfigDTO>
         implements AiProviderConfigService {
 
+    private final AiProviderConfigConvert aiProviderConfigConvert;
+
+    public AiProviderConfigServiceImpl(AiProviderConfigConvert aiProviderConfigConvert) {
+        this.aiProviderConfigConvert = aiProviderConfigConvert;
+    }
+
     @Override
+    protected IConvert<AiProviderConfigEntity, AiProviderConfigDTO> convert() {
+        return aiProviderConfigConvert;
+    }
+
     public AiProviderConfigDTO newDTO() {
         return new AiProviderConfigDTO();
     }
 
-    @Override
     public AiProviderConfigEntity newEntity() {
         return new AiProviderConfigEntity();
     }

@@ -1,11 +1,13 @@
 package ai.platform.aiassit.chat.meta.service.impl;
 
+import ai.platform.aiassit.chat.meta.convert.AiModelCredentialConvert;
 import ai.platform.aiassit.chat.meta.entity.dto.AiModelCredentialDTO;
 import ai.platform.aiassit.chat.meta.entity.AiModelCredentialEntity;
 import ai.platform.aiassit.chat.meta.mapper.AiModelCredentialMapper;
 import ai.platform.aiassit.chat.meta.entity.req.AiMetaQueryRequest;
 import ai.platform.aiassit.chat.meta.service.AiModelCredentialService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import org.athena.framework.data.jdbc.convert.IConvert;
 import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.service.BaseMapperService;
 import org.springframework.stereotype.Service;
@@ -16,12 +18,21 @@ public class AiModelCredentialServiceImpl
         extends BaseMapperService<AiModelCredentialEntity, AiModelCredentialMapper, AiModelCredentialDTO>
         implements AiModelCredentialService {
 
+    private final AiModelCredentialConvert aiModelCredentialConvert;
+
+    public AiModelCredentialServiceImpl(AiModelCredentialConvert aiModelCredentialConvert) {
+        this.aiModelCredentialConvert = aiModelCredentialConvert;
+    }
+
     @Override
+    protected IConvert<AiModelCredentialEntity, AiModelCredentialDTO> convert() {
+        return aiModelCredentialConvert;
+    }
+
     public AiModelCredentialDTO newDTO() {
         return new AiModelCredentialDTO();
     }
 
-    @Override
     public AiModelCredentialEntity newEntity() {
         return new AiModelCredentialEntity();
     }

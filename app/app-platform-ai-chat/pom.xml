@@ -44,6 +44,11 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-ai-chat-history</artifactId>
+                <version>${app.platform.ai.chat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>service-ai-api</artifactId>
                 <version>${app.platform.ai.engine.version}</version>
             </dependency>
@@ -55,5 +60,6 @@
         <module>meta</module>
         <module>core</module>
         <module>boot</module>
+        <module>chat-history</module>
     </modules>
 </project>
