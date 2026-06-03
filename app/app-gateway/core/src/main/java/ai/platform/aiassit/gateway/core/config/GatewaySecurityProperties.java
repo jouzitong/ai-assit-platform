@@ -1,4 +1,4 @@
-package ai.platform.aiassit.gateway.core.security;
+package ai.platform.aiassit.gateway.core.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
@@ -20,6 +20,9 @@ public class GatewaySecurityProperties {
 
     private List<String> ignoreUrls = new ArrayList<>(List.of(
         "/actuator/**",
+        "/user/auth/**",
+        "/auth/**",
+        "/open/**",
         "/health/**",
         "/favicon.ico",
         "/error"

@@ -1,5 +1,9 @@
-package ai.platform.aiassit.gateway.core.security;
+package ai.platform.aiassit.gateway.core.filter;
 
+import ai.platform.aiassit.gateway.core.config.GatewaySecurityProperties;
+import ai.platform.aiassit.gateway.core.context.GatewayPermissionSnapshot;
+import ai.platform.aiassit.gateway.core.context.GatewaySecurityAttributes;
+import ai.platform.aiassit.gateway.core.service.GatewayPermissionService;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

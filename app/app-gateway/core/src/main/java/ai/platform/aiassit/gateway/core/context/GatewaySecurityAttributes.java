@@ -1,4 +1,4 @@
-package ai.platform.aiassit.gateway.core.security;
+package ai.platform.aiassit.gateway.core.context;
 
 /**
  * 网关安全请求属性 Key。
@@ -10,6 +10,8 @@ public interface GatewaySecurityAttributes {
     String TOKEN_PARSE_STATUS = "gateway.security.token.parse.status";
 
     String USER_CONTEXT = "gateway.security.user.context";
+
+    String TRACE_ID = "gateway.security.trace-id";
 
     String REQUIRED_PERMISSIONS = "gateway.security.required.permissions";
 

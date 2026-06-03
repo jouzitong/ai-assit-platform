@@ -1,5 +1,6 @@
-package ai.platform.aiassit.gateway.core.security;
+package ai.platform.aiassit.gateway.core.service;
 
+import ai.platform.aiassit.gateway.core.context.GatewayTokenContext;
 import org.athena.framework.security.api.model.UserContext;
 import org.athena.framework.security.api.spi.TokenManager;
 import org.athena.framework.security.api.spi.TokenManagerWithParseResult;

@@ -1,5 +1,6 @@
-package ai.platform.aiassit.gateway.core.security;
+package ai.platform.aiassit.gateway.core.service;
 
+import ai.platform.aiassit.gateway.core.context.GatewayPermissionSnapshot;
 import ai.platform.aiassit.user.api.UserPermissionApi;
 import ai.platform.aiassit.user.api.dto.UserPermissionQueryRequest;
 import ai.platform.aiassit.user.api.dto.UserPermissionQueryResponse;

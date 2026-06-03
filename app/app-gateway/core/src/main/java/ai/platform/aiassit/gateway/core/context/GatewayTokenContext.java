@@ -1,4 +1,4 @@
-package ai.platform.aiassit.gateway.core.security;
+package ai.platform.aiassit.gateway.core.context;
 
 import org.athena.framework.security.api.model.UserContext;
 import org.athena.framework.security.api.spi.TokenParseStatus;
