@@ -1,0 +1,10 @@
+### 1. 登录
+POST {{host}}/user/auth/login
+Content-Type: application/json;charset=UTF-8
+
+{
+  "username": "admin",
+  "password": "Admin@123456"
+}
+
+
