@@ -3,6 +3,21 @@ spring:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+  cloud:
+    gateway:
+      server:
+        webmvc:
+          routes:
+            - id: user-service-route
+              uri: lb://app-platform-user
+              predicates:
+                - Path=/user/**
+      mvc:
+        routes:
+          - id: user-service-route
+            uri: lb://app-platform-user
+            predicates:
+              - Path=/user/**
 
 athena:
   security:
@@ -23,7 +38,7 @@ gateway:
     ignore-urls:
       - /actuator/**
       - /health/**
-      - /auth/**
+      - /user/auth/**
       - /error
       - /favicon.ico
     permission:

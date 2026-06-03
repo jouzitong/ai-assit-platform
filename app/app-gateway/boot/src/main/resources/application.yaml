@@ -11,5 +11,6 @@ spring:
 app:
   platform-user:
     name: 'app-platform-user'
+    url: 'http://127.0.0.1:8082/user'
   gateway:
     name: 'gateway'

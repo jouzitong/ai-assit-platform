@@ -8,3 +8,10 @@ spring:
     username: root
     password: rooth5lUs*dA*
     driver-class-name: com.mysql.cj.jdbc.Driver
+
+
+athena:
+  security:
+    user:
+      mybatis:
+        enabled: true

@@ -11,7 +11,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  */
 @FeignClient(
         name = "${app.platform-user.name:app-platform-user}",
-        url = "${app.platform-user.url:http://127.0.0.1:8082}"
+        url = "${app.platform-user.url:http://127.0.0.1:8082/user}"
 )
 public interface UserQueryApi {
 
