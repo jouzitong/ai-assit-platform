@@ -13,8 +13,14 @@ ai-assit-platform/
 ├── pom.xml                                # 根聚合 POM（packaging=pom）
 ├── lombok.config
 ├── app/
-│   ├── app-gateway/                       # 网关模块（当前为 pom 占位）
-│   │   └── pom.xml
+│   ├── app-gateway/                       # 网关聚合模块（packaging=pom）
+│   │   ├── pom.xml
+│   │   ├── core/                          # 网关核心实现层
+│   │   │   ├── pom.xml
+│   │   │   └── src/main/java/...
+│   │   └── boot/                          # 网关启动模块（Spring Boot）
+│   │       ├── pom.xml
+│   │       └── src/main/java/...
 │   ├── app-platform-ai-engine/            # AI 引擎聚合模块（packaging=pom）
 │   │   ├── pom.xml
 │   │   ├── service-ai-api/                # AI 领域 API 契约层（DTO + API 接口）
@@ -123,7 +129,9 @@ ai-assit-platform/
 
 ### 2.4 网关模块（`app/app-gateway`）
 职责：
-- 当前为聚合占位（`packaging=pom`）。
+- 当前拆分为 `core/boot` 两层：
+  - `core`：承载网关核心实现与后续接入层逻辑。
+  - `boot`：`PlatformGatewayApplication` 启动装配。
 
 边界：
 - 未来承载统一入口、路由编排、鉴权前置等能力。

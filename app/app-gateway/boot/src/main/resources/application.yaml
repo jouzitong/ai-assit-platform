@@ -1,0 +1,8 @@
+server:
+  port: 9764
+spring:
+  profiles:
+    active: dev
+    include: common, lib
+  application:
+    name: gateway

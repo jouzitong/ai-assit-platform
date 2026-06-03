@@ -13,6 +13,40 @@
 
     <artifactId>app-gateway</artifactId>
     <packaging>pom</packaging>
-<!--    <version>0.0.1-SNAPSHOT</version>-->
     <name>app-gateway</name>
+
+    <properties>
+        <app.gateway.version>1.0.0-SNAPSHOT</app.gateway.version>
+    </properties>
+
+    <dependencies>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-nacos</artifactId>
+        </dependency>
+    </dependencies>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-gateway-core</artifactId>
+                <version>${app.gateway.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-gateway-boot</artifactId>
+                <version>${app.gateway.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>core</module>
+        <module>boot</module>
+    </modules>
 </project>
