@@ -60,6 +60,18 @@ ai-assit-platform/
 - `pom.xml` 管理版本与模块清单。
 - 当前聚合模块：`app-gateway`、`app-platform-ai-engine`、`app-platform-user`。
 
+### 2.1.1 `api` 模块统一约定
+- 仓库内所有 `api` 模块都只用于后端内部服务之间的契约定义。
+- `api` 模块可以被 `core`、`boot`、其他后端服务依赖，但不面向前端直接调用。
+- 前端只应调用网关暴露的 HTTP 接口，不应直接依赖或访问任一 `api` 模块中的接口定义。
+- `api` 模块通常只放 DTO、请求/响应模型、Feign 接口或跨服务契约，不承载具体业务实现。
+
+### 2.1.2 应用最小模块约定
+- 一个应用至少包含 `core` 和 `boot` 两个模块。
+- `core` 承载业务实现、控制器、领域服务和核心装配逻辑。
+- `boot` 只负责启动类、配置导入、自动装配和模块组装，不下沉业务实现。
+- 如果应用还需要对外提供内部契约，可以额外增加 `api` 模块，但 `api` 仍然只面向后端内部使用。
+
 ### 2.2 AI 引擎服务（`app/app-platform-ai-engine`）
 该目录是一个“分层清晰”的 AI 服务域，内部拆成 API / Core / Provider / Boot 四层。
 
@@ -118,7 +130,7 @@ ai-assit-platform/
 ### 2.3 用户服务（`app/app-platform-user`）
 职责：
 - 用户域拆分为 `api/core/boot` 三层：
-  - `api`：提供内部服务调用契约（用户查询、权限查询），并引入 OpenFeign。
+  - `api`：提供内部后端服务调用契约（用户查询、权限查询），并引入 OpenFeign；不对前端开放。
   - `core`：实现 `api` 中定义的接口（Controller 落地）。
   - `boot`：`PlatformUserApplication` 启动装配。
 - 已引入 Athena 安全相关 Starter（含 `athena-framework-starter-security-user-mybatis`）。
@@ -162,7 +174,7 @@ HTTP Request
 - `service-ai-core`：只做领域编排和统一规则，不直接耦合具体厂商 SDK。
 - `service-ai-provider`：只做外部模型接入适配，不定义业务路由规则。
 - `boot-*` 模块：只做启动装配，不下沉业务逻辑。
-- `app-platform-user-api`：只定义内部调用契约，不写业务实现。
+- `app-platform-user-api`：只定义内部后端调用契约，不写业务实现，也不面向前端开放。
 - `app-platform-user-core`：只承载用户域实现，不承担启动职责。
 - `app-platform-user` 与 `app-platform-ai-engine`：按业务域隔离，避免跨域相互侵入。
 - `app-gateway`：承担接入层能力，不替代各域服务内部逻辑。
