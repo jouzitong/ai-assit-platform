@@ -54,6 +54,7 @@
         <module>app/app-gateway</module>
         <module>app/app-platform-ai-engine</module>
         <module>app/app-platform-ai-chat</module>
+        <module>app/app-platform-db-engine</module>
         <module>app/app-platform-user</module>
     </modules>
 
