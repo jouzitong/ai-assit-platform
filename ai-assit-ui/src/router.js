@@ -1,6 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { clearSession, getToken } from './utils/session'
-import { getCurrentUser } from './api/auth'
+import { clearSession, getToken, isTokenPastHalfLife, setSession } from './utils/session'
+import { getCurrentUser, refreshAuth } from './api/auth'
 import IndexPage from './views/index.vue'
 import QueryPage from './views/query.vue'
 import AttendancePage from './views/attendance.vue'
@@ -31,12 +31,34 @@ router.beforeEach((to) => {
   document.title = to.meta?.title ? `${to.meta.title} | EMP Console` : 'EMP Console'
 })
 
+async function refreshTokenIfNeeded(token) {
+  if (!token || !isTokenPastHalfLife(token)) {
+    return null
+  }
+
+  const response = await refreshAuth()
+  const nextToken = response?.token ?? response?.data?.token
+  const nextUser = response?.user ?? response?.data?.user
+
+  if (!nextToken) {
+    throw new Error('刷新接口未返回 token')
+  }
+
+  setSession({
+    token: nextToken,
+    user: nextUser
+  })
+
+  return nextToken
+}
+
 router.beforeEach(async (to) => {
   const token = getToken()
 
   if (to.meta?.public) {
     if (token && to.path === '/login') {
       try {
+        await refreshTokenIfNeeded(token)
         await getCurrentUser()
         return { path: '/home' }
       } catch {
@@ -54,6 +76,7 @@ router.beforeEach(async (to) => {
   }
 
   try {
+    await refreshTokenIfNeeded(token)
     await getCurrentUser()
     return true
   } catch {

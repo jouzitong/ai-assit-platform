@@ -33,10 +33,16 @@ async function handleSubmit() {
       credentialType: 'PASSWORD'
     })
 
+    const loginToken = response?.token ?? response?.data?.token
+    const loginUser = response?.user ?? response?.data?.user
+    if (!loginToken) {
+      throw new Error('登录接口未返回 token')
+    }
+
     const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
     setSession({
-      token: response.token,
-      user: response.user
+      token: loginToken,
+      user: loginUser
     })
 
     await router.push(redirect)

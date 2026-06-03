@@ -39,7 +39,7 @@ public class GatewayTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        if (!properties.isEnabled() || isIgnored(request.getRequestURI())) {
+        if (!properties.isEnabled() || isOptions(request) || isIgnored(request.getRequestURI())) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -62,6 +62,10 @@ public class GatewayTokenFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isOptions(HttpServletRequest request) {
+        return "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
     private boolean isIgnored(String requestUri) {

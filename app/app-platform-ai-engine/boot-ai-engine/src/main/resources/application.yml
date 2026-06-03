@@ -1,6 +1,9 @@
 spring:
   application:
     name: boot-ai-engine
+  profiles:
+    active: dev
+    include: common, lib
 server:
   port: 13101
 

@@ -41,7 +41,7 @@ public class GatewayPermissionFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
-        if (!properties.isEnabled() || !properties.getPermission().isEnabled() || isIgnored(request.getRequestURI())) {
+        if (!properties.isEnabled() || !properties.getPermission().isEnabled() || isOptions(request) || isIgnored(request.getRequestURI())) {
             filterChain.doFilter(request, response);
             return;
         }
@@ -78,6 +78,10 @@ public class GatewayPermissionFilter extends OncePerRequestFilter {
         }
 
         filterChain.doFilter(request, response);
+    }
+
+    private boolean isOptions(HttpServletRequest request) {
+        return "OPTIONS".equalsIgnoreCase(request.getMethod());
     }
 
     private Set<String> readRequiredPermissions(HttpServletRequest request) {

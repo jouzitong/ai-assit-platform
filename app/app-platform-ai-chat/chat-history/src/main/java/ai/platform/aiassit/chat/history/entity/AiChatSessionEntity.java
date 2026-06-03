@@ -1,5 +1,6 @@
 package ai.platform.aiassit.chat.history.entity;
 
+import ai.platform.aiassit.chat.history.entity.enums.AiChatBusinessType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
@@ -22,6 +23,9 @@ public class AiChatSessionEntity extends LogicalDeleteEntity {
 
     @TableField("user_id")
     private Long userId;
+
+    @TableField("business_type")
+    private AiChatBusinessType businessType;
 
     @TableField("session_name")
     private String sessionName;

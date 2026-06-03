@@ -1,6 +1,9 @@
-server:
-  port: 13102
-
 spring:
   application:
     name: app-platform-ai-chat
+  profiles:
+    active: dev
+    include: common, lib
+
+server:
+  port: 13102
