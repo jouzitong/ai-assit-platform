@@ -1,6 +1,32 @@
-
 spring:
   servlet:
     multipart:
       max-file-size: 20MB
       max-request-size: 20MB
+
+athena:
+  security:
+    enabled: true
+    auth:
+      enabled: false
+    token:
+      type: jwt
+      jwt:
+        enabled: true
+
+gateway:
+  security:
+    enabled: true
+    require-token: true
+    header-name: Authorization
+    token-prefix: Bearer
+    ignore-urls:
+      - /actuator/**
+      - /health/**
+      - /auth/**
+      - /error
+      - /favicon.ico
+    permission:
+      enabled: false
+      app-code: app-platform-user
+      required-permissions-header: X-Gateway-Required-Permissions

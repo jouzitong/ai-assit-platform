@@ -20,6 +20,14 @@
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-web</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-security-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-user-api</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.projectlombok</groupId>

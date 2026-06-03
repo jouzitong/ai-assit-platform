@@ -24,8 +24,17 @@
 
     <dependencies>
         <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+        <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-user-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-nacos</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

@@ -1,3 +1,8 @@
+#server:
+#  servlet:
+#    session:
+#      timeout: 1d
+
 spring:
   cloud:
     nacos:
@@ -16,8 +21,3 @@ spring:
         group: ${spring.application.name}
         username: 'nacos'
         password: 'nacos'
-  servlet:
-    multipart:
-      max-file-size: 20MB
-      max-request-size: 20MB
-

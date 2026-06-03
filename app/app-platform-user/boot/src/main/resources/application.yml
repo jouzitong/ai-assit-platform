@@ -1,6 +1,9 @@
 spring:
   application:
     name: app-platform-user
+  profiles:
+    active: dev
+    include: common, lib
 
 server:
   port: 8082

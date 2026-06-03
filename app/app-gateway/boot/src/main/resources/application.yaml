@@ -6,3 +6,10 @@ spring:
     include: common, lib
   application:
     name: gateway
+  main:
+    allow-bean-definition-overriding: true
+app:
+  platform-user:
+    name: 'app-platform-user'
+  gateway:
+    name: 'gateway'
