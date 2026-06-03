@@ -10,11 +10,12 @@ import org.springframework.web.bind.annotation.RequestBody;
  * 用户权限查询 API（内部服务调用）。
  */
 @FeignClient(
-        name = "${app.platform-user.name:app-platform-user}",
-        url = "${app.platform-user.url:http://127.0.0.1:8082/user}"
+        name = "app-platform-user",
+        contextId = "platformUserClient",
+        path = "/user"
 )
 public interface UserPermissionApi {
 
-    @PostMapping("/api/v1/internal/user/permissions/query")
+    @PostMapping("/internal/v1/user/permissions/query")
     UserPermissionQueryResponse queryPermissions(@RequestBody UserPermissionQueryRequest request);
 }
