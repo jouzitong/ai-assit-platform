@@ -1,4 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { clearSession, getToken } from './utils/session'
+import { getCurrentUser } from './api/auth'
 import IndexPage from './views/index.vue'
 import QueryPage from './views/query.vue'
 import AttendancePage from './views/attendance.vue'
@@ -27,6 +29,40 @@ const router = createRouter({
 
 router.beforeEach((to) => {
   document.title = to.meta?.title ? `${to.meta.title} | EMP Console` : 'EMP Console'
+})
+
+router.beforeEach(async (to) => {
+  const token = getToken()
+
+  if (to.meta?.public) {
+    if (token && to.path === '/login') {
+      try {
+        await getCurrentUser()
+        return { path: '/home' }
+      } catch {
+        clearSession()
+      }
+    }
+    return true
+  }
+
+  if (!token) {
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath }
+    }
+  }
+
+  try {
+    await getCurrentUser()
+    return true
+  } catch {
+    clearSession()
+    return {
+      path: '/login',
+      query: { redirect: to.fullPath }
+    }
+  }
 })
 
 export default router

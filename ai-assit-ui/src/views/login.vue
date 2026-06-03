@@ -2,6 +2,7 @@
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { setSession } from '../utils/session'
+import { loginAuth } from '../api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -14,6 +15,7 @@ const form = reactive({
 })
 
 const canSubmit = computed(() => form.username.trim() && form.password.trim() && form.tenant.trim())
+const errorMessage = ref('')
 
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) {
@@ -21,20 +23,28 @@ async function handleSubmit() {
   }
 
   submitting.value = true
+  errorMessage.value = ''
 
-  const token = `mock-token-${Date.now()}`
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
+  try {
+    const response = await loginAuth({
+      username: form.username.trim(),
+      password: form.password,
+      tenantId: form.tenant.trim(),
+      credentialType: 'PASSWORD'
+    })
 
-  setSession({
-    token,
-    user: {
-      name: form.username.trim(),
-      tenant: form.tenant.trim()
-    }
-  })
+    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
+    setSession({
+      token: response.token,
+      user: response.user
+    })
 
-  await router.push(redirect)
-  submitting.value = false
+    await router.push(redirect)
+  } catch (error) {
+    errorMessage.value = error instanceof Error ? error.message : '登录失败'
+  } finally {
+    submitting.value = false
+  }
 }
 </script>
 
@@ -66,6 +76,7 @@ async function handleSubmit() {
       </div>
 
       <form class="login-form" @submit.prevent="handleSubmit">
+        <p v-if="errorMessage" class="login-error">{{ errorMessage }}</p>
         <label class="login-field">
           <span>租户编码</span>
           <input v-model="form.tenant" type="text" placeholder="请输入租户编码" />

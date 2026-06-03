@@ -1,7 +1,8 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { clearSession, THEME_STORAGE_KEY } from '../utils/session'
+import { clearSession, getToken, THEME_STORAGE_KEY } from '../utils/session'
+import { logoutAuth } from '../api/auth'
 
 const route = useRoute()
 const router = useRouter()
@@ -36,8 +37,18 @@ function toggleTheme() {
 
 async function handleLogout() {
   settingsOpen.value = false
-  clearSession()
-  await router.push('/login')
+  const token = getToken()
+
+  try {
+    if (token) {
+      await logoutAuth()
+    }
+  } catch {
+    // 退出时优先保证前端状态清理，后端失效失败不阻塞登出。
+  } finally {
+    clearSession()
+    await router.push('/login')
+  }
 }
 
 onMounted(() => {

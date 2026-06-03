@@ -1,4 +1,5 @@
 import { GATEWAY_BASE_URL } from '../config/runtime'
+import { getToken } from './session'
 
 function buildUrl(path) {
   if (!path) {
@@ -14,9 +15,11 @@ function buildUrl(path) {
 }
 
 async function request(path, options = {}) {
+  const token = getToken()
   const response = await fetch(buildUrl(path), {
     headers: {
       'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {})
     },
     ...options

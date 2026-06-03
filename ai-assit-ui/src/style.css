@@ -320,6 +320,16 @@ body.query-lock-scroll {
   gap: 16px;
 }
 
+.login-error {
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(220, 38, 38, 0.1);
+  color: #b91c1c;
+  border: 1px solid rgba(220, 38, 38, 0.16);
+  font-size: 13px;
+}
+
 .login-field {
   display: grid;
   gap: 8px;
