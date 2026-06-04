@@ -3,7 +3,10 @@ package ai.platform.aiassit.chat.api;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationCreateRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationDetailRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationDetailResponse;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationDeleteRequest;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationPinRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationQueryRequest;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationRenameRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
@@ -35,4 +38,13 @@ public interface AiChatQueryApi {
 
     @PostMapping("/api/v1/ai/chat/conversation/create")
     AiChatConversationDetailResponse create(@RequestBody(required = false) AiChatConversationCreateRequest request);
+
+    @PostMapping("/api/v1/ai/chat/conversation/rename")
+    AiChatSessionDTO renameConversation(@RequestBody AiChatConversationRenameRequest request);
+
+    @PostMapping("/api/v1/ai/chat/conversation/pin")
+    AiChatSessionDTO pinConversation(@RequestBody AiChatConversationPinRequest request);
+
+    @PostMapping("/api/v1/ai/chat/conversation/delete")
+    Boolean deleteConversation(@RequestBody AiChatConversationDeleteRequest request);
 }

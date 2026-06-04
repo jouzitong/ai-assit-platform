@@ -47,7 +47,10 @@ public class AiChatSessionServiceImpl
             if (req.getUserId() != null) {
                 wrapper.lambda().eq(AiChatSessionEntity::getUserId, req.getUserId());
             }
-            wrapper.lambda().orderByDesc(AiChatSessionEntity::getId);
+            if (req.getBusinessType() != null) {
+                wrapper.lambda().eq(AiChatSessionEntity::getBusinessType, req.getBusinessType());
+            }
+            wrapper.lambda().orderByDesc(AiChatSessionEntity::getPinned, AiChatSessionEntity::getUpdateTime, AiChatSessionEntity::getId);
         }
         return wrapper;
     }

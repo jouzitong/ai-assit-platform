@@ -3,7 +3,10 @@ package ai.platform.aiassit.chat.core.query.impl;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationCreateRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationDetailRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationDetailResponse;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationDeleteRequest;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationPinRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationQueryRequest;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationRenameRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryStreamEvent;
@@ -146,6 +149,7 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         if (request != null) {
             query.setUserId(request.getUserId());
             query.setSessionCode(request.getSessionCode());
+            query.setBusinessType(request.getBusinessType());
         }
         return sessionService.queryAll(query);
     }
@@ -181,6 +185,32 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         AiChatConversationDetailResponse response = new AiChatConversationDetailResponse();
         response.setSession(created);
         return response;
+    }
+
+    @Override
+    public AiChatSessionDTO renameConversation(AiChatConversationRenameRequest request) {
+        AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
+                request == null ? null : request.getUserId());
+        AiChatSessionDTO update = new AiChatSessionDTO();
+        update.setSessionName(resolveSessionName(request == null ? null : request.getSessionName()));
+        return sessionService.edit(session.getId(), update);
+    }
+
+    @Override
+    public AiChatSessionDTO pinConversation(AiChatConversationPinRequest request) {
+        AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
+                request == null ? null : request.getUserId());
+        AiChatSessionDTO update = new AiChatSessionDTO();
+        update.setPinned(resolvePinned(request == null ? null : request.getPinned(), session.getPinned()));
+        return sessionService.edit(session.getId(), update);
+    }
+
+    @Override
+    public Boolean deleteConversation(AiChatConversationDeleteRequest request) {
+        AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
+                request == null ? null : request.getUserId());
+        deleteConversationHistory(session.getSessionCode(), session.getUserId());
+        return sessionService.delete(session.getId());
     }
 
     private void handleStream(AiChatQueryRequest request, SseEmitter emitter) {
@@ -486,6 +516,13 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         return businessType == null ? AiChatBusinessType.GENERAL : businessType;
     }
 
+    private Boolean resolvePinned(Boolean requestedPinned, Boolean currentPinned) {
+        if (requestedPinned != null) {
+            return requestedPinned;
+        }
+        return !Boolean.TRUE.equals(currentPinned);
+    }
+
     private String resolveSessionName(String sessionName, String prompt) {
         if (StringUtils.hasText(sessionName)) {
             return sessionName.trim();
@@ -503,6 +540,34 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
 
     private long resolveUserId(Long userId) {
         return userId == null ? 0L : userId;
+    }
+
+    private AiChatSessionDTO loadConversationSession(String sessionCode, Long userId) {
+        if (!StringUtils.hasText(sessionCode)) {
+            throw new IllegalArgumentException("sessionCode is required");
+        }
+        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        query.setSessionCode(sessionCode);
+        query.setUserId(resolveUserId(userId));
+        AiChatSessionDTO session = sessionService.get(query);
+        if (session == null) {
+            throw new IllegalArgumentException("conversation not found");
+        }
+        return session;
+    }
+
+    private void deleteConversationHistory(String sessionCode, Long userId) {
+        AiChatHistoryQueryRequest query = buildHistoryQuery(sessionCode, userId);
+        messageService.queryAll(query).forEach(message -> {
+            if (message.getId() != null) {
+                messageService.delete(message.getId());
+            }
+        });
+        roundService.queryAll(query).forEach(round -> {
+            if (round.getId() != null) {
+                roundService.delete(round.getId());
+            }
+        });
     }
 
     private void persistAssistantMessage(QueryContext context, String answer) {

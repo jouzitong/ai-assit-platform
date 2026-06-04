@@ -1,5 +1,6 @@
 package ai.platform.aiassit.chat.history.entity.req;
 
+import ai.platform.aiassit.chat.history.entity.enums.AiChatBusinessType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;
@@ -15,4 +16,6 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
     private Long userId;
 
     private String role;
+
+    private AiChatBusinessType businessType;
 }

@@ -29,4 +29,7 @@ public class AiChatSessionEntity extends LogicalDeleteEntity {
 
     @TableField("session_name")
     private String sessionName;
+
+    @TableField("pinned")
+    private Boolean pinned = Boolean.FALSE;
 }

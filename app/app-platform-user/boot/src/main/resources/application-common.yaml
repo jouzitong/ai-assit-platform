@@ -15,3 +15,8 @@ athena:
     user:
       mybatis:
         enabled: true
+    token:
+      type: jwt
+      jwt:
+        enabled: true
+        accessTokenExpireMinutes: 120

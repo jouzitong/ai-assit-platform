@@ -24,7 +24,7 @@ athena:
   security:
     enabled: true
     auth:
-      enabled: false
+      enabled: true
     token:
       type: jwt
       jwt:

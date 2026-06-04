@@ -4,7 +4,10 @@ import ai.platform.aiassit.chat.api.AiChatQueryApi;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationCreateRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationDetailRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationDetailResponse;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationDeleteRequest;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationPinRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatConversationQueryRequest;
+import ai.platform.aiassit.chat.api.dto.AiChatConversationRenameRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.api.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.AiChatQueryService;
@@ -56,5 +59,23 @@ public class AiChatQueryController implements AiChatQueryApi {
     @PostMapping("/conversation/create")
     public AiChatConversationDetailResponse create(@RequestBody(required = false) AiChatConversationCreateRequest request) {
         return service.createConversation(request);
+    }
+
+    @Override
+    @PostMapping("/conversation/rename")
+    public ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO renameConversation(@RequestBody AiChatConversationRenameRequest request) {
+        return service.renameConversation(request);
+    }
+
+    @Override
+    @PostMapping("/conversation/pin")
+    public ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO pinConversation(@RequestBody AiChatConversationPinRequest request) {
+        return service.pinConversation(request);
+    }
+
+    @Override
+    @PostMapping("/conversation/delete")
+    public Boolean deleteConversation(@RequestBody AiChatConversationDeleteRequest request) {
+        return service.deleteConversation(request);
     }
 }

@@ -16,4 +16,6 @@ public class AiChatSessionDTO extends BaseDTO {
     private AiChatBusinessType businessType;
 
     private String sessionName;
+
+    private Boolean pinned = Boolean.FALSE;
 }

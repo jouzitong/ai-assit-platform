@@ -4,8 +4,8 @@ spring:
   profiles:
     active: dev
     include: common, lib
-
-server:
+  main:
+    allow-bean-definition-overriding: true
   port: 13102
   servlet:
     context-path: /aiChat

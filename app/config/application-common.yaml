@@ -31,3 +31,13 @@ mybatis:
   configuration:
     map-underscore-to-camel-case: true
 
+athena:
+  security:
+    user:
+      mybatis:
+        enabled: true
+    token:
+      type: jwt
+      jwt:
+        enabled: true
+        accessTokenExpireMinutes: 120
