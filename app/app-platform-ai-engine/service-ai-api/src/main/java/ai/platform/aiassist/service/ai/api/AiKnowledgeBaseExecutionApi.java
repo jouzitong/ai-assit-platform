@@ -15,7 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  */
 @FeignClient(
         name = "${app.ai-engine.name:boot-ai-engine}",
-        url = "${app.ai-engine.url:http://127.0.0.1:13101}"
+        url = "${app.ai-engine.url:http://127.0.0.1:13101/aiEngine}"
 )
 public interface AiKnowledgeBaseExecutionApi {
 

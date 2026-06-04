@@ -5,19 +5,20 @@ spring:
       max-request-size: 20MB
   cloud:
     gateway:
-      server:
-        webmvc:
-          routes:
-            - id: user-service-route
-              uri: lb://app-platform-user
-              predicates:
-                - Path=/user/**
       mvc:
         routes:
           - id: user-service-route
             uri: lb://app-platform-user
             predicates:
               - Path=/user/**
+          - id: ai-chat-service-route
+            uri: lb://app-platform-ai-chat
+            predicates:
+              - Path=/aiChat/**
+          - id: ai-engine-service-route
+            uri: lb://boot-ai-engine
+            predicates:
+              - Path=/aiEngine/**
 
 athena:
   security:

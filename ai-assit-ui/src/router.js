@@ -1,19 +1,19 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { clearSession, getToken, isTokenPastHalfLife, setSession } from './utils/session'
 import { getCurrentUser, refreshAuth } from './api/auth'
-import IndexPage from './views/index.vue'
-import QueryPage from './views/query.vue'
-import AttendancePage from './views/attendance.vue'
-import PerformancePage from './views/performance.vue'
-import CostPage from './views/cost.vue'
-import ProfilePage from './views/profile.vue'
-import SystemPage from './views/system.vue'
-import LoginPage from './views/login.vue'
+import HomePage from './views/domain/home/overview/index.vue'
+import QueryPage from './views/domain/query/assistant/index.vue'
+import AttendancePage from './views/domain/emp/attendance/index.vue'
+import PerformancePage from './views/domain/emp/performance/index.vue'
+import CostPage from './views/domain/emp/cost/index.vue'
+import ProfilePage from './views/domain/settings/profile/index.vue'
+import SystemPage from './views/domain/settings/system/index.vue'
+import LoginPage from './views/domain/auth/login/index.vue'
 
 const routes = [
   { path: '/', redirect: '/home' },
   { path: '/login', component: LoginPage, meta: { title: '登录', public: true, plainLayout: true } },
-  { path: '/home', component: IndexPage, meta: { title: '首页' } },
+  { path: '/home', component: HomePage, meta: { title: '首页' } },
   { path: '/query', component: QueryPage, meta: { title: '智能问数' } },
   { path: '/emp/attendance', component: AttendancePage, meta: { title: '考勤看板' } },
   { path: '/emp/performance', component: PerformancePage, meta: { title: '绩效洞察' } },

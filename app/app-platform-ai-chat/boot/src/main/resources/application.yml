@@ -7,3 +7,5 @@ spring:
 
 server:
   port: 13102
+  servlet:
+    context-path: /aiChat

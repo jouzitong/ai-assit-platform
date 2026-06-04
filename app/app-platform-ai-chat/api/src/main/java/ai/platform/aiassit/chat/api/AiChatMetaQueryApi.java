@@ -13,7 +13,7 @@ import java.util.List;
 
 @FeignClient(
         name = "${app.platform-ai-chat.name:app-platform-ai-chat}",
-        url = "${app.platform-ai-chat.url:http://127.0.0.1:13102}"
+        url = "${app.platform-ai-chat.url:http://127.0.0.1:13102/aiChat}"
 )
 @RequestMapping("/api/v1/ai/chat/meta")
 public interface AiChatMetaQueryApi {

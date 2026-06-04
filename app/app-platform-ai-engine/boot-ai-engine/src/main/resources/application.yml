@@ -6,6 +6,8 @@ spring:
     include: common, lib
 server:
   port: 13101
+  servlet:
+    context-path: /aiEngine
 
 ai:
   provider:

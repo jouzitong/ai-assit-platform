@@ -1,12 +1,13 @@
 <script setup>
 import { computed, reactive, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { setSession } from '../utils/session'
-import { loginAuth } from '../api/auth'
+import { loginHeroHighlights } from '../data'
+import { submitLogin } from '../service'
 
 const route = useRoute()
 const router = useRouter()
 const submitting = ref(false)
+const errorMessage = ref('')
 
 const form = reactive({
   username: 'admin',
@@ -15,7 +16,6 @@ const form = reactive({
 })
 
 const canSubmit = computed(() => form.username.trim() && form.password.trim() && form.tenant.trim())
-const errorMessage = ref('')
 
 async function handleSubmit() {
   if (!canSubmit.value || submitting.value) {
@@ -26,26 +26,7 @@ async function handleSubmit() {
   errorMessage.value = ''
 
   try {
-    const response = await loginAuth({
-      username: form.username.trim(),
-      password: form.password,
-      tenantId: form.tenant.trim(),
-      credentialType: 'PASSWORD'
-    })
-
-    const loginToken = response?.token ?? response?.data?.token
-    const loginUser = response?.user ?? response?.data?.user
-    if (!loginToken) {
-      throw new Error('登录接口未返回 token')
-    }
-
-    const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
-    setSession({
-      token: loginToken,
-      user: loginUser
-    })
-
-    await router.push(redirect)
+    await submitLogin(form, route, router)
   } catch (error) {
     errorMessage.value = error instanceof Error ? error.message : '登录失败'
   } finally {
@@ -64,13 +45,9 @@ async function handleSubmit() {
       </p>
 
       <div class="login-highlights">
-        <article class="login-highlight-card">
-          <strong>智能问数</strong>
-          <span>对接人效、考勤与绩效数据，直接完成自然语言分析。</span>
-        </article>
-        <article class="login-highlight-card">
-          <strong>统一控制台</strong>
-          <span>个人设置、系统管理、主题切换都集中在同一入口。</span>
+        <article v-for="item in loginHeroHighlights" :key="item.title" class="login-highlight-card">
+          <strong>{{ item.title }}</strong>
+          <span>{{ item.description }}</span>
         </article>
       </div>
     </section>
