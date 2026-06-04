@@ -17,7 +17,7 @@
   scrollbar-gutter: stable;
   display: grid;
   gap: 18px;
-  padding-right: 4px;
+  padding: 18px;
 }
 
 .content-head {

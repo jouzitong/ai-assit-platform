@@ -11,7 +11,7 @@ const errorMessage = ref('')
 
 const form = reactive({
   username: 'admin',
-  password: '',
+  password: 'Admin@123456',
   tenant: 'OKX-HR'
 })
 

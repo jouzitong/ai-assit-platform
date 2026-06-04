@@ -28,11 +28,11 @@ export const initialStages = [
 ]
 
 export const initialHistoryList = [
-  { title: '最近30天人力成本波动分析', time: '今天 14:32', active: true },
-  { title: '客服团队夜班补贴异常排查', time: '今天 11:08', active: false },
-  { title: '研发中心编制与预算偏差对比', time: '昨天 18:45', active: false },
-  { title: '销售部门提成成本趋势复盘', time: '昨天 16:20', active: false },
-  { title: '月度绩效分布与离职率联动', time: '06-01 09:14', active: false }
+  { id: 'history-1', title: '最近30天人力成本波动分析', time: '今天 14:32', active: true, pinned: true },
+  { id: 'history-2', title: '客服团队夜班补贴异常排查', time: '今天 11:08', active: false, pinned: false },
+  { id: 'history-3', title: '研发中心编制与预算偏差对比', time: '昨天 18:45', active: false, pinned: false },
+  { id: 'history-4', title: '销售部门提成成本趋势复盘', time: '昨天 16:20', active: false, pinned: false },
+  { id: 'history-5', title: '月度绩效分布与离职率联动', time: '06-01 09:14', active: false, pinned: false }
 ]
 
 export const resultRows = [

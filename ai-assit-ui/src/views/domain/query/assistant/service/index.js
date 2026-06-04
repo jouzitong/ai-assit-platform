@@ -33,6 +33,7 @@ export function useQueryAssistantPage() {
   const previewFullscreen = ref(false)
   const historyKeyword = ref('')
   const historyList = ref(initialHistoryList.map((item) => ({ ...item })))
+  const historyMenuOpenId = ref(null)
   const composerInput = ref(null)
   const minInputHeight = 48
   const maxInputHeight = 320
@@ -45,8 +46,18 @@ export function useQueryAssistantPage() {
 
   const filteredHistoryList = computed(() => {
     const keyword = historyKeyword.value.trim().toLowerCase()
-    if (!keyword) return historyList.value
-    return historyList.value.filter((item) => item.title.toLowerCase().includes(keyword))
+    const list = keyword
+      ? historyList.value.filter((item) => item.title.toLowerCase().includes(keyword))
+      : historyList.value
+
+    return [...list]
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => {
+        const pinDiff = Number(b.item.pinned) - Number(a.item.pinned)
+        if (pinDiff !== 0) return pinDiff
+        return a.index - b.index
+      })
+      .map(({ item }) => item)
   })
 
   const pieBackground = buildPieBackground(pieSegments)
@@ -95,23 +106,90 @@ export function useQueryAssistantPage() {
   }
 
   function createConversation() {
+    historyMenuOpenId.value = null
     historyList.value = historyList.value.map((item) => ({ ...item, active: false }))
     historyList.value.unshift({
+      id: `history-${Date.now()}`,
       title: `新对话 ${historyList.value.length + 1}`,
       time: '刚刚',
-      active: true
+      active: true,
+      pinned: false
     })
+  }
+
+  function activateConversation(id) {
+    historyList.value = historyList.value.map((item) => ({
+      ...item,
+      active: item.id === id
+    }))
+    historyMenuOpenId.value = null
+  }
+
+  function toggleHistoryMenu(id) {
+    historyMenuOpenId.value = historyMenuOpenId.value === id ? null : id
+  }
+
+  function renameConversation(id) {
+    const target = historyList.value.find((item) => item.id === id)
+    if (!target) return
+
+    const nextTitle = window.prompt('编辑会话标题', target.title)?.trim()
+    if (!nextTitle || nextTitle === target.title) {
+      historyMenuOpenId.value = null
+      return
+    }
+
+    target.title = nextTitle
+    historyMenuOpenId.value = null
+  }
+
+  function pinConversation(id) {
+    const target = historyList.value.find((item) => item.id === id)
+    if (!target) return
+
+    target.pinned = !target.pinned
+    historyMenuOpenId.value = null
+  }
+
+  function deleteConversation(id) {
+    const target = historyList.value.find((item) => item.id === id)
+    if (!target) return
+
+    if (!window.confirm(`确认删除「${target.title}」？`)) {
+      historyMenuOpenId.value = null
+      return
+    }
+
+    const nextList = historyList.value.filter((item) => item.id !== id)
+    const wasActive = target.active
+    historyList.value = nextList.length
+      ? nextList.map((item, index) => ({
+          ...item,
+          active: wasActive ? index === 0 : item.active
+        }))
+      : []
+    historyMenuOpenId.value = null
+  }
+
+  function closeHistoryMenuByOutsideClick(event) {
+    if (event.target?.closest?.('.history-item-actions')) {
+      return
+    }
+
+    historyMenuOpenId.value = null
   }
 
   onMounted(() => {
     document.documentElement.classList.add('query-lock-scroll')
     document.body.classList.add('query-lock-scroll')
+    document.addEventListener('click', closeHistoryMenuByOutsideClick)
     nextTick(resizeComposer)
   })
 
   onBeforeUnmount(() => {
     document.documentElement.classList.remove('query-lock-scroll')
     document.body.classList.remove('query-lock-scroll')
+    document.removeEventListener('click', closeHistoryMenuByOutsideClick)
   })
 
   return {
@@ -124,6 +202,7 @@ export function useQueryAssistantPage() {
     previewFullscreen,
     historyKeyword,
     historyList,
+    historyMenuOpenId,
     composerInput,
     stageSummary,
     filteredHistoryList,
@@ -134,6 +213,11 @@ export function useQueryAssistantPage() {
     placeholder,
     submitQuery,
     createConversation,
+    activateConversation,
+    toggleHistoryMenu,
+    renameConversation,
+    pinConversation,
+    deleteConversation,
     resizeComposer
   }
 }

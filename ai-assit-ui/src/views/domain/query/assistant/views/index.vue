@@ -12,7 +12,7 @@ const {
   previewFullscreen,
   historyKeyword,
   filteredHistoryList,
-  historyList,
+  historyMenuOpenId,
   composerInput,
   stageSummary,
   pieSegments,
@@ -22,6 +22,11 @@ const {
   placeholder,
   submitQuery,
   createConversation,
+  activateConversation,
+  toggleHistoryMenu,
+  renameConversation,
+  pinConversation,
+  deleteConversation,
   resizeComposer
 } = useQueryAssistantPage()
 </script>
@@ -52,16 +57,40 @@ const {
         </div>
 
         <div v-if="!historyCollapsed" class="history-list">
-          <button
+          <article
             v-for="item in filteredHistoryList"
-            :key="`${item.title}-${item.time}`"
+            :key="item.id"
             class="history-item"
             :class="{ active: item.active }"
-            type="button"
           >
-            <strong>{{ item.title }}</strong>
-            <span>{{ item.time }}</span>
-          </button>
+            <button class="history-item-main" type="button" @click="activateConversation(item.id)">
+              <strong>{{ item.title }}</strong>
+              <span>
+                {{ item.time }}
+                <em v-if="item.pinned">置顶</em>
+              </span>
+            </button>
+
+            <div class="history-item-actions">
+              <button
+                class="history-item-menu"
+                type="button"
+                :aria-expanded="historyMenuOpenId === item.id"
+                aria-label="更多操作"
+                @click.stop="toggleHistoryMenu(item.id)"
+              >
+                ...
+              </button>
+
+              <div v-if="historyMenuOpenId === item.id" class="history-item-dropdown">
+                <button type="button" @click.stop="renameConversation(item.id)">编辑标题</button>
+                <button type="button" @click.stop="pinConversation(item.id)">
+                  {{ item.pinned ? '取消顶置' : '顶置' }}
+                </button>
+                <button type="button" class="danger" @click.stop="deleteConversation(item.id)">删除</button>
+              </div>
+            </div>
+          </article>
         </div>
       </aside>
 

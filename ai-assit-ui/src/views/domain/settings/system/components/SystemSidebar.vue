@@ -63,8 +63,9 @@ const route = useRoute()
 
 <style scoped>
 .system-sidebar {
-  width: 296px;
-  flex: 0 0 296px;
+  width: 100%;
+  min-width: 0;
+  flex: 1;
   padding: 18px 16px;
   height: 100%;
   transition: width 0.22s ease, flex-basis 0.22s ease, padding 0.22s ease;
@@ -73,16 +74,14 @@ const route = useRoute()
   scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(12px);
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .system-sidebar.collapsed {
-  width: 70px;
-  flex-basis: 70px;
   padding: 12px 10px;
 }
 
@@ -204,6 +203,8 @@ const route = useRoute()
   .system-sidebar {
     height: auto;
     overflow: visible;
+    width: 100%;
+    flex-basis: auto;
   }
 }
 </style>
