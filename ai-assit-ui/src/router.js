@@ -8,6 +8,10 @@ import PerformancePage from './views/domain/emp/performance/index.vue'
 import CostPage from './views/domain/emp/cost/index.vue'
 import ProfilePage from './views/domain/settings/profile/index.vue'
 import SystemPage from './views/domain/settings/system/index.vue'
+import SystemOverviewPage from './views/domain/settings/system/pages/overview/index.vue'
+import SystemParamsPage from './views/domain/settings/system/pages/params/index.vue'
+import SystemComponentsPage from './views/domain/settings/system/pages/components/index.vue'
+import SystemAiPage from './views/domain/settings/system/pages/ai/index.vue'
 import LoginPage from './views/domain/auth/login/index.vue'
 
 const routes = [
@@ -19,7 +23,18 @@ const routes = [
   { path: '/emp/performance', component: PerformancePage, meta: { title: '绩效洞察' } },
   { path: '/emp/cost', component: CostPage, meta: { title: '人力成本分析' } },
   { path: '/settings/profile', component: ProfilePage, meta: { title: '个人管理' } },
-  { path: '/settings/system', component: SystemPage, meta: { title: '系统管理' } }
+  {
+    path: '/settings/system',
+    component: SystemPage,
+    meta: { title: '系统管理' },
+    redirect: '/settings/system/overview',
+    children: [
+      { path: 'overview', component: SystemOverviewPage, meta: { title: '系统总览' } },
+      { path: 'params', component: SystemParamsPage, meta: { title: '系统参数' } },
+      { path: 'components', component: SystemComponentsPage, meta: { title: '常用组件' } },
+      { path: 'ai', component: SystemAiPage, meta: { title: 'AI 接入' } }
+    ]
+  }
 ]
 
 const router = createRouter({

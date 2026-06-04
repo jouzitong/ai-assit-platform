@@ -1,13 +1,10 @@
 <script setup>
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
+import { useRoute } from 'vue-router'
 
 defineProps({
   items: {
     type: Array,
-    required: true
-  },
-  activeKey: {
-    type: String,
     required: true
   },
   collapsed: {
@@ -16,7 +13,9 @@ defineProps({
   }
 })
 
-defineEmits(['select', 'toggle'])
+defineEmits(['toggle'])
+
+const route = useRoute()
 </script>
 
 <template>
@@ -40,20 +39,19 @@ defineEmits(['select', 'toggle'])
       </div>
 
       <nav class="sidebar-nav">
-        <button
+        <RouterLink
           v-for="item in items"
           :key="item.key"
-          type="button"
+          :to="item.path"
           class="sidebar-item"
-          :class="{ active: activeKey === item.key }"
-          @click="$emit('select', item.key)"
+          :class="{ active: route.path === item.path }"
         >
           <span class="sidebar-item-icon">{{ item.icon }}</span>
           <span class="sidebar-item-copy">
             <strong>{{ item.label }}</strong>
             <small>{{ item.summary }}</small>
           </span>
-        </button>
+        </RouterLink>
       </nav>
     </template>
 
@@ -65,9 +63,9 @@ defineEmits(['select', 'toggle'])
 
 <style scoped>
 .system-sidebar {
-  width: 320px;
-  flex: 0 0 320px;
-  padding: 18px;
+  width: 280px;
+  flex: 0 0 280px;
+  padding: 18px 16px;
   height: 100%;
   transition: width 0.22s ease, flex-basis 0.22s ease, padding 0.22s ease;
   overflow: auto;
@@ -75,12 +73,16 @@ defineEmits(['select', 'toggle'])
   scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
 }
 
 .system-sidebar.collapsed {
-  width: 56px;
-  flex-basis: 56px;
-  padding: 12px 8px;
+  width: 70px;
+  flex-basis: 70px;
+  padding: 12px 10px;
 }
 
 .sidebar-toggle {
@@ -101,7 +103,7 @@ defineEmits(['select', 'toggle'])
 }
 
 .sidebar-head {
-  margin-top: 14px;
+  margin-top: 16px;
 }
 
 .sidebar-kicker {
@@ -124,14 +126,14 @@ defineEmits(['select', 'toggle'])
 
 .sidebar-nav {
   display: grid;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 12px;
+  margin-top: 20px;
 }
 
 .sidebar-item {
   border: 1px solid transparent;
-  border-radius: 18px;
-  padding: 14px;
+  border-radius: 20px;
+  padding: 15px 14px;
   display: grid;
   grid-template-columns: 44px 1fr;
   gap: 12px;
@@ -139,11 +141,12 @@ defineEmits(['select', 'toggle'])
   background: rgba(148, 163, 184, 0.08);
   cursor: pointer;
   text-align: left;
+  text-decoration: none;
 }
 
 .sidebar-item.active {
-  border-color: rgba(37, 99, 235, 0.24);
-  background: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.18);
+  background: rgba(37, 99, 235, 0.10);
 }
 
 .sidebar-item-icon {
