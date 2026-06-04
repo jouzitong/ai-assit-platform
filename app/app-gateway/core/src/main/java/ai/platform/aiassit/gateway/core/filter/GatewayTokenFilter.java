@@ -8,7 +8,6 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.athena.framework.security.api.spi.TokenParseStatus;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.core.annotation.Order;
@@ -39,6 +38,7 @@ public class GatewayTokenFilter extends OncePerRequestFilter {
     protected void doFilterInternal(HttpServletRequest request,
                                     HttpServletResponse response,
                                     FilterChain filterChain) throws ServletException, IOException {
+        LOGGER.debug("Gateway processing, uri={}", request.getRequestURI());
         if (!properties.isEnabled() || isOptions(request) || isIgnored(request.getRequestURI())) {
             filterChain.doFilter(request, response);
             return;
