@@ -63,8 +63,8 @@ const route = useRoute()
 
 <style scoped>
 .system-sidebar {
-  width: 280px;
-  flex: 0 0 280px;
+  width: 296px;
+  flex: 0 0 296px;
   padding: 18px 16px;
   height: 100%;
   transition: width 0.22s ease, flex-basis 0.22s ease, padding 0.22s ease;
@@ -73,10 +73,11 @@ const route = useRoute()
   scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
-  border: 1px solid rgba(226, 232, 240, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 24px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.04);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(12px);
 }
 
 .system-sidebar.collapsed {
@@ -94,8 +95,9 @@ const route = useRoute()
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: var(--app-text);
-  background: rgba(148, 163, 184, 0.12);
+  color: #0f172a;
+  background: rgba(241, 245, 249, 0.92);
+  border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 .system-sidebar.collapsed .sidebar-toggle {
@@ -104,11 +106,13 @@ const route = useRoute()
 
 .sidebar-head {
   margin-top: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.92);
 }
 
 .sidebar-kicker {
   margin: 0 0 8px;
-  color: var(--app-accent);
+  color: #2563eb;
   font-size: 12px;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -117,36 +121,42 @@ const route = useRoute()
 
 .sidebar-head h2 {
   margin: 0;
+  font-size: 20px;
+  letter-spacing: -0.01em;
 }
 
 .sidebar-desc {
   margin: 10px 0 0;
-  color: var(--app-text-muted);
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.55;
 }
 
 .sidebar-nav {
   display: grid;
-  gap: 12px;
-  margin-top: 20px;
+  gap: 10px;
+  margin-top: 18px;
 }
 
 .sidebar-item {
-  border: 1px solid transparent;
+  border: 1px solid rgba(226, 232, 240, 0.92);
   border-radius: 20px;
-  padding: 15px 14px;
+  padding: 14px 13px;
   display: grid;
   grid-template-columns: 44px 1fr;
   gap: 12px;
   align-items: center;
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(248, 250, 252, 0.92);
   cursor: pointer;
   text-align: left;
   text-decoration: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .sidebar-item.active {
-  border-color: rgba(37, 99, 235, 0.18);
-  background: rgba(37, 99, 235, 0.10);
+  border-color: rgba(37, 99, 235, 0.22);
+  background: rgba(239, 246, 255, 0.96);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
 }
 
 .sidebar-item-icon {
@@ -156,9 +166,9 @@ const route = useRoute()
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37, 99, 235, 0.14);
-  color: var(--app-accent);
-  font-size: 13px;
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(59, 130, 246, 0.08));
+  color: #1d4ed8;
+  font-size: 12px;
   font-weight: 700;
 }
 
@@ -168,11 +178,13 @@ const route = useRoute()
 }
 
 .sidebar-item-copy strong {
-  font-size: 15px;
+  font-size: 14px;
+  color: #0f172a;
 }
 
 .sidebar-item-copy small {
-  color: var(--app-text-muted);
+  color: #64748b;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -180,7 +192,7 @@ const route = useRoute()
   flex: 1;
   margin-top: 14px;
   border-radius: 14px;
-  background: rgba(148, 163, 184, 0.06);
+  background: linear-gradient(180deg, rgba(241, 245, 249, 0.9), rgba(226, 232, 240, 0.55));
 }
 
 .system-sidebar.collapsed .sidebar-head,

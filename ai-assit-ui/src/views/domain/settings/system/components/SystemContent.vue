@@ -16,7 +16,7 @@
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   display: grid;
-  gap: 16px;
+  gap: 18px;
   padding-right: 4px;
 }
 
@@ -25,6 +25,31 @@
   justify-content: space-between;
   gap: 16px;
   align-items: end;
+}
+
+.content-head h2 {
+  margin: 0;
+  font-size: 24px;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #0f172a;
+}
+
+.eyebrow {
+  margin: 0 0 8px;
+  color: #2563eb;
+  text-transform: uppercase;
+  letter-spacing: 0.18em;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.section-desc {
+  margin: 10px 0 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+  max-width: 680px;
 }
 
 .content-head.compact {
@@ -41,17 +66,20 @@
   min-width: 104px;
   padding: 14px 16px;
   border-radius: 18px;
-  background: rgba(37, 99, 235, 0.08);
+  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(248, 250, 252, 0.96));
+  border: 1px solid rgba(226, 232, 240, 0.95);
   display: grid;
   gap: 4px;
 }
 
 .hero-stat strong {
-  font-size: 24px;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+  color: #0f172a;
 }
 
 .hero-stat span {
-  color: var(--app-text-muted);
+  color: #64748b;
   font-size: 13px;
 }
 
@@ -65,20 +93,24 @@
 .placeholder-panel,
 .table-card,
 .editor-card {
-  border: 1px solid var(--app-border);
+  border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 22px;
-  background: var(--app-surface);
-  box-shadow: var(--app-shadow);
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+  backdrop-filter: blur(10px);
 }
 
 .overview-card {
   padding: 18px;
   display: grid;
   gap: 10px;
+  color: #0f172a;
 }
 
 .placeholder-panel {
   padding: 20px;
+  color: #334155;
+  line-height: 1.6;
 }
 
 .ai-layout {
@@ -95,7 +127,7 @@
 }
 
 .ai-tab {
-  border: 1px solid transparent;
+  border: 1px solid rgba(226, 232, 240, 0.95);
   padding: 14px;
   display: grid;
   grid-template-columns: 36px 1fr;
@@ -104,12 +136,14 @@
   cursor: pointer;
   text-align: left;
   border-radius: 18px;
-  background: rgba(148, 163, 184, 0.08);
+  background: rgba(248, 250, 252, 0.94);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .ai-tab.active {
   border-color: rgba(37, 99, 235, 0.22);
-  background: rgba(37, 99, 235, 0.12);
+  background: rgba(239, 246, 255, 0.98);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
 }
 
 .ai-tab span {
@@ -119,8 +153,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: rgba(37, 99, 235, 0.14);
-  color: var(--app-accent);
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(59, 130, 246, 0.08));
+  color: #1d4ed8;
   font-weight: 700;
 }
 
@@ -130,7 +164,7 @@
 }
 
 .ai-tab small {
-  color: var(--app-text-muted);
+  color: #64748b;
 }
 
 .ai-workbench {
@@ -154,8 +188,8 @@
   gap: 10px;
   padding: 11px 14px;
   border-radius: 14px;
-  background: var(--app-surface);
-  border: 1px solid var(--app-border);
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 .search-box input {
@@ -180,12 +214,14 @@
 
 .btn.primary {
   color: #eff6ff;
-  background: linear-gradient(135deg, #2563eb, #0f766e);
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.16);
 }
 
 .btn.secondary {
-  background: rgba(148, 163, 184, 0.12);
-  color: var(--app-text);
+  background: rgba(241, 245, 249, 0.95);
+  color: #0f172a;
+  border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 .table-card,
@@ -207,7 +243,7 @@
 }
 
 .config-table th {
-  color: var(--app-text-muted);
+  color: #64748b;
   font-size: 13px;
 }
 
