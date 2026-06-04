@@ -28,11 +28,51 @@ export const initialStages = [
 ]
 
 export const initialHistoryList = [
-  { id: 'history-1', title: '最近30天人力成本波动分析', time: '今天 14:32', active: true, pinned: true },
-  { id: 'history-2', title: '客服团队夜班补贴异常排查', time: '今天 11:08', active: false, pinned: false },
-  { id: 'history-3', title: '研发中心编制与预算偏差对比', time: '昨天 18:45', active: false, pinned: false },
-  { id: 'history-4', title: '销售部门提成成本趋势复盘', time: '昨天 16:20', active: false, pinned: false },
-  { id: 'history-5', title: '月度绩效分布与离职率联动', time: '06-01 09:14', active: false, pinned: false }
+  {
+    id: 'history-1',
+    title: '最近30天人力成本波动分析',
+    summary: '聚焦研发、销售部门的成本上涨原因与异常波动。',
+    tag: '人力成本',
+    time: '今天 14:32',
+    active: true,
+    pinned: true
+  },
+  {
+    id: 'history-2',
+    title: '客服团队夜班补贴异常排查',
+    summary: '检查夜班补贴规则、发放范围与异常人员。',
+    tag: '考勤补贴',
+    time: '今天 11:08',
+    active: false,
+    pinned: false
+  },
+  {
+    id: 'history-3',
+    title: '研发中心编制与预算偏差对比',
+    summary: '对比编制扩张、预算占用和实际执行差异。',
+    tag: '研发组织',
+    time: '昨天 18:45',
+    active: false,
+    pinned: false
+  },
+  {
+    id: 'history-4',
+    title: '销售部门提成成本趋势复盘',
+    summary: '梳理提成支出变化及其对月度成本的影响。',
+    tag: '销售提成',
+    time: '昨天 16:20',
+    active: false,
+    pinned: false
+  },
+  {
+    id: 'history-5',
+    title: '月度绩效分布与离职率联动',
+    summary: '观察绩效结构变化与离职率的联动关系。',
+    tag: '绩效分析',
+    time: '06-01 09:14',
+    active: false,
+    pinned: false
+  }
 ]
 
 export const resultRows = [

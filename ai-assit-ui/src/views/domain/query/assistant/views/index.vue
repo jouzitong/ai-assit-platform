@@ -62,13 +62,18 @@ const {
             :key="item.id"
             class="history-item"
             :class="{ active: item.active }"
+            :title="`${item.title} · ${item.summary}`"
           >
             <button class="history-item-main" type="button" @click="activateConversation(item.id)">
-              <strong>{{ item.title }}</strong>
-              <span>
-                {{ item.time }}
-                <em v-if="item.pinned">置顶</em>
-              </span>
+              <div class="history-item-title-row">
+                <strong>{{ item.title }}</strong>
+                <em v-if="item.pinned" class="history-item-pin">置顶</em>
+              </div>
+              <p class="history-item-summary">{{ item.summary }}</p>
+              <div class="history-item-meta">
+                <span>{{ item.time }}</span>
+                <span class="history-item-tag">{{ item.tag }}</span>
+              </div>
             </button>
 
             <div class="history-item-actions">

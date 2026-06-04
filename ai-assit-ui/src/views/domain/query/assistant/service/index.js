@@ -24,6 +24,72 @@ function buildPieBackground(segments) {
   return `conic-gradient(${parts.join(', ')})`
 }
 
+function normalizeText(text) {
+  return String(text || '')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function shortenText(text, limit) {
+  const value = normalizeText(text)
+  if (value.length <= limit) return value
+  return `${value.slice(0, limit).trimEnd()}…`
+}
+
+function buildConversationTitle(text) {
+  const value = normalizeText(text)
+  if (!value) return '未命名会话'
+
+  const prefixes = [
+    '请帮我',
+    '帮我',
+    '麻烦帮我',
+    '帮忙',
+    '请',
+    '分析一下',
+    '请分析',
+    '帮我分析',
+    '帮我看看',
+    '看看',
+    '帮我查',
+    '帮我找',
+    '帮我对比',
+    '帮我复盘',
+    '帮我生成'
+  ]
+
+  let candidate = value
+  const matchedPrefix = prefixes.find((prefix) => candidate.startsWith(prefix))
+  if (matchedPrefix) {
+    candidate = candidate.slice(matchedPrefix.length).trim()
+  }
+
+  candidate = candidate.split(/[，。！？!?；;\n]/)[0].trim()
+  candidate = candidate.replace(/^(一下|一下子|一下儿)/, '').trim()
+
+  return shortenText(candidate || value, 18)
+}
+
+function buildConversationSummary(text) {
+  const value = shortenText(text, 36)
+  return value ? `最近输入：${value}` : '等待首个问题'
+}
+
+function buildConversationTag(text) {
+  const value = normalizeText(text)
+  const rules = [
+    { keyword: ['人力成本', '成本'], label: '人力成本' },
+    { keyword: ['考勤', '打卡', '补贴', '夜班'], label: '考勤补贴' },
+    { keyword: ['绩效'], label: '绩效分析' },
+    { keyword: ['销售', '提成'], label: '销售提成' },
+    { keyword: ['研发', '研发中心'], label: '研发组织' },
+    { keyword: ['离职', '流失'], label: '人效观察' }
+  ]
+
+  const matched = rules.find((rule) => rule.keyword.some((keyword) => value.includes(keyword)))
+  return matched?.label || '智能问数'
+}
+
 export function useQueryAssistantPage() {
   const selectedModel = ref(models[0].value)
   const prompt = ref('')
@@ -76,6 +142,14 @@ export function useQueryAssistantPage() {
     const text = prompt.value.trim()
     if (!text) return
 
+    const activeConversation = historyList.value.find((item) => item.active)
+    if (activeConversation) {
+      activeConversation.title = buildConversationTitle(text)
+      activeConversation.summary = buildConversationSummary(text)
+      activeConversation.tag = buildConversationTag(text)
+      activeConversation.time = '刚刚'
+    }
+
     executions.value.unshift({
       title: '用户提问',
       detail: `模型 ${selectedModel.value} 已接收问题：${text}`,
@@ -110,7 +184,9 @@ export function useQueryAssistantPage() {
     historyList.value = historyList.value.map((item) => ({ ...item, active: false }))
     historyList.value.unshift({
       id: `history-${Date.now()}`,
-      title: `新对话 ${historyList.value.length + 1}`,
+      title: `未命名会话 ${historyList.value.length + 1}`,
+      summary: '等待首个问题，完成后会自动生成摘要。',
+      tag: '待命',
       time: '刚刚',
       active: true,
       pinned: false
