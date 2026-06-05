@@ -53,7 +53,7 @@ public class GatewayPermissionService {
     private UserPermissionQueryRequest buildRequest(UserContext userContext, String appCode) {
         UserPermissionQueryRequest request = new UserPermissionQueryRequest();
         if (userContext != null && userContext.subject() != null) {
-            request.setUserId(parseLong(userContext.subject().userId()));
+            request.setUserId(userContext.subject().userId());
             request.setAccount(userContext.subject().username());
         }
         request.setAppCode(StringUtils.hasText(appCode) ? appCode : "app-platform-user");

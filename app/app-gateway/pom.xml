@@ -56,12 +56,12 @@
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-user-api</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${project.version}</version>
         </dependency>
         <dependency>
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-security-gateway</artifactId>
-            <version>1.0.0-SNAPSHOT</version>
+            <version>${athena.framework.version}</version>
         </dependency>
     </dependencies>
     </dependencyManagement>
