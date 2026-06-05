@@ -27,7 +27,7 @@
         </dependency>
         <dependency>
             <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-nacos</artifactId>
+            <artifactId>athena-framework-starter-cloud-nacos</artifactId>
         </dependency>
     </dependencies>
 
