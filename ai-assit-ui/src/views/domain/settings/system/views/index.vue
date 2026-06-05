@@ -9,8 +9,7 @@ const {
   sidebarWidth,
   isSidebarResizing,
   toggleSidebar,
-  startSidebarResize,
-  bindSidebarResizeFromEdge
+  startSidebarResize
 } = useSystemPage()
 </script>
 
@@ -21,10 +20,7 @@ const {
       :class="{ 'is-resizing': isSidebarResizing }"
       :style="{ '--sidebar-width': `${sidebarWidth}px` }"
     >
-      <div
-        class="system-sidebar-panel"
-        @pointerdown="bindSidebarResizeFromEdge"
-      >
+      <div class="system-sidebar-panel">
         <SystemSidebar
           :items="sections"
           :collapsed="sidebarCollapsed"
@@ -34,13 +30,15 @@ const {
       </div>
 
       <button
-        class="system-resize-handle"
+        class="system-divider"
         type="button"
         aria-label="拖动调整侧边栏宽度"
         title="拖动调整侧边栏宽度"
         @pointerdown="startSidebarResize"
       >
-        <span class="handle-grip" aria-hidden="true">⋮⋮</span>
+        <span class="divider-track" aria-hidden="true">
+          <span class="divider-grip" />
+        </span>
       </button>
 
       <div class="system-content-panel">
@@ -54,44 +52,43 @@ const {
 .system-page {
   min-height: 0;
   height: 100%;
+  width: 100%;
   display: grid;
   padding: 0;
   overflow: hidden;
-  background:
-    radial-gradient(circle at 8% 8%, rgba(37, 99, 235, 0.08), transparent 28%),
-    radial-gradient(circle at 92% 0%, rgba(14, 165, 233, 0.06), transparent 24%),
-    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  background: #fff;
 }
 
 .system-shell {
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--sidebar-width) 18px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) 12px minmax(0, 1fr);
   gap: 0;
   width: 100%;
   height: 100%;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 24px;
-  background: rgba(255, 255, 255, 0.78);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  border-radius: 0;
+  background: #fff;
   overflow: hidden;
 }
 
 .system-sidebar-panel,
-.system-resize-handle,
+.system-divider,
 .system-content-panel {
   min-height: 0;
   min-width: 0;
-  overflow: hidden;
 }
 
 .system-sidebar-panel {
   width: 100%;
-  border-right: 1px solid rgba(203, 213, 225, 1);
-  background: linear-gradient(180deg, rgba(243, 244, 246, 0.98), rgba(229, 231, 235, 0.94));
+  display: flex;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: #fff;
 }
 
-.system-resize-handle {
+.system-divider {
   border: 0;
   padding: 0;
   display: inline-flex;
@@ -99,37 +96,44 @@ const {
   justify-content: center;
   cursor: col-resize;
   touch-action: none;
-  background:
-    linear-gradient(180deg, rgba(209, 213, 219, 0.92), rgba(226, 232, 240, 0.92));
-  border-left: 1px solid rgba(203, 213, 225, 1);
-  border-right: 1px solid rgba(203, 213, 225, 1);
-  color: #64748b;
-  transition: background-color 0.2s ease, color 0.2s ease;
+  background: #fff;
+  border-left: 1px solid rgba(226, 232, 240, 0.95);
+  border-right: 1px solid rgba(226, 232, 240, 0.95);
+  transition: background-color 0.2s ease;
 }
 
-.system-resize-handle:hover {
-  background:
-    linear-gradient(180deg, rgba(203, 213, 225, 0.95), rgba(226, 232, 240, 0.96));
-  color: #475569;
+.system-divider:hover {
+  background: rgba(248, 250, 252, 0.95);
 }
 
-.handle-grip {
-  display: inline-block;
-  font-size: 14px;
-  line-height: 1;
-  letter-spacing: -0.18em;
-  transform: rotate(90deg);
-  user-select: none;
-  pointer-events: none;
+.divider-track {
+  width: 100%;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.system-shell.is-resizing .system-sidebar {
+.divider-grip {
+  width: 2px;
+  height: 28px;
+  border-radius: 999px;
+  background: rgba(148, 163, 184, 0.9);
+}
+
+.system-shell.is-resizing .system-sidebar,
+.system-shell.is-resizing .system-content-panel {
   transition: none;
 }
 
 .system-content-panel {
   width: 100%;
-  background: rgba(255, 255, 255, 0.92);
+  display: flex;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+  background: #fff;
+  border-left: 0;
 }
 
 @media (max-width: 1280px) {
@@ -145,11 +149,10 @@ const {
   }
 
   .system-sidebar-panel {
-    border-right: 0;
     border-bottom: 1px solid rgba(226, 232, 240, 0.95);
   }
 
-  .system-resize-handle {
+  .system-divider {
     display: none;
   }
 }

@@ -12,12 +12,10 @@
   min-width: 0;
   flex: 1;
   min-height: 0;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   display: grid;
   gap: 18px;
   padding: 18px;
+  background: #fff;
 }
 
 .content-head {
@@ -66,7 +64,7 @@
   min-width: 104px;
   padding: 14px 16px;
   border-radius: 18px;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(248, 250, 252, 0.96));
+  background: #fff;
   border: 1px solid rgba(226, 232, 240, 0.95);
   display: grid;
   gap: 4px;
@@ -95,9 +93,9 @@
 .editor-card {
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 22px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(10px);
+  background: #fff;
+  box-shadow: none;
+  backdrop-filter: none;
 }
 
 .overview-card {
@@ -136,14 +134,14 @@
   cursor: pointer;
   text-align: left;
   border-radius: 18px;
-  background: rgba(248, 250, 252, 0.94);
+  background: #fff;
   transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
 .ai-tab.active {
   border-color: rgba(37, 99, 235, 0.22);
-  background: rgba(239, 246, 255, 0.98);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
 .ai-tab span {
@@ -153,7 +151,7 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(59, 130, 246, 0.08));
+  background: #fff;
   color: #1d4ed8;
   font-weight: 700;
 }
@@ -188,7 +186,7 @@
   gap: 10px;
   padding: 11px 14px;
   border-radius: 14px;
-  background: rgba(255, 255, 255, 0.9);
+  background: #fff;
   border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
@@ -219,7 +217,7 @@
 }
 
 .btn.secondary {
-  background: rgba(241, 245, 249, 0.95);
+  background: #fff;
   color: #0f172a;
   border: 1px solid rgba(226, 232, 240, 0.95);
 }

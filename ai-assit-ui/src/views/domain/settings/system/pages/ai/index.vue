@@ -323,130 +323,333 @@ openCreate()
 </script>
 
 <template>
-  <div class="content-head">
-    <div>
-      <p class="eyebrow">AI 接入</p>
-      <h2>{{ activeAiMeta.title }}</h2>
-      <p class="section-desc">{{ activeAiMeta.description }}</p>
+  <div class="ai-page">
+    <div class="content-head">
+      <div>
+        <p class="eyebrow">AI 接入</p>
+        <h2>{{ activeAiMeta.title }}</h2>
+        <p class="section-desc">{{ activeAiMeta.description }}</p>
+      </div>
     </div>
-  </div>
 
-  <div class="hero-stats">
-    <article v-for="item in aiStats" :key="item.label" class="hero-stat">
-      <strong>{{ item.value }}</strong>
-      <span>{{ item.label }}</span>
-    </article>
-  </div>
+    <div class="hero-stats">
+      <article v-for="item in aiStats" :key="item.label" class="hero-stat">
+        <strong>{{ item.value }}</strong>
+        <span>{{ item.label }}</span>
+      </article>
+    </div>
 
-  <div class="ai-layout">
-    <aside class="ai-tabs">
-      <button
-        v-for="tab in aiTabs"
-        :key="tab.key"
-        type="button"
-        class="ai-tab"
-        :class="{ active: activeAiTab === tab.key }"
-        @click="switchAiTab(tab.key)"
-      >
-        <span>{{ tab.icon }}</span>
-        <div>
-          <strong>{{ tab.label }}</strong>
-          <small>{{ tab.summary }}</small>
-        </div>
-      </button>
-    </aside>
-
-    <div class="ai-workbench">
-      <div class="toolbar">
-        <label class="search-box">
-          <Search :size="16" />
-          <input v-model="searchText" type="search" placeholder="搜索当前配置" />
-        </label>
-        <button class="btn secondary" type="button" @click="openCreate">
-          <Plus :size="16" />
-          新增
-        </button>
-      </div>
-
-      <div class="table-card">
-        <table class="config-table">
-          <thead>
-            <tr>
-              <th v-for="column in activeAiMeta.columns" :key="column.key">{{ column.label }}</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="row in filteredAiRecords" :key="row.id">
-              <td v-for="column in activeAiMeta.columns" :key="column.key">
-                {{ formatValue(row, column.key) }}
-              </td>
-              <td class="row-actions">
-                <button class="icon-btn" type="button" @click="openEdit(row)">
-                  <EditPen :size="15" />
-                </button>
-                <button class="icon-btn danger" type="button" @click="deleteRecord(row)">
-                  <Delete :size="15" />
-                </button>
-              </td>
-            </tr>
-            <tr v-if="!filteredAiRecords.length">
-              <td :colspan="activeAiMeta.columns.length + 1" class="empty-row">没有匹配的记录</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <div class="editor-card">
-        <div class="content-head compact">
+    <div class="ai-layout">
+      <aside class="ai-tabs">
+        <button
+          v-for="tab in aiTabs"
+          :key="tab.key"
+          type="button"
+          class="ai-tab"
+          :class="{ active: activeAiTab === tab.key }"
+          @click="switchAiTab(tab.key)"
+        >
+          <span>{{ tab.icon }}</span>
           <div>
-            <p class="eyebrow">编辑器</p>
-            <h3>{{ editorMode === 'edit' ? '编辑记录' : '新增记录' }}</h3>
+            <strong>{{ tab.label }}</strong>
+            <small>{{ tab.summary }}</small>
           </div>
-          <button class="btn secondary" type="button" @click="openCreate">重置</button>
-        </div>
+        </button>
+      </aside>
 
-        <p class="editor-hint">{{ activeAiMeta.hint }}</p>
-
-        <div class="form-grid">
-          <label v-for="field in activeAiMeta.fields" :key="field.key" class="form-field">
-            <span>{{ field.label }}<em v-if="field.required">*</em></span>
-            <template v-if="field.type === 'textarea'">
-              <textarea v-model="draftState[field.key]" rows="3" />
-            </template>
-            <template v-else-if="field.type === 'boolean'">
-              <select v-model="draftState[field.key]">
-                <option :value="true">启用</option>
-                <option :value="false">禁用</option>
-              </select>
-            </template>
-            <template v-else-if="field.type === 'select'">
-              <select v-model="draftState[field.key]">
-                <option :value="1">启用</option>
-                <option :value="0">禁用</option>
-              </select>
-            </template>
-            <template v-else-if="field.type === 'datetime-local'">
-              <input v-model="draftState[field.key]" type="datetime-local" />
-            </template>
-            <template v-else-if="field.type === 'number'">
-              <input v-model.number="draftState[field.key]" type="number" />
-            </template>
-            <template v-else>
-              <input v-model="draftState[field.key]" type="text" />
-            </template>
+      <div class="ai-workbench">
+        <div class="toolbar">
+          <label class="search-box">
+            <Search :size="14" />
+            <input v-model="searchText" type="search" placeholder="搜索当前配置" />
           </label>
+          <button class="btn secondary" type="button" @click="openCreate">
+            <Plus :size="14" />
+            新增
+          </button>
         </div>
 
-        <p v-if="formError" class="form-error">{{ formError }}</p>
+        <div class="table-card">
+          <table class="config-table">
+            <thead>
+              <tr>
+                <th v-for="column in activeAiMeta.columns" :key="column.key">{{ column.label }}</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="row in filteredAiRecords" :key="row.id">
+                <td v-for="column in activeAiMeta.columns" :key="column.key">
+                  {{ formatValue(row, column.key) }}
+                </td>
+                <td class="row-actions">
+                  <button class="icon-btn" type="button" @click="openEdit(row)">
+                    <EditPen :size="13" />
+                  </button>
+                  <button class="icon-btn danger" type="button" @click="deleteRecord(row)">
+                    <Delete :size="13" />
+                  </button>
+                </td>
+              </tr>
+              <tr v-if="!filteredAiRecords.length">
+                <td :colspan="activeAiMeta.columns.length + 1" class="empty-row">没有匹配的记录</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
 
-        <div class="editor-actions">
-          <button class="btn secondary" type="button" @click="openCreate">新建空白</button>
-          <button class="btn primary" type="button" @click="saveRecord">
-            {{ editorMode === 'edit' ? '保存修改' : '保存新增' }}
-          </button>
+        <div class="editor-card">
+          <div class="content-head compact">
+            <div>
+              <p class="eyebrow">编辑器</p>
+              <h3>{{ editorMode === 'edit' ? '编辑记录' : '新增记录' }}</h3>
+            </div>
+            <button class="btn secondary" type="button" @click="openCreate">重置</button>
+          </div>
+
+          <p class="editor-hint">{{ activeAiMeta.hint }}</p>
+
+          <div class="form-grid">
+            <label v-for="field in activeAiMeta.fields" :key="field.key" class="form-field">
+              <span>{{ field.label }}<em v-if="field.required">*</em></span>
+              <template v-if="field.type === 'textarea'">
+                <textarea v-model="draftState[field.key]" rows="3" />
+              </template>
+              <template v-else-if="field.type === 'boolean'">
+                <select v-model="draftState[field.key]">
+                  <option :value="true">启用</option>
+                  <option :value="false">禁用</option>
+                </select>
+              </template>
+              <template v-else-if="field.type === 'select'">
+                <select v-model="draftState[field.key]">
+                  <option :value="1">启用</option>
+                  <option :value="0">禁用</option>
+                </select>
+              </template>
+              <template v-else-if="field.type === 'datetime-local'">
+                <input v-model="draftState[field.key]" type="datetime-local" />
+              </template>
+              <template v-else-if="field.type === 'number'">
+                <input v-model.number="draftState[field.key]" type="number" />
+              </template>
+              <template v-else>
+                <input v-model="draftState[field.key]" type="text" />
+              </template>
+            </label>
+          </div>
+
+          <p v-if="formError" class="form-error">{{ formError }}</p>
+
+          <div class="editor-actions">
+            <button class="btn secondary" type="button" @click="openCreate">新建空白</button>
+            <button class="btn primary" type="button" @click="saveRecord">
+              {{ editorMode === 'edit' ? '保存修改' : '保存新增' }}
+            </button>
+          </div>
         </div>
       </div>
     </div>
   </div>
 </template>
+
+<style scoped>
+.ai-page {
+  display: grid;
+  gap: 12px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.ai-page :deep(.content-head) {
+  gap: 10px;
+}
+
+.ai-page :deep(.content-head h2) {
+  font-size: 18px;
+  line-height: 1.2;
+}
+
+.ai-page :deep(.content-head h3) {
+  margin: 0;
+  font-size: 15px;
+  line-height: 1.2;
+}
+
+.ai-page :deep(.eyebrow) {
+  margin-bottom: 6px;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+}
+
+.ai-page :deep(.section-desc),
+.ai-page :deep(.editor-hint) {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.ai-page :deep(.hero-stats) {
+  gap: 8px;
+}
+
+.ai-page :deep(.hero-stat) {
+  min-width: 88px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  gap: 2px;
+}
+
+.ai-page :deep(.hero-stat strong) {
+  font-size: 16px;
+}
+
+.ai-page :deep(.hero-stat span) {
+  font-size: 11px;
+}
+
+.ai-page :deep(.ai-layout) {
+  grid-template-columns: 200px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.ai-page :deep(.ai-tabs) {
+  gap: 8px;
+}
+
+.ai-page :deep(.ai-tab) {
+  padding: 10px;
+  border-radius: 14px;
+  grid-template-columns: 28px 1fr;
+  gap: 8px;
+}
+
+.ai-page :deep(.ai-tab span) {
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  font-size: 11px;
+}
+
+.ai-page :deep(.ai-tab strong) {
+  font-size: 13px;
+}
+
+.ai-page :deep(.ai-tab small) {
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.ai-page :deep(.ai-workbench) {
+  gap: 12px;
+}
+
+.ai-page :deep(.toolbar) {
+  gap: 8px;
+}
+
+.ai-page :deep(.search-box) {
+  min-width: 220px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  gap: 8px;
+}
+
+.ai-page :deep(.btn) {
+  padding: 8px 12px;
+  border-radius: 12px;
+  font-size: 12px;
+}
+
+.ai-page :deep(.table-card),
+.ai-page :deep(.editor-card) {
+  padding: 12px;
+  border-radius: 16px;
+}
+
+.ai-page :deep(.config-table th),
+.ai-page :deep(.config-table td) {
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.ai-page :deep(.config-table th) {
+  font-size: 11px;
+}
+
+.ai-page :deep(.icon-btn) {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  margin-left: 6px;
+}
+
+.ai-page :deep(.empty-row) {
+  padding: 16px 10px;
+}
+
+.ai-page :deep(.form-grid) {
+  gap: 10px;
+}
+
+.ai-page :deep(.form-field) {
+  gap: 6px;
+}
+
+.ai-page :deep(.form-field span) {
+  font-size: 12px;
+}
+
+.ai-page :deep(.form-field input),
+.ai-page :deep(.form-field textarea),
+.ai-page :deep(.form-field select) {
+  padding: 8px 10px;
+  border-radius: 12px;
+  font-size: 13px;
+  min-height: 36px;
+}
+
+.ai-page :deep(.form-field textarea) {
+  min-height: 80px;
+}
+
+.ai-page :deep(.form-error) {
+  margin-top: 10px;
+  font-size: 12px;
+}
+
+.ai-page :deep(.editor-actions) {
+  margin-top: 12px;
+}
+
+@media (max-width: 1180px) {
+  .ai-page :deep(.ai-layout) {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .ai-page {
+    gap: 10px;
+  }
+
+  .ai-page :deep(.toolbar),
+  .ai-page :deep(.editor-actions) {
+    align-items: stretch;
+  }
+
+  .ai-page :deep(.search-box) {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .ai-page :deep(.hero-stats) {
+    gap: 6px;
+  }
+
+  .ai-page :deep(.hero-stat) {
+    min-width: 0;
+    flex: 1 1 96px;
+  }
+}
+</style>

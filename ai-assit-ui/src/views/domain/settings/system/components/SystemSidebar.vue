@@ -1,6 +1,6 @@
 <script setup>
-import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { useRoute } from 'vue-router'
+import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 
 defineProps({
   items: {
@@ -32,27 +32,23 @@ const route = useRoute()
     </button>
 
     <template v-if="!collapsed">
-      <div class="sidebar-head">
-        <p class="sidebar-kicker">System Center</p>
-        <h2>系统配置中心</h2>
-        <p class="sidebar-desc">按业务域组织配置，不再按单张表作为主导航。</p>
+      <div class="sidebar-shell">
+        <nav class="sidebar-body" aria-label="系统配置域">
+          <RouterLink
+            v-for="item in items"
+            :key="item.key"
+            :to="item.path"
+            class="sidebar-item"
+            :class="{ active: route.path === item.path }"
+          >
+            <span class="sidebar-item-icon">{{ item.icon }}</span>
+            <span class="sidebar-item-copy">
+              <strong>{{ item.label }}</strong>
+            </span>
+            <ArrowRight :size="14" class="sidebar-item-arrow" />
+          </RouterLink>
+        </nav>
       </div>
-
-      <nav class="sidebar-nav">
-        <RouterLink
-          v-for="item in items"
-          :key="item.key"
-          :to="item.path"
-          class="sidebar-item"
-          :class="{ active: route.path === item.path }"
-        >
-          <span class="sidebar-item-icon">{{ item.icon }}</span>
-          <span class="sidebar-item-copy">
-            <strong>{{ item.label }}</strong>
-            <small>{{ item.summary }}</small>
-          </span>
-        </RouterLink>
-      </nav>
     </template>
 
     <template v-else>
@@ -66,19 +62,18 @@ const route = useRoute()
   width: 100%;
   min-width: 0;
   flex: 1;
-  padding: 18px 16px;
   height: 100%;
+  padding: 16px 14px;
   transition: width 0.22s ease, flex-basis 0.22s ease, padding 0.22s ease;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
+  gap: 12px;
   border: 0;
   border-radius: 0;
-  background: transparent;
+  background: #fff;
   box-shadow: none;
   backdrop-filter: none;
+  overflow: visible;
 }
 
 .system-sidebar.collapsed {
@@ -88,121 +83,113 @@ const route = useRoute()
 .sidebar-toggle {
   width: 34px;
   height: 34px;
-  border: 0;
+  border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 12px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   color: #0f172a;
-  background: rgba(241, 245, 249, 0.92);
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  box-shadow: none;
+  flex: none;
 }
 
 .system-sidebar.collapsed .sidebar-toggle {
   margin: 0 auto;
 }
 
-.sidebar-head {
-  margin-top: 16px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.92);
+.sidebar-shell {
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
 }
 
-.sidebar-kicker {
-  margin: 0 0 8px;
-  color: #2563eb;
-  font-size: 12px;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-  font-weight: 700;
-}
-
-.sidebar-head h2 {
-  margin: 0;
-  font-size: 20px;
-  letter-spacing: -0.01em;
-}
-
-.sidebar-desc {
-  margin: 10px 0 0;
-  color: #64748b;
-  font-size: 13px;
-  line-height: 1.55;
-}
-
-.sidebar-nav {
+.sidebar-body {
+  min-height: 0;
   display: grid;
-  gap: 10px;
-  margin-top: 18px;
+  gap: 8px;
 }
 
 .sidebar-item {
-  border: 1px solid rgba(226, 232, 240, 0.92);
-  border-radius: 20px;
-  padding: 14px 13px;
+  text-decoration: none;
+  color: inherit;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  padding: 10px 12px;
   display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
+  grid-template-columns: 30px minmax(0, 1fr) auto;
+  gap: 10px;
   align-items: center;
-  background: rgba(248, 250, 252, 0.92);
+  background: #fff;
   cursor: pointer;
   text-align: left;
-  text-decoration: none;
   transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
 }
 
+.sidebar-item:hover,
 .sidebar-item.active {
-  border-color: rgba(37, 99, 235, 0.22);
-  background: rgba(239, 246, 255, 0.96);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.08);
+  transform: translateY(-1px);
+  border-color: rgba(37, 99, 235, 0.25);
+  background: #fff;
+  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.05);
 }
 
 .sidebar-item-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+  width: 30px;
+  height: 30px;
+  border-radius: 10px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(59, 130, 246, 0.08));
-  color: #1d4ed8;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  color: #2563eb;
   font-size: 12px;
   font-weight: 700;
 }
 
-.sidebar-item-copy {
+.sidebar-item-copy,
+.sidebar-account-copy {
+  min-width: 0;
   display: grid;
-  gap: 4px;
+  gap: 3px;
 }
 
-.sidebar-item-copy strong {
-  font-size: 14px;
+.sidebar-item-copy strong,
+.sidebar-account-copy strong {
   color: #0f172a;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
-.sidebar-item-copy small {
+.sidebar-item-copy small,
+.sidebar-account-copy small {
   color: #64748b;
-  font-size: 12px;
-  line-height: 1.45;
+  font-size: 11px;
+  line-height: 1.35;
+}
+
+.sidebar-item-arrow {
+  color: #94a3b8;
 }
 
 .sidebar-collapsed-rail {
   flex: 1;
-  margin-top: 14px;
-  border-radius: 14px;
-  background: linear-gradient(180deg, rgba(241, 245, 249, 0.9), rgba(226, 232, 240, 0.55));
+  min-height: 120px;
+  border-radius: 16px;
+  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
-.system-sidebar.collapsed .sidebar-head,
-.system-sidebar.collapsed .sidebar-nav {
+.system-sidebar.collapsed .sidebar-shell {
   display: none;
 }
 
 @media (max-width: 1180px) {
   .system-sidebar {
     height: auto;
-    overflow: visible;
     width: 100%;
     flex-basis: auto;
   }
