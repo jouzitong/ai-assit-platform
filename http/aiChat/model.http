@@ -1,0 +1,9 @@
+### model 查询
+POST {{host}}/aiChat/api/v1/ai/chat/meta/internal/model/_search
+Content-Type: application/json;charset=UTF-8
+Accept: application/json
+Authorization: Bearer {{token}}
+
+{
+
+}
