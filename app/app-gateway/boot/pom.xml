@@ -30,11 +30,7 @@
 
         <dependency>
             <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-security</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-security-token-jwt</artifactId>
+            <artifactId>athena-framework-starter-security-gateway</artifactId>
         </dependency>
         <dependency>
             <groupId>org.athena</groupId>
