@@ -218,9 +218,9 @@ async function loadActiveTab() {
 async function loadProviderPage() {
   loading.provider = true
   try {
-    const response = await searchAiChatProviderConfigs(buildProviderQuery())
-    providerList.value = response?.list ?? []
-    providerPagination.total = response?.pageInfo?.total ?? 0
+    const payload = unwrapPayload(await searchAiChatProviderConfigs(buildProviderQuery()))
+    providerList.value = payload?.list ?? []
+    providerPagination.total = resolvePageTotal(payload?.pageInfo?.total, providerList.value.length)
   } catch (error) {
     showNotice(error.message || 'Provider 列表加载失败', 'error')
   } finally {
@@ -231,9 +231,9 @@ async function loadProviderPage() {
 async function loadModelPage() {
   loading.model = true
   try {
-    const response = await searchAiChatModelManages(buildModelQuery())
-    modelList.value = response?.list ?? []
-    modelPagination.total = response?.pageInfo?.total ?? 0
+    const payload = unwrapPayload(await searchAiChatModelManages(buildModelQuery()))
+    modelList.value = payload?.list ?? []
+    modelPagination.total = resolvePageTotal(payload?.pageInfo?.total, modelList.value.length)
   } catch (error) {
     showNotice(error.message || 'Model 列表加载失败', 'error')
   } finally {
@@ -243,11 +243,11 @@ async function loadModelPage() {
 
 async function ensureProviderOptions() {
   try {
-    const response = await searchAiChatProviderConfigs({
+    const payload = unwrapPayload(await searchAiChatProviderConfigs({
       page: 1,
       size: 200
-    })
-    providerOptions.value = response?.list ?? []
+    }))
+    providerOptions.value = payload?.list ?? []
   } catch (error) {
     showNotice(error.message || 'Provider 选项加载失败', 'error')
   }
@@ -278,7 +278,7 @@ async function openModelEdit(row) {
   modelDialogMode.value = 'edit'
   modelError.value = ''
   try {
-    const detail = await getAiChatModelManage(row.id)
+    const detail = unwrapPayload(await getAiChatModelManage(row.id))
     Object.assign(modelForm, createModelForm(), detail, {
       maxContextTokens: detail?.maxContextTokens ?? '',
       maxOutputTokens: detail?.maxOutputTokens ?? '',
@@ -520,6 +520,18 @@ function normalizeNumber(value) {
   }
   const parsed = Number(value)
   return Number.isFinite(parsed) ? parsed : null
+}
+
+function unwrapPayload(response) {
+  return response?.data ?? response
+}
+
+function resolvePageTotal(total, listLength) {
+  const parsed = Number(total)
+  if (Number.isFinite(parsed) && parsed > 0) {
+    return parsed
+  }
+  return listLength
 }
 
 function formatDateTime(value) {
