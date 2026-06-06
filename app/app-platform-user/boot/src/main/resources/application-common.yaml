@@ -19,4 +19,4 @@ athena:
       type: jwt
       jwt:
         enabled: true
-        accessTokenExpireMinutes: 120
+        accessTokenExpireMinutes: 12000

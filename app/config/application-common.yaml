@@ -41,3 +41,7 @@ athena:
       jwt:
         enabled: true
         accessTokenExpireMinutes: 120
+  cloud:
+    openfeign:
+      basePackages:
+#        -

@@ -8,13 +8,3 @@ server:
   port: 13101
   servlet:
     context-path: /aiEngine
-
-ai:
-  provider:
-    qwen:
-      apiKey: "sk-50239c760667494297501c8688ae8483"
-      enabled: true
-#      base-url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-      # Spring AI OpenAI client will append `/v1/chat/completions` automatically.
-      base-url: "https://dashscope.aliyuncs.com/compatible-mode"
-      default-model: "qwen-math-turbo"
