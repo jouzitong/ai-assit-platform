@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.provider.qwen;
+package ai.platform.aiassist.service.ai.provider.config;
 
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;

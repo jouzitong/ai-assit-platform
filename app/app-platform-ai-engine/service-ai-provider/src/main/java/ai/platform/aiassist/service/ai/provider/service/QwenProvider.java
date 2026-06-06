@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.provider.qwen;
+package ai.platform.aiassist.service.ai.provider.service;
 
 import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
@@ -23,6 +23,7 @@ import ai.platform.aiassist.service.ai.core.provider.dto.ProviderKbDeleteRequest
 import ai.platform.aiassist.service.ai.core.provider.dto.ProviderKbSearchRequest;
 import ai.platform.aiassist.service.ai.core.provider.dto.ProviderKbUpsertRequest;
 import ai.platform.aiassist.service.ai.core.provider.dto.ProviderRerankRequest;
+import ai.platform.aiassist.service.ai.provider.config.QwenProperties;
 import io.micrometer.observation.ObservationRegistry;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;

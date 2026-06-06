@@ -5,6 +5,7 @@ import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
+import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
 import ai.platform.aiassist.service.ai.meta.service.AiModelCredentialService;
 import ai.platform.aiassist.service.ai.meta.service.AiProviderConfigService;
@@ -12,7 +13,10 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Collections;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/ai/meta")
@@ -28,6 +32,25 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         this.providerConfigService = providerConfigService;
         this.modelConfigService = modelConfigService;
         this.credentialService = credentialService;
+    }
+
+    @Override
+    public AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request) {
+        ai.platform.aiassist.service.ai.meta.entity.req.AiMetaQueryRequest internalRequest = toInternalRequest(request);
+        List<ai.platform.aiassist.service.ai.meta.entity.dto.AiProviderConfigDTO> providers =
+                providerConfigService.queryAll(internalRequest);
+        List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models =
+                modelConfigService.queryAll(internalRequest);
+        Map<String, List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO>> modelMap = models.stream()
+                .collect(Collectors.groupingBy(ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO::getProviderCode));
+
+        AiProviderModelOverviewDTO response = new AiProviderModelOverviewDTO();
+        response.setProviders(providers.stream()
+                .map(provider -> toOverviewProviderItem(provider, modelMap.get(provider.getProviderCode())))
+                .toList());
+        response.setProviderCount(providers.size());
+        response.setModelCount(models.size());
+        return response;
     }
 
     @Override
@@ -102,6 +125,45 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         target.setKeyVersion(source.getKeyVersion());
         target.setEnabled(source.getEnabled());
         target.setExpireAt(source.getExpireAt());
+        target.setRemark(source.getRemark());
+        return target;
+    }
+
+    private AiProviderModelOverviewDTO.ProviderItem toOverviewProviderItem(
+            ai.platform.aiassist.service.ai.meta.entity.dto.AiProviderConfigDTO source,
+            List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models) {
+        List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> safeModels =
+                models == null ? Collections.emptyList() : models;
+        AiProviderModelOverviewDTO.ProviderItem target = new AiProviderModelOverviewDTO.ProviderItem();
+        target.setId(source.getId());
+        target.setProviderCode(source.getProviderCode());
+        target.setProviderName(source.getProviderName());
+        target.setBaseUrl(source.getBaseUrl());
+        target.setConnectTimeoutMs(source.getConnectTimeoutMs());
+        target.setReadTimeoutMs(source.getReadTimeoutMs());
+        target.setEnabled(source.getEnabled());
+        target.setRemark(source.getRemark());
+        target.setModelCount(safeModels.size());
+        target.setModels(safeModels.stream()
+                .map(this::toOverviewModelItem)
+                .toList());
+        return target;
+    }
+
+    private AiProviderModelOverviewDTO.ModelItem toOverviewModelItem(
+            ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO source) {
+        AiProviderModelOverviewDTO.ModelItem target = new AiProviderModelOverviewDTO.ModelItem();
+        target.setId(source.getId());
+        target.setModelCode(source.getModelCode());
+        target.setModelName(source.getModelName());
+        target.setProviderCode(source.getProviderCode());
+        target.setApiModel(source.getApiModel());
+        target.setCapabilityTags(source.getCapabilityTags());
+        target.setMaxContextTokens(source.getMaxContextTokens());
+        target.setMaxOutputTokens(source.getMaxOutputTokens());
+        target.setTemperatureEnabled(source.getTemperatureEnabled());
+        target.setEnabled(source.getEnabled());
+        target.setPriority(source.getPriority());
         target.setRemark(source.getRemark());
         return target;
     }

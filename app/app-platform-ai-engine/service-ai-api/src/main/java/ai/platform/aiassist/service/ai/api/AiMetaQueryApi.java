@@ -4,6 +4,7 @@ import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
+import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -16,6 +17,9 @@ import java.util.List;
         path = "/aiEngine"
 )
 public interface AiMetaQueryApi {
+
+    @PostMapping("/provider-model/overview")
+    AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request);
 
     @PostMapping("/provider/list")
     List<AiProviderConfigDTO> listProviders(@RequestBody(required = false) AiMetaQueryRequest request);
