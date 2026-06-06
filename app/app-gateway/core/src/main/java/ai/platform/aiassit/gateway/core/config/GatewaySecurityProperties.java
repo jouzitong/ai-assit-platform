@@ -30,6 +30,8 @@ public class GatewaySecurityProperties {
 
     private Permission permission = new Permission();
 
+    private Signing signing = new Signing();
+
     @Data
     public static class Permission {
 
@@ -38,5 +40,11 @@ public class GatewaySecurityProperties {
         private String appCode = "app-platform-user";
 
         private String requiredPermissionsHeader = "X-Gateway-Required-Permissions";
+    }
+
+    @Data
+    public static class Signing {
+
+        private String secret = "";
     }
 }

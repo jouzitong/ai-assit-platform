@@ -17,7 +17,7 @@ public class QwenProperties {
     private String apiKey;
 
     /** 千问服务地址，默认 DashScope 兼容地址 */
-    private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1";
+    private String baseUrl = "https://dashscope.aliyuncs.com/compatible-mode";
 
     /** 默认模型 */
     private String defaultModel = "qwen-plus";

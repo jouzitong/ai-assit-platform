@@ -12,10 +12,22 @@
   min-width: 0;
   flex: 1;
   min-height: 0;
+  width: 100%;
+  height: 100%;
   display: grid;
+  grid-template-rows: minmax(0, 1fr);
   gap: 18px;
   padding: 18px;
   background: #fff;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
+}
+
+.system-content > * {
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
 }
 
 .content-head {

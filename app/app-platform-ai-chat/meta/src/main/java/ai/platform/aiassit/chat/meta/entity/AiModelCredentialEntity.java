@@ -10,15 +10,15 @@ import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.BaseEntity;
 import java.time.LocalDateTime;
 
+/**
+ * AI 模型密钥配置实体。
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @TableName("ai_model_credential")
-/**
- * AI 模型密钥配置实体。
- */
 public class AiModelCredentialEntity extends BaseEntity {
 
     /** 密钥配置编码。 */

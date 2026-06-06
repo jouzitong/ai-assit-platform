@@ -63,11 +63,13 @@ const route = useRoute()
   min-width: 0;
   flex: 1;
   height: 100%;
+  min-height: 100%;
   padding: 16px 14px;
   transition: width 0.22s ease, flex-basis 0.22s ease, padding 0.22s ease;
   display: flex;
   flex-direction: column;
   gap: 12px;
+  box-sizing: border-box;
   border: 0;
   border-radius: 0;
   background: #fff;
@@ -93,6 +95,7 @@ const route = useRoute()
   background: #fff;
   box-shadow: none;
   flex: none;
+  align-self: flex-end;
 }
 
 .system-sidebar.collapsed .sidebar-toggle {
@@ -101,6 +104,7 @@ const route = useRoute()
 
 .sidebar-shell {
   min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 0;

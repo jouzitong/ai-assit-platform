@@ -86,14 +86,17 @@ const {
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
   background: #fff;
+  height: 100%;
+  border-right: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 .system-divider {
+  position: relative;
   border: 0;
   padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+  display: block;
+  align-self: stretch;
+  height: 100%;
   cursor: col-resize;
   touch-action: none;
   background: #fff;
@@ -107,16 +110,18 @@ const {
 }
 
 .divider-track {
-  width: 100%;
-  height: 56px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  position: absolute;
+  inset: 0;
+  display: block;
 }
 
 .divider-grip {
+  position: absolute;
+  top: 50%;
+  left: 50%;
   width: 2px;
   height: 28px;
+  transform: translate(-50%, -50%);
   border-radius: 999px;
   background: rgba(148, 163, 184, 0.9);
 }
@@ -129,9 +134,7 @@ const {
 .system-content-panel {
   width: 100%;
   display: flex;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  overflow: hidden;
   background: #fff;
   border-left: 0;
 }

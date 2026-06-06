@@ -1,453 +1,1007 @@
 <script setup>
-import { computed, reactive, ref } from 'vue'
-import { Delete, EditPen, Plus, Search } from '@element-plus/icons-vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
+import {
+  createAiChatModelManage,
+  createAiChatProviderConfig,
+  deleteAiChatModelManage,
+  deleteAiChatProviderConfig,
+  editAiChatModelManage,
+  editAiChatProviderConfig,
+  getAiChatModelManage,
+  searchAiChatModelManages,
+  searchAiChatProviderConfigs,
+  updateAiChatModelManage,
+  updateAiChatProviderConfig
+} from '../../../../../../api/aiChat'
 
-const aiTabs = [
-  {
-    key: 'provider',
-    label: '提供商',
-    summary: '基础地址、超时、启停',
-    icon: 'P'
-  },
-  {
-    key: 'model',
-    label: '模型',
-    summary: '能力标签、Token、优先级',
-    icon: 'M'
-  },
-  {
-    key: 'credential',
-    label: '密钥',
-    summary: '脱敏密钥、版本、过期时间',
-    icon: 'C'
-  }
+const activeTab = ref('provider')
+const loading = reactive({
+  provider: false,
+  model: false,
+  providerSaving: false,
+  modelSaving: false
+})
+
+const providerFilters = reactive({
+  providerCode: '',
+  enabled: ''
+})
+
+const modelFilters = reactive({
+  keyword: '',
+  providerCode: '',
+  enabled: ''
+})
+
+const providerPagination = reactive({
+  page: 1,
+  size: 10,
+  total: 0
+})
+
+const modelPagination = reactive({
+  page: 1,
+  size: 10,
+  total: 0
+})
+
+const providerList = ref([])
+const modelList = ref([])
+const providerOptions = ref([])
+
+const providerDialogVisible = ref(false)
+const providerDialogMode = ref('create')
+const providerError = ref('')
+const providerForm = reactive(createProviderForm())
+
+const modelDialogVisible = ref(false)
+const modelDialogMode = ref('create')
+const modelError = ref('')
+const modelForm = reactive(createModelForm())
+
+const enabledOptions = [
+  { label: '全部状态', value: '' },
+  { label: '启用', value: 'true' },
+  { label: '停用', value: 'false' }
 ]
 
-const activeAiTab = ref('provider')
-const editorMode = ref('create')
-const editingId = ref(null)
-const searchText = ref('')
-const formError = ref('')
+const pageSizeOptions = [10, 20, 50]
 
-let nextId = 1
+const notice = reactive({
+  type: 'success',
+  text: ''
+})
 
-function createProviderRecord(overrides = {}) {
+let noticeTimer = null
+
+const currentStats = computed(() => {
+  if (activeTab.value === 'provider') {
+    const enabledCount = providerList.value.filter((item) => item.enabled).length
+    return [
+      { label: '总记录', value: providerPagination.total },
+      { label: '当前页', value: providerList.value.length },
+      { label: '启用中', value: enabledCount },
+      { label: '已停用', value: Math.max(providerList.value.length - enabledCount, 0) }
+    ]
+  }
+
+  const enabledCount = modelList.value.filter((item) => item.enabled).length
+  const credentialCount = modelList.value.filter((item) => item.credentialCode).length
+  return [
+    { label: '总记录', value: modelPagination.total },
+    { label: '当前页', value: modelList.value.length },
+    { label: '启用中', value: enabledCount },
+    { label: '已绑定凭证', value: credentialCount }
+  ]
+})
+
+const currentTotal = computed(() => (activeTab.value === 'provider' ? providerPagination.total : modelPagination.total))
+
+const currentPage = computed({
+  get: () => (activeTab.value === 'provider' ? providerPagination.page : modelPagination.page),
+  set: (value) => {
+    if (activeTab.value === 'provider') {
+      providerPagination.page = value
+    } else {
+      modelPagination.page = value
+    }
+  }
+})
+
+const currentSize = computed({
+  get: () => (activeTab.value === 'provider' ? providerPagination.size : modelPagination.size),
+  set: (value) => {
+    if (activeTab.value === 'provider') {
+      providerPagination.size = value
+    } else {
+      modelPagination.size = value
+    }
+  }
+})
+
+const pageSummary = computed(() => {
+  const total = currentTotal.value
+  const page = currentPage.value
+  const size = currentSize.value
+
+  if (!total) {
+    return '第 0 - 0 条，共 0 条'
+  }
+
+  const start = (page - 1) * size + 1
+  const end = Math.min(page * size, total)
+  return `第 ${start} - ${end} 条，共 ${total} 条`
+})
+
+const totalPages = computed(() => Math.max(1, Math.ceil(currentTotal.value / currentSize.value)))
+
+watch(activeTab, async () => {
+  await Promise.all([loadActiveTab(), ensureProviderOptions()])
+})
+
+onMounted(async () => {
+  await Promise.all([loadProviderPage(), loadModelPage(), ensureProviderOptions()])
+})
+
+function createProviderForm() {
   return {
-    id: nextId++,
+    id: null,
     providerCode: '',
     providerName: '',
     baseUrl: '',
     connectTimeoutMs: 3000,
-    readTimeoutMs: 12000,
+    readTimeoutMs: 30000,
     enabled: true,
-    remark: '',
-    ...overrides
+    remark: ''
   }
 }
 
-function createModelRecord(overrides = {}) {
+function createModelForm() {
   return {
-    id: nextId++,
+    id: null,
     modelCode: '',
     modelName: '',
     providerCode: '',
     apiModel: '',
     capabilityTags: '',
-    maxContextTokens: 32000,
-    maxOutputTokens: 4096,
+    maxContextTokens: '',
+    maxOutputTokens: '',
     temperatureEnabled: 1,
     enabled: true,
-    priority: 1,
+    priority: 100,
     remark: '',
-    ...overrides
-  }
-}
-
-function createCredentialRecord(overrides = {}) {
-  return {
-    id: nextId++,
+    credentialId: null,
     credentialCode: '',
-    providerCode: '',
-    modelCode: '',
-    apiKeyCiphertext: '',
+    apiKeyInput: '',
     apiKeyMasked: '',
     keyVersion: 1,
-    enabled: true,
+    credentialEnabled: true,
     expireAt: '',
-    remark: '',
-    ...overrides
+    credentialRemark: ''
   }
 }
 
-const aiRecords = reactive({
-  provider: [
-    createProviderRecord({
-      providerCode: 'qwen',
-      providerName: '通义千问',
-      baseUrl: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      connectTimeoutMs: 3000,
-      readTimeoutMs: 12000,
-      enabled: true,
-      remark: '主生产接入'
-    }),
-    createProviderRecord({
-      providerCode: 'deepseek',
-      providerName: 'DeepSeek',
-      baseUrl: 'https://api.deepseek.com',
-      connectTimeoutMs: 2500,
-      readTimeoutMs: 10000,
-      enabled: true,
-      remark: '推理备用'
-    })
-  ],
-  model: [
-    createModelRecord({
-      modelCode: 'qwen-max',
-      modelName: '通义千问 Max',
-      providerCode: 'qwen',
-      apiModel: 'qwen-max-latest',
-      capabilityTags: 'chat,stream,tool-call',
-      maxContextTokens: 131072,
-      maxOutputTokens: 8192,
-      temperatureEnabled: 1,
-      enabled: true,
-      priority: 1,
-      remark: '主聊天模型'
-    }),
-    createModelRecord({
-      modelCode: 'deepseek-r1',
-      modelName: 'DeepSeek R1',
-      providerCode: 'deepseek',
-      apiModel: 'deepseek-reasoner',
-      capabilityTags: 'chat,reasoning',
-      maxContextTokens: 64000,
-      maxOutputTokens: 8192,
-      temperatureEnabled: 0,
-      enabled: true,
-      priority: 2,
-      remark: '推理优先'
-    })
-  ],
-  credential: [
-    createCredentialRecord({
-      credentialCode: 'qwen-prod-v1',
-      providerCode: 'qwen',
-      modelCode: 'qwen-max',
-      apiKeyCiphertext: 'enc:***',
-      apiKeyMasked: 'sk-qw****************f3',
-      keyVersion: 1,
-      enabled: true,
-      expireAt: '2026-12-31T23:59',
-      remark: '生产密钥'
-    }),
-    createCredentialRecord({
-      credentialCode: 'deepseek-dr',
-      providerCode: 'deepseek',
-      modelCode: 'deepseek-r1',
-      apiKeyCiphertext: 'enc:***',
-      apiKeyMasked: 'sk-ds****************9a',
-      keyVersion: 2,
-      enabled: true,
-      expireAt: '2026-09-30T23:59',
-      remark: '容灾密钥'
-    })
-  ]
-})
-
-const activeAiMeta = computed(() => {
-  if (activeAiTab.value === 'model') {
-    return {
-      title: '模型配置',
-      description: '定义模型编码、提供商映射、能力标签和最大 Token 上限。',
-      columns: [
-        { key: 'modelCode', label: '模型编码' },
-        { key: 'modelName', label: '模型名称' },
-        { key: 'providerCode', label: '提供商' },
-        { key: 'capabilityTags', label: '能力标签' },
-        { key: 'priority', label: '优先级' },
-        { key: 'enabled', label: '状态' }
-      ],
-      fields: [
-        { key: 'modelCode', label: '模型编码', type: 'text', required: true },
-        { key: 'modelName', label: '模型名称', type: 'text', required: true },
-        { key: 'providerCode', label: '提供商编码', type: 'text', required: true },
-        { key: 'apiModel', label: 'API Model', type: 'text', required: true },
-        { key: 'capabilityTags', label: '能力标签', type: 'text', required: true },
-        { key: 'maxContextTokens', label: '最大上下文 Token', type: 'number', required: true },
-        { key: 'maxOutputTokens', label: '最大输出 Token', type: 'number', required: true },
-        { key: 'temperatureEnabled', label: '温度参数', type: 'select', required: true },
-        { key: 'priority', label: '优先级', type: 'number', required: true },
-        { key: 'enabled', label: '启用状态', type: 'boolean', required: true },
-        { key: 'remark', label: '备注', type: 'textarea', required: false }
-      ],
-      hint: '模型配置承接 provider，决定可用能力和上下文上限。'
-    }
-  }
-
-  if (activeAiTab.value === 'credential') {
-    return {
-      title: '密钥配置',
-      description: '管理脱敏密钥、密钥版本和过期时间，前端不直接展示明文。',
-      columns: [
-        { key: 'credentialCode', label: '密钥编码' },
-        { key: 'providerCode', label: '提供商' },
-        { key: 'modelCode', label: '模型' },
-        { key: 'apiKeyMasked', label: '脱敏值' },
-        { key: 'expireAt', label: '过期时间' },
-        { key: 'enabled', label: '状态' }
-      ],
-      fields: [
-        { key: 'credentialCode', label: '密钥编码', type: 'text', required: true },
-        { key: 'providerCode', label: '提供商编码', type: 'text', required: true },
-        { key: 'modelCode', label: '模型编码', type: 'text', required: true },
-        { key: 'apiKeyCiphertext', label: 'API Key 密文', type: 'textarea', required: true },
-        { key: 'apiKeyMasked', label: 'API Key 脱敏值', type: 'text', required: true },
-        { key: 'keyVersion', label: '密钥版本', type: 'number', required: true },
-        { key: 'enabled', label: '启用状态', type: 'boolean', required: true },
-        { key: 'expireAt', label: '过期时间', type: 'datetime-local', required: true },
-        { key: 'remark', label: '备注', type: 'textarea', required: false }
-      ],
-      hint: '密钥配置只保留脱敏展示和版本管理，真实密文由后端托管。'
-    }
-  }
-
+function buildProviderQuery() {
   return {
-    title: '提供商配置',
-    description: '管理模型接入的基础地址、超时和启停状态。',
-    columns: [
-      { key: 'providerCode', label: '提供商编码' },
-      { key: 'providerName', label: '提供商名称' },
-      { key: 'baseUrl', label: 'Base URL' },
-      { key: 'connectTimeoutMs', label: '连接超时' },
-      { key: 'readTimeoutMs', label: '读取超时' },
-      { key: 'enabled', label: '状态' }
-    ],
-    fields: [
-      { key: 'providerCode', label: '提供商编码', type: 'text', required: true },
-      { key: 'providerName', label: '提供商名称', type: 'text', required: true },
-      { key: 'baseUrl', label: 'Base URL', type: 'text', required: true },
-      { key: 'connectTimeoutMs', label: '连接超时 (ms)', type: 'number', required: true },
-      { key: 'readTimeoutMs', label: '读取超时 (ms)', type: 'number', required: true },
-      { key: 'enabled', label: '启用状态', type: 'boolean', required: true },
-      { key: 'remark', label: '备注', type: 'textarea', required: false }
-    ],
-    hint: 'providerCode 是模型和密钥的主关联键，建议稳定且不可随意修改。'
+    page: providerPagination.page,
+    size: providerPagination.size,
+    providerCode: providerFilters.providerCode || undefined,
+    enabled: parseBooleanFilter(providerFilters.enabled)
   }
-})
-
-const aiStats = computed(() => [
-  { label: '提供商', value: aiRecords.provider.length },
-  { label: '模型', value: aiRecords.model.length },
-  { label: '密钥', value: aiRecords.credential.length }
-])
-
-const filteredAiRecords = computed(() => {
-  const keyword = searchText.value.trim().toLowerCase()
-  const list = aiRecords[activeAiTab.value]
-  if (!keyword) return list
-  return list.filter((item) => JSON.stringify(item).toLowerCase().includes(keyword))
-})
-
-function switchAiTab(key) {
-  activeAiTab.value = key
-  openCreate()
 }
 
-function openCreate() {
-  editorMode.value = 'create'
-  editingId.value = null
-  formError.value = ''
-  Object.assign(draft(), createEmptyDraft())
+function buildModelQuery() {
+  return {
+    page: modelPagination.page,
+    size: modelPagination.size,
+    keyword: modelFilters.keyword || undefined,
+    providerCode: modelFilters.providerCode || undefined,
+    enabled: parseBooleanFilter(modelFilters.enabled)
+  }
 }
 
-function createEmptyDraft() {
-  if (activeAiTab.value === 'model') return createModelRecord({ enabled: true })
-  if (activeAiTab.value === 'credential') return createCredentialRecord({ enabled: true })
-  return createProviderRecord({ enabled: true })
+function parseBooleanFilter(value) {
+  if (value === '' || value === null || value === undefined) {
+    return undefined
+  }
+  return value === 'true'
 }
 
-const draftState = reactive(createEmptyDraft())
-function draft() {
-  return draftState
+async function loadActiveTab() {
+  if (activeTab.value === 'provider') {
+    await loadProviderPage()
+  } else {
+    await loadModelPage()
+  }
 }
 
-function openEdit(row) {
-  editorMode.value = 'edit'
-  editingId.value = row.id
-  formError.value = ''
-  Object.assign(draftState, JSON.parse(JSON.stringify(row)))
+async function loadProviderPage() {
+  loading.provider = true
+  try {
+    const response = await searchAiChatProviderConfigs(buildProviderQuery())
+    providerList.value = response?.list ?? []
+    providerPagination.total = response?.pageInfo?.total ?? 0
+  } catch (error) {
+    showNotice(error.message || 'Provider 列表加载失败', 'error')
+  } finally {
+    loading.provider = false
+  }
 }
 
-function saveRecord() {
-  const schema = activeAiMeta.value
-  const missing = schema.fields.find((field) => field.required && isEmpty(draftState[field.key]))
-  if (missing) {
-    formError.value = `请补全「${missing.label}」`
+async function loadModelPage() {
+  loading.model = true
+  try {
+    const response = await searchAiChatModelManages(buildModelQuery())
+    modelList.value = response?.list ?? []
+    modelPagination.total = response?.pageInfo?.total ?? 0
+  } catch (error) {
+    showNotice(error.message || 'Model 列表加载失败', 'error')
+  } finally {
+    loading.model = false
+  }
+}
+
+async function ensureProviderOptions() {
+  try {
+    const response = await searchAiChatProviderConfigs({
+      page: 1,
+      size: 200
+    })
+    providerOptions.value = response?.list ?? []
+  } catch (error) {
+    showNotice(error.message || 'Provider 选项加载失败', 'error')
+  }
+}
+
+function openProviderCreate() {
+  providerDialogMode.value = 'create'
+  providerError.value = ''
+  Object.assign(providerForm, createProviderForm())
+  providerDialogVisible.value = true
+}
+
+function openProviderEdit(row) {
+  providerDialogMode.value = 'edit'
+  providerError.value = ''
+  Object.assign(providerForm, createProviderForm(), JSON.parse(JSON.stringify(row)))
+  providerDialogVisible.value = true
+}
+
+function openModelCreate() {
+  modelDialogMode.value = 'create'
+  modelError.value = ''
+  Object.assign(modelForm, createModelForm())
+  modelDialogVisible.value = true
+}
+
+async function openModelEdit(row) {
+  modelDialogMode.value = 'edit'
+  modelError.value = ''
+  try {
+    const detail = await getAiChatModelManage(row.id)
+    Object.assign(modelForm, createModelForm(), detail, {
+      maxContextTokens: detail?.maxContextTokens ?? '',
+      maxOutputTokens: detail?.maxOutputTokens ?? '',
+      priority: detail?.priority ?? 100,
+      keyVersion: detail?.keyVersion ?? 1,
+      apiKeyInput: '',
+      expireAt: detail?.expireAt ? formatDateTimeInput(detail.expireAt) : ''
+    })
+    modelDialogVisible.value = true
+  } catch (error) {
+    showNotice(error.message || 'Model 详情加载失败', 'error')
+  }
+}
+
+function validateProviderForm() {
+  if (!providerForm.providerCode.trim()) {
+    providerError.value = '请输入 Provider 编码'
+    return false
+  }
+  if (!providerForm.providerName.trim()) {
+    providerError.value = '请输入 Provider 名称'
+    return false
+  }
+  if (!providerForm.baseUrl.trim()) {
+    providerError.value = '请输入基础地址'
+    return false
+  }
+  providerError.value = ''
+  return true
+}
+
+function validateModelForm() {
+  if (!modelForm.modelCode.trim()) {
+    modelError.value = '请输入模型编码'
+    return false
+  }
+  if (!modelForm.modelName.trim()) {
+    modelError.value = '请输入模型名称'
+    return false
+  }
+  if (!modelForm.providerCode) {
+    modelError.value = '请选择所属 Provider'
+    return false
+  }
+  if (!modelForm.apiModel.trim()) {
+    modelError.value = '请输入 Provider 模型标识'
+    return false
+  }
+  if (!modelForm.credentialCode.trim()) {
+    modelError.value = '请输入凭证编码'
+    return false
+  }
+  if (modelDialogMode.value === 'create' && !modelForm.apiKeyInput.trim()) {
+    modelError.value = '新增模型时必须填写 API Key'
+    return false
+  }
+  modelError.value = ''
+  return true
+}
+
+async function submitProviderForm() {
+  if (!validateProviderForm()) {
     return
   }
 
-  const cloned = JSON.parse(JSON.stringify(draftState))
-  const list = aiRecords[activeAiTab.value]
-  if (editorMode.value === 'edit' && editingId.value !== null) {
-    const index = list.findIndex((item) => item.id === editingId.value)
-    if (index !== -1) list[index] = cloned
-  } else {
-    list.unshift(cloned)
+  loading.providerSaving = true
+  try {
+    const payload = {
+      providerCode: providerForm.providerCode.trim(),
+      providerName: providerForm.providerName.trim(),
+      baseUrl: providerForm.baseUrl.trim(),
+      connectTimeoutMs: normalizeNumber(providerForm.connectTimeoutMs),
+      readTimeoutMs: normalizeNumber(providerForm.readTimeoutMs),
+      enabled: providerForm.enabled,
+      remark: providerForm.remark.trim()
+    }
+
+    if (providerDialogMode.value === 'create') {
+      await createAiChatProviderConfig(payload)
+      showNotice('Provider 新增成功')
+    } else {
+      await updateAiChatProviderConfig(providerForm.id, payload)
+      showNotice('Provider 更新成功')
+    }
+
+    providerDialogVisible.value = false
+    await Promise.all([loadProviderPage(), ensureProviderOptions()])
+  } catch (error) {
+    providerError.value = error.message || 'Provider 保存失败'
+  } finally {
+    loading.providerSaving = false
+  }
+}
+
+async function submitModelForm() {
+  if (!validateModelForm()) {
+    return
   }
 
-  formError.value = ''
-  editorMode.value = 'edit'
-  editingId.value = cloned.id
+  loading.modelSaving = true
+  try {
+    const payload = {
+      modelCode: modelForm.modelCode.trim(),
+      modelName: modelForm.modelName.trim(),
+      providerCode: modelForm.providerCode,
+      apiModel: modelForm.apiModel.trim(),
+      capabilityTags: modelForm.capabilityTags.trim(),
+      maxContextTokens: normalizeNumber(modelForm.maxContextTokens),
+      maxOutputTokens: normalizeNumber(modelForm.maxOutputTokens),
+      temperatureEnabled: Number(modelForm.temperatureEnabled),
+      enabled: modelForm.enabled,
+      priority: normalizeNumber(modelForm.priority),
+      remark: modelForm.remark.trim(),
+      credentialId: modelForm.credentialId || undefined,
+      credentialCode: modelForm.credentialCode.trim(),
+      apiKeyInput: modelForm.apiKeyInput.trim() || undefined,
+      apiKeyMasked: modelForm.apiKeyMasked || undefined,
+      keyVersion: normalizeNumber(modelForm.keyVersion),
+      credentialEnabled: modelForm.credentialEnabled,
+      expireAt: modelForm.expireAt ? formatDateTimePayload(modelForm.expireAt) : null,
+      credentialRemark: modelForm.credentialRemark.trim()
+    }
+
+    if (modelDialogMode.value === 'create') {
+      await createAiChatModelManage(payload)
+      showNotice('Model 新增成功')
+    } else {
+      await updateAiChatModelManage(modelForm.id, payload)
+      showNotice('Model 更新成功')
+    }
+
+    modelDialogVisible.value = false
+    await loadModelPage()
+  } catch (error) {
+    modelError.value = error.message || 'Model 保存失败'
+  } finally {
+    loading.modelSaving = false
+  }
 }
 
-function deleteRecord(row) {
-  const list = aiRecords[activeAiTab.value]
-  const index = list.findIndex((item) => item.id === row.id)
-  if (index !== -1) list.splice(index, 1)
-  if (editingId.value === row.id) openCreate()
+async function toggleProviderStatus(row) {
+  const nextValue = !row.enabled
+  try {
+    await editAiChatProviderConfig(row.id, { enabled: nextValue })
+    row.enabled = nextValue
+    showNotice(`Provider 已${nextValue ? '启用' : '停用'}`)
+  } catch (error) {
+    showNotice(error.message || 'Provider 状态更新失败', 'error')
+  }
 }
 
-function isEmpty(value) {
-  return value === '' || value === null || value === undefined
+async function toggleModelStatus(row) {
+  const nextValue = !row.enabled
+  try {
+    await editAiChatModelManage(row.id, { enabled: nextValue })
+    row.enabled = nextValue
+    showNotice(`Model 已${nextValue ? '启用' : '停用'}`)
+  } catch (error) {
+    showNotice(error.message || 'Model 状态更新失败', 'error')
+  }
 }
 
-function formatValue(row, key) {
-  if (key === 'enabled') return row.enabled ? '启用' : '禁用'
-  if (key === 'connectTimeoutMs') return `${row.connectTimeoutMs} ms`
-  if (key === 'readTimeoutMs') return `${row.readTimeoutMs} ms`
-  if (key === 'expireAt') return row.expireAt ? row.expireAt.replace('T', ' ') : '-'
-  return row[key] || '-'
+async function confirmDeleteProvider(row) {
+  if (!window.confirm(`确认删除 Provider「${row.providerName}」吗？`)) {
+    return
+  }
+  try {
+    await deleteAiChatProviderConfig(row.id)
+    showNotice('Provider 已删除')
+    await Promise.all([loadProviderPage(), ensureProviderOptions()])
+  } catch (error) {
+    showNotice(error.message || 'Provider 删除失败', 'error')
+  }
 }
 
-openCreate()
+async function confirmDeleteModel(row) {
+  if (!window.confirm(`确认删除 Model「${row.modelName}」吗？关联凭证也会一起删除。`)) {
+    return
+  }
+  try {
+    await deleteAiChatModelManage(row.id)
+    showNotice('Model 已删除')
+    await loadModelPage()
+  } catch (error) {
+    showNotice(error.message || 'Model 删除失败', 'error')
+  }
+}
+
+function resetProviderFilters() {
+  providerFilters.providerCode = ''
+  providerFilters.enabled = ''
+  providerPagination.page = 1
+  loadProviderPage()
+}
+
+function resetModelFilters() {
+  modelFilters.keyword = ''
+  modelFilters.providerCode = ''
+  modelFilters.enabled = ''
+  modelPagination.page = 1
+  loadModelPage()
+}
+
+function handleSearch() {
+  if (activeTab.value === 'provider') {
+    providerPagination.page = 1
+    loadProviderPage()
+  } else {
+    modelPagination.page = 1
+    loadModelPage()
+  }
+}
+
+function handlePageChange(nextPage) {
+  if (nextPage < 1 || nextPage > totalPages.value) {
+    return
+  }
+  currentPage.value = nextPage
+  loadActiveTab()
+}
+
+function handlePageSizeChange(event) {
+  currentSize.value = Number(event.target.value)
+  currentPage.value = 1
+  loadActiveTab()
+}
+
+function openCreateByTab() {
+  if (activeTab.value === 'provider') {
+    openProviderCreate()
+  } else {
+    openModelCreate()
+  }
+}
+
+function normalizeNumber(value) {
+  if (value === '' || value === null || value === undefined) {
+    return null
+  }
+  const parsed = Number(value)
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function formatDateTime(value) {
+  if (!value) {
+    return '-'
+  }
+  const date = typeof value === 'string' ? new Date(value) : value
+  if (Number.isNaN(date.getTime())) {
+    return String(value)
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
+    date.getMinutes()
+  )}`
+}
+
+function formatDateTimeInput(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return ''
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
+    date.getMinutes()
+  )}`
+}
+
+function formatDateTimePayload(value) {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return null
+  }
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
+    date.getMinutes()
+  )}:${pad(date.getSeconds())}`
+}
+
+function pad(value) {
+  return String(value).padStart(2, '0')
+}
+
+function tagList(value) {
+  if (!value) {
+    return []
+  }
+  return String(value)
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean)
+}
+
+function showNotice(text, type = 'success') {
+  notice.type = type
+  notice.text = text
+  if (noticeTimer) {
+    window.clearTimeout(noticeTimer)
+  }
+  noticeTimer = window.setTimeout(() => {
+    notice.text = ''
+  }, 2400)
+}
 </script>
 
 <template>
   <div class="ai-page">
-    <div class="content-head">
-      <div>
-        <p class="eyebrow">AI 接入</p>
-        <h2>{{ activeAiMeta.title }}</h2>
-        <p class="section-desc">{{ activeAiMeta.description }}</p>
+    <header class="content-head">
+      <div class="head-copy">
+        <p class="crumb">系统设置 / AI 接入</p>
+        <h1>AI 元数据维护</h1>
+        <p class="desc">页面只维护真实的 Provider 与 Model 配置。Model 编辑同时管理内部凭证配置。</p>
       </div>
-    </div>
 
-    <div class="hero-stats">
-      <article v-for="item in aiStats" :key="item.label" class="hero-stat">
+      <button class="create-pill" type="button" @click="openCreateByTab">
+        {{ activeTab === 'provider' ? '新增 Provider' : '新增 Model' }}
+      </button>
+    </header>
+
+    <section class="stats-row">
+      <article v-for="item in currentStats" :key="item.label" class="stat-card">
         <strong>{{ item.value }}</strong>
         <span>{{ item.label }}</span>
       </article>
+    </section>
+
+    <div v-if="notice.text" :class="['notice-bar', notice.type === 'error' ? 'is-error' : 'is-success']">
+      {{ notice.text }}
     </div>
 
-    <div class="ai-layout">
-      <aside class="ai-tabs">
+    <section class="workspace-card">
+      <div class="tab-strip">
         <button
-          v-for="tab in aiTabs"
-          :key="tab.key"
+          class="tab-pill"
+          :class="{ active: activeTab === 'provider' }"
           type="button"
-          class="ai-tab"
-          :class="{ active: activeAiTab === tab.key }"
-          @click="switchAiTab(tab.key)"
+          @click="activeTab = 'provider'"
         >
-          <span>{{ tab.icon }}</span>
-          <div>
-            <strong>{{ tab.label }}</strong>
-            <small>{{ tab.summary }}</small>
-          </div>
+          Provider 管理
         </button>
-      </aside>
+        <button
+          class="tab-pill"
+          :class="{ active: activeTab === 'model' }"
+          type="button"
+          @click="activeTab = 'model'"
+        >
+          Model 管理
+        </button>
+      </div>
 
-      <div class="ai-workbench">
-        <div class="toolbar">
-          <label class="search-box">
-            <Search :size="14" />
-            <input v-model="searchText" type="search" placeholder="搜索当前配置" />
-          </label>
-          <button class="btn secondary" type="button" @click="openCreate">
-            <Plus :size="14" />
-            新增
-          </button>
+      <div v-if="activeTab === 'provider'" class="panel-shell">
+        <div class="toolbar-grid provider-toolbar">
+          <input
+            v-model="providerFilters.providerCode"
+            class="field-control"
+            type="text"
+            placeholder="按 Provider 编码检索"
+            @keyup.enter="handleSearch"
+          />
+
+          <select v-model="providerFilters.enabled" class="field-control">
+            <option v-for="item in enabledOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
+          </select>
+
+          <div class="toolbar-actions">
+            <button class="action-btn primary" type="button" @click="handleSearch">查询</button>
+            <button class="action-btn" type="button" @click="resetProviderFilters">重置</button>
+          </div>
         </div>
 
         <div class="table-card">
-          <table class="config-table">
-            <thead>
-              <tr>
-                <th v-for="column in activeAiMeta.columns" :key="column.key">{{ column.label }}</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in filteredAiRecords" :key="row.id">
-                <td v-for="column in activeAiMeta.columns" :key="column.key">
-                  {{ formatValue(row, column.key) }}
-                </td>
-                <td class="row-actions">
-                  <button class="icon-btn" type="button" @click="openEdit(row)">
-                    <EditPen :size="13" />
-                  </button>
-                  <button class="icon-btn danger" type="button" @click="deleteRecord(row)">
-                    <Delete :size="13" />
-                  </button>
-                </td>
-              </tr>
-              <tr v-if="!filteredAiRecords.length">
-                <td :colspan="activeAiMeta.columns.length + 1" class="empty-row">没有匹配的记录</td>
-              </tr>
-            </tbody>
-          </table>
+          <div v-if="loading.provider" class="table-state">正在加载 Provider 列表...</div>
+
+          <template v-else>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>Provider 编码</th>
+                    <th>Provider 名称</th>
+                    <th>基础地址</th>
+                    <th>连接超时</th>
+                    <th>读取超时</th>
+                    <th>状态</th>
+                    <th>更新时间</th>
+                    <th>备注</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in providerList" :key="row.id">
+                    <td>{{ row.providerCode }}</td>
+                    <td>{{ row.providerName }}</td>
+                    <td class="ellipsis">{{ row.baseUrl }}</td>
+                    <td>{{ row.connectTimeoutMs }} ms</td>
+                    <td>{{ row.readTimeoutMs }} ms</td>
+                    <td>
+                      <button
+                        class="status-btn"
+                        :class="row.enabled ? 'is-on' : 'is-off'"
+                        type="button"
+                        @click="toggleProviderStatus(row)"
+                      >
+                        {{ row.enabled ? '启用' : '停用' }}
+                      </button>
+                    </td>
+                    <td>{{ formatDateTime(row.updateTime) }}</td>
+                    <td class="ellipsis">{{ row.remark || '-' }}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="link-btn" type="button" @click="openProviderEdit(row)">编辑</button>
+                        <button class="link-btn danger" type="button" @click="confirmDeleteProvider(row)">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!providerList.length">
+                    <td colspan="9" class="empty-cell">暂无 Provider 数据</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div v-else class="panel-shell">
+        <div class="toolbar-grid model-toolbar">
+          <input
+            v-model="modelFilters.keyword"
+            class="field-control"
+            type="text"
+            placeholder="搜索模型编码、模型名称、API Model、凭证编码"
+            @keyup.enter="handleSearch"
+          />
+
+          <select v-model="modelFilters.providerCode" class="field-control">
+            <option value="">全部 Provider</option>
+            <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
+              {{ item.providerName }} ({{ item.providerCode }})
+            </option>
+          </select>
+
+          <select v-model="modelFilters.enabled" class="field-control">
+            <option v-for="item in enabledOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
+          </select>
+
+          <div class="toolbar-actions">
+            <button class="action-btn primary" type="button" @click="handleSearch">查询</button>
+            <button class="action-btn" type="button" @click="resetModelFilters">重置</button>
+          </div>
         </div>
 
-        <div class="editor-card">
-          <div class="content-head compact">
-            <div>
-              <p class="eyebrow">编辑器</p>
-              <h3>{{ editorMode === 'edit' ? '编辑记录' : '新增记录' }}</h3>
+        <div class="table-card">
+          <div v-if="loading.model" class="table-state">正在加载 Model 列表...</div>
+
+          <template v-else>
+            <div class="table-scroll">
+              <table class="data-table">
+                <thead>
+                  <tr>
+                    <th>模型编码</th>
+                    <th>模型名称</th>
+                    <th>Provider</th>
+                    <th>API Model</th>
+                    <th>能力标签</th>
+                    <th>状态</th>
+                    <th>优先级</th>
+                    <th>凭证编码</th>
+                    <th>脱敏 Key</th>
+                    <th>凭证状态</th>
+                    <th>更新时间</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in modelList" :key="row.id">
+                    <td>{{ row.modelCode }}</td>
+                    <td>{{ row.modelName }}</td>
+                    <td>
+                      <div class="provider-cell">
+                        <strong>{{ row.providerName || row.providerCode }}</strong>
+                        <span>{{ row.providerCode }}</span>
+                      </div>
+                    </td>
+                    <td>{{ row.apiModel }}</td>
+                    <td>
+                      <div class="tag-list">
+                        <span v-for="tag in tagList(row.capabilityTags)" :key="tag" class="soft-tag">{{ tag }}</span>
+                        <span v-if="!tagList(row.capabilityTags).length">-</span>
+                      </div>
+                    </td>
+                    <td>
+                      <button
+                        class="status-btn"
+                        :class="row.enabled ? 'is-on' : 'is-off'"
+                        type="button"
+                        @click="toggleModelStatus(row)"
+                      >
+                        {{ row.enabled ? '启用' : '停用' }}
+                      </button>
+                    </td>
+                    <td>{{ row.priority ?? '-' }}</td>
+                    <td>{{ row.credentialCode || '-' }}</td>
+                    <td>{{ row.apiKeyMasked || '-' }}</td>
+                    <td>
+                      <span class="state-chip" :class="row.credentialEnabled ? 'is-on' : 'is-off'">
+                        {{ row.credentialEnabled ? '启用' : '停用' }}
+                      </span>
+                    </td>
+                    <td>{{ formatDateTime(row.updateTime) }}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="link-btn" type="button" @click="openModelEdit(row)">编辑</button>
+                        <button class="link-btn danger" type="button" @click="confirmDeleteModel(row)">删除</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!modelList.length">
+                    <td colspan="12" class="empty-cell">暂无 Model 数据</td>
+                  </tr>
+                </tbody>
+              </table>
             </div>
-            <button class="btn secondary" type="button" @click="openCreate">重置</button>
-          </div>
+          </template>
+        </div>
+      </div>
 
-          <p class="editor-hint">{{ activeAiMeta.hint }}</p>
+      <footer class="pagination-bar">
+        <span class="page-summary">{{ pageSummary }}</span>
+        <div class="page-controls">
+          <select class="field-control page-size" :value="currentSize" @change="handlePageSizeChange">
+            <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }} / 页</option>
+          </select>
 
-          <div class="form-grid">
-            <label v-for="field in activeAiMeta.fields" :key="field.key" class="form-field">
-              <span>{{ field.label }}<em v-if="field.required">*</em></span>
-              <template v-if="field.type === 'textarea'">
-                <textarea v-model="draftState[field.key]" rows="3" />
-              </template>
-              <template v-else-if="field.type === 'boolean'">
-                <select v-model="draftState[field.key]">
-                  <option :value="true">启用</option>
-                  <option :value="false">禁用</option>
-                </select>
-              </template>
-              <template v-else-if="field.type === 'select'">
-                <select v-model="draftState[field.key]">
-                  <option :value="1">启用</option>
-                  <option :value="0">禁用</option>
-                </select>
-              </template>
-              <template v-else-if="field.type === 'datetime-local'">
-                <input v-model="draftState[field.key]" type="datetime-local" />
-              </template>
-              <template v-else-if="field.type === 'number'">
-                <input v-model.number="draftState[field.key]" type="number" />
-              </template>
-              <template v-else>
-                <input v-model="draftState[field.key]" type="text" />
-              </template>
-            </label>
-          </div>
-
-          <p v-if="formError" class="form-error">{{ formError }}</p>
-
-          <div class="editor-actions">
-            <button class="btn secondary" type="button" @click="openCreate">新建空白</button>
-            <button class="btn primary" type="button" @click="saveRecord">
-              {{ editorMode === 'edit' ? '保存修改' : '保存新增' }}
+          <div class="pager">
+            <button class="action-btn" type="button" :disabled="currentPage <= 1" @click="handlePageChange(currentPage - 1)">
+              上一页
+            </button>
+            <span class="pager-indicator">{{ currentPage }} / {{ totalPages }}</span>
+            <button
+              class="action-btn"
+              type="button"
+              :disabled="currentPage >= totalPages"
+              @click="handlePageChange(currentPage + 1)"
+            >
+              下一页
             </button>
           </div>
         </div>
+      </footer>
+    </section>
+
+    <div v-if="providerDialogVisible" class="modal-mask" @click.self="providerDialogVisible = false">
+      <div class="modal-card">
+        <header class="modal-head">
+          <h3>{{ providerDialogMode === 'create' ? '新增 Provider' : '编辑 Provider' }}</h3>
+          <button class="close-btn" type="button" @click="providerDialogVisible = false">×</button>
+        </header>
+
+        <p v-if="providerError" class="error-banner">{{ providerError }}</p>
+
+        <div class="form-grid two-column">
+          <label class="field-block">
+            <span>Provider 编码</span>
+            <input v-model="providerForm.providerCode" class="field-control" type="text" :disabled="providerDialogMode === 'edit'" />
+          </label>
+          <label class="field-block">
+            <span>Provider 名称</span>
+            <input v-model="providerForm.providerName" class="field-control" type="text" />
+          </label>
+          <label class="field-block full-span">
+            <span>基础地址</span>
+            <input v-model="providerForm.baseUrl" class="field-control" type="text" placeholder="https://api.example.com/v1" />
+          </label>
+          <label class="field-block">
+            <span>连接超时(ms)</span>
+            <input v-model="providerForm.connectTimeoutMs" class="field-control" type="number" min="0" />
+          </label>
+          <label class="field-block">
+            <span>读取超时(ms)</span>
+            <input v-model="providerForm.readTimeoutMs" class="field-control" type="number" min="0" />
+          </label>
+          <label class="switch-block">
+            <input v-model="providerForm.enabled" type="checkbox" />
+            <span>启用 Provider</span>
+          </label>
+          <label class="field-block full-span">
+            <span>备注</span>
+            <textarea v-model="providerForm.remark" class="field-control textarea-control" rows="4" />
+          </label>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="action-btn" type="button" @click="providerDialogVisible = false">取消</button>
+          <button class="action-btn primary" type="button" :disabled="loading.providerSaving" @click="submitProviderForm">
+            {{ loading.providerSaving ? '保存中...' : '保存' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="modelDialogVisible" class="modal-mask" @click.self="modelDialogVisible = false">
+      <div class="modal-card modal-large">
+        <header class="modal-head">
+          <h3>{{ modelDialogMode === 'create' ? '新增 Model' : '编辑 Model' }}</h3>
+          <button class="close-btn" type="button" @click="modelDialogVisible = false">×</button>
+        </header>
+
+        <p v-if="modelError" class="error-banner">{{ modelError }}</p>
+
+        <section class="dialog-section">
+          <header class="section-head">
+            <h4>模型基础配置</h4>
+            <p>维护模型本体、Provider 绑定和调用参数。</p>
+          </header>
+
+          <div class="form-grid three-column">
+            <label class="field-block">
+              <span>模型编码</span>
+              <input v-model="modelForm.modelCode" class="field-control" type="text" :disabled="modelDialogMode === 'edit'" />
+            </label>
+            <label class="field-block">
+              <span>模型名称</span>
+              <input v-model="modelForm.modelName" class="field-control" type="text" />
+            </label>
+            <label class="field-block">
+              <span>所属 Provider</span>
+              <select v-model="modelForm.providerCode" class="field-control">
+                <option value="">请选择 Provider</option>
+                <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
+                  {{ item.providerName }} ({{ item.providerCode }})
+                </option>
+              </select>
+            </label>
+
+            <label class="field-block">
+              <span>Provider 模型标识</span>
+              <input v-model="modelForm.apiModel" class="field-control" type="text" />
+            </label>
+            <label class="field-block">
+              <span>能力标签</span>
+              <input v-model="modelForm.capabilityTags" class="field-control" type="text" placeholder="chat,reasoning,vision" />
+            </label>
+            <label class="field-block">
+              <span>优先级</span>
+              <input v-model="modelForm.priority" class="field-control" type="number" min="0" />
+            </label>
+
+            <label class="field-block">
+              <span>最大上下文 Token</span>
+              <input v-model="modelForm.maxContextTokens" class="field-control" type="number" min="0" />
+            </label>
+            <label class="field-block">
+              <span>最大输出 Token</span>
+              <input v-model="modelForm.maxOutputTokens" class="field-control" type="number" min="0" />
+            </label>
+            <label class="field-block">
+              <span>温度参数</span>
+              <select v-model="modelForm.temperatureEnabled" class="field-control">
+                <option :value="1">启用温度参数</option>
+                <option :value="0">禁用温度参数</option>
+              </select>
+            </label>
+
+            <label class="switch-block">
+              <input v-model="modelForm.enabled" type="checkbox" />
+              <span>启用 Model</span>
+            </label>
+
+            <label class="field-block full-span">
+              <span>备注</span>
+              <textarea v-model="modelForm.remark" class="field-control textarea-control" rows="3" />
+            </label>
+          </div>
+        </section>
+
+        <section class="dialog-section credential-section">
+          <header class="section-head">
+            <h4>内部凭证配置</h4>
+            <p>凭证与 Model 同弹窗维护。编辑时留空 API Key 表示保持现值。</p>
+          </header>
+
+          <div class="form-grid three-column">
+            <label class="field-block">
+              <span>凭证编码</span>
+              <input v-model="modelForm.credentialCode" class="field-control" type="text" />
+            </label>
+            <label class="field-block">
+              <span>Key 版本</span>
+              <input v-model="modelForm.keyVersion" class="field-control" type="number" min="1" />
+            </label>
+            <label class="switch-block">
+              <input v-model="modelForm.credentialEnabled" type="checkbox" />
+              <span>启用凭证</span>
+            </label>
+
+            <label class="field-block full-span">
+              <span>API Key</span>
+              <input
+                v-model="modelForm.apiKeyInput"
+                class="field-control"
+                type="password"
+                :placeholder="modelDialogMode === 'edit' ? '留空表示不修改现有 API Key' : '请输入 API Key'"
+              />
+            </label>
+            <label class="field-block">
+              <span>当前脱敏值</span>
+              <input class="field-control" type="text" :value="modelForm.apiKeyMasked || '-'" disabled />
+            </label>
+            <label class="field-block">
+              <span>过期时间</span>
+              <input v-model="modelForm.expireAt" class="field-control" type="datetime-local" />
+            </label>
+            <label class="field-block full-span">
+              <span>凭证备注</span>
+              <textarea v-model="modelForm.credentialRemark" class="field-control textarea-control" rows="3" />
+            </label>
+          </div>
+        </section>
+
+        <footer class="modal-actions">
+          <button class="action-btn" type="button" @click="modelDialogVisible = false">取消</button>
+          <button class="action-btn primary" type="button" :disabled="loading.modelSaving" @click="submitModelForm">
+            {{ loading.modelSaving ? '保存中...' : '保存' }}
+          </button>
+        </footer>
       </div>
     </div>
   </div>
@@ -455,201 +1009,568 @@ openCreate()
 
 <style scoped>
 .ai-page {
+  min-height: max(100%, calc(100vh - 176px));
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 20px 22px 18px;
+  background:
+    linear-gradient(180deg, rgba(248, 251, 255, 0.92) 0%, rgba(255, 255, 255, 0.98) 56%),
+    radial-gradient(circle at top left, rgba(250, 204, 21, 0.22), transparent 34%),
+    radial-gradient(circle at top right, rgba(59, 130, 246, 0.12), transparent 38%);
+}
+
+.content-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.head-copy {
   display: grid;
-  gap: 12px;
-  font-size: 13px;
-  line-height: 1.45;
-}
-
-.ai-page :deep(.content-head) {
-  gap: 10px;
-}
-
-.ai-page :deep(.content-head h2) {
-  font-size: 18px;
-  line-height: 1.2;
-}
-
-.ai-page :deep(.content-head h3) {
-  margin: 0;
-  font-size: 15px;
-  line-height: 1.2;
-}
-
-.ai-page :deep(.eyebrow) {
-  margin-bottom: 6px;
-  font-size: 10px;
-  letter-spacing: 0.16em;
-}
-
-.ai-page :deep(.section-desc),
-.ai-page :deep(.editor-hint) {
-  margin-top: 6px;
-  font-size: 12px;
-  line-height: 1.45;
-}
-
-.ai-page :deep(.hero-stats) {
-  gap: 8px;
-}
-
-.ai-page :deep(.hero-stat) {
-  min-width: 88px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  gap: 2px;
-}
-
-.ai-page :deep(.hero-stat strong) {
-  font-size: 16px;
-}
-
-.ai-page :deep(.hero-stat span) {
-  font-size: 11px;
-}
-
-.ai-page :deep(.ai-layout) {
-  grid-template-columns: 200px minmax(0, 1fr);
-  gap: 12px;
-}
-
-.ai-page :deep(.ai-tabs) {
-  gap: 8px;
-}
-
-.ai-page :deep(.ai-tab) {
-  padding: 10px;
-  border-radius: 14px;
-  grid-template-columns: 28px 1fr;
-  gap: 8px;
-}
-
-.ai-page :deep(.ai-tab span) {
-  width: 28px;
-  height: 28px;
-  border-radius: 10px;
-  font-size: 11px;
-}
-
-.ai-page :deep(.ai-tab strong) {
-  font-size: 13px;
-}
-
-.ai-page :deep(.ai-tab small) {
-  font-size: 11px;
-  line-height: 1.35;
-}
-
-.ai-page :deep(.ai-workbench) {
-  gap: 12px;
-}
-
-.ai-page :deep(.toolbar) {
-  gap: 8px;
-}
-
-.ai-page :deep(.search-box) {
-  min-width: 220px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  gap: 8px;
-}
-
-.ai-page :deep(.btn) {
-  padding: 8px 12px;
-  border-radius: 12px;
-  font-size: 12px;
-}
-
-.ai-page :deep(.table-card),
-.ai-page :deep(.editor-card) {
-  padding: 12px;
-  border-radius: 16px;
-}
-
-.ai-page :deep(.config-table th),
-.ai-page :deep(.config-table td) {
-  padding: 8px 10px;
-  font-size: 12px;
-}
-
-.ai-page :deep(.config-table th) {
-  font-size: 11px;
-}
-
-.ai-page :deep(.icon-btn) {
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  margin-left: 6px;
-}
-
-.ai-page :deep(.empty-row) {
-  padding: 16px 10px;
-}
-
-.ai-page :deep(.form-grid) {
-  gap: 10px;
-}
-
-.ai-page :deep(.form-field) {
   gap: 6px;
 }
 
-.ai-page :deep(.form-field span) {
+.crumb {
+  margin: 0;
   font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+  letter-spacing: 0.08em;
 }
 
-.ai-page :deep(.form-field input),
-.ai-page :deep(.form-field textarea),
-.ai-page :deep(.form-field select) {
-  padding: 8px 10px;
-  border-radius: 12px;
+.content-head h1 {
+  margin: 0;
+  font-size: 30px;
+  line-height: 1.04;
+  color: #111827;
+}
+
+.desc {
+  margin: 0;
+  max-width: 760px;
+  font-size: 14px;
+  line-height: 1.6;
+  color: #64748b;
+}
+
+.create-pill,
+.action-btn,
+.tab-pill,
+.status-btn,
+.link-btn,
+.close-btn {
+  border: 0;
+  cursor: pointer;
+}
+
+.create-pill {
+  border-radius: 18px;
+  padding: 14px 18px;
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+  font-size: 14px;
+  font-weight: 700;
+  box-shadow: 0 14px 32px rgba(37, 99, 235, 0.24);
+}
+
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.stat-card {
+  display: grid;
+  gap: 8px;
+  padding: 18px 18px 16px;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.04);
+}
+
+.stat-card strong {
+  font-size: 30px;
+  line-height: 1;
+  color: #0f172a;
+}
+
+.stat-card span {
   font-size: 13px;
-  min-height: 36px;
+  color: #64748b;
 }
 
-.ai-page :deep(.form-field textarea) {
-  min-height: 80px;
+.notice-bar {
+  display: flex;
+  align-items: center;
+  min-height: 42px;
+  border-radius: 16px;
+  padding: 0 14px;
+  font-size: 13px;
+  font-weight: 700;
 }
 
-.ai-page :deep(.form-error) {
-  margin-top: 10px;
+.notice-bar.is-success {
+  background: rgba(220, 252, 231, 0.9);
+  color: #166534;
+}
+
+.notice-bar.is-error {
+  background: rgba(254, 226, 226, 0.9);
+  color: #991b1b;
+}
+
+.workspace-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(226, 232, 240, 0.96);
+  border-radius: 24px;
+  padding: 14px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 24px 48px rgba(15, 23, 42, 0.06);
+}
+
+.tab-strip {
+  display: flex;
+  gap: 10px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+}
+
+.tab-pill {
+  border-radius: 999px;
+  padding: 10px 16px;
+  background: rgba(241, 245, 249, 0.92);
+  color: #475569;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.tab-pill.active {
+  background: linear-gradient(135deg, #dbeafe, #eff6ff);
+  color: #1d4ed8;
+}
+
+.panel-shell {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding-top: 12px;
+}
+
+.toolbar-grid {
+  display: grid;
+  gap: 10px;
+  align-items: center;
+}
+
+.provider-toolbar {
+  grid-template-columns: minmax(220px, 340px) 160px auto;
+}
+
+.model-toolbar {
+  grid-template-columns: minmax(280px, 1.2fr) 220px 160px auto;
+}
+
+.toolbar-actions {
+  display: inline-flex;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.field-control {
+  width: 100%;
+  min-width: 0;
+  height: 42px;
+  border: 1px solid rgba(203, 213, 225, 0.96);
+  border-radius: 14px;
+  padding: 0 14px;
+  background: rgba(255, 255, 255, 0.96);
+  font-size: 14px;
+  color: #0f172a;
+  box-sizing: border-box;
+}
+
+select.field-control {
+  appearance: none;
+}
+
+.textarea-control {
+  height: auto;
+  min-height: 96px;
+  padding-top: 12px;
+  padding-bottom: 12px;
+  resize: vertical;
+}
+
+.action-btn {
+  height: 40px;
+  border-radius: 14px;
+  padding: 0 16px;
+  background: rgba(241, 245, 249, 0.96);
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.action-btn.primary {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  color: #fff;
+}
+
+.action-btn:disabled,
+.status-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.table-card {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(226, 232, 240, 0.88);
+  border-radius: 18px;
+  overflow: hidden;
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.table-state,
+.empty-cell {
+  text-align: center;
+  color: #64748b;
+}
+
+.table-state {
+  padding: 42px 18px;
+}
+
+.table-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.data-table th,
+.data-table td {
+  border-bottom: 1px solid rgba(226, 232, 240, 0.88);
+  padding: 14px 12px;
+  text-align: left;
+  vertical-align: top;
+  font-size: 13px;
+  color: #0f172a;
+}
+
+.data-table th {
+  position: sticky;
+  top: 0;
+  background: #f8fafc;
   font-size: 12px;
+  color: #64748b;
+  z-index: 1;
 }
 
-.ai-page :deep(.editor-actions) {
-  margin-top: 12px;
+.ellipsis {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-@media (max-width: 1180px) {
-  .ai-page :deep(.ai-layout) {
+.provider-cell {
+  display: grid;
+  gap: 2px;
+}
+
+.provider-cell strong {
+  color: #0f172a;
+}
+
+.provider-cell span {
+  font-size: 12px;
+  color: #64748b;
+}
+
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.soft-tag {
+  border-radius: 999px;
+  padding: 4px 10px;
+  background: rgba(219, 234, 254, 0.76);
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-btn,
+.state-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 56px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.status-btn.is-on,
+.state-chip.is-on {
+  background: rgba(220, 252, 231, 0.95);
+  color: #15803d;
+}
+
+.status-btn.is-off,
+.state-chip.is-off {
+  background: rgba(254, 242, 242, 0.95);
+  color: #b91c1c;
+}
+
+.row-actions {
+  display: inline-flex;
+  gap: 8px;
+}
+
+.link-btn {
+  background: transparent;
+  color: #2563eb;
+  padding: 0;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.link-btn.danger {
+  color: #dc2626;
+}
+
+.empty-cell {
+  padding: 36px 12px;
+}
+
+.pagination-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 4px 0;
+}
+
+.page-summary {
+  font-size: 13px;
+  color: #64748b;
+}
+
+.page-controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.page-size {
+  width: 108px;
+}
+
+.pager {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pager-indicator {
+  font-size: 13px;
+  color: #475569;
+  font-weight: 700;
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background: rgba(15, 23, 42, 0.36);
+  z-index: 40;
+}
+
+.modal-card {
+  width: min(720px, calc(100vw - 32px));
+  max-height: calc(100vh - 48px);
+  overflow: auto;
+  border-radius: 24px;
+  padding: 20px;
+  background: #fff;
+  box-shadow: 0 30px 80px rgba(15, 23, 42, 0.22);
+}
+
+.modal-large {
+  width: min(980px, calc(100vw - 32px));
+}
+
+.modal-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.modal-head h3 {
+  margin: 0;
+  font-size: 22px;
+  color: #111827;
+}
+
+.close-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: rgba(241, 245, 249, 0.96);
+  color: #475569;
+  font-size: 22px;
+}
+
+.error-banner {
+  margin: 0 0 14px;
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: rgba(254, 226, 226, 0.96);
+  color: #991b1b;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.dialog-section + .dialog-section {
+  margin-top: 18px;
+}
+
+.section-head {
+  display: grid;
+  gap: 4px;
+  margin-bottom: 12px;
+}
+
+.section-head h4 {
+  margin: 0;
+  font-size: 16px;
+  color: #111827;
+}
+
+.section-head p {
+  margin: 0;
+  font-size: 13px;
+  color: #64748b;
+}
+
+.credential-section {
+  border-top: 1px solid rgba(226, 232, 240, 0.92);
+  padding-top: 18px;
+}
+
+.form-grid {
+  display: grid;
+  gap: 12px 14px;
+}
+
+.two-column {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.three-column {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.field-block,
+.switch-block {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.field-block span,
+.switch-block span {
+  font-size: 13px;
+  font-weight: 700;
+  color: #334155;
+}
+
+.switch-block {
+  align-content: end;
+}
+
+.switch-block input {
+  width: 18px;
+  height: 18px;
+  margin: 0;
+}
+
+.full-span {
+  grid-column: 1 / -1;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+}
+
+@media (max-width: 1280px) {
+  .stats-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .provider-toolbar,
+  .model-toolbar {
     grid-template-columns: 1fr;
   }
+
+  .toolbar-actions {
+    justify-content: flex-start;
+  }
 }
 
-@media (max-width: 760px) {
+@media (max-width: 900px) {
   .ai-page {
-    gap: 10px;
+    padding: 16px;
   }
 
-  .ai-page :deep(.toolbar),
-  .ai-page :deep(.editor-actions) {
-    align-items: stretch;
+  .content-head {
+    flex-direction: column;
   }
 
-  .ai-page :deep(.search-box) {
-    min-width: 0;
+  .create-pill {
     width: 100%;
   }
 
-  .ai-page :deep(.hero-stats) {
-    gap: 6px;
+  .stats-row,
+  .two-column,
+  .three-column {
+    grid-template-columns: 1fr;
   }
 
-  .ai-page :deep(.hero-stat) {
-    min-width: 0;
-    flex: 1 1 96px;
+  .pagination-bar,
+  .page-controls {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+
+  .modal-mask {
+    padding: 12px;
   }
 }
 </style>

@@ -36,6 +36,8 @@ gateway:
     require-token: true
     header-name: Authorization
     token-prefix: Bearer
+    signing:
+      secret: ${GATEWAY_SECURITY_SIGNING_SECRET:}
     ignore-urls:
       - /actuator/**
       - /health/**

@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="ai.platform.aiassit.chat.meta.mapper.AiModelManageMapper">
+
+    <sql id="AggregateColumns">
+        m.id,
+        m.model_code,
+        m.model_name,
+        m.provider_code,
+        p.provider_name,
+        m.api_model,
+        m.capability_tags,
+        m.max_context_tokens,
+        m.max_output_tokens,
+        m.temperature_enabled,
+        m.enabled,
+        m.priority,
+        m.remark,
+        m.create_time,
+        m.update_time,
+        m.created_by,
+        m.updated_by AS last_modified_by,
+        m.version,
+        c.id AS credential_id,
+        c.credential_code,
+        c.api_key_masked,
+        c.key_version,
+        c.enabled AS credential_enabled,
+        c.expire_at,
+        c.remark AS credential_remark
+    </sql>
+
+    <sql id="AggregateFrom">
+        FROM ai_model_config m
+        LEFT JOIN ai_provider_config p
+            ON p.provider_code = m.provider_code
+           AND p.deleted = 0
+        LEFT JOIN ai_model_credential c
+            ON c.id = (
+                SELECT ic.id
+                FROM ai_model_credential ic
+                WHERE ic.model_code = m.model_code
+                  AND ic.deleted = 0
+                ORDER BY ic.id DESC
+                LIMIT 1
+            )
+        WHERE m.deleted = 0
+    </sql>
+
+    <sql id="AggregateWhere">
+        <if test="query != null">
+            <if test="query.providerCode != null and query.providerCode != ''">
+                AND m.provider_code = #{query.providerCode}
+            </if>
+            <if test="query.modelCode != null and query.modelCode != ''">
+                AND m.model_code = #{query.modelCode}
+            </if>
+            <if test="query.enabled != null">
+                AND m.enabled = #{query.enabled}
+            </if>
+            <if test="query.keyword != null and query.keyword != ''">
+                AND (
+                    m.model_code LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.model_name LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.api_model LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.capability_tags LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.remark LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.provider_code LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR p.provider_name LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR c.credential_code LIKE CONCAT('%', #{query.keyword}, '%')
+                )
+            </if>
+        </if>
+    </sql>
+
+    <select id="pageAggregate" resultType="ai.platform.aiassit.chat.meta.entity.dto.AiModelManageDTO">
+        SELECT
+        <include refid="AggregateColumns"/>
+        <include refid="AggregateFrom"/>
+        <include refid="AggregateWhere"/>
+        ORDER BY m.priority ASC, m.update_time DESC, m.id DESC
+    </select>
+
+    <select id="selectByModelId" resultType="ai.platform.aiassit.chat.meta.entity.dto.AiModelManageDTO">
+        SELECT
+        <include refid="AggregateColumns"/>
+        <include refid="AggregateFrom"/>
+        AND m.id = #{id}
+        LIMIT 1
+    </select>
+</mapper>
