@@ -9,3 +9,7 @@ app:
     name: 'app-platform-user'
   gateway:
     name: 'gateway'
+  ai-chat:
+    name: 'ai-chat'
+  ai-engine:
+    name: 'ai-engine'

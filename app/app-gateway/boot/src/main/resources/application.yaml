@@ -1,16 +1,57 @@
 server:
   port: 9764
 spring:
-  profiles:
-    active: dev
-    include: common, lib
   application:
-    name: gateway
+    name: ${app.gateway.name:gateway}
   main:
     allow-bean-definition-overriding: true
-app:
-  platform-user:
-    name: 'app-platform-user'
-    url: 'http://127.0.0.1:8082/user'
-  gateway:
-    name: 'gateway'
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  cloud:
+    gateway:
+      mvc:
+        routes:
+          - id: user-service-route
+            uri: lb://app-platform-user
+            predicates:
+              - Path=/user/**
+          - id: ai-chat-service-route
+            uri: lb://app-platform-ai-chat
+            predicates:
+              - Path=/aiChat/**
+          - id: ai-engine-service-route
+            uri: lb://boot-ai-engine
+            predicates:
+              - Path=/aiEngine/**
+
+gateway:
+  security:
+    enabled: true
+    require-token: true
+    header-name: Authorization
+    token-prefix: Bearer
+    signing:
+      secret: ${GATEWAY_SECURITY_SIGNING_SECRET:}
+    ignore-urls:
+      - /actuator/**
+      - /health/**
+      - /user/auth/**
+      - /error
+      - /favicon.ico
+    permission:
+      enabled: false
+      app-code: ${app.platform-user.name:app-platform-user}
+      required-permissions-header: X-Gateway-Required-Permissions
+
+
+athena:
+  security:
+    enabled: true
+    auth:
+      enabled: true
+    token:
+      type: jwt
+      jwt:
+        enabled: true

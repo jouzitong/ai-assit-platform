@@ -1,11 +1,11 @@
-spring:
-  application:
-    name: app-platform-user
-  profiles:
-    active: dev
-    include: common, lib
-
 server:
   port: 8082
   servlet:
     context-path: /user
+
+spring:
+  application:
+    name: ${app.platform-user:app-platform-user}
+
+database:
+  name: platform_ai_aissit

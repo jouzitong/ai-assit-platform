@@ -18,7 +18,7 @@ spring:
         namespace: a3aa9d79-006b-4e9f-86d6-c75828643fb5
         group: ${spring.application.name}
   datasource:
-    url: jdbc:mysql://43.142.108.229:3306/app_nas_project?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+    url: jdbc:mysql://43.142.108.229:3306/${database.name}?createDatabaseIfNotExist=true&useUnicode=true&characterEncoding=UTF-8&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
     username: root
     password: rooth5lUs*dA*
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -40,8 +40,8 @@ athena:
       type: jwt
       jwt:
         enabled: true
-        accessTokenExpireMinutes: 120
+        accessTokenExpireMinutes: 12000
   cloud:
     openfeign:
       basePackages:
-#        -
+        - ai.platform.aiassit.user.api
