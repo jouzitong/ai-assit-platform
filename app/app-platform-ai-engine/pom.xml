@@ -41,6 +41,11 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>service-ai-meta</artifactId>
+                <version>${app.platform.ai.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>service-ai-provider</artifactId>
                 <version>${app.platform.ai.engine.version}</version>
             </dependency>
@@ -50,6 +55,7 @@
     <modules>
         <module>service-ai-core</module>
         <module>service-ai-api</module>
+        <module>meta</module>
         <module>service-ai-provider</module>
         <module>boot-ai-engine</module>
     </modules>

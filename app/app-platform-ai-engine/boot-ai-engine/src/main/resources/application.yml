@@ -1,6 +1,6 @@
 spring:
   application:
-    name: boot-ai-engine
+    name: app-platform-ai-engine
   profiles:
     active: dev
     include: common, lib

@@ -45,6 +45,10 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>service-ai-meta</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>service-ai-provider</artifactId>
         </dependency>
         <dependency>

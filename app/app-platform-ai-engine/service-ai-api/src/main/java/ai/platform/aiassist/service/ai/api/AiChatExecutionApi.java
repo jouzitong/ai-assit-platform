@@ -12,8 +12,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
  * AI 对话执行 API（HTTP/Feign）。
  */
 @FeignClient(
-        name = "${app.ai-engine.name:boot-ai-engine}",
-        url = "${app.ai-engine.url:http://127.0.0.1:13101/aiEngine}"
+        name = "${spring.application.name}",
+        contextId = "platformAiEngineClient",
+        path = "/aiEngine"
 )
 public interface AiChatExecutionApi {
 

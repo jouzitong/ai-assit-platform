@@ -34,11 +34,6 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
-                <artifactId>app-platform-ai-chat-meta</artifactId>
-                <version>${app.platform.ai.chat.version}</version>
-            </dependency>
-            <dependency>
-                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-ai-chat-boot</artifactId>
                 <version>${app.platform.ai.chat.version}</version>
             </dependency>
@@ -57,7 +52,6 @@
 
     <modules>
         <module>api</module>
-        <module>meta</module>
         <module>core</module>
         <module>boot</module>
         <module>chat-history</module>

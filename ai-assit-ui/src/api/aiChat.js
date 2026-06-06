@@ -2,6 +2,7 @@ import { buildUrl, request } from '../utils/request'
 import { getToken } from '../utils/session'
 
 const AI_CHAT_API_PREFIX = '/aiChat/api/v1/ai/chat'
+const AI_META_API_PREFIX = '/aiEngine/api/v1/ai/meta'
 
 function buildAuthorizedHeaders(extraHeaders = {}) {
   const token = getToken()
@@ -79,89 +80,89 @@ export function deleteAiChatConversation(payload) {
 }
 
 export function listAiChatModels(payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model/_search`, {
+  return request(`${AI_META_API_PREFIX}/model/list`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function listAiChatProviders(payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/provider/list`, {
+  return request(`${AI_META_API_PREFIX}/provider/list`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function searchAiChatProviderConfigs(payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/provider/_search`, {
+  return request(`${AI_META_API_PREFIX}/internal/provider/_search`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function createAiChatProviderConfig(payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/provider`, {
+  return request(`${AI_META_API_PREFIX}/internal/provider`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function updateAiChatProviderConfig(id, payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/provider/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/provider/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function editAiChatProviderConfig(id, payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/provider/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/provider/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function deleteAiChatProviderConfig(id) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/provider/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/provider/${id}`, {
     method: 'DELETE'
   })
 }
 
 export function searchAiChatModelManages(payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model-manage/_search`, {
+  return request(`${AI_META_API_PREFIX}/internal/model-manage/_search`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function getAiChatModelManage(id) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model-manage/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/model-manage/${id}`, {
     method: 'GET'
   })
 }
 
 export function createAiChatModelManage(payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model-manage`, {
+  return request(`${AI_META_API_PREFIX}/internal/model-manage`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function updateAiChatModelManage(id, payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model-manage/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/model-manage/${id}`, {
     method: 'PUT',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function editAiChatModelManage(id, payload) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model-manage/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/model-manage/${id}`, {
     method: 'PATCH',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function deleteAiChatModelManage(id) {
-  return request(`${AI_CHAT_API_PREFIX}/meta/internal/model-manage/${id}`, {
+  return request(`${AI_META_API_PREFIX}/internal/model-manage/${id}`, {
     method: 'DELETE'
   })
 }

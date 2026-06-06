@@ -6,27 +6,23 @@
 
     <parent>
         <groupId>ai.platform.aiassit</groupId>
-        <artifactId>app-platform-ai-chat</artifactId>
+        <artifactId>app-platform-ai-engine</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>app-platform-ai-chat-core</artifactId>
+    <artifactId>service-ai-meta</artifactId>
     <packaging>jar</packaging>
-    <name>app-platform-ai-chat-core</name>
+    <name>service-ai-meta</name>
 
     <dependencies>
         <dependency>
             <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-data-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-ai-chat-api</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-ai-chat-history</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
@@ -36,11 +32,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

@@ -22,12 +22,11 @@ import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
-import ai.platform.aiassit.chat.meta.entity.dto.AiModelConfigDTO;
-import ai.platform.aiassit.chat.meta.entity.dto.AiProviderConfigDTO;
-import ai.platform.aiassit.chat.meta.entity.req.AiMetaQueryRequest;
-import ai.platform.aiassit.chat.meta.service.AiModelConfigService;
-import ai.platform.aiassit.chat.meta.service.AiProviderConfigService;
 import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
+import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
+import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
+import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
+import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
@@ -79,8 +78,7 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
     private final AiChatSessionService sessionService;
     private final AiChatRoundService roundService;
     private final AiChatMessageService messageService;
-    private final AiModelConfigService modelConfigService;
-    private final AiProviderConfigService providerConfigService;
+    private final AiMetaQueryApi aiMetaQueryApi;
     private final AiChatExecutionApi aiChatExecutionApi;
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
@@ -91,15 +89,13 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
     public AiChatQueryServiceImpl(AiChatSessionService sessionService,
                                   AiChatRoundService roundService,
                                   AiChatMessageService messageService,
-                                  AiModelConfigService modelConfigService,
-                                  AiProviderConfigService providerConfigService,
+                                  AiMetaQueryApi aiMetaQueryApi,
                                   AiChatExecutionApi aiChatExecutionApi,
                                   ObjectMapper objectMapper) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
-        this.modelConfigService = modelConfigService;
-        this.providerConfigService = providerConfigService;
+        this.aiMetaQueryApi = aiMetaQueryApi;
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.objectMapper = objectMapper;
         this.httpClient = HttpClient.newBuilder()
@@ -482,7 +478,7 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         AiMetaQueryRequest request = new AiMetaQueryRequest();
         request.setModelCode(modelCode);
         request.setEnabled(Boolean.TRUE);
-        List<AiModelConfigDTO> configs = modelConfigService.queryAll(request);
+        List<AiModelConfigDTO> configs = aiMetaQueryApi.listModels(request);
         return configs.isEmpty() ? null : configs.get(0);
     }
 
@@ -493,7 +489,7 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         AiMetaQueryRequest request = new AiMetaQueryRequest();
         request.setProviderCode(providerCode);
         request.setEnabled(Boolean.TRUE);
-        List<AiProviderConfigDTO> configs = providerConfigService.queryAll(request);
+        List<AiProviderConfigDTO> configs = aiMetaQueryApi.listProviders(request);
         return configs.isEmpty() ? null : configs.get(0);
     }
 
@@ -640,7 +636,7 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
     private AiModelConfigDTO findFirstEnabledModelConfig() {
         AiMetaQueryRequest request = new AiMetaQueryRequest();
         request.setEnabled(Boolean.TRUE);
-        List<AiModelConfigDTO> configs = modelConfigService.queryAll(request);
+        List<AiModelConfigDTO> configs = aiMetaQueryApi.listModels(request);
         return configs.isEmpty() ? null : configs.get(0);
     }
 
