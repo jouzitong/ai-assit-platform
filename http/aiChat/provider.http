@@ -1,0 +1,67 @@
+@apiPrefix = /aiChat
+@resourcePath = /api/v1/ai/chat/meta/internal/provider
+@id = 1
+@page = 1
+@size = 10
+@sorts = id:desc
+@queries = id:1:1
+@contentType = application/json;charset=UTF-8
+@acceptJson = application/json
+
+### 1. 新增
+POST {{host}}{{apiPrefix}}{{resourcePath}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+}
+
+### 2. 全量更新
+PUT {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+}
+
+### 3. 局部更新
+PATCH {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+}
+
+### 4. 软删除
+DELETE {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 5. 物理删除
+DELETE {{host}}{{apiPrefix}}{{resourcePath}}/physical/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 6. 分页查询（GET）
+GET {{host}}{{apiPrefix}}{{resourcePath}}?page={{page}}&size={{size}}&sorts={{sorts}}&queries={{queries}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 7. 分页搜索（POST /_search）
+POST {{host}}{{apiPrefix}}{{resourcePath}}/_search
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "page": {{page}},
+  "size": {{size}}
+}
+
+### 8. 按 ID 查询
+GET {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
