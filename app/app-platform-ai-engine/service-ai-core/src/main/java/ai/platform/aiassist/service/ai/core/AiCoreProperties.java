@@ -1,15 +1,16 @@
 package ai.platform.aiassist.service.ai.core;
 
+import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import lombok.Data;
 import org.springframework.boot.context.properties.ConfigurationProperties;
-
-import ai.platform.aiassist.service.ai.api.enums.ProviderType;
+import org.springframework.stereotype.Component;
 
 /**
  * AI Core 路由配置。
  */
 @Data
 @ConfigurationProperties(prefix = "ai.core")
+@Component
 public class AiCoreProperties {
 
     /** 默认提供方 */

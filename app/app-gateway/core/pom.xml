@@ -16,6 +16,36 @@
     <name>app-gateway-core</name>
 
     <dependencies>
+
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-security-gateway</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-cloud-openfeign</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-gateway-mvc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
+        </dependency>
+
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+
         <dependency>
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-web</artifactId>

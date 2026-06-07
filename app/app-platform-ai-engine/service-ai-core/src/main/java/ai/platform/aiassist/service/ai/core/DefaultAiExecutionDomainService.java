@@ -15,7 +15,6 @@ import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumMap;
@@ -25,7 +24,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
-@EnableConfigurationProperties(AiCoreProperties.class)
 public class DefaultAiExecutionDomainService implements AiExecutionDomainService {
 
     private final Map<ProviderType, AiProvider> providers = new EnumMap<>(ProviderType.class);

@@ -6,6 +6,22 @@ server:
 spring:
   application:
     name: ${app.platform-user:app-platform-user}
+  profiles:
+    active: dev
+    include: common, lib
 
 database:
   name: platform_ai_aissit
+
+
+
+
+app:
+  platform-user:
+    name: 'app-platform-user'
+  gateway:
+    name: 'gateway'
+  ai-chat:
+    name: 'ai-chat'
+  ai-engine:
+    name: 'ai-engine'

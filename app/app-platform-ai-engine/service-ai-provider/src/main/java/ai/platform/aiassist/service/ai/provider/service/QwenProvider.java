@@ -2,8 +2,8 @@ package ai.platform.aiassist.service.ai.provider.service;
 
 import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
-import ai.platform.aiassist.service.ai.api.dto.EmbeddingItem;
 import ai.platform.aiassist.service.ai.api.dto.EmbedResponse;
+import ai.platform.aiassist.service.ai.api.dto.EmbeddingItem;
 import ai.platform.aiassist.service.ai.api.dto.KbDeleteResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertResponse;
@@ -38,7 +38,6 @@ import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.openai.api.OpenAiApi;
 import org.springframework.ai.retry.RetryUtils;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -54,7 +53,7 @@ import java.util.Objects;
  * 千问提供方实现（基于 Spring AI OpenAI 兼容接口）。
  */
 @Component
-@ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")
+//@ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")
 @EnableConfigurationProperties(QwenProperties.class)
 public class QwenProvider implements AiProvider {
 
