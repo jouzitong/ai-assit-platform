@@ -1,13 +1,10 @@
-package ai.platform.aiassit.chat.history.entity.dto;
+package ai.platform.aiassit.chat.core.query.dto;
 
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import lombok.Data;
-import lombok.EqualsAndHashCode;
-import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
 
 @Data
-@EqualsAndHashCode(callSuper = true)
-public class AiChatSessionDTO extends BaseDTO {
+public class AiChatSessionVO {
 
     private String sessionCode;
 

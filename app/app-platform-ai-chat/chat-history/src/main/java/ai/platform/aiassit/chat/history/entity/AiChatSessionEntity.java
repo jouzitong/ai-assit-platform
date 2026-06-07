@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.history.entity;
 
-import ai.platform.aiassit.chat.history.entity.enums.AiChatBusinessType;
+import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;

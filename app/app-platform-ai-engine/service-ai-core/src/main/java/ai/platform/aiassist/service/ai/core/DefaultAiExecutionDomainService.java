@@ -14,6 +14,7 @@ import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
+import ai.platform.aiassist.service.ai.spi.AiProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
 import org.springframework.stereotype.Service;

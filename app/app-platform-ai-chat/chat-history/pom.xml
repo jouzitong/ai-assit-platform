@@ -25,6 +25,17 @@
             <artifactId>athena-framework-starter-web</artifactId>
         </dependency>
         <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-ai-chat-api</artifactId>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>

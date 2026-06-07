@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.history.entity.req;
 
-import ai.platform.aiassit.chat.history.entity.enums.AiChatBusinessType;
+import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;

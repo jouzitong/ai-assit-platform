@@ -50,6 +50,25 @@
         </dependencies>
     </dependencyManagement>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-common</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-cloud-nacos</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.cloud</groupId>
+            <artifactId>spring-cloud-starter-loadbalancer</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+        </dependency>
+    </dependencies>
+
     <modules>
         <module>api</module>
         <module>core</module>

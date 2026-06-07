@@ -18,20 +18,7 @@
     <dependencies>
         <dependency>
             <groupId>org.athena</groupId>
-            <artifactId>athena-framework-common</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-ai-chat-history</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-cloud-openfeign</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.projectlombok</groupId>
-            <artifactId>lombok</artifactId>
-            <optional>true</optional>
+            <artifactId>athena-framework-starter-data-api</artifactId>
         </dependency>
     </dependencies>
 </project>

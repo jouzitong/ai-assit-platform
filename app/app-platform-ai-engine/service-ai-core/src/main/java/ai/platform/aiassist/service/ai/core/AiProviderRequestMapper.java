@@ -6,12 +6,12 @@ import ai.platform.aiassist.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
-import ai.platform.aiassist.service.ai.core.provider.dto.ProviderChatRequest;
-import ai.platform.aiassist.service.ai.core.provider.dto.ProviderEmbedRequest;
-import ai.platform.aiassist.service.ai.core.provider.dto.ProviderKbDeleteRequest;
-import ai.platform.aiassist.service.ai.core.provider.dto.ProviderKbSearchRequest;
-import ai.platform.aiassist.service.ai.core.provider.dto.ProviderKbUpsertRequest;
-import ai.platform.aiassist.service.ai.core.provider.dto.ProviderRerankRequest;
+import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderChatRequest;
+import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderEmbedRequest;
+import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbDeleteRequest;
+import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbSearchRequest;
+import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbUpsertRequest;
+import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderRerankRequest;
 import org.springframework.stereotype.Component;
 
 @Component

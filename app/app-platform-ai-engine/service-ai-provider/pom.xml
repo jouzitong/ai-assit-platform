@@ -16,12 +16,7 @@
     <dependencies>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>service-ai-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>service-ai-core</artifactId>
+            <artifactId>service-ai-spi</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>

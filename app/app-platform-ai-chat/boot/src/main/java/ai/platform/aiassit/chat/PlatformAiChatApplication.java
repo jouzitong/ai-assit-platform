@@ -1,6 +1,5 @@
 package ai.platform.aiassit.chat;
 
-import ai.platform.aiassit.chat.api.AiChatQueryApi;
 import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
 import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseExecutionApi;
 import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
@@ -11,7 +10,6 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
 @EnableFeignClients(basePackageClasses = {
-        AiChatQueryApi.class,
         AiChatExecutionApi.class,
         AiMetaQueryApi.class,
         AiVectorExecutionApi.class,
