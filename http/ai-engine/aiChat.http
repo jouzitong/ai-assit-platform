@@ -2,6 +2,10 @@
 @host = http://127.0.0.1:13101
 @contentType = application/json;charset=UTF-8
 
+### enable model list
+GET {{host}}/aiEngine/api/v1/ai/models/enable
+Accept: application/json
+
 ### 1) Non-stream chat
 POST {{host}}/aiEngine/api/v1/ai/execution/chat
 Content-Type: {{contentType}}

@@ -1,5 +1,6 @@
 package ai.platform.aiassist.service.ai.meta.service.impl;
 
+import ai.platform.aiassist.service.ai.api.dto.AiEnabledModelDTO;
 import ai.platform.aiassist.service.ai.meta.convert.AiModelConfigConvert;
 import ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.meta.entity.AiModelConfigEntity;
@@ -12,6 +13,8 @@ import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.service.BaseMapperService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 @Service
 public class AiModelConfigServiceImpl
@@ -35,6 +38,11 @@ public class AiModelConfigServiceImpl
 
     public AiModelConfigEntity newEntity() {
         return new AiModelConfigEntity();
+    }
+
+    @Override
+    public List<AiEnabledModelDTO> selectEnabledModels() {
+        return baseMapper.selectEnabledModels();
     }
 
     @Override

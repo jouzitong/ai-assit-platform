@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper
+        PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
+        "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="ai.platform.aiassist.service.ai.meta.mapper.AiModelConfigMapper">
+
+    <select id="selectEnabledModels" resultType="ai.platform.aiassist.service.ai.api.dto.AiEnabledModelDTO">
+        SELECT
+            m.api_model AS apiModel,
+            m.provider_code AS providerCode,
+            p.provider_name AS providerName,
+            m.max_context_tokens AS maxContextTokens,
+            m.max_output_tokens AS maxOutputTokens,
+            m.priority AS priority
+        FROM ai_model_config m
+        INNER JOIN ai_provider_config p
+            ON p.provider_code = m.provider_code
+           AND p.deleted = 0
+           AND p.enabled = TRUE
+        WHERE m.deleted = 0
+          AND m.enabled = TRUE
+        ORDER BY m.priority ASC, m.update_time DESC, m.id DESC
+    </select>
+</mapper>
