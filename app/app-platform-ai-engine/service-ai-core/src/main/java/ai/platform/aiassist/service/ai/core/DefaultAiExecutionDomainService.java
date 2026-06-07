@@ -14,12 +14,14 @@ import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
+import org.springframework.beans.factory.ObjectProvider;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -36,14 +38,14 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
                                            AiCoreProperties properties,
                                            AiRequestValidator validator,
                                            AiProviderRequestMapper requestMapper,
-                                           ScheduleMonitor scheduleMonitor) {
+                                           ObjectProvider<ScheduleMonitor> scheduleMonitorProvider) {
         for (AiProvider provider : aiProviders) {
             this.providers.put(provider.providerType(), provider);
         }
         this.properties = properties;
         this.validator = validator;
         this.requestMapper = requestMapper;
-        this.scheduleMonitor = scheduleMonitor;
+        this.scheduleMonitor = scheduleMonitorProvider.getIfAvailable();
     }
 
     @Override
@@ -63,6 +65,10 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
 
     @Override
     public void chatStreamAsync(ChatRequest request, ChatStreamObserver observer) {
+        if (scheduleMonitor == null) {
+            CompletableFuture.runAsync(() -> chatStream(request, observer));
+            return;
+        }
         AtomicReference<Long> taskIdRef = new AtomicReference<>();
         Long taskId = scheduleMonitor.schedule(() -> {
             try {

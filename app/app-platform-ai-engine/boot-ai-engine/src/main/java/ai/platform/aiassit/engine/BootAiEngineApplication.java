@@ -4,7 +4,7 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.mybatis.spring.annotation.MapperScan;
 
-@MapperScan("ai.platform.aiassist")
+@MapperScan("ai.platform.aiassist.service.ai.meta.mapper")
 @SpringBootApplication(scanBasePackages = "ai.platform.aiassist")
 public class BootAiEngineApplication {
 
