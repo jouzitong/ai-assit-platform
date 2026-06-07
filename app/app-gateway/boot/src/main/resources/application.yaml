@@ -22,7 +22,7 @@ spring:
             predicates:
               - Path=/aiChat/**
           - id: ai-engine-service-route
-            uri: lb://boot-ai-engine
+            uri: lb://app-platform-ai-engine
             predicates:
               - Path=/aiEngine/**
 

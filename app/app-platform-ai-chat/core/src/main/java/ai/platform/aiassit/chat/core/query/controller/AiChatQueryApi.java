@@ -13,10 +13,12 @@ import ai.platform.aiassit.chat.core.query.req.AiChatConversationDetailRequest;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.util.List;
 
+@RequestMapping("/api/v1/ai/chat")
 public interface AiChatQueryApi {
 
     @PostMapping("/query")

@@ -3,12 +3,12 @@
 @contentType = application/json;charset=UTF-8
 
 ### 1) Non-stream chat
-POST {{host}}/api/v1/ai/execution/chat
+POST {{host}}/aiEngine/api/v1/ai/execution/chat
 Content-Type: {{contentType}}
 Accept: application/json
 
 {
-  "provider": "DASHSCOPE",
+  "provider": 2,
   "model": "qwen-math-turbo",
   "messages": [
     {

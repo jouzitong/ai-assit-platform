@@ -9,15 +9,15 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.BaseEntity;
 
+/**
+ * AI 模型配置实体。
+ */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @TableName("ai_model_config")
-/**
- * AI 模型配置实体。
- */
 public class AiModelConfigEntity extends BaseEntity {
 
     /** 模型编码。 */
