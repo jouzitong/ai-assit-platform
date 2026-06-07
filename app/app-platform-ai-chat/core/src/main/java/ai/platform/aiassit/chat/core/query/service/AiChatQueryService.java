@@ -1,4 +1,4 @@
-package ai.platform.aiassit.chat.core.query;
+package ai.platform.aiassit.chat.core.query.service;
 
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;

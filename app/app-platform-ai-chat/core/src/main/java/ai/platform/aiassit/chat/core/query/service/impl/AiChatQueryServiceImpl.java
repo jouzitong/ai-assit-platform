@@ -1,4 +1,4 @@
-package ai.platform.aiassit.chat.core.query.impl;
+package ai.platform.aiassit.chat.core.query.service.impl;
 
 import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
 import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
@@ -13,7 +13,7 @@ import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
-import ai.platform.aiassit.chat.core.query.AiChatQueryService;
+import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;

@@ -1,4 +1,4 @@
-package ai.platform.aiassit.chat.core.conversation;
+package ai.platform.aiassit.chat.core.conversation.service;
 
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationDetailResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationPinRequest;

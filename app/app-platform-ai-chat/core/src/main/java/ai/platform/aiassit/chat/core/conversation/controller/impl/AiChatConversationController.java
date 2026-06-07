@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.core.conversation.controller.impl;
 
-import ai.platform.aiassit.chat.core.conversation.AiChatConversationService;
+import ai.platform.aiassit.chat.core.conversation.service.AiChatConversationService;
 import ai.platform.aiassit.chat.core.conversation.controller.AiChatConversationApi;
 import ai.platform.aiassit.chat.core.query.convert.IApiResConvert;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationDetailResponse;

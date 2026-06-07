@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.core.query.controller.impl;
 
-import ai.platform.aiassit.chat.core.query.AiChatQueryService;
+import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.core.query.controller.AiChatQueryApi;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
