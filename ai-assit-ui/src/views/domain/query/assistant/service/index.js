@@ -146,13 +146,18 @@ function buildLocalFallbackHistory() {
 function normalizeModelOptions(items) {
   return items
     .map((item) => {
-      const value = item?.modelCode || item?.apiModel || item?.id
+      const value = item?.apiModel || item?.modelCode || item?.id
       if (!value) {
         return null
       }
+      const providerName = normalizeText(item?.providerName)
+      const apiModel = normalizeText(item?.apiModel)
+      const composedLabel = providerName && apiModel
+        ? `${providerName}-${apiModel}`
+        : providerName || apiModel
       return {
         value,
-        label: item?.modelName || item?.modelCode || item?.apiModel || value
+        label: composedLabel || item?.modelName || item?.modelCode || value
       }
     })
     .filter(Boolean)
@@ -301,7 +306,7 @@ export function useQueryAssistantPage() {
 
   async function loadModels() {
     try {
-      const response = unwrapResponse(await fetchAssistantModels({ enabled: true }))
+      const response = unwrapResponse(await fetchAssistantModels())
       const list = Array.isArray(response) ? response : []
       const normalized = normalizeModelOptions(Array.isArray(list) ? list : [])
       if (normalized.length > 0) {

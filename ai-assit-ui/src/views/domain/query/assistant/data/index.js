@@ -2,8 +2,8 @@ import {
   createAiChatConversation,
   deleteAiChatConversation,
   detailAiChatConversation,
+  listEnabledAiChatModels,
   listAiChatConversations,
-  listAiChatModels,
   listAiChatProviders,
   pinAiChatConversation,
   queryAiChat,
@@ -22,8 +22,8 @@ export {
   resultRows
 } from './index-static'
 
-export async function fetchAssistantModels(payload = { enabled: true }) {
-  return listAiChatModels(payload)
+export async function fetchAssistantModels() {
+  return listEnabledAiChatModels()
 }
 
 export async function fetchAssistantProviders(payload = { enabled: true }) {

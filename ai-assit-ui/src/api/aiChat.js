@@ -3,6 +3,7 @@ import { getToken } from '../utils/session'
 
 const AI_CHAT_API_PREFIX = '/aiChat/api/v1/ai/chat'
 const AI_META_API_PREFIX = '/aiEngine/api/v1/ai/meta'
+const AI_ENGINE_API_PREFIX = '/aiEngine/api/v1/ai'
 
 function buildAuthorizedHeaders(extraHeaders = {}) {
   const token = getToken()
@@ -83,6 +84,12 @@ export function listAiChatModels(payload) {
   return request(`${AI_META_API_PREFIX}/model/list`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function listEnabledAiChatModels() {
+  return request(`${AI_ENGINE_API_PREFIX}/models/enable`, {
+    method: 'GET'
   })
 }
 
