@@ -54,7 +54,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
-public class AiChatQueryServiceImpl implements AiChatQueryService {
+public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
 
     private static final String DEFAULT_SCENE = "ai-chat-query";
     private static final String DEFAULT_SESSION_NAME = "智能问数";
@@ -74,12 +74,12 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
     @Value("${app.ai-engine.url:http://127.0.0.1:13101/aiEngine}")
     private String aiEngineBaseUrl;
 
-    public AiChatQueryServiceImpl(AiChatSessionService sessionService,
-                                  AiChatRoundService roundService,
-                                  AiChatMessageService messageService,
-                                  AiMetaQueryApi aiMetaQueryApi,
-                                  AiChatExecutionApi aiChatExecutionApi,
-                                  ObjectMapper objectMapper) {
+    public DefaultAiChatQueryServiceImpl(AiChatSessionService sessionService,
+                                         AiChatRoundService roundService,
+                                         AiChatMessageService messageService,
+                                         AiMetaQueryApi aiMetaQueryApi,
+                                         AiChatExecutionApi aiChatExecutionApi,
+                                         ObjectMapper objectMapper) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
