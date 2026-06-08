@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat.core.query.service.impl;
 
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
-import ai.platform.aiassit.chat.core.query.service.AiChatQueryCommand;
+import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;

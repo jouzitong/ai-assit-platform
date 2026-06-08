@@ -15,7 +15,7 @@ import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
-import ai.platform.aiassit.chat.core.query.service.AiChatQueryCommand;
+import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;

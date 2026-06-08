@@ -1,7 +1,5 @@
-package ai.platform.aiassit.chat.core.query.service;
+package ai.platform.aiassit.chat.core.query.dto;
 
-import ai.platform.aiassit.chat.core.query.dto.AiChatAttachmentDTO;
-import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import lombok.Data;
 

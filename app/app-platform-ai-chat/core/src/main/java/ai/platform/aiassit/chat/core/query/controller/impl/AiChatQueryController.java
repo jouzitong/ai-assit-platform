@@ -4,7 +4,7 @@ import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.core.query.controller.AiChatQueryApi;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
-import ai.platform.aiassit.chat.core.query.service.AiChatQueryCommand;
+import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import lombok.AllArgsConstructor;
 import org.springframework.http.MediaType;
 import org.springframework.web.context.request.RequestContextHolder;
