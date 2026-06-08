@@ -1,7 +1,10 @@
 package ai.platform.aiassit.chat.core.workflow.context;
 
+import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
+import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import lombok.Data;
 
@@ -30,6 +33,14 @@ public class WorkflowContext implements Serializable {
     private AiChatSessionDTO session;
 
     private List<AiChatMessageDTO> sessionMessages = new ArrayList<>();
+
+    private AiChatRoundDTO round;
+
+    private ChatRequest engineRequest;
+
+    private ChatResponse engineResponse;
+
+    private String analysisResult;
 
     private Map<String, Object> data = new HashMap<>();
 
