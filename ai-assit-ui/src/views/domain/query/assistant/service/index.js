@@ -428,11 +428,8 @@ export function useQueryAssistantPage() {
 
     const request = {
       sessionCode: activeSessionCode.value || undefined,
-      sessionName: activeSessionCode.value ? undefined : buildConversationTitle(text),
-      userId: parseStoredUserId(),
-      modelCode: selectedModel.value,
-      prompt: text,
-      scene: 'ai-chat-query'
+      apiModel: selectedModel.value || undefined,
+      message: text
     }
 
     updateExecutionTrack(text)

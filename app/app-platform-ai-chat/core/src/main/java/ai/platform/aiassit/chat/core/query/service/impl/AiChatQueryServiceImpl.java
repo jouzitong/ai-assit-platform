@@ -13,10 +13,10 @@ import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
-import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
-import ai.platform.aiassit.chat.core.query.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassit.chat.core.query.service.AiChatQueryCommand;
+import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
@@ -92,8 +92,8 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
     }
 
     @Override
-    public AiChatQueryResponse query(AiChatQueryRequest request) {
-        QueryContext context = prepareContext(request, true);
+    public AiChatQueryResponse query(AiChatQueryCommand command) {
+        QueryContext context = prepareContext(command, true);
         ChatResponse engineResponse = aiChatExecutionApi.chat(context.engineRequest);
 
         String answer = extractAnswer(engineResponse);
@@ -121,17 +121,17 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
     }
 
     @Override
-    public SseEmitter queryStream(AiChatQueryRequest request) {
+    public SseEmitter queryStream(AiChatQueryCommand command) {
         SseEmitter emitter = new SseEmitter(0L);
-        CompletableFuture.runAsync(() -> handleStream(request, emitter));
+        CompletableFuture.runAsync(() -> handleStream(command, emitter));
         return emitter;
     }
 
-    private void handleStream(AiChatQueryRequest request, SseEmitter emitter) {
+    private void handleStream(AiChatQueryCommand command, SseEmitter emitter) {
         QueryContext context = null;
         StringBuilder answerBuffer = new StringBuilder();
         try {
-            context = prepareContext(request, true);
+            context = prepareContext(command, true);
 
             AiChatQueryStreamEvent initEvent = new AiChatQueryStreamEvent();
             initEvent.setEventType("init");
@@ -143,7 +143,7 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
             String requestBody = objectMapper.writeValueAsString(context.engineRequest);
             HttpRequest httpRequest = HttpRequest.newBuilder()
                     .uri(URI.create(trimTrailingSlash(aiEngineBaseUrl) + "/api/v1/ai/execution/chat/stream"))
-                    .timeout(Duration.ofMillis(resolveTimeoutMs(request)))
+                    .timeout(Duration.ofMillis(resolveTimeoutMs()))
                     .header("Content-Type", MediaType.APPLICATION_JSON_VALUE)
                     .header("Accept", "text/event-stream;charset=UTF-8")
                     .POST(HttpRequest.BodyPublishers.ofString(requestBody))
@@ -247,30 +247,30 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         emitter.send(SseEmitter.event().name(eventName).data(streamEvent));
     }
 
-    private QueryContext prepareContext(AiChatQueryRequest request, boolean allowCreateSession) {
-        if (request == null) {
+    private QueryContext prepareContext(AiChatQueryCommand command, boolean allowCreateSession) {
+        if (command == null) {
             throw new IllegalArgumentException("request is required");
         }
-        if (!StringUtils.hasText(request.getPrompt())) {
-            throw new IllegalArgumentException("prompt is required");
+        if (!StringUtils.hasText(command.getMessage())) {
+            throw new IllegalArgumentException("message is required");
         }
 
-        AiChatSessionDTO session = resolveSession(request, allowCreateSession);
-        List<AiChatMessageDTO> historyMessages = loadMessages(session.getSessionCode(), request.getUserId());
+        AiChatSessionDTO session = resolveSession(command, allowCreateSession);
+        List<AiChatMessageDTO> historyMessages = loadMessages(session.getSessionCode(), command.getUserId());
 
         AiChatRoundDTO round = new AiChatRoundDTO();
         round.setRoundCode(generateCode("round"));
         round.setSessionCode(session.getSessionCode());
-        round.setUserId(resolveUserId(request.getUserId()));
-        round.setModelCode(resolveModelCode(request.getModelCode()));
-        round.setActualModel(resolveActualModel(request.getModelCode()));
+        round.setUserId(resolveUserId(command.getUserId()));
+        round.setModelCode(resolveModelCode(command.getApiModel()));
+        round.setActualModel(resolveActualModel(command.getApiModel()));
         round.setStatus(STATUS_RUNNING);
         AiChatRoundDTO createdRound = roundService.add(round);
 
         int nextSortNo = historyMessages.size() + 1;
-        persistMessage(createdRound.getRoundCode(), session.getSessionCode(), resolveUserId(request.getUserId()), "USER", request.getPrompt(), nextSortNo);
+        persistMessage(createdRound.getRoundCode(), session.getSessionCode(), resolveUserId(command.getUserId()), "USER", command.getMessage(), nextSortNo);
 
-        ChatRequest engineRequest = buildEngineRequest(request, historyMessages);
+        ChatRequest engineRequest = buildEngineRequest(command, historyMessages);
         QueryContext context = new QueryContext();
         context.session = session;
         context.round = createdRound;
@@ -279,10 +279,10 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         return context;
     }
 
-    private AiChatSessionDTO resolveSession(AiChatQueryRequest request, boolean allowCreateSession) {
+    private AiChatSessionDTO resolveSession(AiChatQueryCommand command, boolean allowCreateSession) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
-        query.setSessionCode(request.getSessionCode());
-        query.setUserId(resolveUserId(request.getUserId()));
+        query.setSessionCode(command.getSessionCode());
+        query.setUserId(resolveUserId(command.getUserId()));
         AiChatSessionDTO session = sessionService.get(query);
         if (session != null) {
             return session;
@@ -292,9 +292,9 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         }
         AiChatSessionDTO created = new AiChatSessionDTO();
         created.setSessionCode(generateCode("session"));
-        created.setUserId(resolveUserId(request.getUserId()));
-        created.setBusinessType(defaultBusinessType(request.getBusinessType()));
-        created.setSessionName(resolveSessionName(request.getSessionName(), request.getPrompt()));
+        created.setUserId(resolveUserId(command.getUserId()));
+        created.setBusinessType(defaultBusinessType(command.getBusinessType()));
+        created.setSessionName(resolveSessionName(command.getSessionName(), command.getMessage()));
         return sessionService.add(created);
     }
 
@@ -307,10 +307,10 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
                 .toList();
     }
 
-    private ChatRequest buildEngineRequest(AiChatQueryRequest request, List<AiChatMessageDTO> historyMessages) {
+    private ChatRequest buildEngineRequest(AiChatQueryCommand command, List<AiChatMessageDTO> historyMessages) {
         ChatRequest engineRequest = new ChatRequest();
-        engineRequest.setProvider(resolveProviderType(request));
-        engineRequest.setModel(resolveActualModel(request.getModelCode()));
+        engineRequest.setProvider(resolveProviderType(command));
+        engineRequest.setModel(resolveActualModel(command.getApiModel()));
 
         List<ChatMessage> messages = new ArrayList<>();
         ChatMessage systemMessage = new ChatMessage();
@@ -329,21 +329,19 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
 
         ChatMessage userMessage = new ChatMessage();
         userMessage.setRole(MessageRole.USER);
-        userMessage.setContent(request.getPrompt());
+        userMessage.setContent(command.getMessage());
         messages.add(userMessage);
         engineRequest.setMessages(messages);
 
         ChatOptions options = new ChatOptions();
-        options.setTemperature(request.getTemperature());
-        options.setTopP(request.getTopP());
-        options.setMaxTokens(resolveMaxTokens(request));
-        options.setTimeoutMs(resolveTimeoutMs(request));
+        options.setMaxTokens(resolveMaxTokens(command.getApiModel()));
+        options.setTimeoutMs(resolveTimeoutMs());
         engineRequest.setOptions(options);
 
         RequestMeta meta = new RequestMeta();
-        meta.setTraceId(StringUtils.hasText(request.getTraceId()) ? request.getTraceId() : generateCode("trace"));
-        meta.setScene(StringUtils.hasText(request.getScene()) ? request.getScene() : DEFAULT_SCENE);
-        meta.setExt(request.getExt());
+        meta.setTraceId(StringUtils.hasText(command.getTraceId()) ? command.getTraceId() : generateCode("trace"));
+        meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
+        meta.setExt(buildExt(command));
         engineRequest.setMeta(meta);
         return engineRequest;
     }
@@ -370,15 +368,11 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         return modelCode.trim();
     }
 
-    private String resolveActualModel(String modelCode) {
-        if (!StringUtils.hasText(modelCode)) {
-            return defaultModelCode();
+    private String resolveActualModel(String apiModel) {
+        if (!StringUtils.hasText(apiModel)) {
+            return defaultApiModel();
         }
-        AiModelConfigDTO config = findModelConfig(modelCode.trim());
-        if (config != null && StringUtils.hasText(config.getApiModel())) {
-            return config.getApiModel();
-        }
-        return modelCode.trim();
+        return apiModel.trim();
     }
 
     private ProviderType resolveProviderTypeFromConfig(String modelCode) {
@@ -411,18 +405,12 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         return configs.isEmpty() ? null : configs.get(0);
     }
 
-    private Integer resolveMaxTokens(AiChatQueryRequest request) {
-        if (request.getMaxTokens() != null) {
-            return request.getMaxTokens();
-        }
-        AiModelConfigDTO config = findModelConfig(request.getModelCode());
+    private Integer resolveMaxTokens(String apiModel) {
+        AiModelConfigDTO config = findModelConfigByApiModel(apiModel);
         return config == null ? 1024 : config.getMaxOutputTokens();
     }
 
-    private Integer resolveTimeoutMs(AiChatQueryRequest request) {
-        if (request.getTimeoutMs() != null) {
-            return request.getTimeoutMs();
-        }
+    private Integer resolveTimeoutMs() {
         return 30_000;
     }
 
@@ -512,6 +500,17 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
                 : "qwen-math-turbo";
     }
 
+    private String defaultApiModel() {
+        AiModelConfigDTO config = findFirstEnabledModelConfig();
+        if (config == null) {
+            return defaultModelCode();
+        }
+        if (StringUtils.hasText(config.getApiModel())) {
+            return config.getApiModel();
+        }
+        return StringUtils.hasText(config.getModelCode()) ? config.getModelCode() : defaultModelCode();
+    }
+
     private AiModelConfigDTO findFirstEnabledModelConfig() {
         AiMetaQueryRequest request = new AiMetaQueryRequest();
         request.setEnabled(Boolean.TRUE);
@@ -519,14 +518,11 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
         return configs.isEmpty() ? null : configs.get(0);
     }
 
-    private ProviderType resolveProviderType(AiChatQueryRequest request) {
-        if (request == null) {
+    private ProviderType resolveProviderType(AiChatQueryCommand command) {
+        if (command == null) {
             return ProviderType.DASHSCOPE;
         }
-        if (StringUtils.hasText(request.getProviderCode())) {
-            return resolveProviderType(request.getProviderCode());
-        }
-        AiModelConfigDTO config = findModelConfig(request.getModelCode());
+        AiModelConfigDTO config = findModelConfigByApiModel(command.getApiModel());
         if (config != null && StringUtils.hasText(config.getProviderCode())) {
             return resolveProviderType(config.getProviderCode());
         }
@@ -535,6 +531,34 @@ public class AiChatQueryServiceImpl implements AiChatQueryService {
             return ProviderType.DASHSCOPE;
         }
         return ProviderType.DASHSCOPE;
+    }
+
+    private AiModelConfigDTO findModelConfigByApiModel(String apiModel) {
+        if (!StringUtils.hasText(apiModel)) {
+            return findFirstEnabledModelConfig();
+        }
+        AiMetaQueryRequest request = new AiMetaQueryRequest();
+        request.setEnabled(Boolean.TRUE);
+        return aiMetaQueryApi.listModels(request).stream()
+                .filter(Objects::nonNull)
+                .filter(config -> StringUtils.hasText(config.getApiModel()))
+                .filter(config -> apiModel.trim().equals(config.getApiModel().trim()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private java.util.Map<String, Object> buildExt(AiChatQueryCommand command) {
+        java.util.Map<String, Object> ext = new java.util.HashMap<>();
+        if (command.getExt() != null) {
+            ext.putAll(command.getExt());
+        }
+        if (!CollectionUtils.isEmpty(command.getAttachments())) {
+            ext.put("attachments", command.getAttachments());
+        }
+        if (!CollectionUtils.isEmpty(command.getTools())) {
+            ext.put("tools", command.getTools());
+        }
+        return ext;
     }
 
     private MessageRole resolveMessageRole(String role) {

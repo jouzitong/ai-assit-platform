@@ -1,12 +1,11 @@
 package ai.platform.aiassit.chat.core.query.service;
 
-import ai.platform.aiassit.chat.core.query.dto.AiChatQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 public interface AiChatQueryService {
 
-    AiChatQueryResponse query(AiChatQueryRequest request);
+    AiChatQueryResponse query(AiChatQueryCommand command);
 
-    SseEmitter queryStream(AiChatQueryRequest request);
+    SseEmitter queryStream(AiChatQueryCommand command);
 }
