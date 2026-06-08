@@ -1,8 +1,9 @@
 package ai.platform.aiassit.chat.core.query.service.impl;
 
-import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
+import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -17,6 +18,10 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
 
     @Override
     public SseEmitter queryStream(AiChatQueryCommand command) {
+        WorkflowContext workflowContext = new WorkflowContext();
+
+
+
         return null;
     }
 }

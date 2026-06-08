@@ -5,7 +5,6 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
-import java.util.Map;
 
 /**
  *
@@ -15,12 +14,12 @@ import java.util.Map;
 @Data
 @AllArgsConstructor
 @NoArgsConstructor
-public class WorkflowDefinition implements Serializable {
+public class WorkflowNodeConfig implements Serializable {
 
-    private String workflowCode;
+    private String nodeId;
 
-    private Map<String, WorkflowNodeConfig> nodes;
+    private String nodeType;
 
-    private String startNodeId;
+    private String nextNodeId;
 
 }

@@ -54,6 +54,7 @@ import java.util.concurrent.CompletableFuture;
 
 @Slf4j
 @Service
+@Deprecated
 public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
 
     private static final String DEFAULT_SCENE = "ai-chat-query";

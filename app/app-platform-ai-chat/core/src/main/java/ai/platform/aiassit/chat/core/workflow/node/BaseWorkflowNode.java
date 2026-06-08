@@ -10,11 +10,13 @@ import lombok.extern.slf4j.Slf4j;
  * @since 2026/6/8
  */
 @Slf4j
-public abstract class BaseWorkflowNode implements IWorkflowNode{
+public abstract class BaseWorkflowNode implements IWorkflowNode {
+
+    protected abstract NodeResult doExecute(WorkflowContext context);
 
     @Override
     public NodeResult execute(WorkflowContext context) {
-        return null;
+        return doExecute(context);
     }
 
     @Override
