@@ -29,9 +29,33 @@ public class AiChatMessageEntity extends LogicalDeleteEntity {
     @TableField("role")
     private String role;
 
+    @TableField("actor_type")
+    private String actorType;
+
+    @TableField("message_type")
+    private String messageType;
+
+    @TableField("display_level")
+    private String displayLevel;
+
+    @TableField("content_format")
+    private String contentFormat;
+
+    @TableField("parent_message_code")
+    private String parentMessageCode;
+
+    @TableField("source_message_code")
+    private String sourceMessageCode;
+
+    @TableField("status")
+    private String status;
+
     @TableField("content")
     private String content;
 
     @TableField("sort_no")
     private Integer sortNo;
+
+    @TableField("ext_json")
+    private String extJson;
 }

@@ -20,6 +20,12 @@ public class AiChatRoundEntity extends LogicalDeleteEntity {
     @TableField("round_code")
     private String roundCode;
 
+    @TableField("round_type")
+    private String roundType;
+
+    @TableField("parent_round_code")
+    private String parentRoundCode;
+
     @TableField("session_code")
     private String sessionCode;
 

@@ -25,29 +25,4 @@ public class AiChatMessageServiceImpl
         return aiChatMessageConvert;
     }
 
-    public AiChatMessageDTO newDTO() {
-        return new AiChatMessageDTO();
-    }
-
-    public AiChatMessageEntity newEntity() {
-        return new AiChatMessageEntity();
-    }
-
-//    @Override
-//    protected <Query extends BaseRequest> QueryWrapper<AiChatMessageEntity> buildQuery(Query query) {
-//        QueryWrapper<AiChatMessageEntity> wrapper = super.buildQuery(query);
-//        if (query instanceof AiChatHistoryQueryRequest req) {
-//            if (StringUtils.hasText(req.getSessionCode())) {
-//                wrapper.lambda().eq(AiChatMessageEntity::getSessionCode, req.getSessionCode());
-//            }
-//            if (StringUtils.hasText(req.getRoundCode())) {
-//                wrapper.lambda().eq(AiChatMessageEntity::getRoundCode, req.getRoundCode());
-//            }
-//            if (StringUtils.hasText(req.getRole())) {
-//                wrapper.lambda().eq(AiChatMessageEntity::getRole, req.getRole());
-//            }
-//            wrapper.lambda().orderByAsc(AiChatMessageEntity::getRoundCode, AiChatMessageEntity::getSortNo, AiChatMessageEntity::getId);
-//        }
-//        return wrapper;
-//    }
 }

@@ -16,6 +16,10 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -50,11 +54,14 @@ public class SqlGenerateNode extends BaseWorkflowNode {
 
     private final AiChatExecutionApi aiChatExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
+    private final WorkflowHistoryRecorder historyRecorder;
 
     public SqlGenerateNode(AiChatExecutionApi aiChatExecutionApi,
-                           AiMetaQueryApi aiMetaQueryApi) {
+                           AiMetaQueryApi aiMetaQueryApi,
+                           WorkflowHistoryRecorder historyRecorder) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
+        this.historyRecorder = historyRecorder;
     }
 
     @Override
@@ -77,9 +84,33 @@ public class SqlGenerateNode extends BaseWorkflowNode {
             context.setGeneratedSql(generatedSql);
             context.put("generatedSql", generatedSql);
             context.put("sqlGenerateRequestId", response == null ? null : response.getRequestId());
+            historyRecorder.saveArtifact(
+                    context,
+                    AiChatArtifactType.SQL_DRAFT.name(),
+                    AiChatArtifactStage.SQL_GEN.name(),
+                    "SQL 草案",
+                    generatedSql,
+                    AiChatContentFormat.SQL.name(),
+                    true,
+                    "SUCCESS",
+                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    response == null ? null : response.getRequestId()
+            );
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("sql generate failed, sessionCode={}", context.getSession() == null ? null : context.getSession().getSessionCode(), ex);
+            historyRecorder.saveArtifact(
+                    context,
+                    AiChatArtifactType.WORKFLOW_ERROR.name(),
+                    AiChatArtifactStage.SQL_GEN.name(),
+                    "SQL 生成失败",
+                    ex.getMessage(),
+                    AiChatContentFormat.PLAIN_TEXT.name(),
+                    true,
+                    "FAILED",
+                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    null
+            );
             return NodeResult.fail(ex.getMessage());
         }
     }

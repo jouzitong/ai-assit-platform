@@ -25,29 +25,4 @@ public class AiChatSessionServiceImpl
         return aiChatSessionConvert;
     }
 
-    public AiChatSessionDTO newDTO() {
-        return new AiChatSessionDTO();
-    }
-
-    public AiChatSessionEntity newEntity() {
-        return new AiChatSessionEntity();
-    }
-
-//    @Override
-//    protected <Query extends BaseRequest> QueryWrapper<AiChatSessionEntity> buildQuery(Query query) {
-//        QueryWrapper<AiChatSessionEntity> wrapper = super.buildQuery(query);
-//        if (query instanceof AiChatHistoryQueryRequest req) {
-//            if (StringUtils.hasText(req.getSessionCode())) {
-//                wrapper.lambda().eq(AiChatSessionEntity::getSessionCode, req.getSessionCode());
-//            }
-//            if (req.getUserId() != null) {
-//                wrapper.lambda().eq(AiChatSessionEntity::getUserId, req.getUserId());
-//            }
-//            if (req.getBusinessType() != null) {
-//                wrapper.lambda().eq(AiChatSessionEntity::getBusinessType, req.getBusinessType());
-//            }
-//            wrapper.lambda().orderByDesc(AiChatSessionEntity::getPinned, AiChatSessionEntity::getUpdateTime, AiChatSessionEntity::getId);
-//        }
-//        return wrapper;
-//    }
 }

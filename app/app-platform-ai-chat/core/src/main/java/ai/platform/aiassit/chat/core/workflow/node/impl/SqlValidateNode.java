@@ -3,6 +3,10 @@ package ai.platform.aiassit.chat.core.workflow.node.impl;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -20,6 +24,12 @@ public class SqlValidateNode extends BaseWorkflowNode {
     private static final String RETRY_KEY = "sqlValidateRetryCount";
     private static final int MAX_RETRY_COUNT = 2;
 
+    private final WorkflowHistoryRecorder historyRecorder;
+
+    public SqlValidateNode(WorkflowHistoryRecorder historyRecorder) {
+        this.historyRecorder = historyRecorder;
+    }
+
     @Override
     protected NodeResult doExecute(WorkflowContext context) {
         String generatedSql = context.getGeneratedSql();
@@ -34,11 +44,35 @@ public class SqlValidateNode extends BaseWorkflowNode {
 
         if (validationError == null) {
             context.setValidatedSql(normalizedSql);
+            historyRecorder.saveArtifact(
+                    context,
+                    AiChatArtifactType.SQL_VALIDATED.name(),
+                    AiChatArtifactStage.SQL_VALIDATE.name(),
+                    "SQL 校验通过",
+                    normalizedSql,
+                    AiChatContentFormat.SQL.name(),
+                    true,
+                    "SUCCESS",
+                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    null
+            );
             return NodeResult.success(null);
         }
 
         int retryCount = nextRetryCount(context);
         context.put(RETRY_KEY, retryCount);
+        historyRecorder.saveArtifact(
+                context,
+                AiChatArtifactType.SQL_VALIDATION.name(),
+                AiChatArtifactStage.SQL_VALIDATE.name(),
+                "SQL 校验失败",
+                validationError,
+                AiChatContentFormat.PLAIN_TEXT.name(),
+                true,
+                "FAILED",
+                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                normalizedSql
+        );
         if (retryCount <= MAX_RETRY_COUNT) {
             context.put("sqlGenerationFeedback", validationError);
             return NodeResult.success("Sql-Generate");

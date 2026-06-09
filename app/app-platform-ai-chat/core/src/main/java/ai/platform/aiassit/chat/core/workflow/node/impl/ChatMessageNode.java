@@ -4,10 +4,12 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import lombok.extern.slf4j.Slf4j;
@@ -31,10 +33,14 @@ public class ChatMessageNode extends BaseWorkflowNode {
 
     private final AiChatSessionService sessionService;
     private final AiChatMessageService messageService;
+    private final AiChatArtifactService artifactService;
 
-    public ChatMessageNode(AiChatSessionService sessionService, AiChatMessageService messageService) {
+    public ChatMessageNode(AiChatSessionService sessionService,
+                           AiChatMessageService messageService,
+                           AiChatArtifactService artifactService) {
         this.sessionService = sessionService;
         this.messageService = messageService;
+        this.artifactService = artifactService;
     }
 
     @Override
@@ -49,9 +55,11 @@ public class ChatMessageNode extends BaseWorkflowNode {
 
         AiChatSessionDTO session;
         List<AiChatMessageDTO> sessionMessages;
+        List<AiChatArtifactDTO> sessionArtifacts;
         if (!StringUtils.hasText(sessionCode)) {
             session = createSession(command, userId);
             sessionMessages = List.of();
+            sessionArtifacts = List.of();
             command.setSessionCode(session.getSessionCode());
         } else {
             session = loadSession(sessionCode, userId);
@@ -59,10 +67,12 @@ public class ChatMessageNode extends BaseWorkflowNode {
                 return NodeResult.fail("session not found");
             }
             sessionMessages = loadSessionMessages(sessionCode, userId);
+            sessionArtifacts = loadSessionArtifacts(sessionCode, userId);
         }
 
         context.setSession(session);
         context.setSessionMessages(sessionMessages);
+        context.setSessionArtifacts(sessionArtifacts);
 
         return NodeResult.success(null);
     }
@@ -96,6 +106,13 @@ public class ChatMessageNode extends BaseWorkflowNode {
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
+    }
+
+    private List<AiChatArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
+        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        query.setSessionCode(sessionCode);
+        query.setUserId(userId);
+        return artifactService.queryAll(query);
     }
 
     private Long resolveUserId(Long userId) {

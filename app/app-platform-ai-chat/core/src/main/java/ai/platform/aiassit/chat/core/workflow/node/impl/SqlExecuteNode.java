@@ -4,6 +4,10 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -23,6 +27,12 @@ import java.util.Map;
 @Service
 public class SqlExecuteNode extends BaseWorkflowNode {
 
+    private final WorkflowHistoryRecorder historyRecorder;
+
+    public SqlExecuteNode(WorkflowHistoryRecorder historyRecorder) {
+        this.historyRecorder = historyRecorder;
+    }
+
     @Override
     protected NodeResult doExecute(WorkflowContext context) {
         String validatedSql = context.getValidatedSql();
@@ -40,6 +50,18 @@ public class SqlExecuteNode extends BaseWorkflowNode {
             context.setSqlExecutionStatus("SUCCESS");
             context.setSqlExecutionResult(providedResult);
             context.put("sqlExecutionResult", providedResult);
+            historyRecorder.saveArtifact(
+                    context,
+                    AiChatArtifactType.SQL_EXEC_RESULT.name(),
+                    AiChatArtifactStage.SQL_EXEC.name(),
+                    "SQL 执行结果",
+                    providedResult,
+                    AiChatContentFormat.JSON.name(),
+                    true,
+                    "SUCCESS",
+                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    validatedSql
+            );
             return NodeResult.success(null);
         }
 
@@ -53,6 +75,18 @@ public class SqlExecuteNode extends BaseWorkflowNode {
         context.setSqlExecutionStatus("SKIPPED");
         context.setSqlExecutionResult(degradedResult);
         context.put("sqlExecutionResult", degradedResult);
+        historyRecorder.saveArtifact(
+                context,
+                AiChatArtifactType.SQL_EXEC_RESULT.name(),
+                AiChatArtifactStage.SQL_EXEC.name(),
+                "SQL 执行结果",
+                degradedResult,
+                AiChatContentFormat.JSON.name(),
+                true,
+                "SKIPPED",
+                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                validatedSql
+        );
         return NodeResult.success(null);
     }
 

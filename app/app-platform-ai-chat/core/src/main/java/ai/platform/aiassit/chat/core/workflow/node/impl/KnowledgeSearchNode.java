@@ -13,6 +13,10 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -35,11 +39,14 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
 
     private final AiKnowledgeBaseExecutionApi knowledgeBaseExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
+    private final WorkflowHistoryRecorder historyRecorder;
 
     public KnowledgeSearchNode(AiKnowledgeBaseExecutionApi knowledgeBaseExecutionApi,
-                               AiMetaQueryApi aiMetaQueryApi) {
+                               AiMetaQueryApi aiMetaQueryApi,
+                               WorkflowHistoryRecorder historyRecorder) {
         this.knowledgeBaseExecutionApi = knowledgeBaseExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
+        this.historyRecorder = historyRecorder;
     }
 
     @Override
@@ -76,6 +83,18 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
 
         context.setKnowledgeResult(knowledgeResult);
         context.put("knowledgeResult", knowledgeResult);
+        historyRecorder.saveArtifact(
+                context,
+                AiChatArtifactType.KNOWLEDGE_RESULT.name(),
+                AiChatArtifactStage.KNOWLEDGE.name(),
+                "知识检索结果",
+                knowledgeResult,
+                AiChatContentFormat.MARKDOWN.name(),
+                true,
+                "SUCCESS",
+                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                context.get("knowledgeSearchResponse")
+        );
         return NodeResult.success(null);
     }
 

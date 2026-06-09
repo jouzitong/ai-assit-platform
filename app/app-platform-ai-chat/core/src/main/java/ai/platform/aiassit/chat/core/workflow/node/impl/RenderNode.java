@@ -16,8 +16,15 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
+import ai.platform.aiassit.chat.history.enums.AiChatActorType;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
+import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
+import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import lombok.extern.slf4j.Slf4j;
@@ -57,15 +64,18 @@ public class RenderNode extends BaseWorkflowNode {
     private final AiMetaQueryApi aiMetaQueryApi;
     private final AiChatMessageService messageService;
     private final AiChatRoundService roundService;
+    private final WorkflowHistoryRecorder historyRecorder;
 
     public RenderNode(AiChatExecutionApi aiChatExecutionApi,
                       AiMetaQueryApi aiMetaQueryApi,
                       AiChatMessageService messageService,
-                      AiChatRoundService roundService) {
+                      AiChatRoundService roundService,
+                      WorkflowHistoryRecorder historyRecorder) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.messageService = messageService;
         this.roundService = roundService;
+        this.historyRecorder = historyRecorder;
     }
 
     @Override
@@ -87,10 +97,34 @@ public class RenderNode extends BaseWorkflowNode {
             context.setRenderedAnswer(answer);
             context.put("renderedAnswer", answer);
             persistAssistantMessage(context, answer);
+            historyRecorder.saveArtifact(
+                    context,
+                    AiChatArtifactType.MODEL_RESPONSE_SNAPSHOT.name(),
+                    AiChatArtifactStage.RENDER.name(),
+                    "最终回答快照",
+                    answer,
+                    AiChatContentFormat.MARKDOWN.name(),
+                    true,
+                    STATUS_SUCCESS,
+                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    null
+            );
             finishRound(context.getRound(), STATUS_SUCCESS, resolveActualModel(command.getApiModel()));
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("render node failed, roundCode={}", context.getRound().getRoundCode(), ex);
+            historyRecorder.saveArtifact(
+                    context,
+                    AiChatArtifactType.WORKFLOW_ERROR.name(),
+                    AiChatArtifactStage.RENDER.name(),
+                    "最终渲染失败",
+                    ex.getMessage(),
+                    AiChatContentFormat.PLAIN_TEXT.name(),
+                    true,
+                    STATUS_FAILED,
+                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    null
+            );
             finishRound(context.getRound(), STATUS_FAILED, resolveActualModel(command.getApiModel()));
             return NodeResult.fail(ex.getMessage());
         }
@@ -164,15 +198,20 @@ public class RenderNode extends BaseWorkflowNode {
     }
 
     private void persistAssistantMessage(WorkflowContext context, String answer) {
-        int sortNo = CollectionUtils.isEmpty(context.getSessionMessages()) ? 1 : context.getSessionMessages().size() + 1;
-        AiChatMessageDTO message = new AiChatMessageDTO();
-        message.setMessageCode(generateCode("msg"));
-        message.setRoundCode(context.getRound().getRoundCode());
-        message.setSessionCode(context.getSession().getSessionCode());
-        message.setRole("ASSISTANT");
-        message.setContent(answer);
-        message.setSortNo(sortNo);
-        messageService.add(message);
+        historyRecorder.saveMessage(
+                context,
+                context.getRound().getRoundCode(),
+                "ASSISTANT",
+                AiChatActorType.AI.name(),
+                AiChatMessageType.FINAL_ANSWER.name(),
+                answer,
+                AiChatContentFormat.MARKDOWN.name(),
+                AiChatDisplayLevel.VISIBLE.name(),
+                STATUS_SUCCESS,
+                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                null
+        );
     }
 
     private void finishRound(AiChatRoundDTO round, String status, String actualModel) {

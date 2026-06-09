@@ -10,6 +10,10 @@ public class AiChatRoundDTO extends BaseDTO {
 
     private String roundCode;
 
+    private String roundType;
+
+    private String parentRoundCode;
+
     private String sessionCode;
 
     private Long userId;

@@ -20,8 +20,17 @@ import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
+import ai.platform.aiassit.chat.history.enums.AiChatActorType;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
+import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
+import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
+import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
+import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
+import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
@@ -67,6 +76,7 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
     private final AiChatSessionService sessionService;
     private final AiChatRoundService roundService;
     private final AiChatMessageService messageService;
+    private final AiChatArtifactService artifactService;
     private final AiMetaQueryApi aiMetaQueryApi;
     private final AiChatExecutionApi aiChatExecutionApi;
     private final ObjectMapper objectMapper;
@@ -78,12 +88,14 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
     public DefaultAiChatQueryServiceImpl(AiChatSessionService sessionService,
                                          AiChatRoundService roundService,
                                          AiChatMessageService messageService,
+                                         AiChatArtifactService artifactService,
                                          AiMetaQueryApi aiMetaQueryApi,
                                          AiChatExecutionApi aiChatExecutionApi,
                                          ObjectMapper objectMapper) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
+        this.artifactService = artifactService;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.objectMapper = objectMapper;
@@ -261,6 +273,8 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
 
         AiChatRoundDTO round = new AiChatRoundDTO();
         round.setRoundCode(generateCode("round"));
+        round.setRoundType(resolveRoundType(command, historyMessages).name());
+        round.setParentRoundCode(resolveParentRoundCode(session.getSessionCode(), command.getUserId()));
         round.setSessionCode(session.getSessionCode());
         round.setUserId(resolveUserId(command.getUserId()));
         round.setModelCode(resolveModelCode(command.getApiModel()));
@@ -268,15 +282,34 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
         round.setStatus(STATUS_RUNNING);
         AiChatRoundDTO createdRound = roundService.add(round);
 
-        int nextSortNo = historyMessages.size() + 1;
-        persistMessage(createdRound.getRoundCode(), session.getSessionCode(), resolveUserId(command.getUserId()), "USER", command.getMessage(), nextSortNo);
-
         ChatRequest engineRequest = buildEngineRequest(command, historyMessages);
         QueryContext context = new QueryContext();
         context.session = session;
         context.round = createdRound;
         context.engineRequest = engineRequest;
         context.providerType = resolveProviderType(engineRequest.getProvider());
+        context.historyMessages = historyMessages;
+        context.currentUserMessage = persistMessage(
+                context,
+                "USER",
+                AiChatActorType.HUMAN.name(),
+                resolveUserMessageType(createdRound.getRoundType()),
+                command.getMessage(),
+                AiChatContentFormat.PLAIN_TEXT.name(),
+                AiChatDisplayLevel.VISIBLE.name(),
+                STATUS_SUCCESS,
+                historyMessages.isEmpty() ? null : historyMessages.get(historyMessages.size() - 1).getMessageCode(),
+                historyMessages.isEmpty() ? null : historyMessages.get(historyMessages.size() - 1).getMessageCode()
+        );
+        persistArtifact(context,
+                AiChatArtifactType.MODEL_REQUEST_SNAPSHOT.name(),
+                AiChatArtifactStage.UNDERSTAND.name(),
+                "模型请求快照",
+                engineRequest,
+                AiChatContentFormat.JSON.name(),
+                false,
+                STATUS_SUCCESS,
+                context.currentUserMessage.getMessageCode());
         return context;
     }
 
@@ -438,24 +471,83 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
         if (!StringUtils.hasText(answer)) {
             return;
         }
-        int sortNo = messageService.queryAll(buildHistoryQuery(context.session.getSessionCode(), context.round.getUserId())).size() + 1;
-        persistMessage(context.round.getRoundCode(), context.session.getSessionCode(), context.round.getUserId(), "ASSISTANT", answer, sortNo);
+        persistMessage(
+                context,
+                "ASSISTANT",
+                AiChatActorType.AI.name(),
+                AiChatMessageType.FINAL_ANSWER.name(),
+                answer,
+                AiChatContentFormat.MARKDOWN.name(),
+                AiChatDisplayLevel.VISIBLE.name(),
+                STATUS_SUCCESS,
+                context.currentUserMessage == null ? null : context.currentUserMessage.getMessageCode(),
+                context.currentUserMessage == null ? null : context.currentUserMessage.getMessageCode()
+        );
+        persistArtifact(context,
+                AiChatArtifactType.MODEL_RESPONSE_SNAPSHOT.name(),
+                AiChatArtifactStage.RENDER.name(),
+                "模型响应快照",
+                answer,
+                AiChatContentFormat.MARKDOWN.name(),
+                true,
+                STATUS_SUCCESS,
+                context.currentUserMessage == null ? null : context.currentUserMessage.getMessageCode());
     }
 
-    private void persistMessage(String roundCode,
-                                String sessionCode,
-                                Long userId,
+    private AiChatMessageDTO persistMessage(QueryContext context,
                                 String role,
+                                String actorType,
+                                String messageType,
                                 String content,
-                                int sortNo) {
+                                String contentFormat,
+                                String displayLevel,
+                                String status,
+                                String parentMessageCode,
+                                String sourceMessageCode) {
         AiChatMessageDTO message = new AiChatMessageDTO();
         message.setMessageCode(generateCode("msg"));
-        message.setRoundCode(roundCode);
-        message.setSessionCode(sessionCode);
+        message.setRoundCode(context.round.getRoundCode());
+        message.setSessionCode(context.session.getSessionCode());
         message.setRole(role);
+        message.setActorType(actorType);
+        message.setMessageType(messageType);
+        message.setContentFormat(contentFormat);
+        message.setDisplayLevel(displayLevel);
+        message.setStatus(status);
+        message.setParentMessageCode(parentMessageCode);
+        message.setSourceMessageCode(sourceMessageCode);
         message.setContent(content);
-        message.setSortNo(sortNo);
-        messageService.add(message);
+        message.setSortNo(nextMessageSortNo(context));
+        AiChatMessageDTO created = messageService.add(message);
+        context.historyMessages.add(created);
+        return created;
+    }
+
+    private void persistArtifact(QueryContext context,
+                                 String artifactType,
+                                 String stage,
+                                 String title,
+                                 Object content,
+                                 String contentFormat,
+                                 boolean visible,
+                                 String status,
+                                 String relatedMessageCode) {
+        AiChatArtifactDTO artifact = new AiChatArtifactDTO();
+        artifact.setArtifactCode(generateCode("artifact"));
+        artifact.setSessionCode(context.session.getSessionCode());
+        artifact.setRoundCode(context.round.getRoundCode());
+        artifact.setUserId(context.round.getUserId());
+        artifact.setRelatedMessageCode(relatedMessageCode);
+        artifact.setArtifactType(artifactType);
+        artifact.setStage(stage);
+        artifact.setProducerType(visible ? AiChatActorType.AI.name() : AiChatActorType.SYSTEM.name());
+        artifact.setVisibleFlag(visible);
+        artifact.setTitle(title);
+        artifact.setContent(stringifyContent(content));
+        artifact.setContentFormat(contentFormat);
+        artifact.setStatus(status);
+        artifact.setSeqNo(nextArtifactSortNo(context));
+        artifactService.add(artifact);
     }
 
     private AiChatHistoryQueryRequest buildHistoryQuery(String sessionCode, Long userId) {
@@ -580,10 +672,68 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
         return url.replaceAll("/+$", "");
     }
 
+    private int nextMessageSortNo(QueryContext context) {
+        return CollectionUtils.isEmpty(context.historyMessages) ? 1 : context.historyMessages.size() + 1;
+    }
+
+    private int nextArtifactSortNo(QueryContext context) {
+        return artifactService.queryAll(buildHistoryQuery(context.session.getSessionCode(), context.round.getUserId())).size() + 1;
+    }
+
+    private AiChatRoundType resolveRoundType(AiChatQueryCommand command, List<AiChatMessageDTO> historyMessages) {
+        Object extValue = command == null || command.getExt() == null ? null : command.getExt().get("roundType");
+        if (extValue instanceof String str && StringUtils.hasText(str)) {
+            try {
+                return AiChatRoundType.valueOf(str.trim().toUpperCase(Locale.ROOT));
+            } catch (Exception ignored) {
+                // fall through
+            }
+        }
+        if (CollectionUtils.isEmpty(historyMessages)) {
+            return AiChatRoundType.USER_QUERY;
+        }
+        AiChatMessageDTO lastMessage = historyMessages.get(historyMessages.size() - 1);
+        if (AiChatMessageType.ASSISTANT_QUESTION.name().equals(lastMessage.getMessageType())) {
+            return AiChatRoundType.CLARIFICATION;
+        }
+        return AiChatRoundType.FOLLOW_UP;
+    }
+
+    private String resolveParentRoundCode(String sessionCode, Long userId) {
+        List<AiChatRoundDTO> rounds = roundService.queryAll(buildHistoryQuery(sessionCode, userId));
+        if (CollectionUtils.isEmpty(rounds)) {
+            return null;
+        }
+        return rounds.get(rounds.size() - 1).getRoundCode();
+    }
+
+    private String resolveUserMessageType(String roundType) {
+        if (AiChatRoundType.CLARIFICATION.name().equals(roundType)) {
+            return AiChatMessageType.USER_CLARIFICATION.name();
+        }
+        return AiChatMessageType.USER_INPUT.name();
+    }
+
+    private String stringifyContent(Object content) {
+        if (content == null) {
+            return "";
+        }
+        if (content instanceof String str) {
+            return str;
+        }
+        try {
+            return objectMapper.writeValueAsString(content);
+        } catch (Exception ex) {
+            return String.valueOf(content);
+        }
+    }
+
     private static final class QueryContext {
         private AiChatSessionDTO session;
         private AiChatRoundDTO round;
         private ChatRequest engineRequest;
         private ProviderType providerType;
+        private AiChatMessageDTO currentUserMessage;
+        private List<AiChatMessageDTO> historyMessages = new ArrayList<>();
     }
 }

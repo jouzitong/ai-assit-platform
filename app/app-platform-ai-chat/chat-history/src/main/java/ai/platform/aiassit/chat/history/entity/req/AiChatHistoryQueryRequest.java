@@ -17,5 +17,15 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
 
     private String role;
 
+    private String roundType;
+
+    private String messageType;
+
+    private String artifactType;
+
+    private String stage;
+
+    private Boolean visibleFlag;
+
     private AiChatBusinessType businessType;
 }

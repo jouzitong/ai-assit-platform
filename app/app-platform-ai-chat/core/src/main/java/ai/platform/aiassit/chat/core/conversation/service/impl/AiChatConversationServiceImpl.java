@@ -13,6 +13,7 @@ import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
@@ -30,13 +31,16 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
     private final AiChatSessionService sessionService;
     private final AiChatRoundService roundService;
     private final AiChatMessageService messageService;
+    private final AiChatArtifactService artifactService;
 
     public AiChatConversationServiceImpl(AiChatSessionService sessionService,
                                          AiChatRoundService roundService,
-                                         AiChatMessageService messageService) {
+                                         AiChatMessageService messageService,
+                                         AiChatArtifactService artifactService) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
+        this.artifactService = artifactService;
     }
 
     @Override
@@ -64,6 +68,7 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
         response.setSession(sessionService.get(query));
         response.setRounds(roundService.queryAll(query));
         response.setMessages(messageService.queryAll(query));
+        response.setArtifacts(artifactService.queryAll(query));
         return response;
     }
 
@@ -130,6 +135,11 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
                 messageService.delete(message.getId());
             }
         }
+        artifactService.queryAll(query).forEach(artifact -> {
+            if (artifact.getId() != null) {
+                artifactService.delete(artifact.getId());
+            }
+        });
         for (AiChatRoundDTO round : roundService.queryAll(query)) {
             if (round.getId() != null) {
                 roundService.delete(round.getId());
