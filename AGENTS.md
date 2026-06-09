@@ -1,5 +1,26 @@
 # ai-assit-platform（Codex 协作规则 / 项目约定）
 
+## Skill
+
+### CodeGraph
+
+This repository is indexed with CodeGraph.
+
+Prefer CodeGraph queries before broad file scans:
+- `codegraph query <symbol>`
+- `codegraph callers <symbol>`
+- `codegraph callees <symbol>`
+- `codegraph impact <symbol>`
+- `codegraph context "<task>"`
+
+Maintenance:
+- Run `codegraph init -i` once per repo.
+- Run `codegraph sync` after edits.
+- Run `codegraph index` for a full refresh when needed.
+
+Do not commit `.codegraph/`.
+
+
 本文件只约束 `ai-assit-platform` 仓库内的协作方式，目标是让 Codex 先对齐当前项目结构，再做最小必要改动。
 
 ## 1. 当前结构
