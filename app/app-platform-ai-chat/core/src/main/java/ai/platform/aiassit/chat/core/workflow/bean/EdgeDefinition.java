@@ -1,6 +1,5 @@
 package ai.platform.aiassit.chat.core.workflow.bean;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -12,7 +11,6 @@ import java.io.Serializable;
  * @since 2026/6/8
  */
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
 public class EdgeDefinition implements Serializable {
 

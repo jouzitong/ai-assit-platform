@@ -42,6 +42,22 @@ public class WorkflowContext implements Serializable {
 
     private String analysisResult;
 
+    private String knowledgeBaseId;
+
+    private String knowledgeResult;
+
+    private String generatedSql;
+
+    private String validatedSql;
+
+    private String sqlValidationError;
+
+    private String sqlExecutionStatus;
+
+    private Object sqlExecutionResult;
+
+    private String renderedAnswer;
+
     private Map<String, Object> data = new HashMap<>();
 
     public void put(String key, Object value) {

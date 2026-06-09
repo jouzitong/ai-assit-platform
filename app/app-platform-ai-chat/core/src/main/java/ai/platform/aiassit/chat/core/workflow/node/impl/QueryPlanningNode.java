@@ -8,6 +8,7 @@ import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
+import ai.platform.aiassist.service.ai.api.dto.OutputItem;
 import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
@@ -32,6 +33,7 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
+ * 查询规划节点，负责抽取当前问题的执行意图并创建本轮执行上下文。
  *
  * @author zhouzhitong
  * @since 2026/6/8
@@ -41,17 +43,20 @@ import java.util.UUID;
 public class QueryPlanningNode extends BaseWorkflowNode {
 
     private static final String STATUS_RUNNING = "RUNNING";
-    private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
-    private static final String DEFAULT_SCENE = "ai-chat-requirement-analysis";
-    private static final String ANALYSIS_PROMPT = """
-            你是一个需求分析助手。
-            请基于用户当前输入和历史对话，提炼并输出：
-            1. 用户当前核心需求
-            2. 关键约束条件
-            3. 已明确的信息
-            4. 仍缺失但影响后续执行的信息
-            结果请使用清晰的中文文本输出。
+    private static final String DEFAULT_SCENE = "ai-chat-query-planning";
+    private static final String PLANNING_PROMPT = """
+            你是一个智能问数工作流的查询规划节点。
+            你需要根据用户当前问题和已有对话历史，输出一份可执行的规划文本。
+
+            输出必须覆盖以下内容：
+            1. 用户核心目标
+            2. 关键分析维度
+            3. 需要的知识上下文或数据口径
+            4. SQL 生成应重点关注的过滤条件、聚合口径、排序方式
+            5. 如果信息仍不足，需要明确指出风险点
+
+            请直接输出中文规划文本，不要输出 JSON，不要补充寒暄。
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
@@ -84,52 +89,37 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
         try {
             List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getSessionMessages());
-            long userId = resolveUserId(command.getUserId());
+            Long userId = resolveUserId(command.getUserId());
 
             AiChatRoundDTO round = createRound(context, userId, command);
             context.setRound(round);
 
-            int nextSortNo = historyMessages.size() + 1;
             AiChatMessageDTO userMessage = persistMessage(
                     round.getRoundCode(),
                     context.getSession().getSessionCode(),
                     userId,
                     "USER",
                     command.getMessage(),
-                    nextSortNo
+                    historyMessages.size() + 1
             );
             historyMessages.add(userMessage);
-
-            ChatRequest engineRequest = buildEngineRequest(command, historyMessages);
-            context.setEngineRequest(engineRequest);
-
-            ChatResponse engineResponse = aiChatExecutionApi.chat(engineRequest);
-            context.setEngineResponse(engineResponse);
-
-            String analysisResult = extractAnswer(engineResponse);
-            context.setAnalysisResult(analysisResult);
-
-            if (StringUtils.hasText(analysisResult)) {
-                AiChatMessageDTO assistantMessage = persistMessage(
-                        round.getRoundCode(),
-                        context.getSession().getSessionCode(),
-                        userId,
-                        "ASSISTANT",
-                        analysisResult,
-                        historyMessages.size() + 1
-                );
-                historyMessages.add(assistantMessage);
-            }
-
             context.setSessionMessages(historyMessages.stream()
                     .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                     .toList());
-            context.put("analysisResult", analysisResult);
 
-            finishRound(round, engineRequest, engineResponse == null ? null : engineResponse.getModel(), STATUS_SUCCESS);
+            ChatRequest planningRequest = buildPlanningRequest(command, historyMessages);
+            ChatResponse planningResponse = aiChatExecutionApi.chat(planningRequest);
+            String analysisResult = extractAnswer(planningResponse);
+
+            context.setEngineRequest(planningRequest);
+            context.setEngineResponse(planningResponse);
+            context.setAnalysisResult(analysisResult);
+            context.put("queryPlan", analysisResult);
+            context.put("planningRequestId", planningResponse == null ? null : planningResponse.getRequestId());
+
             return NodeResult.success(null);
         } catch (Exception ex) {
-            log.error("requirement analysis failed, sessionCode={}", context.getSession().getSessionCode(), ex);
+            log.error("query planning failed, sessionCode={}", context.getSession().getSessionCode(), ex);
             finishRound(context.getRound(), context.getEngineRequest(), null, STATUS_FAILED);
             return NodeResult.fail(ex.getMessage());
         }
@@ -137,7 +127,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     @Override
     public String type() {
-        return "Requirement-Analysis";
+        return "Query-Planning";
     }
 
     @Override
@@ -156,38 +146,37 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         return roundService.add(round);
     }
 
-    private ChatRequest buildEngineRequest(AiChatQueryCommand command, List<AiChatMessageDTO> historyMessages) {
-        ChatRequest engineRequest = new ChatRequest();
-        engineRequest.setProvider(resolveProviderType(command));
-        engineRequest.setModel(resolveActualModel(command.getApiModel()));
+    private ChatRequest buildPlanningRequest(AiChatQueryCommand command, List<AiChatMessageDTO> historyMessages) {
+        ChatRequest request = new ChatRequest();
+        request.setProvider(resolveProviderType(command));
+        request.setModel(resolveActualModel(command.getApiModel()));
 
         List<ChatMessage> messages = new ArrayList<>();
         ChatMessage systemMessage = new ChatMessage();
         systemMessage.setRole(MessageRole.SYSTEM);
-        systemMessage.setContent(ANALYSIS_PROMPT);
+        systemMessage.setContent(PLANNING_PROMPT);
         messages.add(systemMessage);
 
         if (!CollectionUtils.isEmpty(historyMessages)) {
             for (AiChatMessageDTO historyMessage : historyMessages) {
-                ChatMessage chatMessage = new ChatMessage();
-                chatMessage.setRole(resolveMessageRole(historyMessage.getRole()));
-                chatMessage.setContent(historyMessage.getContent());
-                messages.add(chatMessage);
+                ChatMessage message = new ChatMessage();
+                message.setRole(resolveMessageRole(historyMessage.getRole()));
+                message.setContent(historyMessage.getContent());
+                messages.add(message);
             }
         }
-
-        engineRequest.setMessages(messages);
+        request.setMessages(messages);
 
         ChatOptions options = new ChatOptions();
         options.setMaxTokens(resolveMaxTokens(command.getApiModel()));
         options.setTimeoutMs(30_000);
-        engineRequest.setOptions(options);
+        request.setOptions(options);
 
         RequestMeta meta = new RequestMeta();
         meta.setTraceId(StringUtils.hasText(command.getTraceId()) ? command.getTraceId() : generateCode("trace"));
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
-        engineRequest.setMeta(meta);
-        return engineRequest;
+        request.setMeta(meta);
+        return request;
     }
 
     private AiChatMessageDTO persistMessage(String roundCode,
@@ -220,12 +209,12 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     private String extractAnswer(ChatResponse response) {
-        if (response == null || response.getOutputs() == null) {
+        if (response == null || CollectionUtils.isEmpty(response.getOutputs())) {
             return "";
         }
         return response.getOutputs().stream()
                 .filter(Objects::nonNull)
-                .map(outputItem -> outputItem.getText())
+                .map(OutputItem::getText)
                 .filter(StringUtils::hasText)
                 .findFirst()
                 .orElse("");
@@ -291,7 +280,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         }
     }
 
-    private long resolveUserId(Long userId) {
+    private Long resolveUserId(Long userId) {
         return userId == null ? 0L : userId;
     }
 
