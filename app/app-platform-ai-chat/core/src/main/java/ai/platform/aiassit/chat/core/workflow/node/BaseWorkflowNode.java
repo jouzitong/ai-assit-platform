@@ -5,7 +5,24 @@ import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import lombok.extern.slf4j.Slf4j;
 
 /**
+ * <pre>
+ * 用户问题
+ * ↓
+ * ChatMessageNode
+ * ↓
+ * QueryPlanningNode
+ * ↓
+ * KnowledgeSearchNode
+ * ↓
+ * SqlGenerateNode <--^
+ * ↓                  |
+ * SqlValidateNode ---|
+ * ↓
+ * SqlExecuteNode
+ * ↓
+ * RenderNode
  *
+ * </pre>
  * @author zhouzhitong
  * @since 2026/6/8
  */

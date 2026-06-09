@@ -38,7 +38,7 @@ import java.util.UUID;
  */
 @Service
 @Slf4j
-public class RequirementAnalysisNode extends BaseWorkflowNode {
+public class QueryPlanningNode extends BaseWorkflowNode {
 
     private static final String STATUS_RUNNING = "RUNNING";
     private static final String STATUS_SUCCESS = "SUCCESS";
@@ -59,10 +59,10 @@ public class RequirementAnalysisNode extends BaseWorkflowNode {
     private final AiChatRoundService roundService;
     private final AiChatMessageService messageService;
 
-    public RequirementAnalysisNode(AiChatExecutionApi aiChatExecutionApi,
-                                   AiMetaQueryApi aiMetaQueryApi,
-                                   AiChatRoundService roundService,
-                                   AiChatMessageService messageService) {
+    public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
+                             AiMetaQueryApi aiMetaQueryApi,
+                             AiChatRoundService roundService,
+                             AiChatMessageService messageService) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.roundService = roundService;
