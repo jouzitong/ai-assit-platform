@@ -36,16 +36,24 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     public void run(WorkflowDefinition definition, WorkflowContext context) {
         String currentNodeId = definition.getStartNodeId();
         while (currentNodeId != null) {
-            IWorkflowNode currentNode = nodeRegistry.get(currentNodeId);
-            NodeResult result = currentNode.execute(context);
+            WorkflowNodeConfig workflowNodeConfig = definition.getNodes().get(currentNodeId);
+            if (workflowNodeConfig == null) {
+                context.put("error", "workflow node config not found: " + currentNodeId);
+                return;
+            }
+            IWorkflowNode currentNode = nodeRegistry.get(workflowNodeConfig.getNodeType());
+            if (currentNode == null) {
+                context.put("error", "workflow node not found: " + workflowNodeConfig.getNodeType());
+                return;
+            }
+            NodeResult result = currentNode.execute(context, workflowNodeConfig);
             if (!result.isSuccess()) {
-                // TODO
                 context.put("error", result.getErrorMessage());
+                return;
             }
             if (StringUtils.isNotBlank(result.getNextNodeId())) {
                 currentNodeId = result.getNextNodeId();
             } else {
-                WorkflowNodeConfig workflowNodeConfig = definition.getNodes().get(currentNodeId);
                 currentNodeId = workflowNodeConfig.getNextNodeId();
             }
         }

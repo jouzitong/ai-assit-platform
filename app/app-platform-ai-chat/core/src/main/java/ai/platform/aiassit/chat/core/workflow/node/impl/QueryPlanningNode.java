@@ -107,7 +107,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                     .toList());
 
-            ChatRequest planningRequest = buildPlanningRequest(command, historyMessages);
+            ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
             ChatResponse planningResponse = aiChatExecutionApi.chat(planningRequest);
             String analysisResult = extractAnswer(planningResponse);
 
@@ -146,7 +146,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         return roundService.add(round);
     }
 
-    private ChatRequest buildPlanningRequest(AiChatQueryCommand command, List<AiChatMessageDTO> historyMessages) {
+    private ChatRequest buildPlanningRequest(AiChatQueryCommand command,
+                                             WorkflowContext context,
+                                             List<AiChatMessageDTO> historyMessages) {
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command));
         request.setModel(resolveActualModel(command.getApiModel()));
@@ -156,6 +158,13 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         systemMessage.setRole(MessageRole.SYSTEM);
         systemMessage.setContent(PLANNING_PROMPT);
         messages.add(systemMessage);
+        String planningContext = buildPlanningContext(context);
+        if (StringUtils.hasText(planningContext)) {
+            ChatMessage contextMessage = new ChatMessage();
+            contextMessage.setRole(MessageRole.SYSTEM);
+            contextMessage.setContent(planningContext);
+            messages.add(contextMessage);
+        }
 
         if (!CollectionUtils.isEmpty(historyMessages)) {
             for (AiChatMessageDTO historyMessage : historyMessages) {
@@ -177,6 +186,19 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
         request.setMeta(meta);
         return request;
+    }
+
+    private String buildPlanningContext(WorkflowContext context) {
+        StringBuilder builder = new StringBuilder();
+        List<String> resolvedTerms = context.get("resolvedBusinessTerms");
+        if (!CollectionUtils.isEmpty(resolvedTerms)) {
+            builder.append("业务术语补充：").append(resolvedTerms).append('\n');
+        }
+        Object normalizedTimeRange = context.get("normalizedTimeRange");
+        if (normalizedTimeRange != null) {
+            builder.append("时间范围补充：").append(normalizedTimeRange).append('\n');
+        }
+        return builder.toString().trim();
     }
 
     private AiChatMessageDTO persistMessage(String roundCode,

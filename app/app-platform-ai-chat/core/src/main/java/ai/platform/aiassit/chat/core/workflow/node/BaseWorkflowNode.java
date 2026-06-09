@@ -1,8 +1,12 @@
 package ai.platform.aiassit.chat.core.workflow.node;
 
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.skill.WorkflowNodeSkillExecutor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 
 /**
  * 工作流基础节点。
@@ -34,11 +38,33 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public abstract class BaseWorkflowNode implements IWorkflowNode {
 
+    @Autowired
+    private WorkflowNodeSkillExecutor skillExecutor;
+
     protected abstract NodeResult doExecute(WorkflowContext context);
 
     @Override
-    public NodeResult execute(WorkflowContext context) {
-        return doExecute(context);
+    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+        NodeResult beforeResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.BEFORE_EXECUTE, null);
+        if (!beforeResult.isSuccess()) {
+            return beforeResult;
+        }
+
+        NodeResult nodeResult = doExecute(context);
+        if (!nodeResult.isSuccess()) {
+            return nodeResult;
+        }
+
+        NodeResult afterResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.AFTER_EXECUTE, nodeResult);
+        if (!afterResult.isSuccess()) {
+            return afterResult;
+        }
+
+        NodeResult reviewResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.REVIEW_OUTPUT, afterResult);
+        if (!reviewResult.isSuccess()) {
+            return reviewResult;
+        }
+        return reviewResult;
     }
 
     @Override

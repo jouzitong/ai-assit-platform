@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  *
@@ -21,5 +23,7 @@ public class WorkflowNodeConfig implements Serializable {
     private String nodeType;
 
     private String nextNodeId;
+
+    private List<WorkflowNodeSkillConfig> skills = new ArrayList<>();
 
 }
