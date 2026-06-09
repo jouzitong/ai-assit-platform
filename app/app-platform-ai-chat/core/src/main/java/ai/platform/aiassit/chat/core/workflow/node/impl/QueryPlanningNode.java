@@ -19,15 +19,9 @@ import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.enums.AiChatActorType;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
-import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
-import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
-import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
-import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -35,7 +29,6 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -77,7 +70,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
                              AiMetaQueryApi aiMetaQueryApi,
                              AiChatRoundService roundService,
-                             AiChatMessageService messageService,
                              WorkflowHistoryRecorder historyRecorder) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
@@ -94,37 +86,18 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (context.getSession() == null) {
             return NodeResult.fail("session is required");
         }
+        if (context.getRound() == null) {
+            return NodeResult.fail("round is required");
+        }
+        if (context.getCurrentUserMessage() == null) {
+            return NodeResult.fail("currentUserMessage is required");
+        }
         if (!StringUtils.hasText(command.getMessage())) {
             return NodeResult.fail("message is required");
         }
 
         try {
             List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getSessionMessages());
-            Long userId = resolveUserId(command.getUserId());
-
-            AiChatRoundDTO round = createRound(context, userId, command);
-            context.setRound(round);
-
-            AiChatMessageDTO lastMessage = historyMessages.isEmpty() ? null : historyMessages.get(historyMessages.size() - 1);
-            AiChatMessageDTO userMessage = historyRecorder.saveMessage(
-                    context,
-                    round.getRoundCode(),
-                    "USER",
-                    AiChatActorType.HUMAN.name(),
-                    resolveUserMessageType(round.getRoundType()),
-                    command.getMessage(),
-                    AiChatContentFormat.PLAIN_TEXT.name(),
-                    AiChatDisplayLevel.VISIBLE.name(),
-                    STATUS_SUCCESS,
-                    lastMessage == null ? null : lastMessage.getMessageCode(),
-                    lastMessage == null ? null : lastMessage.getMessageCode(),
-                    null
-            );
-            historyMessages.add(userMessage);
-            context.setSessionMessages(historyMessages.stream()
-                    .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
-                    .toList());
-            context.setCurrentUserMessage(userMessage);
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
             ChatResponse planningResponse = aiChatExecutionApi.chat(planningRequest);
@@ -144,7 +117,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     AiChatContentFormat.MARKDOWN.name(),
                     true,
                     STATUS_SUCCESS,
-                    userMessage.getMessageCode(),
+                    context.getCurrentUserMessage().getMessageCode(),
                     planningResponse == null ? null : planningResponse.getRequestId()
             );
 
@@ -176,19 +149,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     @Override
     public int order() {
         return 200;
-    }
-
-    private AiChatRoundDTO createRound(WorkflowContext context, Long userId, AiChatQueryCommand command) {
-        AiChatRoundDTO round = new AiChatRoundDTO();
-        round.setRoundCode(generateCode("round"));
-        round.setRoundType(resolveRoundType(command, context.getSessionMessages()).name());
-        round.setParentRoundCode(resolveParentRoundCode(context));
-        round.setSessionCode(context.getSession().getSessionCode());
-        round.setUserId(userId);
-        round.setModelCode(resolveActualModel(command.getApiModel()));
-        round.setActualModel(resolveActualModel(command.getApiModel()));
-        round.setStatus(STATUS_RUNNING);
-        return roundService.add(round);
     }
 
     private ChatRequest buildPlanningRequest(AiChatQueryCommand command,
@@ -329,47 +289,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         } catch (Exception ex) {
             return MessageRole.USER;
         }
-    }
-
-    private Long resolveUserId(Long userId) {
-        return userId == null ? 0L : userId;
-    }
-
-    private AiChatRoundType resolveRoundType(AiChatQueryCommand command, List<AiChatMessageDTO> sessionMessages) {
-        Object extValue = command == null || command.getExt() == null ? null : command.getExt().get("roundType");
-        if (extValue instanceof String str && StringUtils.hasText(str)) {
-            try {
-                return AiChatRoundType.valueOf(str.trim().toUpperCase(Locale.ROOT));
-            } catch (Exception ignored) {
-                // fall through to inference
-            }
-        }
-        if (CollectionUtils.isEmpty(sessionMessages)) {
-            return AiChatRoundType.USER_QUERY;
-        }
-        AiChatMessageDTO lastMessage = sessionMessages.get(sessionMessages.size() - 1);
-        if (AiChatMessageType.ASSISTANT_QUESTION.name().equals(lastMessage.getMessageType())) {
-            return AiChatRoundType.CLARIFICATION;
-        }
-        return AiChatRoundType.FOLLOW_UP;
-    }
-
-    private String resolveUserMessageType(String roundType) {
-        if (AiChatRoundType.CLARIFICATION.name().equals(roundType)) {
-            return AiChatMessageType.USER_CLARIFICATION.name();
-        }
-        return AiChatMessageType.USER_INPUT.name();
-    }
-
-    private String resolveParentRoundCode(WorkflowContext context) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
-        query.setSessionCode(context.getSession().getSessionCode());
-        query.setUserId(context.getSession().getUserId());
-        List<AiChatRoundDTO> rounds = roundService.queryAll(query);
-        if (CollectionUtils.isEmpty(rounds)) {
-            return null;
-        }
-        return rounds.get(rounds.size() - 1).getRoundCode();
     }
 
     private String generateCode(String prefix) {
