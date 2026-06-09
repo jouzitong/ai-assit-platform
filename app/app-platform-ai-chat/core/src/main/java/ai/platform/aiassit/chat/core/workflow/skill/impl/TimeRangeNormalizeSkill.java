@@ -6,7 +6,6 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
-import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.LocalDate;
@@ -19,7 +18,7 @@ import java.util.Map;
  * @author zhouzhitong
  * @since 2026/6/9
  */
-@Component
+//@Component
 public class TimeRangeNormalizeSkill implements IWorkflowNodeSkill {
 
     private static final String CONTEXT_KEY = "normalizedTimeRange";

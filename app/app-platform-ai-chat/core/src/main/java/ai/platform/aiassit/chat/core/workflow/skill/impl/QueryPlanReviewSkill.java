@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
  * @author zhouzhitong
  * @since 2026/6/9
  */
-@Component
+//@Component
 public class QueryPlanReviewSkill implements IWorkflowNodeSkill {
 
     private static final String REVIEW_KEY = "queryPlanReview";

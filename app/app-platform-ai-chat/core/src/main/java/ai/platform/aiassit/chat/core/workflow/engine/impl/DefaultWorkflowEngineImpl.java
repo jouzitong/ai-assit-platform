@@ -47,10 +47,10 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 return;
             }
             NodeResult result = currentNode.execute(context, workflowNodeConfig);
-            if (!result.isSuccess()) {
-                context.put("error", result.getErrorMessage());
-                return;
-            }
+//            if (!result.isSuccess()) {
+//                context.put("error", result.getErrorMessage());
+//                return;
+//            }
             if (StringUtils.isNotBlank(result.getNextNodeId())) {
                 currentNodeId = result.getNextNodeId();
             } else {

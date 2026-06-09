@@ -6,7 +6,6 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
-import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -22,7 +21,7 @@ import java.util.Set;
  * @author zhouzhitong
  * @since 2026/6/9
  */
-@Component
+//@Component
 public class BusinessTermResolveSkill implements IWorkflowNodeSkill {
 
     private static final String EXT_KEY = "businessTerms";
