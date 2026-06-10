@@ -3,7 +3,6 @@ package ai.platform.aiassit.chat.history.entity;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
@@ -13,7 +12,6 @@ import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
  * 代表AI聊天会话中生成的工件实体类。
  */
 @Data
-@Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
@@ -28,12 +26,16 @@ public class AiChatArtifactEntity extends LogicalDeleteEntity {
 
     /**
      * 工件所属会话的代码。
+     *
+     * @see AiChatSessionEntity#getSessionCode() sessionCode
      */
     @TableField("session_code")
     private String sessionCode;
 
     /**
      * 会话中的轮次代码。
+     *
+     * @see AiChatRoundEntity#getRoundCode() roundCode
      */
     @TableField("round_code")
     private String roundCode;
@@ -46,6 +48,8 @@ public class AiChatArtifactEntity extends LogicalDeleteEntity {
 
     /**
      * 相关消息的代码。
+     *
+     * @see AiChatMessageEntity#getMessageCode() messageCode
      */
     @TableField("related_message_code")
     private String relatedMessageCode;
