@@ -9,6 +9,8 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
 import lombok.extern.slf4j.Slf4j;
+import org.athena.framework.security.api.model.UserContext;
+import org.athena.framework.security.auth.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -39,7 +41,15 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
     @Override
     public SseEmitter queryStream(AiChatQueryCommand command) {
         SseEmitter emitter = new SseEmitter(0L);
-        CompletableFuture.runAsync(() -> handleQueryStream(command, emitter));
+        UserContext userContext = SecurityContextHolder.get();
+        CompletableFuture.runAsync(() -> {
+            try {
+                SecurityContextHolder.set(userContext);
+                handleQueryStream(command, emitter);
+            } finally {
+                SecurityContextHolder.clear();
+            }
+        });
         return emitter;
     }
 

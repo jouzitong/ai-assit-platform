@@ -16,7 +16,7 @@ public class AiCoreProperties {
     /** 默认提供方 */
     private ProviderType defaultProvider = ProviderType.DASHSCOPE;
     /** 默认对话模型 */
-    private String defaultChatModel = "qwen-plus";
+    private String defaultChatModel = "qwen3.6-plus";
     /** 默认向量模型 */
     private String defaultEmbeddingModel = "text-embedding-v3";
     /** 默认重排模型 */

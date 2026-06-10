@@ -21,6 +21,7 @@ import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import lombok.extern.slf4j.Slf4j;
+import org.athena.framework.security.auth.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -137,14 +138,14 @@ public class ChatMessageNode extends BaseWorkflowNode {
     private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+        query.setCreatedBy(userId);
         return sessionService.get(query);
     }
 
     private List<AiChatMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+        query.setCreatedBy(userId);
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
@@ -153,7 +154,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
     private List<AiChatArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+        query.setCreatedBy(userId);
         return artifactService.queryAll(query);
     }
 
@@ -174,7 +175,8 @@ public class ChatMessageNode extends BaseWorkflowNode {
     }
 
     private Long resolveUserId(Long userId) {
-        return userId == null ? 0L : userId;
+//        return userId == null ? 0L : userId;
+        return SecurityContextHolder.get().subject().userId();
     }
 
     private AiChatBusinessType resolveBusinessType(AiChatBusinessType businessType) {
@@ -221,7 +223,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
     private String resolveParentRoundCode(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+        query.setCreatedBy(userId);
         List<AiChatRoundDTO> rounds = roundService.queryAll(query);
         if (CollectionUtils.isEmpty(rounds)) {
             return null;

@@ -52,7 +52,8 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     @Override
     public ChatResponse chat(ChatRequest request) {
         validator.validateChat(request);
-        return resolveProvider(request.getProvider()).chat(requestMapper.mapChat(request, properties));
+        return resolveProvider(request.getProvider())
+                .chat(requestMapper.mapChat(request, properties));
     }
 
     @Override

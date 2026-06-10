@@ -5,28 +5,31 @@ import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
+import org.athena.framework.web.annotation.IgnoredResultWrapper;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
 
 @FeignClient(
-        name = "${spring.application.name}",
+        name = "app-platform-ai-engine",
         contextId = "platformAiEngineClient",
         path = "/aiEngine"
 )
 public interface AiMetaQueryApi {
 
-    @PostMapping("/provider-model/overview")
+    @PostMapping("/api/v1/ai/meta/provider-model/overview")
     AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/provider/list")
+    @PostMapping("/api/v1/ai/meta/provider/list")
     List<AiProviderConfigDTO> listProviders(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/model/list")
+    @PostMapping(value = "/api/v1/ai/meta/model/list",produces = MediaType.APPLICATION_JSON_VALUE)
+    @IgnoredResultWrapper
     List<AiModelConfigDTO> listModels(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/credential/list")
+    @PostMapping("/api/v1/ai/meta/credential/list")
     List<AiModelCredentialDTO> listCredentials(@RequestBody(required = false) AiMetaQueryRequest request);
 }

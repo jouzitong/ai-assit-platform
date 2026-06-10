@@ -315,7 +315,7 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
     private AiChatSessionDTO resolveSession(AiChatQueryCommand command, boolean allowCreateSession) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(command.getSessionCode());
-        query.setUserId(resolveUserId(command.getUserId()));
+        query.setCreatedBy(resolveUserId(command.getUserId()));
         AiChatSessionDTO session = sessionService.get(query);
         if (session != null) {
             return session;
@@ -334,7 +334,7 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
     private List<AiChatMessageDTO> loadMessages(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+        query.setCreatedBy(userId);
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
@@ -552,7 +552,7 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
     private AiChatHistoryQueryRequest buildHistoryQuery(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+        query.setCreatedBy(userId);
         return query;
     }
 
