@@ -96,6 +96,7 @@ public class RenderNode extends BaseWorkflowNode {
 
             context.setRenderedAnswer(answer);
             context.put("renderedAnswer", answer);
+            context.publishEvent("answer-ready", "final answer rendered", answer, null, STATUS_SUCCESS);
             persistAssistantMessage(context, answer);
             historyRecorder.saveArtifact(
                     context,

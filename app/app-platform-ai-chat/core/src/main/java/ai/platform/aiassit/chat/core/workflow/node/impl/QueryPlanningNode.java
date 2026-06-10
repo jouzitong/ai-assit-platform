@@ -146,6 +146,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             context.put("queryPlan", analysisResult);
             context.put("queryPlanResult", planningResult);
             context.put("planningRequestId", planningResponse == null ? null : planningResponse.getRequestId());
+            context.publishEvent("query-plan-ready", "query plan prepared");
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.QUERY_PLAN.name(),

@@ -113,6 +113,8 @@ public class ChatMessageNode extends BaseWorkflowNode {
                 null
         );
         context.setCurrentUserMessage(userMessage);
+        context.publishEvent("chat-message-ready",
+                "session and user message prepared");
 
         return NodeResult.success(null);
     }
