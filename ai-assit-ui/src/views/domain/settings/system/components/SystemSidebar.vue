@@ -51,9 +51,6 @@ const route = useRoute()
       </div>
     </template>
 
-    <template v-else>
-      <div class="sidebar-collapsed-rail" />
-    </template>
   </aside>
 </template>
 
@@ -79,7 +76,9 @@ const route = useRoute()
 }
 
 .system-sidebar.collapsed {
-  padding: 12px 10px;
+  padding: 12px 8px;
+  align-items: center;
+  gap: 0;
 }
 
 .sidebar-toggle {
@@ -99,7 +98,7 @@ const route = useRoute()
 }
 
 .system-sidebar.collapsed .sidebar-toggle {
-  margin: 0 auto;
+  margin: 0;
 }
 
 .sidebar-shell {
@@ -177,14 +176,6 @@ const route = useRoute()
 
 .sidebar-item-arrow {
   color: #94a3b8;
-}
-
-.sidebar-collapsed-rail {
-  flex: 1;
-  min-height: 120px;
-  border-radius: 16px;
-  background: #fff;
-  border: 1px solid rgba(226, 232, 240, 0.95);
 }
 
 .system-sidebar.collapsed .sidebar-shell {
