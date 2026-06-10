@@ -14,24 +14,30 @@ import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
+import ai.platform.aiassit.chat.core.workflow.config.WorkflowProperties;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
+import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
+import java.util.StringJoiner;
 import java.util.UUID;
 
 /**
@@ -50,31 +56,50 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private static final String DEFAULT_SCENE = "ai-chat-query-planning";
     private static final String PLANNING_PROMPT = """
             你是一个智能问数工作流的查询规划节点。
-            你需要根据用户当前问题和已有对话历史，输出一份可执行的规划文本。
+            你需要根据用户当前问题和已有对话历史，输出严格合法的 JSON。
 
-            输出必须覆盖以下内容：
-            1. 用户核心目标
-            2. 关键分析维度
-            3. 需要的知识上下文或数据口径
-            4. SQL 生成应重点关注的过滤条件、聚合口径、排序方式
-            5. 如果信息仍不足，需要明确指出风险点
+            你必须只输出以下 JSON 结构，不允许输出 markdown、解释、代码块：
+            {
+              "sessionTitle": "新会话标题，只有新会话首轮时必填，其他情况可返回空字符串",
+              "userGoal": "用户核心目标",
+              "analysisSummary": "给后续节点使用的简明分析摘要",
+              "analysisDimensions": ["关键分析维度1", "关键分析维度2"],
+              "requiredContext": ["需要的知识上下文或数据口径1"],
+              "sqlFocus": ["SQL 生成重点1"],
+              "risks": ["风险点1"],
+              "needClarification": false
+            }
 
-            请直接输出中文规划文本，不要输出 JSON，不要补充寒暄。
+            字段要求：
+            1. userGoal、analysisSummary 必须为非空中文字符串
+            2. analysisDimensions、requiredContext、sqlFocus、risks 必须为 JSON 数组，可为空数组
+            3. needClarification 必须为布尔值
+            4. 如果是新会话首轮，sessionTitle 必须给出 6 到 20 个字的简洁标题；否则返回空字符串
+            5. 不要输出任何额外字段
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
     private final AiChatRoundService roundService;
+    private final AiChatSessionService sessionService;
     private final WorkflowHistoryRecorder historyRecorder;
+    private final ObjectMapper objectMapper;
+    private final WorkflowProperties workflowProperties;
 
     public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
                              AiMetaQueryApi aiMetaQueryApi,
                              AiChatRoundService roundService,
-                             WorkflowHistoryRecorder historyRecorder) {
+                             AiChatSessionService sessionService,
+                             WorkflowHistoryRecorder historyRecorder,
+                             ObjectMapper objectMapper,
+                             WorkflowProperties workflowProperties) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.roundService = roundService;
+        this.sessionService = sessionService;
         this.historyRecorder = historyRecorder;
+        this.objectMapper = objectMapper;
+        this.workflowProperties = workflowProperties;
     }
 
     @Override
@@ -98,23 +123,36 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
         try {
             List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getSessionMessages());
+            historyMessages = historyMessages.stream()
+                    .filter(message -> context.getCurrentUserMessage() == null
+                            || !Objects.equals(message.getMessageCode(), context.getCurrentUserMessage().getMessageCode()))
+                    .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                    .toList();
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
             ChatResponse planningResponse = aiChatExecutionApi.chat(planningRequest);
-            String analysisResult = extractAnswer(planningResponse);
+            PlanningResult planningResult = parsePlanningResult(
+                    extractAnswer(planningResponse),
+                    historyMessages.isEmpty()
+            );
+            if (historyMessages.isEmpty()) {
+                refreshSessionName(context, planningResult);
+            }
+            String analysisResult = buildAnalysisSummary(planningResult);
 
             context.setEngineRequest(planningRequest);
             context.setEngineResponse(planningResponse);
             context.setAnalysisResult(analysisResult);
             context.put("queryPlan", analysisResult);
+            context.put("queryPlanResult", planningResult);
             context.put("planningRequestId", planningResponse == null ? null : planningResponse.getRequestId());
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.QUERY_PLAN.name(),
                     AiChatArtifactStage.PLAN.name(),
                     "查询规划",
-                    analysisResult,
-                    AiChatContentFormat.MARKDOWN.name(),
+                    planningResult,
+                    AiChatContentFormat.JSON.name(),
                     true,
                     STATUS_SUCCESS,
                     context.getCurrentUserMessage().getMessageCode(),
@@ -179,6 +217,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                 messages.add(message);
             }
         }
+
+        ChatMessage currentUserMessage = new ChatMessage();
+        currentUserMessage.setRole(MessageRole.USER);
+        currentUserMessage.setContent(context.getCurrentUserMessage().getContent());
+        messages.add(currentUserMessage);
         request.setMessages(messages);
 
         ChatOptions options = new ChatOptions();
@@ -195,6 +238,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String buildPlanningContext(WorkflowContext context) {
         StringBuilder builder = new StringBuilder();
+        builder.append("是否新会话首轮：")
+                .append(context.getCurrentUserMessage() != null && Integer.valueOf(1).equals(context.getCurrentUserMessage().getSortNo()))
+                .append('\n');
         List<String> resolvedTerms = context.get("resolvedBusinessTerms");
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("业务术语补充：").append(resolvedTerms).append('\n');
@@ -204,6 +250,175 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             builder.append("时间范围补充：").append(normalizedTimeRange).append('\n');
         }
         return builder.toString().trim();
+    }
+
+    private PlanningResult parsePlanningResult(String rawText, boolean requireSessionTitle) {
+        String currentText = rawText;
+        String validationError = null;
+        int maxRetry = resolvePlanningStructureMaxRetry();
+        for (int attempt = 0; attempt <= maxRetry; attempt++) {
+            try {
+                PlanningResult result = objectMapper.readValue(cleanJson(currentText), PlanningResult.class);
+                validatePlanningResult(result, requireSessionTitle);
+                return normalizePlanningResult(result);
+            } catch (Exception ex) {
+                validationError = ex.getMessage();
+                if (attempt == maxRetry) {
+                    throw new IllegalArgumentException("planning result parse failed: " + validationError, ex);
+                }
+                currentText = retryPlanningWithFeedback(currentText, validationError, requireSessionTitle);
+            }
+        }
+        throw new IllegalArgumentException("planning result parse failed: " + validationError);
+    }
+
+    private int resolvePlanningStructureMaxRetry() {
+        Integer configured = workflowProperties == null ? null : workflowProperties.getPlanningStructureMaxRetry();
+        if (configured == null || configured < 0) {
+            return 5;
+        }
+        return configured;
+    }
+
+    private String retryPlanningWithFeedback(String previousOutput,
+                                            String validationError,
+                                            boolean requireSessionTitle) {
+        ChatRequest retryRequest = new ChatRequest();
+        retryRequest.setProvider(ProviderType.DASHSCOPE);
+        retryRequest.setModel(resolveActualModel(null));
+
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(buildMessage(MessageRole.SYSTEM, PLANNING_PROMPT));
+        messages.add(buildMessage(MessageRole.ASSISTANT, defaultText(previousOutput)));
+        messages.add(buildMessage(MessageRole.USER, """
+                你上一次返回的 JSON 不合法，请严格修正后重新返回。
+                校验错误：
+                %s
+                额外要求：
+                - 只返回 JSON
+                - 不允许代码块
+                - sessionTitle%s
+                """.formatted(validationError, requireSessionTitle ? "必须非空" : "可为空字符串")));
+        retryRequest.setMessages(messages);
+
+        ChatOptions options = new ChatOptions();
+        options.setMaxTokens(1024);
+        options.setTimeoutMs(30_000);
+        retryRequest.setOptions(options);
+
+        ChatResponse retryResponse = aiChatExecutionApi.chat(retryRequest);
+        return extractAnswer(retryResponse);
+    }
+
+    private void validatePlanningResult(PlanningResult result, boolean requireSessionTitle) {
+        if (result == null) {
+            throw new IllegalArgumentException("result is null");
+        }
+        if (!StringUtils.hasText(result.getUserGoal())) {
+            throw new IllegalArgumentException("userGoal is required");
+        }
+        if (!StringUtils.hasText(result.getAnalysisSummary())) {
+            throw new IllegalArgumentException("analysisSummary is required");
+        }
+        if (result.getAnalysisDimensions() == null) {
+            throw new IllegalArgumentException("analysisDimensions is required");
+        }
+        if (result.getRequiredContext() == null) {
+            throw new IllegalArgumentException("requiredContext is required");
+        }
+        if (result.getSqlFocus() == null) {
+            throw new IllegalArgumentException("sqlFocus is required");
+        }
+        if (result.getRisks() == null) {
+            throw new IllegalArgumentException("risks is required");
+        }
+        if (result.getNeedClarification() == null) {
+            throw new IllegalArgumentException("needClarification is required");
+        }
+        if (requireSessionTitle && !StringUtils.hasText(result.getSessionTitle())) {
+            throw new IllegalArgumentException("sessionTitle is required for new conversation");
+        }
+    }
+
+    private PlanningResult normalizePlanningResult(PlanningResult result) {
+        result.setSessionTitle(trimToNull(result.getSessionTitle()));
+        result.setUserGoal(result.getUserGoal().trim());
+        result.setAnalysisSummary(result.getAnalysisSummary().trim());
+        result.setAnalysisDimensions(normalizeList(result.getAnalysisDimensions()));
+        result.setRequiredContext(normalizeList(result.getRequiredContext()));
+        result.setSqlFocus(normalizeList(result.getSqlFocus()));
+        result.setRisks(normalizeList(result.getRisks()));
+        return result;
+    }
+
+    private List<String> normalizeList(List<String> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+    }
+
+    private String buildAnalysisSummary(PlanningResult result) {
+        StringJoiner joiner = new StringJoiner("\n");
+        joiner.add("用户目标：" + result.getUserGoal());
+        joiner.add("分析摘要：" + result.getAnalysisSummary());
+        if (!CollectionUtils.isEmpty(result.getAnalysisDimensions())) {
+            joiner.add("关键维度：" + String.join("；", result.getAnalysisDimensions()));
+        }
+        if (!CollectionUtils.isEmpty(result.getRequiredContext())) {
+            joiner.add("所需上下文：" + String.join("；", result.getRequiredContext()));
+        }
+        if (!CollectionUtils.isEmpty(result.getSqlFocus())) {
+            joiner.add("SQL 重点：" + String.join("；", result.getSqlFocus()));
+        }
+        if (!CollectionUtils.isEmpty(result.getRisks())) {
+            joiner.add("风险点：" + String.join("；", result.getRisks()));
+        }
+        joiner.add("是否需要澄清：" + Boolean.TRUE.equals(result.getNeedClarification()));
+        return joiner.toString();
+    }
+
+    private void refreshSessionName(WorkflowContext context, PlanningResult result) {
+        if (context.getSession() == null || context.getSession().getId() == null || !StringUtils.hasText(result.getSessionTitle())) {
+            return;
+        }
+        AiChatSessionDTO update = new AiChatSessionDTO();
+        update.setSessionName(result.getSessionTitle().trim());
+        AiChatSessionDTO updated = sessionService.edit(context.getSession().getId(), update);
+        if (updated != null) {
+            context.setSession(updated);
+        } else {
+            context.getSession().setSessionName(result.getSessionTitle().trim());
+        }
+    }
+
+    private ChatMessage buildMessage(MessageRole role, String content) {
+        ChatMessage message = new ChatMessage();
+        message.setRole(role);
+        message.setContent(content);
+        return message;
+    }
+
+    private String cleanJson(String text) {
+        if (!StringUtils.hasText(text)) {
+            throw new IllegalArgumentException("planning output is empty");
+        }
+        String cleaned = text.trim();
+        cleaned = cleaned.replace("```json", "");
+        cleaned = cleaned.replace("```JSON", "");
+        cleaned = cleaned.replace("```", "");
+        return cleaned.trim();
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String defaultText(String value) {
+        return value == null ? "" : value;
     }
 
     private void finishRound(AiChatRoundDTO round, ChatRequest request, String actualModel, String status) {
@@ -293,5 +508,80 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String generateCode(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    public static class PlanningResult {
+        private String sessionTitle;
+        private String userGoal;
+        private String analysisSummary;
+        private List<String> analysisDimensions = new ArrayList<>();
+        private List<String> requiredContext = new ArrayList<>();
+        private List<String> sqlFocus = new ArrayList<>();
+        private List<String> risks = new ArrayList<>();
+        private Boolean needClarification;
+
+        public String getSessionTitle() {
+            return sessionTitle;
+        }
+
+        public void setSessionTitle(String sessionTitle) {
+            this.sessionTitle = sessionTitle;
+        }
+
+        public String getUserGoal() {
+            return userGoal;
+        }
+
+        public void setUserGoal(String userGoal) {
+            this.userGoal = userGoal;
+        }
+
+        public String getAnalysisSummary() {
+            return analysisSummary;
+        }
+
+        public void setAnalysisSummary(String analysisSummary) {
+            this.analysisSummary = analysisSummary;
+        }
+
+        public List<String> getAnalysisDimensions() {
+            return analysisDimensions;
+        }
+
+        public void setAnalysisDimensions(List<String> analysisDimensions) {
+            this.analysisDimensions = analysisDimensions;
+        }
+
+        public List<String> getRequiredContext() {
+            return requiredContext;
+        }
+
+        public void setRequiredContext(List<String> requiredContext) {
+            this.requiredContext = requiredContext;
+        }
+
+        public List<String> getSqlFocus() {
+            return sqlFocus;
+        }
+
+        public void setSqlFocus(List<String> sqlFocus) {
+            this.sqlFocus = sqlFocus;
+        }
+
+        public List<String> getRisks() {
+            return risks;
+        }
+
+        public void setRisks(List<String> risks) {
+            this.risks = risks;
+        }
+
+        public Boolean getNeedClarification() {
+            return needClarification;
+        }
+
+        public void setNeedClarification(Boolean needClarification) {
+            this.needClarification = needClarification;
+        }
     }
 }
