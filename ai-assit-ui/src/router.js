@@ -11,7 +11,10 @@ import SystemPage from './views/domain/settings/system/index.vue'
 import SystemOverviewPage from './views/domain/settings/system/pages/overview/index.vue'
 import SystemParamsPage from './views/domain/settings/system/pages/params/index.vue'
 import SystemComponentsPage from './views/domain/settings/system/pages/components/index.vue'
+import SystemPermissionsPage from './views/domain/settings/system/pages/permissions/index.vue'
 import SystemAiPage from './views/domain/settings/system/pages/ai/index.vue'
+import SystemDataSourcePage from './views/domain/settings/system/pages/data-source/index.vue'
+import SystemDataSourceManagePage from './views/domain/settings/system/pages/data-source/manage/index.vue'
 import LoginPage from './views/domain/auth/login/index.vue'
 
 const routes = [
@@ -30,8 +33,11 @@ const routes = [
     redirect: '/settings/system/overview',
     children: [
       { path: 'overview', component: SystemOverviewPage, meta: { title: '系统总览' } },
+      { path: 'data-source', component: SystemDataSourcePage, meta: { title: '数据源配置' } },
+      { path: 'data-source/:sourceKey', component: SystemDataSourceManagePage, meta: { title: '数据表管理' } },
       { path: 'params', component: SystemParamsPage, meta: { title: '系统参数' } },
       { path: 'components', component: SystemComponentsPage, meta: { title: '常用组件' } },
+      { path: 'permissions', component: SystemPermissionsPage, meta: { title: '权限配置' } },
       { path: 'ai', component: SystemAiPage, meta: { title: 'AI 接入' } }
     ]
   }

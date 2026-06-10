@@ -39,6 +39,13 @@ const notices = [
 
 const quickEntries = [
   {
+    key: 'data-source',
+    label: '数据源配置',
+    summary: '连接管理、健康状态与表数据入口',
+    icon: DataLine,
+    to: '/settings/system/data-source'
+  },
+  {
     key: 'params',
     label: '系统参数',
     summary: '全局开关、默认值、运行阈值',
@@ -210,7 +217,7 @@ const cases = [
         <h2>像百炼控制台一样组织配置入口</h2>
         <p class="hero-desc">
           这页按门户首页的方式排布信息：上方看通知，中间找常用能力，下面看推荐能力、教程和案例。
-          侧边栏保持你现在的四个入口不变。
+          侧边栏保持当前五个入口分域管理，其中新增了数据源配置入口。
         </p>
 
         <div class="hero-actions">
@@ -225,7 +232,7 @@ const cases = [
 
         <div class="hero-stats">
           <div class="stat-pill">
-            <strong>4</strong>
+            <strong>5</strong>
             <span>侧边栏入口</span>
           </div>
           <div class="stat-pill">
