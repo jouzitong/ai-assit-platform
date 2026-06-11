@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  * 用户查询 API（内部服务调用）。
  */
 @FeignClient(
-        name = "app-platform-user",
+        name = "user",
         contextId = "platformUserClient",
         path = "/user"
 )

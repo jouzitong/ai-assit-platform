@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
  * AI 知识库执行 API（HTTP/Feign）。
  */
 @FeignClient(
-        name = "app-platform-ai-engine",
+        name = "aiEngine",
         contextId = "platformAiEngineClient",
         path = "/aiEngine")
 public interface AiKnowledgeBaseExecutionApi {

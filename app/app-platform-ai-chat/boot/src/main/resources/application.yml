@@ -1,6 +1,6 @@
 spring:
   application:
-    name: app-platform-ai-chat
+    name: aiChat
   profiles:
     active: dev
     include: common, lib
@@ -10,3 +10,6 @@ server:
   port: 13102
   servlet:
     context-path: /aiChat
+
+database:
+  name: 'platform_ai_assist_ai_chat'

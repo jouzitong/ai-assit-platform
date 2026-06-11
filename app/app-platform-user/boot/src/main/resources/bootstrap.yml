@@ -14,7 +14,7 @@ spring:
             group: DEFAULT_GROUP
             refresh: true
         extension-configs:
-          - data-id: 'application-${spring.application.name}.yaml'
+          - data-id: application-${spring.application.name}.yaml
             group: DEFAULT_GROUP
             refresh: true
       discovery:

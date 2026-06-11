@@ -18,7 +18,7 @@ import java.util.List;
  * AI 对话执行 API（HTTP/Feign）。
  */
 @FeignClient(
-        name = "app-platform-ai-engine",
+        name = "aiEngine",
         contextId = "platformAiEngineClient",
         path = "/aiEngine"
 )

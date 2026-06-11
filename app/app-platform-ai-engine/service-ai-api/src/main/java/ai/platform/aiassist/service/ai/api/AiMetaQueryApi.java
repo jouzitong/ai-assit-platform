@@ -14,7 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import java.util.List;
 
 @FeignClient(
-        name = "app-platform-ai-engine",
+        name = "aiEngine",
         contextId = "platformAiEngineClient",
         path = "/aiEngine"
 )

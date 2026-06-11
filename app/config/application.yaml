@@ -6,12 +6,13 @@ spring:
 athena:
   log:
     dir: ${user.home}/logs/athena
+
 app:
   platform-user:
-    name: 'app-platform-user'
+    name: 'user'
   gateway:
     name: 'gateway'
   ai-chat:
-    name: 'ai-chat'
+    name: 'aiChat'
   ai-engine:
-    name: 'ai-engine'
+    name: 'aiEngine'
