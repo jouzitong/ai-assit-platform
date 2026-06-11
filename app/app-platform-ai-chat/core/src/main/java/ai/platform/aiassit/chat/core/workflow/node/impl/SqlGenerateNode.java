@@ -76,7 +76,7 @@ public class SqlGenerateNode extends BaseWorkflowNode {
 
         try {
             ChatRequest request = buildRequest(command, context);
-            ChatResponse response = aiChatExecutionApi.chat(request);
+            ChatResponse response = aiChatExecutionApi.chat(request).getData();
             String generatedSql = normalizeSql(extractAnswer(response));
             if (!StringUtils.hasText(generatedSql)) {
                 return NodeResult.fail("generated sql is empty");

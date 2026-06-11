@@ -17,3 +17,7 @@ ai:
       default-model: "qwen-math-turbo"
 
 
+feign:
+  compression:
+    request:
+      enabled: true

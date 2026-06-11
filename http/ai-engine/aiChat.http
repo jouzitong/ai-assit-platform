@@ -22,6 +22,10 @@ Accept: application/json
     {
       "role": "USER",
       "content": "请用一句话介绍你自己"
+    },
+    {
+      "role": "USER",
+      "content": "我想查询张三的个人信息"
     }
   ],
   "options": {

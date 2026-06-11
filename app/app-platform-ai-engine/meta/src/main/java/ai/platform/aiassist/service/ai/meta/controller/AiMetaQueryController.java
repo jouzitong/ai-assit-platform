@@ -10,7 +10,6 @@ import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
 import ai.platform.aiassist.service.ai.meta.service.AiModelCredentialService;
 import ai.platform.aiassist.service.ai.meta.service.AiProviderConfigService;
 import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
@@ -19,7 +18,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/api/v1/ai/meta")
+//@RequestMapping("/api/v1/ai/meta")
 public class AiMetaQueryController implements AiMetaQueryApi {
 
     private final AiProviderConfigService providerConfigService;

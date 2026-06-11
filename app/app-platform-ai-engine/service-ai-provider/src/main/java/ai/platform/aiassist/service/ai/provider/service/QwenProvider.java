@@ -25,6 +25,7 @@ import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbSearchRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbUpsertRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderRerankRequest;
 import io.micrometer.observation.ObservationRegistry;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -54,6 +55,7 @@ import java.util.Objects;
  */
 @Component
 //@ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")
+@Slf4j
 @EnableConfigurationProperties(QwenProperties.class)
 public class QwenProvider implements AiProvider {
 
@@ -89,6 +91,7 @@ public class QwenProvider implements AiProvider {
 
     @Override
     public ChatResponse chat(ProviderChatRequest request) {
+        log.debug("chat request: {}", request);
         Prompt prompt = new Prompt(toSpringMessages(request.getMessages()), toChatOptions(request));
         org.springframework.ai.chat.model.ChatResponse aiResponse = chatModel.call(prompt);
         return toChatResponse(aiResponse);

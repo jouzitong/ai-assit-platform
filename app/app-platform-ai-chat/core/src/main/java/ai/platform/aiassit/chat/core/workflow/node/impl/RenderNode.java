@@ -17,7 +17,6 @@ import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatActorType;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
@@ -166,7 +165,7 @@ public class RenderNode extends BaseWorkflowNode {
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
         request.setMeta(meta);
 
-        ChatResponse response = aiChatExecutionApi.chat(request);
+        ChatResponse response = aiChatExecutionApi.chat(request).getData();
         context.setEngineResponse(response);
         return extractAnswer(response);
     }

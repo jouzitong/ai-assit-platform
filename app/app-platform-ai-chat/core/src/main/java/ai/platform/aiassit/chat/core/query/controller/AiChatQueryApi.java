@@ -14,6 +14,6 @@ public interface AiChatQueryApi {
     @PostMapping("/query")
     AiChatQueryResponse query(@RequestBody AiChatQueryRequest request);
 
-    @PostMapping(value = "/query/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @PostMapping(value = "/query/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     SseEmitter queryStream(@RequestBody AiChatQueryRequest request);
 }

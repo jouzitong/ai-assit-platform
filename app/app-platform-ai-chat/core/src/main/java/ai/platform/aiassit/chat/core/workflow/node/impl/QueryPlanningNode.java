@@ -28,6 +28,7 @@ import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.athena.framework.web.vo.IR;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -57,7 +58,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private static final String PLANNING_PROMPT = """
             你是一个智能问数工作流的查询规划节点。
             你需要根据用户当前问题和已有对话历史，输出严格合法的 JSON。
-
+            
             你必须只输出以下 JSON 结构，不允许输出 markdown、解释、代码块：
             {
               "sessionTitle": "新会话标题，只有新会话首轮时必填，其他情况可返回空字符串",
@@ -69,7 +70,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
               "risks": ["风险点1"],
               "needClarification": false
             }
-
+            
             字段要求：
             1. userGoal、analysisSummary 必须为非空中文字符串
             2. analysisDimensions、requiredContext、sqlFocus、risks 必须为 JSON 数组，可为空数组
@@ -130,7 +131,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     .toList();
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
-            ChatResponse planningResponse = aiChatExecutionApi.chat(planningRequest);
+            IR<ChatResponse> r = aiChatExecutionApi.chat(planningRequest);
+            if (!r.isOk()) {
+                log.error("call api aiChatExecutionApi.chat is error: {}", r);
+            }
+            ChatResponse planningResponse = r.getData();
             PlanningResult planningResult = parsePlanningResult(
                     extractAnswer(planningResponse),
                     historyMessages.isEmpty()
@@ -282,8 +287,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     private String retryPlanningWithFeedback(String previousOutput,
-                                            String validationError,
-                                            boolean requireSessionTitle) {
+                                             String validationError,
+                                             boolean requireSessionTitle) {
         ChatRequest retryRequest = new ChatRequest();
         retryRequest.setProvider(ProviderType.DASHSCOPE);
         retryRequest.setModel(resolveActualModel(null));
@@ -307,7 +312,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         options.setTimeoutMs(30_000);
         retryRequest.setOptions(options);
 
-        ChatResponse retryResponse = aiChatExecutionApi.chat(retryRequest);
+        ChatResponse retryResponse = aiChatExecutionApi.chat(retryRequest).getData();
         return extractAnswer(retryResponse);
     }
 

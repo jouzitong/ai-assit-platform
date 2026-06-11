@@ -20,16 +20,16 @@ import java.util.List;
 )
 public interface AiMetaQueryApi {
 
-    @PostMapping("/api/v1/ai/meta/provider-model/overview")
+    @PostMapping("/internal/v1/ai/meta/provider-model/overview")
     AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/api/v1/ai/meta/provider/list")
+    @PostMapping("/internal/v1/ai/meta/provider/list")
     List<AiProviderConfigDTO> listProviders(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping(value = "/api/v1/ai/meta/model/list",produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/internal/v1/ai/meta/model/list",produces = MediaType.APPLICATION_JSON_VALUE)
     @IgnoredResultWrapper
     List<AiModelConfigDTO> listModels(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/api/v1/ai/meta/credential/list")
+    @PostMapping("/internal/v1/ai/meta/credential/list")
     List<AiModelCredentialDTO> listCredentials(@RequestBody(required = false) AiMetaQueryRequest request);
 }

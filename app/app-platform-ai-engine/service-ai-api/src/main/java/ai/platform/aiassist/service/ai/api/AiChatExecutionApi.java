@@ -4,6 +4,7 @@ import ai.platform.aiassist.service.ai.api.dto.AiEnabledModelDTO;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import org.athena.framework.web.annotation.IgnoredResultWrapper;
+import org.athena.framework.web.vo.IR;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -27,9 +28,10 @@ public interface AiChatExecutionApi {
     @IgnoredResultWrapper
     List<AiEnabledModelDTO> enabledModels();
 
-    @PostMapping("/api/v1/ai/execution/chat")
-    @IgnoredResultWrapper
-    ChatResponse chat(@RequestBody ChatRequest request);
+    @PostMapping(value = "/api/v1/ai/execution/chat",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.APPLICATION_JSON_VALUE)
+    IR<ChatResponse> chat(@RequestBody ChatRequest request);
 
     @PostMapping(value = "/api/v1/ai/execution/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     SseEmitter chatStream(@RequestBody ChatRequest request);

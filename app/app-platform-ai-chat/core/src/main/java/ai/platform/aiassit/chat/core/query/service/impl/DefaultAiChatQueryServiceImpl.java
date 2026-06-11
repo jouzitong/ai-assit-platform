@@ -106,7 +106,7 @@ public class DefaultAiChatQueryServiceImpl implements AiChatQueryService {
     @Override
     public AiChatQueryResponse query(AiChatQueryCommand command) {
         QueryContext context = prepareContext(command, true);
-        ChatResponse engineResponse = aiChatExecutionApi.chat(context.engineRequest);
+        ChatResponse engineResponse = aiChatExecutionApi.chat(context.engineRequest).getData();
 
         String answer = extractAnswer(engineResponse);
         persistAssistantMessage(context, answer);
