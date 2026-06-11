@@ -51,6 +51,9 @@ gateway:
 
 
 athena:
+  cloud:
+    openfeign:
+      logger-level: FULL
   security:
     enabled: true
     auth:

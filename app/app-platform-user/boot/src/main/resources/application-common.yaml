@@ -17,6 +17,7 @@ spring:
 mybatis:
   configuration:
     map-underscore-to-camel-case: true
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
 
 athena:
   security:
@@ -30,5 +31,6 @@ athena:
         accessTokenExpireMinutes: 12000
   cloud:
     openfeign:
+      logger-level: FULL
       basePackages:
         - ai.platform.aiassit.user.api

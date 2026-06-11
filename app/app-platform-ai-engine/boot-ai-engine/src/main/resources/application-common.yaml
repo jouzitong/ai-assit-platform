@@ -6,6 +6,15 @@ spring:
     password: rooth5lUs*dA*
     driver-class-name: com.mysql.cj.jdbc.Driver
 
+mybatis:
+  configuration:
+    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+
+athena:
+  cloud:
+    openfeign:
+      logger-level: FULL
+
 ai:
   provider:
     qwen:

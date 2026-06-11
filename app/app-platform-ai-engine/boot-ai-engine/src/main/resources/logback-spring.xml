@@ -1,0 +1,167 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<configuration scan="true" scanPeriod="60 seconds">
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="app-platform-ai-engine"/>
+    <springProperty scope="context" name="LOG_DIR" source="athena.log.dir" defaultValue="./logs"/>
+    <springProperty scope="context" name="MAX_FILE_SIZE" source="athena.log.rolling.max-file-size" defaultValue="100MB"/>
+    <springProperty scope="context" name="MAX_INDEX" source="athena.log.rolling.max-index" defaultValue="4"/>
+
+    <conversionRule conversionWord="clr" converterClass="org.springframework.boot.logging.logback.ColorConverter"/>
+    <conversionRule conversionWord="wex" converterClass="org.springframework.boot.logging.logback.WhitespaceThrowableProxyConverter"/>
+    <conversionRule conversionWord="wEx" converterClass="org.springframework.boot.logging.logback.ExtendedWhitespaceThrowableProxyConverter"/>
+
+    <property name="PATTERN" value="%d{yyyy-MM-dd HH:mm:ss.SSS} %-5level [%thread] %logger{36} - %msg%n%ex{full}"/>
+    <property name="CONSOLE_PATTERN" value="%clr(%d{yyyy-MM-dd HH:mm:ss.SSS}){faint} %highlight(%-5level) %clr([%thread]){faint} %clr(%logger{36}){cyan} %clr(-){faint} %msg%n%wEx"/>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${CONSOLE_PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="ALL_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.all.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.all.%i.log.gz</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>${MAX_INDEX}</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="APP_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.app.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.app.%i.log.gz</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>${MAX_INDEX}</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="OPENFEIGN_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.openfeign.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.openfeign.%i.log.gz</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>${MAX_INDEX}</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="SPRING_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.spring.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.spring.%i.log.gz</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>${MAX_INDEX}</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="ATHENA_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.athena.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.athena.%i.log.gz</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>${MAX_INDEX}</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <appender name="SQL_FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_DIR}/${APP_NAME}.sql.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.FixedWindowRollingPolicy">
+            <fileNamePattern>${LOG_DIR}/${APP_NAME}.sql.%i.log.gz</fileNamePattern>
+            <minIndex>1</minIndex>
+            <maxIndex>${MAX_INDEX}</maxIndex>
+        </rollingPolicy>
+        <triggeringPolicy class="ch.qos.logback.core.rolling.SizeBasedTriggeringPolicy">
+            <maxFileSize>${MAX_FILE_SIZE}</maxFileSize>
+        </triggeringPolicy>
+        <encoder class="ch.qos.logback.classic.encoder.PatternLayoutEncoder">
+            <pattern>${PATTERN}</pattern>
+            <charset>UTF-8</charset>
+        </encoder>
+    </appender>
+
+    <logger name="ai.platform" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="APP_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="org.springframework" level="INFO" additivity="false">
+        <appender-ref ref="SPRING_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="org.athena" level="INFO" additivity="false">
+        <appender-ref ref="ATHENA_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="org.springframework.cloud.openfeign" level="DEBUG" additivity="false">
+        <appender-ref ref="OPENFEIGN_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="feign" level="DEBUG" additivity="false">
+        <appender-ref ref="OPENFEIGN_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="org.apache.ibatis" level="DEBUG" additivity="false">
+        <appender-ref ref="SQL_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="org.mybatis" level="DEBUG" additivity="false">
+        <appender-ref ref="SQL_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="com.baomidou.mybatisplus" level="DEBUG" additivity="false">
+        <appender-ref ref="SQL_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <logger name="java.sql" level="DEBUG" additivity="false">
+        <appender-ref ref="SQL_FILE"/>
+        <appender-ref ref="ALL_FILE"/>
+    </logger>
+
+    <root level="INFO">
+        <appender-ref ref="ALL_FILE"/>
+    </root>
+</configuration>

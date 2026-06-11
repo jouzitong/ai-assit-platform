@@ -20,6 +20,10 @@
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-ai-chat-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-log</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
