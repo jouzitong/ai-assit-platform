@@ -8,7 +8,6 @@ import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassist.service.ai.core.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
-import org.athena.framework.web.vo.IR;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
@@ -35,7 +34,7 @@ public class AiChatController implements AiChatExecutionApi {
     }
 
     @Override
-    public IR<ChatResponse> chat(@RequestBody ChatRequest request) {
+    public R<ChatResponse> chat(@RequestBody ChatRequest request) {
         return R.ok(aiExecutionDomainService.chat(request));
     }
 

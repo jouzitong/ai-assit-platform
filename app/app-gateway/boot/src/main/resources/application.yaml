@@ -21,10 +21,14 @@ spring:
             uri: lb://app-platform-ai-chat
             predicates:
               - Path=/aiChat/**
+            metadata:
+              response-timeout: -1
           - id: ai-engine-service-route
             uri: lb://app-platform-ai-engine
             predicates:
               - Path=/aiEngine/**
+            metadata:
+              response-timeout: -1
 
 gateway:
   security:

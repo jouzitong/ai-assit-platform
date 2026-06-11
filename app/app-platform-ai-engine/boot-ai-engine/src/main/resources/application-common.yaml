@@ -15,9 +15,3 @@ ai:
       # Spring AI OpenAI client will append `/v1/chat/completions` automatically.
       base-url: "https://dashscope.aliyuncs.com/compatible-mode"
       default-model: "qwen-math-turbo"
-
-
-feign:
-  compression:
-    request:
-      enabled: true
