@@ -8,7 +8,6 @@ Accept: text/event-stream;charset=UTF-8
 Authorization: Bearer {{token}}
 
 {
-  "sessionCode":  "session-e755e13d5a814d9fa248aac02eb0c1ef",
   "message": "我想查询张三的基本情况",
   "apiModel":  "qwen3.6-plus"
 }

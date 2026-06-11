@@ -127,6 +127,7 @@
     </logger>
 
     <logger name="org.athena" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ATHENA_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
