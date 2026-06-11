@@ -50,7 +50,15 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             }
             context.publishEvent("node-start",
                     "start node: " + workflowNodeConfig.getNodeId() + " [" + workflowNodeConfig.getNodeType() + "]");
-            NodeResult result = currentNode.execute(context, workflowNodeConfig);
+            NodeResult result;
+            try {
+                result = currentNode.execute(context, workflowNodeConfig);
+            } catch (Exception e) {
+                log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
+                context.put("error", "Error executing node: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
+                context.publishEvent("node-failed", "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
+                return;
+            }
             if (!result.isSuccess()) {
                 context.put("error", result.getErrorMessage());
                 context.publishEvent("node-failed",
