@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.core;
+package ai.platform.aiassist.service.ai.core.properties;
 
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import lombok.Data;

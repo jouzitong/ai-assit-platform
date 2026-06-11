@@ -7,7 +7,7 @@ import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseExecutionApi;
-import ai.platform.aiassist.service.ai.core.AiExecutionDomainService;
+import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

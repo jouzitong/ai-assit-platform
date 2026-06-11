@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.core;
+package ai.platform.aiassist.service.ai.core.convert;
 
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.EmbedRequest;
@@ -6,6 +6,7 @@ import ai.platform.aiassist.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
+import ai.platform.aiassist.service.ai.core.properties.AiCoreProperties;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderChatRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderEmbedRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbDeleteRequest;

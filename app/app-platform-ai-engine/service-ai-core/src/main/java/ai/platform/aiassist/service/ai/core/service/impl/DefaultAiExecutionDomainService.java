@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.core;
+package ai.platform.aiassist.service.ai.core.service.impl;
 
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
@@ -14,6 +14,10 @@ import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
+import ai.platform.aiassist.service.ai.core.properties.AiCoreProperties;
+import ai.platform.aiassist.service.ai.core.convert.AiProviderRequestMapper;
+import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
+import ai.platform.aiassist.service.ai.core.validator.AiRequestValidator;
 import ai.platform.aiassist.service.ai.spi.AiProvider;
 import org.springframework.beans.factory.ObjectProvider;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;

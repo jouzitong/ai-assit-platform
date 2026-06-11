@@ -6,7 +6,7 @@ import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
-import ai.platform.aiassist.service.ai.core.AiExecutionDomainService;
+import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestBody;

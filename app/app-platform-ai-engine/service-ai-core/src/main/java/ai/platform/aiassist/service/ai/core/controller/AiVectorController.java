@@ -5,7 +5,7 @@ import ai.platform.aiassist.service.ai.api.dto.EmbedResponse;
 import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassist.service.ai.api.AiVectorExecutionApi;
-import ai.platform.aiassist.service.ai.core.AiExecutionDomainService;
+import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;

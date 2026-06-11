@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.core;
+package ai.platform.aiassist.service.ai.core.validator;
 
 import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
