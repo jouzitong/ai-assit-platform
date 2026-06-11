@@ -121,7 +121,12 @@
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
+    <logger name="*" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
+    </logger>
+
     <logger name="org.springframework" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SPRING_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>

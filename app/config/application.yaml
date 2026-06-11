@@ -3,7 +3,9 @@ spring:
     active: dev
     include: common, lib
 
-
+athena:
+  log:
+    dir: ${user.home}/logs/athena
 app:
   platform-user:
     name: 'app-platform-user'

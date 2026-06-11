@@ -1,7 +1,4 @@
 spring:
-  config:
-    import:
-      - optional:nacos:app-common.yaml
   cloud:
     nacos:
       config:
@@ -12,6 +9,14 @@ spring:
         file-extension: yaml
         username: 'nacos'
         password: 'nacos'
+        shared-configs:
+          - data-id: common.yaml
+            group: DEFAULT_GROUP
+            refresh: true
+        extension-configs:
+          - data-id: 'application-${spring.application.name}.yaml'
+            group: DEFAULT_GROUP
+            refresh: true
       discovery:
         server-addr: 43.142.108.229:18848
         context-path: /nacos
