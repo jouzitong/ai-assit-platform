@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 @FeignClient(
-        name = "app-platform-db-engine",
+        name = "dbEngine",
         contextId = "platformDbEngineQueryClient",
         path = "/dbEngine"
 )

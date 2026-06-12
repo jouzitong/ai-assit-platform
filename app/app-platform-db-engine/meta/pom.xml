@@ -17,6 +17,14 @@
 
     <dependencies>
         <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-data-mybatis</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-web</artifactId>
+        </dependency>
+        <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-db-engine-api</artifactId>
         </dependency>
