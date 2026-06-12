@@ -11,7 +11,6 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.athena.framework.data.jdbc.web.BaseController;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 
 import java.time.LocalDateTime;
