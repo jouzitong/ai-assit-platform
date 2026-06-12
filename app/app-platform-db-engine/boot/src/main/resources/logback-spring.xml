@@ -122,6 +122,7 @@
     </logger>
 
     <logger name="org.springframework" level="INFO" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SPRING_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
@@ -133,36 +134,43 @@
     </logger>
 
     <logger name="org.springframework.cloud.openfeign" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="OPENFEIGN_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
     <logger name="feign" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="OPENFEIGN_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
     <logger name="org.apache.ibatis" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
     <logger name="org.mybatis" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
     <logger name="com.baomidou.mybatisplus" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
     <logger name="java.sql" level="DEBUG" additivity="false">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
         <appender-ref ref="ALL_FILE"/>
     </logger>
 
     <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ALL_FILE"/>
     </root>
 </configuration>

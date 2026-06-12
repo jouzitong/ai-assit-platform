@@ -1,13 +1,15 @@
 spring:
   application:
-    name: app-platform-db-engine
-mybatis:
-  configuration:
-    log-impl: org.apache.ibatis.logging.slf4j.Slf4jImpl
+    name: dbEngine
+  profiles:
+    active: dev
+    include: common, lib
+  main:
+    allow-bean-definition-overriding: true
+server:
+  port: 14102
+  servlet:
+    context-path: /dbEngine
 
-athena:
-  cloud:
-    openfeign:
-      logger-level: FULL
-      base-packages:
-        -
+database:
+  name: 'platform_ai_assist_db_engine'

@@ -24,11 +24,7 @@
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-web</artifactId>
         </dependency>
-        <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <scope>runtime</scope>
-        </dependency>
+
 
         <dependency>
             <groupId>ai.platform.aiassit</groupId>

@@ -1,0 +1,115 @@
+@apiPrefix = /dbEngine
+@resourcePath = /api/v1/meta/data-source
+@id = 1
+@page = 1
+@size = 10
+@sorts = id:desc
+@queries = id:1:1
+@contentType = application/json;charset=UTF-8
+@acceptJson = application/json
+
+### 1. 新增数据源
+POST {{host}}{{apiPrefix}}{{resourcePath}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "sourceKey": "ods_trade_mysql",
+  "sourceName": "交易核心 ODS",
+  "sourceType": "DATABASE",
+  "ownerTeam": "交易平台",
+  "ownerUser": "admin",
+  "status": "ACTIVE",
+  "enabled": true,
+  "syncMode": "REALTIME",
+  "config": {
+    "endpoint": "jdbc:mysql://mysql.trade.internal:3306/trade_ods",
+    "network": {
+      "connectTimeoutMs": 3000,
+      "readTimeoutMs": 30000,
+      "writeTimeoutMs": 30000
+    },
+    "auth": {
+      "authType": "BASIC",
+      "username": "trade_user",
+      "passwordCiphertext": "cipher_text"
+    },
+    "database": {
+      "dbType": "mysql",
+      "host": "mysql.trade.internal",
+      "port": 3306,
+      "databaseName": "trade_ods",
+      "schemaName": "trade_ods",
+      "jdbcUrl": "jdbc:mysql://mysql.trade.internal:3306/trade_ods"
+    }
+  },
+  "summary": "负责承接订单、成交、资金流水等 ODS 数据。",
+  "remark": "初始化数据源"
+}
+
+### 2. 全量更新
+PUT {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "sourceKey": "ods_trade_mysql",
+  "sourceName": "交易核心 ODS",
+  "sourceType": "DATABASE",
+  "ownerTeam": "交易平台",
+  "ownerUser": "admin",
+  "status": "ACTIVE",
+  "enabled": true,
+  "syncMode": "REALTIME",
+  "summary": "更新后的数据源说明",
+  "remark": "全量更新"
+}
+
+### 3. 局部更新
+PATCH {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "status": "INACTIVE",
+  "enabled": false,
+  "remark": "局部更新"
+}
+
+### 4. 软删除
+DELETE {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 5. 物理删除
+DELETE {{host}}{{apiPrefix}}{{resourcePath}}/physical/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 6. 分页查询（GET）
+GET {{host}}{{apiPrefix}}{{resourcePath}}?page={{page}}&size={{size}}&sorts={{sorts}}&queries={{queries}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 7. 分页搜索（POST /_search）
+POST http://localhost:14102{{apiPrefix}}{{resourcePath}}/_search
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "page": {{page}},
+  "size": {{size}},
+  "sourceType": "DATABASE",
+  "status": "ACTIVE",
+  "ownerTeam": "交易平台",
+  "enabled": true
+}
+
+### 8. 按 ID 查询
+GET {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}

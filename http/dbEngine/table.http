@@ -1,0 +1,101 @@
+@apiPrefix = /dbEngine
+@resourcePath = /api/v1/meta/internal/table
+@id = 1
+@page = 1
+@size = 10
+@sorts = id:desc
+@queries = id:1:1
+@contentType = application/json;charset=UTF-8
+@acceptJson = application/json
+
+### 1. 新增表元数据
+POST {{host}}{{apiPrefix}}{{resourcePath}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "sourceKey": "ods_trade_mysql",
+  "tableName": "ods_order_snapshot",
+  "tableComment": "订单快照表",
+  "tableType": "TABLE",
+  "layerType": "ODS",
+  "rowCount": 120000000,
+  "columnCount": 42,
+  "partitionKey": "dt",
+  "freshnessSeconds": 120,
+  "status": "ACTIVE",
+  "enabled": true,
+  "remark": "初始化表元数据"
+}
+
+### 2. 全量更新
+PUT {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "sourceKey": "ods_trade_mysql",
+  "tableName": "ods_order_snapshot",
+  "tableComment": "订单快照表-更新",
+  "tableType": "TABLE",
+  "layerType": "ODS",
+  "rowCount": 130000000,
+  "columnCount": 43,
+  "partitionKey": "dt",
+  "freshnessSeconds": 60,
+  "status": "ACTIVE",
+  "enabled": true,
+  "remark": "全量更新"
+}
+
+### 3. 局部更新
+PATCH {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "status": "INACTIVE",
+  "enabled": false,
+  "remark": "局部更新"
+}
+
+### 4. 软删除
+DELETE {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 5. 物理删除
+DELETE {{host}}{{apiPrefix}}{{resourcePath}}/physical/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 6. 分页查询（GET）
+GET {{host}}{{apiPrefix}}{{resourcePath}}?page={{page}}&size={{size}}&sorts={{sorts}}&queries={{queries}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 7. 分页搜索（POST /_search）
+POST {{host}}{{apiPrefix}}{{resourcePath}}/_search
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "page": {{page}},
+  "size": {{size}},
+  "sorts": "{{sorts}}",
+  "queries": "{{queries}}",
+  "sourceKey": "ods_trade_mysql",
+  "keyword": "order",
+  "tableName": "ods_order_snapshot",
+  "status": "ACTIVE",
+  "enabled": true
+}
+
+### 8. 按 ID 查询
+GET {{host}}{{apiPrefix}}{{resourcePath}}/{{id}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
