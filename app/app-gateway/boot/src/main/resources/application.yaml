@@ -5,3 +5,68 @@ spring:
     name: ${app.gateway.name:gateway}
   main:
     allow-bean-definition-overriding: true
+
+  servlet:
+    multipart:
+      max-file-size: 20MB
+      max-request-size: 20MB
+  cloud:
+    gateway:
+      mvc:
+        routes:
+          - id: user-service-route
+            uri: lb://user
+            predicates:
+              - Path=/user/**
+          - id: ai-chat-service-route
+            uri: lb://aiChat
+            predicates:
+              - Path=/aiChat/**
+            metadata:
+              response-timeout: -1
+          - id: ai-engine-service-route
+            uri: lb://aiEngine
+            predicates:
+              - Path=/aiEngine/**
+            metadata:
+              response-timeout: -1
+          - id: db-engine-service-route
+            uri: lb://dbEngine
+            predicates:
+              - Path=/dbEngine/**
+            metadata:
+              response-timeout: -1
+
+
+gateway:
+  security:
+    enabled: true
+    require-token: true
+    header-name: Authorization
+    token-prefix: Bearer
+    signing:
+      secret: ${GATEWAY_SECURITY_SIGNING_SECRET:}
+    ignore-urls:
+      - /actuator/**
+      - /health/**
+      - /user/auth/**
+      - /error
+      - /favicon.ico
+    permission:
+      enabled: false
+      app-code: ${app.platform-user.name:app-platform-user}
+      required-permissions-header: X-Gateway-Required-Permissions
+
+
+athena:
+  cloud:
+    openfeign:
+      logger-level: FULL
+  security:
+    enabled: true
+    auth:
+      enabled: true
+    token:
+      type: jwt
+      jwt:
+        enabled: true

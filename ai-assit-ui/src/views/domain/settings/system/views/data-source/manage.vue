@@ -1,4 +1,5 @@
 <script setup>
+import { ref } from 'vue'
 import { ArrowLeft, Download, Plus, RefreshRight, Upload } from '@element-plus/icons-vue'
 import '../../styles/data-source/manage.css'
 import { useDataSourceManagePage } from '../../service/data-source/manage'
@@ -15,6 +16,20 @@ const {
   selectedTableName,
   selectedTable,
   selectedFields,
+  sourceLoading,
+  tableLoading,
+  fieldLoading,
+  sourceError,
+  tableError,
+  fieldError,
+  importDialogVisible,
+  importDragActive,
+  importFile,
+  importError,
+  importSubmitting,
+  exportSubmitting,
+  templateSubmitting,
+  notice,
   handleSourceChange,
   handlePageChange,
   handlePageSizeChange,
@@ -22,12 +37,40 @@ const {
   selectTable,
   formatEmpty,
   goBack,
-  statusClass
+  statusClass,
+  refreshPage,
+  openImportDialog,
+  closeImportDialog,
+  handleImportDragEnter,
+  handleImportDragLeave,
+  handleImportFile,
+  submitImport,
+  exportWorkbook,
+  downloadTemplateWorkbook
 } = useDataSourceManagePage()
+
+const fileInputRef = ref(null)
+
+function triggerFilePicker() {
+  fileInputRef.value?.click()
+}
+
+function onFileInputChange(event) {
+  handleImportFile(event.target.files?.[0] ?? null)
+  event.target.value = ''
+}
+
+function onFileDrop(event) {
+  handleImportFile(event.dataTransfer?.files?.[0] ?? null)
+}
 </script>
 
 <template>
   <div class="data-source-manage-page">
+    <div v-if="notice.text" :class="['notice-bar', notice.type === 'error' ? 'is-error' : 'is-success']">
+      {{ notice.text }}
+    </div>
+
     <section class="content-head compact">
       <div class="head-copy">
         <button type="button" class="back-btn" @click="goBack">
@@ -36,7 +79,7 @@ const {
         </button>
         <div>
           <p class="eyebrow">数据表管理</p>
-          <select class="source-switcher" :value="currentSource.key" aria-label="切换数据源" @change="handleSourceChange">
+          <select class="source-switcher" :value="currentSource?.key || ''" aria-label="切换数据源" @change="handleSourceChange">
             <option v-for="source in currentSourceList" :key="source.key" :value="source.key">
               {{ source.name }} · {{ source.type }}
             </option>
@@ -48,17 +91,17 @@ const {
       </div>
 
       <div class="head-actions">
-        <button type="button" class="toolbar-btn secondary">
+        <button type="button" class="toolbar-btn secondary" @click="refreshPage">
           <RefreshRight :size="16" />
           刷新
         </button>
-        <button type="button" class="toolbar-btn secondary">
+        <button type="button" class="toolbar-btn secondary" @click="openImportDialog">
           <Upload :size="16" />
           导入
         </button>
-        <button type="button" class="toolbar-btn secondary">
+        <button type="button" class="toolbar-btn secondary" :disabled="exportSubmitting" @click="exportWorkbook">
           <Download :size="16" />
-          导出
+          {{ exportSubmitting ? '导出中...' : '导出' }}
         </button>
         <button type="button" class="toolbar-btn primary">
           <Plus :size="16" />
@@ -68,7 +111,12 @@ const {
     </section>
 
     <section v-if="!fieldWorkbenchVisible" class="table-card">
-      <div class="table-body">
+      <div v-if="sourceError" class="table-state is-error">{{ sourceError }}</div>
+      <div v-else-if="tableError" class="table-state is-error">{{ tableError }}</div>
+      <div v-else-if="sourceLoading || tableLoading" class="table-state">正在加载数据表列表...</div>
+      <div v-else-if="!pagedTables.length" class="table-state">当前数据源下还没有数据表元数据。</div>
+
+      <div v-else class="table-body">
         <table class="config-table">
           <thead>
             <tr>
@@ -156,7 +204,11 @@ const {
           <span>新鲜度 {{ selectedTable?.freshness }}</span>
         </div>
 
-        <table class="field-table">
+        <div v-if="fieldError" class="table-state is-error">{{ fieldError }}</div>
+        <div v-else-if="fieldLoading" class="table-state">正在加载字段列表...</div>
+        <div v-else-if="!selectedFields.length" class="table-state">当前表下还没有字段元数据。</div>
+
+        <table v-else class="field-table">
           <thead>
             <tr>
               <th>字段名</th>
@@ -180,5 +232,46 @@ const {
         </table>
       </section>
     </section>
+
+    <div v-if="importDialogVisible" class="modal-mask" @click.self="closeImportDialog">
+      <div class="modal-card import-modal">
+        <header class="modal-head">
+          <div>
+            <h3>导入表结构元数据</h3>
+            <p>请上传包含 `表说明`、`字段说明`、`索引说明` 三个 sheet 的 Excel 文件。</p>
+          </div>
+          <button class="close-btn" type="button" @click="closeImportDialog">×</button>
+        </header>
+
+        <p v-if="importError" class="error-banner">{{ importError }}</p>
+
+        <button
+          type="button"
+          class="drop-zone"
+          :class="{ 'is-dragover': importDragActive }"
+          @click="triggerFilePicker"
+          @dragenter.prevent="handleImportDragEnter"
+          @dragover.prevent="handleImportDragEnter"
+          @dragleave.prevent="handleImportDragLeave"
+          @drop.prevent="onFileDrop"
+        >
+          <Upload :size="22" />
+          <strong>{{ importFile ? importFile.name : '点击选择 Excel 文件，或直接拖拽到这里' }}</strong>
+          <span>支持 `.xlsx`，导入时会按自然键对表、字段、索引做新增或更新。</span>
+        </button>
+
+        <input ref="fileInputRef" class="hidden-file-input" type="file" accept=".xlsx" @change="onFileInputChange" />
+
+        <footer class="modal-actions">
+          <button class="action-btn secondary-btn" type="button" :disabled="templateSubmitting" @click="downloadTemplateWorkbook">
+            {{ templateSubmitting ? '下载中...' : '下载模板' }}
+          </button>
+          <button class="action-btn" type="button" @click="closeImportDialog">取消</button>
+          <button class="action-btn primary" type="button" :disabled="importSubmitting" @click="submitImport">
+            {{ importSubmitting ? '导入中...' : '开始导入' }}
+          </button>
+        </footer>
+      </div>
+    </div>
   </div>
 </template>

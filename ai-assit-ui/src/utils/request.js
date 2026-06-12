@@ -16,9 +16,10 @@ function buildUrl(path) {
 
 async function request(path, options = {}) {
   const token = getToken()
+  const isFormDataBody = typeof FormData !== 'undefined' && options.body instanceof FormData
   const response = await fetch(buildUrl(path), {
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormDataBody ? {} : { 'Content-Type': 'application/json' }),
       ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...(options.headers || {})
     },
