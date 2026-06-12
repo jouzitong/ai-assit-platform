@@ -55,11 +55,14 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
     private static final String DEFAULT_SCENE = "ai-chat-query-planning";
-    private static final String PLANNING_PROMPT = """
+    private static final String PLANNING_TOPIC_PROMPT = """
             你是一个智能问数工作流的查询规划节点。
-            你需要根据用户当前问题和已有对话历史，输出严格合法的 JSON。
-            
-            你必须只输出以下 JSON 结构，不允许输出 markdown、解释、代码块：
+            你需要根据用户当前问题和已有对话历史，提炼本轮查询的用户目标、分析重点、所需上下文、SQL 关注点和潜在风险。
+            你的输出会直接作为后续知识检索、SQL 生成和结果渲染节点的输入，因此内容必须准确、简洁、可执行。
+            """;
+    private static final String PLANNING_STRUCTURE_PROMPT = """
+            你必须只输出严格合法的 JSON，不允许输出 markdown、解释、代码块。
+            输出结构固定如下：
             {
               "sessionTitle": "新会话标题，只有新会话首轮时必填，其他情况可返回空字符串",
               "userGoal": "用户核心目标",
@@ -122,6 +125,13 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             return NodeResult.fail("message is required");
         }
 
+        log.info("query planning node start, sessionCode={}, roundCode={}, messageCode={}, apiModel={}, scene={}",
+                context.getSession().getSessionCode(),
+                context.getRound().getRoundCode(),
+                context.getCurrentUserMessage().getMessageCode(),
+                command.getApiModel(),
+                command.getScene());
+
         try {
             List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getSessionMessages());
             historyMessages = historyMessages.stream()
@@ -130,16 +140,41 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                     .toList();
 
+            log.debug("query planning history prepared, sessionCode={}, historyMessageCount={}, isFirstRound={}",
+                    context.getSession().getSessionCode(),
+                    historyMessages.size(),
+                    historyMessages.isEmpty());
+
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
+            log.info("query planning request built, sessionCode={}, provider={}, model={}, messageCount={}",
+                    context.getSession().getSessionCode(),
+                    planningRequest.getProvider(),
+                    planningRequest.getModel(),
+                    CollectionUtils.isEmpty(planningRequest.getMessages()) ? 0 : planningRequest.getMessages().size());
+
             IR<ChatResponse> r = aiChatExecutionApi.chat(planningRequest);
             if (!r.isOk()) {
-                log.error("call api aiChatExecutionApi.chat is error: {}", r);
+                log.error("query planning api call failed, sessionCode={}, roundCode={}, response={}",
+                        context.getSession().getSessionCode(),
+                        context.getRound().getRoundCode(),
+                        r);
             }
             ChatResponse planningResponse = r.getData();
+            log.info("query planning api call finished, sessionCode={}, roundCode={}, requestId={}, hasOutput={}",
+                    context.getSession().getSessionCode(),
+                    context.getRound().getRoundCode(),
+                    planningResponse == null ? null : planningResponse.getRequestId(),
+                    planningResponse != null && !CollectionUtils.isEmpty(planningResponse.getOutputs()));
+
             PlanningResult planningResult = parsePlanningResult(
                     extractAnswer(planningResponse),
                     historyMessages.isEmpty()
             );
+            log.info("query planning result parsed, sessionCode={}, roundCode={}, sessionTitle={}, needClarification={}",
+                    context.getSession().getSessionCode(),
+                    context.getRound().getRoundCode(),
+                    planningResult.getSessionTitle(),
+                    planningResult.getNeedClarification());
             if (historyMessages.isEmpty()) {
                 refreshSessionName(context, planningResult);
             }
@@ -164,6 +199,10 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     context.getCurrentUserMessage().getMessageCode(),
                     planningResponse == null ? null : planningResponse.getRequestId()
             );
+            log.info("query planning node success, sessionCode={}, roundCode={}, requestId={}",
+                    context.getSession().getSessionCode(),
+                    context.getRound().getRoundCode(),
+                    planningResponse == null ? null : planningResponse.getRequestId());
 
             return NodeResult.success(null);
         } catch (Exception ex) {
@@ -203,10 +242,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         request.setModel(resolveActualModel(command.getApiModel()));
 
         List<ChatMessage> messages = new ArrayList<>();
-        ChatMessage systemMessage = new ChatMessage();
-        systemMessage.setRole(MessageRole.SYSTEM);
-        systemMessage.setContent(PLANNING_PROMPT);
-        messages.add(systemMessage);
+        appendPlanningSystemMessages(messages);
         String planningContext = buildPlanningContext(context);
         if (StringUtils.hasText(planningContext)) {
             ChatMessage contextMessage = new ChatMessage();
@@ -264,11 +300,19 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         int maxRetry = resolvePlanningStructureMaxRetry();
         for (int attempt = 0; attempt <= maxRetry; attempt++) {
             try {
+                log.debug("parse planning result start, attempt={}, requireSessionTitle={}", attempt + 1, requireSessionTitle);
                 PlanningResult result = objectMapper.readValue(cleanJson(currentText), PlanningResult.class);
                 validatePlanningResult(result, requireSessionTitle);
-                return normalizePlanningResult(result);
+                PlanningResult normalized = normalizePlanningResult(result);
+                log.debug("parse planning result success, attempt={}, requireSessionTitle={}", attempt + 1, requireSessionTitle);
+                return normalized;
             } catch (Exception ex) {
                 validationError = ex.getMessage();
+                log.warn("parse planning result failed, attempt={}, maxRetry={}, requireSessionTitle={}, error={}",
+                        attempt + 1,
+                        maxRetry,
+                        requireSessionTitle,
+                        validationError);
                 if (attempt == maxRetry) {
                     throw new IllegalArgumentException("planning result parse failed: " + validationError, ex);
                 }
@@ -289,12 +333,13 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private String retryPlanningWithFeedback(String previousOutput,
                                              String validationError,
                                              boolean requireSessionTitle) {
+        log.info("retry query planning with feedback, requireSessionTitle={}, validationError={}", requireSessionTitle, validationError);
         ChatRequest retryRequest = new ChatRequest();
         retryRequest.setProvider(ProviderType.DASHSCOPE);
         retryRequest.setModel(resolveActualModel(null));
 
         List<ChatMessage> messages = new ArrayList<>();
-        messages.add(buildMessage(MessageRole.SYSTEM, PLANNING_PROMPT));
+        appendPlanningSystemMessages(messages);
         messages.add(buildMessage(MessageRole.ASSISTANT, defaultText(previousOutput)));
         messages.add(buildMessage(MessageRole.USER, """
                 你上一次返回的 JSON 不合法，请严格修正后重新返回。
@@ -313,7 +358,15 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         retryRequest.setOptions(options);
 
         ChatResponse retryResponse = aiChatExecutionApi.chat(retryRequest).getData();
+        log.info("retry query planning finished, requestId={}, hasOutput={}",
+                retryResponse == null ? null : retryResponse.getRequestId(),
+                retryResponse != null && !CollectionUtils.isEmpty(retryResponse.getOutputs()));
         return extractAnswer(retryResponse);
+    }
+
+    private void appendPlanningSystemMessages(List<ChatMessage> messages) {
+        messages.add(buildMessage(MessageRole.SYSTEM, PLANNING_TOPIC_PROMPT));
+        messages.add(buildMessage(MessageRole.SYSTEM, PLANNING_STRUCTURE_PROMPT));
     }
 
     private void validatePlanningResult(PlanningResult result, boolean requireSessionTitle) {
@@ -389,6 +442,10 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private void refreshSessionName(WorkflowContext context, PlanningResult result) {
         if (context.getSession() == null || context.getSession().getId() == null || !StringUtils.hasText(result.getSessionTitle())) {
+            log.debug("skip refresh session name, sessionExists={}, sessionId={}, sessionTitle={}",
+                    context.getSession() != null,
+                    context.getSession() == null ? null : context.getSession().getId(),
+                    result == null ? null : result.getSessionTitle());
             return;
         }
         AiChatSessionDTO update = new AiChatSessionDTO();
@@ -399,6 +456,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         } else {
             context.getSession().setSessionName(result.getSessionTitle().trim());
         }
+        log.info("refresh session name finished, sessionCode={}, sessionName={}",
+                context.getSession().getSessionCode(),
+                context.getSession().getSessionName());
     }
 
     private ChatMessage buildMessage(MessageRole role, String content) {
@@ -437,6 +497,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (request != null) {
             update.setModelCode(request.getModel());
         }
+        log.info("finish query planning round, roundCode={}, status={}, modelCode={}, actualModel={}",
+                round.getRoundCode(),
+                status,
+                update.getModelCode(),
+                actualModel);
         roundService.edit(round.getId(), update);
     }
 
