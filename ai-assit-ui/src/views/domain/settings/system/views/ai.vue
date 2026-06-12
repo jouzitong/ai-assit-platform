@@ -1,6 +1,6 @@
 <script setup>
-import './styles/index.css'
-import { useAiPage } from './service'
+import '../styles/ai.css'
+import { useAiPage } from '../service/ai'
 
 const {
   activeTab,

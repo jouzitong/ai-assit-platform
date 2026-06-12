@@ -11,8 +11,8 @@ import {
   searchAiChatProviderConfigs,
   updateAiChatModelManage,
   updateAiChatProviderConfig
-} from '../../../../../../../api/aiChat'
-import { createModelForm, createProviderForm, enabledOptions, pageSizeOptions } from '../data'
+} from '../../../../../api/aiChat'
+import { createModelForm, createProviderForm, enabledOptions, pageSizeOptions } from '../data/ai'
 
 export function useAiPage() {
   const activeTab = ref('provider')

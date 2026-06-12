@@ -1,0 +1,62 @@
+export const dataSources = [
+  {
+    key: 'ods_trade_mysql',
+    name: '交易核心 ODS',
+    type: 'MySQL',
+    owner: '交易平台',
+    status: 'online',
+    statusLabel: '运行中',
+    host: 'mysql.trade.internal:3306',
+    database: 'trade_ods',
+    tables: 28,
+    syncMode: '实时',
+    updatedAt: '2026-06-10 10:20',
+    tags: ['生产', '主链路'],
+    summary: '负责承接订单、成交、资金流水等 ODS 数据。'
+  },
+  {
+    key: 'ads_finance_pg',
+    name: '财务分析 ADS',
+    type: 'PostgreSQL',
+    owner: '财务数据组',
+    status: 'warning',
+    statusLabel: '待校验',
+    host: 'pg.ads.internal:5432',
+    database: 'finance_ads',
+    tables: 14,
+    syncMode: 'T+1',
+    updatedAt: '2026-06-09 21:45',
+    tags: ['分析', 'BI'],
+    summary: '面向财务看板和成本分析的汇总层数据源。'
+  },
+  {
+    key: 'user_profile_clickhouse',
+    name: '用户画像明细',
+    type: 'ClickHouse',
+    owner: '增长中台',
+    status: 'online',
+    statusLabel: '运行中',
+    host: 'ck.user.internal:8123',
+    database: 'user_profile',
+    tables: 36,
+    syncMode: '分钟级',
+    updatedAt: '2026-06-10 09:58',
+    tags: ['画像', '行为'],
+    summary: '存放用户行为、标签和画像宽表。'
+  },
+  {
+    key: 'risk_sandbox_mysql',
+    name: '风控沙箱库',
+    type: 'MySQL',
+    owner: '风险策略',
+    status: 'offline',
+    statusLabel: '已停用',
+    host: 'mysql.risk.sandbox:3306',
+    database: 'risk_sandbox',
+    tables: 9,
+    syncMode: '手动',
+    updatedAt: '2026-06-07 18:12',
+    tags: ['沙箱', '试验'],
+    summary: '策略验证与灰度实验使用的隔离环境。'
+  }
+]
