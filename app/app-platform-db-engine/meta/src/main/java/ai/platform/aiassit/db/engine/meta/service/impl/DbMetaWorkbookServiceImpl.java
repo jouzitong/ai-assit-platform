@@ -4,15 +4,17 @@ import ai.platform.aiassit.db.engine.meta.entity.DbTableFieldMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.DbTableIndexMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.DbTableMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbMetaWorkbookTemplateConfig;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbTableFieldMetaExcelRow;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbTableIndexMetaExcelRow;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbTableMetaExcelRow;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableFieldMetaMapper;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableIndexMetaMapper;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableMetaMapper;
+import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryRequest;
+import ai.platform.aiassit.db.engine.meta.entity.req.DbTableIndexMetaQueryRequest;
+import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaWorkbookService;
-import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.poi.ss.usermodel.DataValidation;
@@ -67,24 +69,24 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
     private static final int DATA_VALIDATION_FIRST_ROW = 1;
     private static final int DATA_VALIDATION_LAST_ROW = 2000;
 
-    private final DbTableMetaMapper tableMetaMapper;
-    private final DbTableFieldMetaMapper fieldMetaMapper;
-    private final DbTableIndexMetaMapper indexMetaMapper;
+    private final DbTableMetaServiceImpl tableMetaService;
+    private final DbTableFieldMetaServiceImpl fieldMetaService;
+    private final DbTableIndexMetaServiceImpl indexMetaService;
     private final ObjectMapper objectMapper;
     private final ResourceLoader resourceLoader;
     private final String templateConfigLocation;
 
     public DbMetaWorkbookServiceImpl(
-            DbTableMetaMapper tableMetaMapper,
-            DbTableFieldMetaMapper fieldMetaMapper,
-            DbTableIndexMetaMapper indexMetaMapper,
+            DbTableMetaServiceImpl tableMetaService,
+            DbTableFieldMetaServiceImpl fieldMetaService,
+            DbTableIndexMetaServiceImpl indexMetaService,
             ObjectMapper objectMapper,
             ResourceLoader resourceLoader,
             @Value("${aiassit.db.meta.workbook.template-config-location:}") String templateConfigLocation
     ) {
-        this.tableMetaMapper = tableMetaMapper;
-        this.fieldMetaMapper = fieldMetaMapper;
-        this.indexMetaMapper = indexMetaMapper;
+        this.tableMetaService = tableMetaService;
+        this.fieldMetaService = fieldMetaService;
+        this.indexMetaService = indexMetaService;
         this.objectMapper = objectMapper;
         this.resourceLoader = resourceLoader;
         this.templateConfigLocation = templateConfigLocation;
@@ -135,12 +137,12 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             int tableCreatedCount = 0;
             int tableUpdatedCount = 0;
             for (DbTableMetaExcelRow row : tableRows) {
-                DbTableMetaEntity existing = findExistingTable(row.getSourceKey(), row.getTableName());
+                DbTableMetaDTO existing = findExistingTable(row.getSourceKey(), row.getTableName());
                 if (existing == null) {
-                    tableMetaMapper.insert(toTableEntity(row, null));
+                    tableMetaService.add(toTableDto(row, null));
                     tableCreatedCount++;
                 } else {
-                    tableMetaMapper.updateById(toTableEntity(row, existing));
+                    updateExistingTable(existing.getId(), row);
                     tableUpdatedCount++;
                 }
             }
@@ -152,12 +154,12 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             int fieldCreatedCount = 0;
             int fieldUpdatedCount = 0;
             for (DbTableFieldMetaExcelRow row : fieldRows) {
-                DbTableFieldMetaEntity existing = findExistingField(row.getSourceKey(), row.getTableName(), row.getColumnName());
+                DbTableFieldMetaDTO existing = findExistingField(row.getSourceKey(), row.getTableName(), row.getColumnName());
                 if (existing == null) {
-                    fieldMetaMapper.insert(toFieldEntity(row, null));
+                    fieldMetaService.add(toFieldDto(row, null));
                     fieldCreatedCount++;
                 } else {
-                    fieldMetaMapper.updateById(toFieldEntity(row, existing));
+                    updateExistingField(existing.getId(), row);
                     fieldUpdatedCount++;
                 }
             }
@@ -167,17 +169,17 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             int indexCreatedCount = 0;
             int indexUpdatedCount = 0;
             for (DbTableIndexMetaExcelRow row : indexRows) {
-                DbTableIndexMetaEntity existing = findExistingIndex(
+                DbTableIndexMetaDTO existing = findExistingIndex(
                         row.getSourceKey(),
                         row.getTableName(),
                         row.getIndexName(),
                         row.getColumnName()
                 );
                 if (existing == null) {
-                    indexMetaMapper.insert(toIndexEntity(row, null));
+                    indexMetaService.add(toIndexDto(row, null));
                     indexCreatedCount++;
                 } else {
-                    indexMetaMapper.updateById(toIndexEntity(row, existing));
+                    updateExistingIndex(existing.getId(), row);
                     indexUpdatedCount++;
                 }
             }
@@ -209,14 +211,9 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         Sheet sheet = workbook.createSheet(sheetConfig.getName());
         createHeader(workbook, sheet, sheetConfig);
 
-        List<DbTableMetaEntity> entityList = tableMetaMapper.selectList(
-                new QueryWrapper<DbTableMetaEntity>()
-                        .lambda()
-                        .eq(DbTableMetaEntity::getSourceKey, sourceKey)
-                        .orderByAsc(DbTableMetaEntity::getTableName)
-        );
+        List<DbTableMetaDTO> entityList = listTables(sourceKey);
         int rowIndex = 1;
-        for (DbTableMetaEntity entity : entityList) {
+        for (DbTableMetaDTO entity : entityList) {
             Row row = sheet.createRow(rowIndex++);
             writeRow(row, buildTableRowValues(entity, sheetConfig));
         }
@@ -229,14 +226,9 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         Sheet sheet = workbook.createSheet(sheetConfig.getName());
         createHeader(workbook, sheet, sheetConfig);
 
-        List<DbTableFieldMetaEntity> entityList = fieldMetaMapper.selectList(
-                new QueryWrapper<DbTableFieldMetaEntity>()
-                        .lambda()
-                        .eq(DbTableFieldMetaEntity::getSourceKey, sourceKey)
-                        .orderByAsc(DbTableFieldMetaEntity::getTableName, DbTableFieldMetaEntity::getOrdinalPosition)
-        );
+        List<DbTableFieldMetaDTO> entityList = listFields(sourceKey);
         int rowIndex = 1;
-        for (DbTableFieldMetaEntity entity : entityList) {
+        for (DbTableFieldMetaDTO entity : entityList) {
             Row row = sheet.createRow(rowIndex++);
             writeRow(row, buildFieldRowValues(entity, sheetConfig));
         }
@@ -249,14 +241,9 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         Sheet sheet = workbook.createSheet(sheetConfig.getName());
         createHeader(workbook, sheet, sheetConfig);
 
-        List<DbTableIndexMetaEntity> entityList = indexMetaMapper.selectList(
-                new QueryWrapper<DbTableIndexMetaEntity>()
-                        .lambda()
-                        .eq(DbTableIndexMetaEntity::getSourceKey, sourceKey)
-                        .orderByAsc(DbTableIndexMetaEntity::getTableName, DbTableIndexMetaEntity::getIndexName, DbTableIndexMetaEntity::getColumnOrder)
-        );
+        List<DbTableIndexMetaDTO> entityList = listIndexes(sourceKey);
         int rowIndex = 1;
-        for (DbTableIndexMetaEntity entity : entityList) {
+        for (DbTableIndexMetaDTO entity : entityList) {
             Row row = sheet.createRow(rowIndex++);
             writeRow(row, buildIndexRowValues(entity, sheetConfig));
         }
@@ -361,89 +348,200 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         return rowList;
     }
 
-    private DbTableMetaEntity findExistingTable(String sourceKey, String tableName) {
-        return tableMetaMapper.selectOne(
-                new QueryWrapper<DbTableMetaEntity>()
-                        .lambda()
-                        .eq(DbTableMetaEntity::getSourceKey, sourceKey)
-                        .eq(DbTableMetaEntity::getTableName, tableName)
-        );
+    private DbTableMetaDTO findExistingTable(String sourceKey, String tableName) {
+        DbTableMetaQueryRequest query = new DbTableMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setTableName(tableName);
+        return tableMetaService.get(query);
     }
 
-    private DbTableFieldMetaEntity findExistingField(String sourceKey, String tableName, String columnName) {
-        return fieldMetaMapper.selectOne(
-                new QueryWrapper<DbTableFieldMetaEntity>()
-                        .lambda()
-                        .eq(DbTableFieldMetaEntity::getSourceKey, sourceKey)
-                        .eq(DbTableFieldMetaEntity::getTableName, tableName)
-                        .eq(DbTableFieldMetaEntity::getColumnName, columnName)
-        );
+    private DbTableFieldMetaDTO findExistingField(String sourceKey, String tableName, String columnName) {
+        DbTableFieldMetaQueryRequest query = new DbTableFieldMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setTableName(tableName);
+        query.setColumnName(columnName);
+        List<DbTableFieldMetaDTO> dtoList = fieldMetaService.queryAll(query);
+        return dtoList.stream()
+                .filter(dto -> StringUtils.hasText(dto.getColumnName()) && dto.getColumnName().equals(columnName))
+                .findFirst()
+                .orElse(null);
     }
 
-    private DbTableIndexMetaEntity findExistingIndex(String sourceKey, String tableName, String indexName, String columnName) {
-        return indexMetaMapper.selectOne(
-                new QueryWrapper<DbTableIndexMetaEntity>()
-                        .lambda()
-                        .eq(DbTableIndexMetaEntity::getSourceKey, sourceKey)
-                        .eq(DbTableIndexMetaEntity::getTableName, tableName)
-                        .eq(DbTableIndexMetaEntity::getIndexName, indexName)
-                        .eq(DbTableIndexMetaEntity::getColumnName, columnName)
-        );
+    private DbTableIndexMetaDTO findExistingIndex(String sourceKey, String tableName, String indexName, String columnName) {
+        DbTableIndexMetaQueryRequest query = new DbTableIndexMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setTableName(tableName);
+        query.setIndexName(indexName);
+        List<DbTableIndexMetaDTO> dtoList = indexMetaService.queryAll(query);
+        return dtoList.stream()
+                .filter(dto -> StringUtils.hasText(dto.getColumnName()) && dto.getColumnName().equals(columnName))
+                .findFirst()
+                .orElse(null);
     }
 
-    private DbTableMetaEntity toTableEntity(DbTableMetaExcelRow row, DbTableMetaEntity existing) {
-        DbTableMetaEntity entity = existing == null ? new DbTableMetaEntity() : existing;
-        entity.setSourceKey(row.getSourceKey());
-        entity.setTableName(row.getTableName());
-        entity.setTableComment(row.getTableComment());
-        entity.setTableType(row.getTableType());
-        entity.setLayerType(row.getLayerType());
-        entity.setRowCount(row.getRowCount());
-        entity.setColumnCount(row.getColumnCount());
-        entity.setPartitionKey(row.getPartitionKey());
-        entity.setFreshnessSeconds(row.getFreshnessSeconds());
-        entity.setStatus(row.getStatus());
-        entity.setEnabled(defaultBoolean(row.getEnabled()));
-        entity.setLastScanAt(parseDateTime(row.getLastScanAt()));
-        entity.setLastSyncAt(parseDateTime(row.getLastSyncAt()));
-        entity.setRemark(row.getRemark());
-        return entity;
+    private List<DbTableMetaDTO> listTables(String sourceKey) {
+        DbTableMetaQueryRequest query = new DbTableMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setSize(Integer.MAX_VALUE);
+        return tableMetaService.queryAll(query).stream()
+                .sorted((left, right) -> compareNullableString(left.getTableName(), right.getTableName()))
+                .toList();
     }
 
-    private DbTableFieldMetaEntity toFieldEntity(DbTableFieldMetaExcelRow row, DbTableFieldMetaEntity existing) {
-        DbTableFieldMetaEntity entity = existing == null ? new DbTableFieldMetaEntity() : existing;
-        entity.setSourceKey(row.getSourceKey());
-        entity.setTableName(row.getTableName());
-        entity.setColumnName(row.getColumnName());
-        entity.setColumnComment(row.getColumnComment());
-        entity.setDataType(row.getDataType());
-        entity.setColumnLength(row.getColumnLength());
-        entity.setColumnPrecision(row.getColumnPrecision());
-        entity.setColumnScale(row.getColumnScale());
-        entity.setNullable(defaultBoolean(row.getNullable()));
-        entity.setPrimaryKey(defaultBoolean(row.getPrimaryKey()));
-        entity.setPartitionKey(defaultBoolean(row.getPartitionKey()));
-        entity.setDefaultValue(row.getDefaultValue());
-        entity.setOrdinalPosition(row.getOrdinalPosition());
-        entity.setFieldRole(row.getFieldRole());
-        entity.setEnabled(defaultBoolean(row.getEnabled()));
-        entity.setRemark(row.getRemark());
-        return entity;
+    private List<DbTableFieldMetaDTO> listFields(String sourceKey) {
+        DbTableFieldMetaQueryRequest query = new DbTableFieldMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setSize(Integer.MAX_VALUE);
+        return fieldMetaService.queryAll(query).stream()
+                .sorted((left, right) -> {
+                    int tableCompare = compareNullableString(left.getTableName(), right.getTableName());
+                    if (tableCompare != 0) {
+                        return tableCompare;
+                    }
+                    return compareNullableInteger(left.getOrdinalPosition(), right.getOrdinalPosition());
+                })
+                .toList();
     }
 
-    private DbTableIndexMetaEntity toIndexEntity(DbTableIndexMetaExcelRow row, DbTableIndexMetaEntity existing) {
-        DbTableIndexMetaEntity entity = existing == null ? new DbTableIndexMetaEntity() : existing;
-        entity.setSourceKey(row.getSourceKey());
-        entity.setTableName(row.getTableName());
-        entity.setIndexName(row.getIndexName());
-        entity.setIndexType(row.getIndexType());
-        entity.setUniqueFlag(defaultBoolean(row.getUniqueFlag()));
-        entity.setPrimaryFlag(defaultBoolean(row.getPrimaryFlag()));
-        entity.setColumnName(row.getColumnName());
-        entity.setColumnOrder(row.getColumnOrder());
-        entity.setEnabled(defaultBoolean(row.getEnabled()));
-        entity.setRemark(row.getRemark());
-        return entity;
+    private List<DbTableIndexMetaDTO> listIndexes(String sourceKey) {
+        DbTableIndexMetaQueryRequest query = new DbTableIndexMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setSize(Integer.MAX_VALUE);
+        return indexMetaService.queryAll(query).stream()
+                .sorted((left, right) -> {
+                    int tableCompare = compareNullableString(left.getTableName(), right.getTableName());
+                    if (tableCompare != 0) {
+                        return tableCompare;
+                    }
+                    int indexCompare = compareNullableString(left.getIndexName(), right.getIndexName());
+                    if (indexCompare != 0) {
+                        return indexCompare;
+                    }
+                    return compareNullableInteger(left.getColumnOrder(), right.getColumnOrder());
+                })
+                .toList();
+    }
+
+    private DbTableMetaDTO toTableDto(DbTableMetaExcelRow row, DbTableMetaDTO existing) {
+        DbTableMetaDTO dto = existing == null ? new DbTableMetaDTO() : existing;
+        dto.setSourceKey(row.getSourceKey());
+        dto.setTableName(row.getTableName());
+        dto.setTableComment(row.getTableComment());
+        dto.setTableType(row.getTableType());
+        dto.setLayerType(row.getLayerType());
+        dto.setRowCount(row.getRowCount());
+        dto.setColumnCount(row.getColumnCount());
+        dto.setPartitionKey(row.getPartitionKey());
+        dto.setFreshnessSeconds(row.getFreshnessSeconds());
+        dto.setStatus(row.getStatus());
+        dto.setEnabled(defaultBoolean(row.getEnabled()));
+        dto.setLastScanAt(parseDateTime(row.getLastScanAt()));
+        dto.setLastSyncAt(parseDateTime(row.getLastSyncAt()));
+        dto.setRemark(row.getRemark());
+        return dto;
+    }
+
+    private void updateExistingTable(Long id, DbTableMetaExcelRow row) {
+        boolean updated = tableMetaService.lambdaUpdate()
+                .eq(DbTableMetaEntity::getId, id)
+                .set(DbTableMetaEntity::getSourceKey, row.getSourceKey())
+                .set(DbTableMetaEntity::getTableName, row.getTableName())
+                .set(DbTableMetaEntity::getTableComment, row.getTableComment())
+                .set(DbTableMetaEntity::getTableType, row.getTableType())
+                .set(DbTableMetaEntity::getLayerType, row.getLayerType())
+                .set(DbTableMetaEntity::getRowCount, row.getRowCount())
+                .set(DbTableMetaEntity::getColumnCount, row.getColumnCount())
+                .set(DbTableMetaEntity::getPartitionKey, row.getPartitionKey())
+                .set(DbTableMetaEntity::getFreshnessSeconds, row.getFreshnessSeconds())
+                .set(DbTableMetaEntity::getStatus, row.getStatus())
+                .set(DbTableMetaEntity::getEnabled, defaultBoolean(row.getEnabled()))
+                .set(DbTableMetaEntity::getLastScanAt, parseDateTime(row.getLastScanAt()))
+                .set(DbTableMetaEntity::getLastSyncAt, parseDateTime(row.getLastSyncAt()))
+                .set(DbTableMetaEntity::getRemark, row.getRemark())
+                .update();
+        if (!updated) {
+            throw new IllegalStateException("更新表元数据失败, id=" + id + ", tableName=" + row.getTableName());
+        }
+    }
+
+    private DbTableFieldMetaDTO toFieldDto(DbTableFieldMetaExcelRow row, DbTableFieldMetaDTO existing) {
+        DbTableFieldMetaDTO dto = existing == null ? new DbTableFieldMetaDTO() : existing;
+        dto.setSourceKey(row.getSourceKey());
+        dto.setTableName(row.getTableName());
+        dto.setColumnName(row.getColumnName());
+        dto.setColumnComment(row.getColumnComment());
+        dto.setDataType(row.getDataType());
+        dto.setColumnLength(row.getColumnLength());
+        dto.setColumnPrecision(row.getColumnPrecision());
+        dto.setColumnScale(row.getColumnScale());
+        dto.setNullable(defaultBoolean(row.getNullable()));
+        dto.setPrimaryKey(defaultBoolean(row.getPrimaryKey()));
+        dto.setPartitionKey(defaultBoolean(row.getPartitionKey()));
+        dto.setDefaultValue(row.getDefaultValue());
+        dto.setOrdinalPosition(row.getOrdinalPosition());
+        dto.setFieldRole(row.getFieldRole());
+        dto.setEnabled(defaultBoolean(row.getEnabled()));
+        dto.setRemark(row.getRemark());
+        return dto;
+    }
+
+    private void updateExistingField(Long id, DbTableFieldMetaExcelRow row) {
+        boolean updated = fieldMetaService.lambdaUpdate()
+                .eq(DbTableFieldMetaEntity::getId, id)
+                .set(DbTableFieldMetaEntity::getSourceKey, row.getSourceKey())
+                .set(DbTableFieldMetaEntity::getTableName, row.getTableName())
+                .set(DbTableFieldMetaEntity::getColumnName, row.getColumnName())
+                .set(DbTableFieldMetaEntity::getColumnComment, row.getColumnComment())
+                .set(DbTableFieldMetaEntity::getDataType, row.getDataType())
+                .set(DbTableFieldMetaEntity::getColumnLength, row.getColumnLength())
+                .set(DbTableFieldMetaEntity::getColumnPrecision, row.getColumnPrecision())
+                .set(DbTableFieldMetaEntity::getColumnScale, row.getColumnScale())
+                .set(DbTableFieldMetaEntity::getNullable, defaultBoolean(row.getNullable()))
+                .set(DbTableFieldMetaEntity::getPrimaryKey, defaultBoolean(row.getPrimaryKey()))
+                .set(DbTableFieldMetaEntity::getPartitionKey, defaultBoolean(row.getPartitionKey()))
+                .set(DbTableFieldMetaEntity::getDefaultValue, row.getDefaultValue())
+                .set(DbTableFieldMetaEntity::getOrdinalPosition, row.getOrdinalPosition())
+                .set(DbTableFieldMetaEntity::getFieldRole, row.getFieldRole())
+                .set(DbTableFieldMetaEntity::getEnabled, defaultBoolean(row.getEnabled()))
+                .set(DbTableFieldMetaEntity::getRemark, row.getRemark())
+                .update();
+        if (!updated) {
+            throw new IllegalStateException("更新字段元数据失败, id=" + id + ", columnName=" + row.getColumnName());
+        }
+    }
+
+    private DbTableIndexMetaDTO toIndexDto(DbTableIndexMetaExcelRow row, DbTableIndexMetaDTO existing) {
+        DbTableIndexMetaDTO dto = existing == null ? new DbTableIndexMetaDTO() : existing;
+        dto.setSourceKey(row.getSourceKey());
+        dto.setTableName(row.getTableName());
+        dto.setIndexName(row.getIndexName());
+        dto.setIndexType(row.getIndexType());
+        dto.setUniqueFlag(defaultBoolean(row.getUniqueFlag()));
+        dto.setPrimaryFlag(defaultBoolean(row.getPrimaryFlag()));
+        dto.setColumnName(row.getColumnName());
+        dto.setColumnOrder(row.getColumnOrder());
+        dto.setEnabled(defaultBoolean(row.getEnabled()));
+        dto.setRemark(row.getRemark());
+        return dto;
+    }
+
+    private void updateExistingIndex(Long id, DbTableIndexMetaExcelRow row) {
+        boolean updated = indexMetaService.lambdaUpdate()
+                .eq(DbTableIndexMetaEntity::getId, id)
+                .set(DbTableIndexMetaEntity::getSourceKey, row.getSourceKey())
+                .set(DbTableIndexMetaEntity::getTableName, row.getTableName())
+                .set(DbTableIndexMetaEntity::getIndexName, row.getIndexName())
+                .set(DbTableIndexMetaEntity::getIndexType, row.getIndexType())
+                .set(DbTableIndexMetaEntity::getUniqueFlag, defaultBoolean(row.getUniqueFlag()))
+                .set(DbTableIndexMetaEntity::getPrimaryFlag, defaultBoolean(row.getPrimaryFlag()))
+                .set(DbTableIndexMetaEntity::getColumnName, row.getColumnName())
+                .set(DbTableIndexMetaEntity::getColumnOrder, row.getColumnOrder())
+                .set(DbTableIndexMetaEntity::getEnabled, defaultBoolean(row.getEnabled()))
+                .set(DbTableIndexMetaEntity::getRemark, row.getRemark())
+                .update();
+        if (!updated) {
+            throw new IllegalStateException("更新索引元数据失败, id=" + id + ", indexName=" + row.getIndexName());
+        }
     }
 
     private Sheet createSheetTemplate(XSSFWorkbook workbook, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
@@ -483,7 +581,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         }
     }
 
-    private Object[] buildTableRowValues(DbTableMetaEntity entity, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
+    private Object[] buildTableRowValues(DbTableMetaDTO entity, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
         List<Object> values = new ArrayList<>();
         for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
             values.add(resolveTableColumnValue(entity, columnConfig.getKey()));
@@ -491,7 +589,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         return values.toArray();
     }
 
-    private Object resolveTableColumnValue(DbTableMetaEntity entity, String columnKey) {
+    private Object resolveTableColumnValue(DbTableMetaDTO entity, String columnKey) {
         return switch (columnKey) {
             case "tableName" -> entity.getTableName();
             case "tableComment" -> entity.getTableComment();
@@ -510,7 +608,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         };
     }
 
-    private Object[] buildFieldRowValues(DbTableFieldMetaEntity entity, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
+    private Object[] buildFieldRowValues(DbTableFieldMetaDTO entity, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
         List<Object> values = new ArrayList<>();
         for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
             values.add(resolveFieldColumnValue(entity, columnConfig.getKey()));
@@ -518,7 +616,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         return values.toArray();
     }
 
-    private Object resolveFieldColumnValue(DbTableFieldMetaEntity entity, String columnKey) {
+    private Object resolveFieldColumnValue(DbTableFieldMetaDTO entity, String columnKey) {
         return switch (columnKey) {
             case "tableName" -> entity.getTableName();
             case "columnName" -> entity.getColumnName();
@@ -539,7 +637,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         };
     }
 
-    private Object[] buildIndexRowValues(DbTableIndexMetaEntity entity, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
+    private Object[] buildIndexRowValues(DbTableIndexMetaDTO entity, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
         List<Object> values = new ArrayList<>();
         for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
             values.add(resolveIndexColumnValue(entity, columnConfig.getKey()));
@@ -547,7 +645,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         return values.toArray();
     }
 
-    private Object resolveIndexColumnValue(DbTableIndexMetaEntity entity, String columnKey) {
+    private Object resolveIndexColumnValue(DbTableIndexMetaDTO entity, String columnKey) {
         return switch (columnKey) {
             case "tableName" -> entity.getTableName();
             case "indexName" -> entity.getIndexName();
@@ -886,6 +984,32 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
 
     private boolean hasColumn(DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig, String columnKey) {
         return sheetConfig.getColumns().stream().anyMatch(columnConfig -> columnKey.equals(columnConfig.getKey()));
+    }
+
+    private int compareNullableString(String left, String right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        return left.compareTo(right);
+    }
+
+    private int compareNullableInteger(Integer left, Integer right) {
+        if (left == null && right == null) {
+            return 0;
+        }
+        if (left == null) {
+            return -1;
+        }
+        if (right == null) {
+            return 1;
+        }
+        return left.compareTo(right);
     }
 
     private void createNamedRange(

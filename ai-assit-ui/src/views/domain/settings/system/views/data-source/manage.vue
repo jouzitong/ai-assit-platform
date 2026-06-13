@@ -6,7 +6,6 @@ import { useDataSourceManagePage } from '../../service/data-source/manage'
 
 const {
   currentSource,
-  currentTables,
   pagedTables,
   fieldWorkbenchVisible,
   pageSizeOptions,
@@ -34,7 +33,6 @@ const {
   handlePageChange,
   handlePageSizeChange,
   openFieldWorkbench,
-  selectTable,
   formatEmpty,
   goBack,
   statusClass,
@@ -174,34 +172,15 @@ function onFileDrop(event) {
     </section>
 
     <section v-else class="field-workbench">
-      <aside class="table-picker">
-        <div class="picker-head">
-          <p class="eyebrow">表切换</p>
-          <h3>表名称</h3>
-        </div>
-        <button
-          v-for="item in currentTables"
-          :key="item.name"
-          type="button"
-          class="table-item"
-          :class="{ active: selectedTableName === item.name }"
-          @click="selectTable(item)"
-        >
-          <strong>{{ item.name }}</strong>
-          <span>{{ item.columns }} 字段 · {{ item.statusLabel }}</span>
-        </button>
-      </aside>
-
       <section class="field-panel">
-        <div class="picker-head">
-          <p class="eyebrow">字段列表</p>
-          <h3>{{ selectedTable?.name }}</h3>
-        </div>
-
-        <div class="field-meta">
-          <span>数据量 {{ selectedTable?.rows }}</span>
-          <span>分区键 {{ selectedTable?.partition }}</span>
-          <span>新鲜度 {{ selectedTable?.freshness }}</span>
+        <div class="field-panel-head">
+          <div class="picker-head">
+            <p class="eyebrow">字段列表</p>
+            <h3>{{ selectedTable?.name }}</h3>
+          </div>
+          <button type="button" class="toolbar-btn secondary field-back-btn" @click="fieldWorkbenchVisible = false">
+            返回表列表
+          </button>
         </div>
 
         <div v-if="fieldError" class="table-state is-error">{{ fieldError }}</div>
