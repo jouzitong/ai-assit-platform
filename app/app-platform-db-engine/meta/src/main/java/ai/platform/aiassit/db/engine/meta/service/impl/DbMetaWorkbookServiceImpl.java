@@ -4,6 +4,7 @@ import ai.platform.aiassit.db.engine.meta.entity.DbTableFieldMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.DbTableIndexMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.DbTableMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
+import ai.platform.aiassit.db.engine.meta.entity.excel.DbMetaWorkbookTemplateConfig;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbTableFieldMetaExcelRow;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbTableIndexMetaExcelRow;
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbTableMetaExcelRow;
@@ -12,17 +13,27 @@ import ai.platform.aiassit.db.engine.meta.mapper.DbTableIndexMetaMapper;
 import ai.platform.aiassit.db.engine.meta.mapper.DbTableMetaMapper;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaWorkbookService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.poi.ss.usermodel.DataValidation;
 import org.apache.poi.ss.usermodel.DataValidationConstraint;
 import org.apache.poi.ss.usermodel.DataValidationHelper;
 import org.apache.poi.ss.usermodel.Cell;
+import org.apache.poi.ss.usermodel.CellStyle;
+import org.apache.poi.ss.usermodel.Comment;
+import org.apache.poi.ss.usermodel.CreationHelper;
 import org.apache.poi.ss.usermodel.DataFormatter;
+import org.apache.poi.ss.usermodel.Drawing;
 import org.apache.poi.ss.usermodel.Name;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.ss.util.CellRangeAddressList;
+import org.apache.poi.xssf.usermodel.XSSFClientAnchor;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.io.Resource;
+import org.springframework.core.io.ResourceLoader;
 import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -33,56 +44,53 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
 
 @Service
 public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
 
     private static final DateTimeFormatter DATE_TIME_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
-    private static final String TABLE_SHEET_NAME = "表说明";
-    private static final String FIELD_SHEET_NAME = "字段说明";
-    private static final String INDEX_SHEET_NAME = "索引说明";
+    private static final String TEMPLATE_CONFIG_CLASSPATH = "db-meta-workbook-template.json";
     private static final String OPTION_SHEET_NAME = "_options";
 
     private static final int DATA_VALIDATION_FIRST_ROW = 1;
     private static final int DATA_VALIDATION_LAST_ROW = 2000;
 
-    private static final String TABLE_NAME_RANGE = "table_name_options";
-    private static final String FIELD_NAME_RANGE = "field_name_options";
-
-    private static final String[] TABLE_TYPE_OPTIONS = {"TABLE", "VIEW", "API_OBJECT"};
-    private static final String[] LAYER_TYPE_OPTIONS = {"ODS", "DWD", "DWS", "ADS"};
-    private static final String[] STATUS_OPTIONS = {"ACTIVE", "PENDING", "INACTIVE"};
-    private static final String[] BOOLEAN_OPTIONS = {"true", "false"};
-    private static final String[] FIELD_ROLE_OPTIONS = {"DIMENSION", "METRIC", "TIME", "ATTRIBUTE"};
-    private static final String[] INDEX_TYPE_OPTIONS = {"PRIMARY", "UNIQUE", "NORMAL"};
-    private static final String[] DATA_TYPE_OPTIONS = {
-            "varchar", "char", "text", "bigint", "int", "integer", "decimal", "double", "float",
-            "boolean", "datetime", "timestamp", "date", "json"
-    };
-
     private final DbTableMetaMapper tableMetaMapper;
     private final DbTableFieldMetaMapper fieldMetaMapper;
     private final DbTableIndexMetaMapper indexMetaMapper;
+    private final ObjectMapper objectMapper;
+    private final ResourceLoader resourceLoader;
+    private final String templateConfigLocation;
 
     public DbMetaWorkbookServiceImpl(
             DbTableMetaMapper tableMetaMapper,
             DbTableFieldMetaMapper fieldMetaMapper,
-            DbTableIndexMetaMapper indexMetaMapper
+            DbTableIndexMetaMapper indexMetaMapper,
+            ObjectMapper objectMapper,
+            ResourceLoader resourceLoader,
+            @Value("${aiassit.db.meta.workbook.template-config-location:}") String templateConfigLocation
     ) {
         this.tableMetaMapper = tableMetaMapper;
         this.fieldMetaMapper = fieldMetaMapper;
         this.indexMetaMapper = indexMetaMapper;
+        this.objectMapper = objectMapper;
+        this.resourceLoader = resourceLoader;
+        this.templateConfigLocation = templateConfigLocation;
     }
 
     @Override
     public byte[] exportWorkbook(String sourceKey) throws IOException {
+        WorkbookTemplateContext templateContext = loadTemplateContext();
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            Sheet tableSheet = writeTableSheet(workbook, sourceKey);
-            Sheet fieldSheet = writeFieldSheet(workbook, sourceKey);
-            Sheet indexSheet = writeIndexSheet(workbook, sourceKey);
-            configureWorkbookValidations(workbook, tableSheet, fieldSheet, indexSheet);
+            Sheet tableSheet = writeTableSheet(workbook, sourceKey, templateContext);
+            Sheet fieldSheet = writeFieldSheet(workbook, sourceKey, templateContext);
+            Sheet indexSheet = writeIndexSheet(workbook, sourceKey, templateContext);
+            configureWorkbookValidations(workbook, tableSheet, fieldSheet, indexSheet, templateContext);
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
@@ -90,11 +98,12 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
 
     @Override
     public byte[] exportTemplateWorkbook() throws IOException {
+        WorkbookTemplateContext templateContext = loadTemplateContext();
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
-            Sheet tableSheet = createTableSheetTemplate(workbook);
-            Sheet fieldSheet = createFieldSheetTemplate(workbook);
-            Sheet indexSheet = createIndexSheetTemplate(workbook);
-            configureWorkbookValidations(workbook, tableSheet, fieldSheet, indexSheet);
+            Sheet tableSheet = createSheetTemplate(workbook, templateContext.getRequiredSheetConfig("table"));
+            Sheet fieldSheet = createSheetTemplate(workbook, templateContext.getRequiredSheetConfig("field"));
+            Sheet indexSheet = createSheetTemplate(workbook, templateContext.getRequiredSheetConfig("index"));
+            configureWorkbookValidations(workbook, tableSheet, fieldSheet, indexSheet, templateContext);
             workbook.write(outputStream);
             return outputStream.toByteArray();
         }
@@ -102,10 +111,11 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
 
     @Override
     public DbMetaImportResultDTO importWorkbook(String sourceKey, MultipartFile file) throws IOException {
+        WorkbookTemplateContext templateContext = loadTemplateContext();
         try (InputStream inputStream = file.getInputStream(); XSSFWorkbook workbook = new XSSFWorkbook(inputStream)) {
-            List<DbTableMetaExcelRow> tableRows = readTableRows(sourceKey, workbook.getSheet(TABLE_SHEET_NAME));
-            List<DbTableFieldMetaExcelRow> fieldRows = readFieldRows(sourceKey, workbook.getSheet(FIELD_SHEET_NAME));
-            List<DbTableIndexMetaExcelRow> indexRows = readIndexRows(sourceKey, workbook.getSheet(INDEX_SHEET_NAME));
+            List<DbTableMetaExcelRow> tableRows = readTableRows(sourceKey, workbook.getSheet(templateContext.resolveSheetName("table")), templateContext);
+            List<DbTableFieldMetaExcelRow> fieldRows = readFieldRows(sourceKey, workbook.getSheet(templateContext.resolveSheetName("field")), templateContext);
+            List<DbTableIndexMetaExcelRow> indexRows = readIndexRows(sourceKey, workbook.getSheet(templateContext.resolveSheetName("index")), templateContext);
 
             int tableCreatedCount = 0;
             int tableUpdatedCount = 0;
@@ -162,10 +172,10 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         }
     }
 
-    private Sheet writeTableSheet(XSSFWorkbook workbook, String sourceKey) {
-        Sheet sheet = workbook.createSheet(TABLE_SHEET_NAME);
-        createHeader(sheet, "表名", "表中文说明", "表类型", "分层类型", "数据量", "字段数",
-                "分区键", "新鲜度(秒)", "状态", "是否启用", "最近扫描时间", "最近同步时间", "备注");
+    private Sheet writeTableSheet(XSSFWorkbook workbook, String sourceKey, WorkbookTemplateContext templateContext) {
+        DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig("table");
+        Sheet sheet = workbook.createSheet(sheetConfig.getName());
+        createHeader(workbook, sheet, sheetConfig);
 
         List<DbTableMetaEntity> entityList = tableMetaMapper.selectList(
                 new QueryWrapper<DbTableMetaEntity>()
@@ -181,23 +191,14 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
                     entity.getFreshnessSeconds(), entity.getStatus(), entity.getEnabled(),
                     formatDateTime(entity.getLastScanAt()), formatDateTime(entity.getLastSyncAt()), entity.getRemark());
         }
-        autoSize(sheet, 13);
+        applyColumnLayout(sheet, sheetConfig);
         return sheet;
     }
 
-    private Sheet createTableSheetTemplate(XSSFWorkbook workbook) {
-        Sheet sheet = workbook.createSheet(TABLE_SHEET_NAME);
-        createHeader(sheet, "表名", "表中文说明", "表类型", "分层类型", "数据量", "字段数",
-                "分区键", "新鲜度(秒)", "状态", "是否启用", "最近扫描时间", "最近同步时间", "备注");
-        autoSize(sheet, 13);
-        return sheet;
-    }
-
-    private Sheet writeFieldSheet(XSSFWorkbook workbook, String sourceKey) {
-        Sheet sheet = workbook.createSheet(FIELD_SHEET_NAME);
-        createHeader(sheet, "表名", "字段名", "字段中文说明", "字段类型", "字段长度",
-                "数值精度", "数值小数位", "是否可空", "是否主键", "是否分区键", "默认值",
-                "字段顺序", "字段角色", "是否启用", "备注");
+    private Sheet writeFieldSheet(XSSFWorkbook workbook, String sourceKey, WorkbookTemplateContext templateContext) {
+        DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig("field");
+        Sheet sheet = workbook.createSheet(sheetConfig.getName());
+        createHeader(workbook, sheet, sheetConfig);
 
         List<DbTableFieldMetaEntity> entityList = fieldMetaMapper.selectList(
                 new QueryWrapper<DbTableFieldMetaEntity>()
@@ -213,23 +214,14 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
                     entity.getNullable(), entity.getPrimaryKey(), entity.getPartitionKey(), entity.getDefaultValue(),
                     entity.getOrdinalPosition(), entity.getFieldRole(), entity.getEnabled(), entity.getRemark());
         }
-        autoSize(sheet, 15);
+        applyColumnLayout(sheet, sheetConfig);
         return sheet;
     }
 
-    private Sheet createFieldSheetTemplate(XSSFWorkbook workbook) {
-        Sheet sheet = workbook.createSheet(FIELD_SHEET_NAME);
-        createHeader(sheet, "表名", "字段名", "字段中文说明", "字段类型", "字段长度",
-                "数值精度", "数值小数位", "是否可空", "是否主键", "是否分区键", "默认值",
-                "字段顺序", "字段角色", "是否启用", "备注");
-        autoSize(sheet, 15);
-        return sheet;
-    }
-
-    private Sheet writeIndexSheet(XSSFWorkbook workbook, String sourceKey) {
-        Sheet sheet = workbook.createSheet(INDEX_SHEET_NAME);
-        createHeader(sheet, "表名", "索引名称", "索引类型", "是否唯一索引", "是否主键索引",
-                "索引字段名", "字段顺序", "是否启用", "备注");
+    private Sheet writeIndexSheet(XSSFWorkbook workbook, String sourceKey, WorkbookTemplateContext templateContext) {
+        DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig("index");
+        Sheet sheet = workbook.createSheet(sheetConfig.getName());
+        createHeader(workbook, sheet, sheetConfig);
 
         List<DbTableIndexMetaEntity> entityList = indexMetaMapper.selectList(
                 new QueryWrapper<DbTableIndexMetaEntity>()
@@ -244,23 +236,17 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
                     entity.getUniqueFlag(), entity.getPrimaryFlag(), entity.getColumnName(), entity.getColumnOrder(),
                     entity.getEnabled(), entity.getRemark());
         }
-        autoSize(sheet, 9);
+        applyColumnLayout(sheet, sheetConfig);
         return sheet;
     }
 
-    private Sheet createIndexSheetTemplate(XSSFWorkbook workbook) {
-        Sheet sheet = workbook.createSheet(INDEX_SHEET_NAME);
-        createHeader(sheet, "表名", "索引名称", "索引类型", "是否唯一索引", "是否主键索引",
-                "索引字段名", "字段顺序", "是否启用", "备注");
-        autoSize(sheet, 9);
-        return sheet;
-    }
-
-    private List<DbTableMetaExcelRow> readTableRows(String sourceKey, Sheet sheet) {
+    private List<DbTableMetaExcelRow> readTableRows(String sourceKey, Sheet sheet, WorkbookTemplateContext templateContext) {
         List<DbTableMetaExcelRow> rowList = new ArrayList<>();
         if (sheet == null) {
             return rowList;
         }
+        DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig("table");
+        Map<String, Integer> columnIndexMap = buildColumnIndexMap(sheetConfig);
         DataFormatter formatter = new DataFormatter();
         for (int i = 1; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
@@ -269,29 +255,31 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             }
             DbTableMetaExcelRow excelRow = new DbTableMetaExcelRow();
             excelRow.setSourceKey(resolveSourceKey(sourceKey));
-            excelRow.setTableName(readRequiredString(row, 0, formatter, TABLE_SHEET_NAME, i, "tableName"));
-            excelRow.setTableComment(readString(row, 1, formatter));
-            excelRow.setTableType(readString(row, 2, formatter));
-            excelRow.setLayerType(readString(row, 3, formatter));
-            excelRow.setRowCount(readLong(row, 4, formatter));
-            excelRow.setColumnCount(readInteger(row, 5, formatter));
-            excelRow.setPartitionKey(readString(row, 6, formatter));
-            excelRow.setFreshnessSeconds(readInteger(row, 7, formatter));
-            excelRow.setStatus(readString(row, 8, formatter));
-            excelRow.setEnabled(readBoolean(row, 9, formatter));
-            excelRow.setLastScanAt(readString(row, 10, formatter));
-            excelRow.setLastSyncAt(readString(row, 11, formatter));
-            excelRow.setRemark(readString(row, 12, formatter));
+            excelRow.setTableName(readRequiredString(row, requiredColumnIndex(columnIndexMap, "tableName"), formatter, sheetConfig.getName(), i, "tableName"));
+            excelRow.setTableComment(readString(row, requiredColumnIndex(columnIndexMap, "tableComment"), formatter));
+            excelRow.setTableType(readString(row, requiredColumnIndex(columnIndexMap, "tableType"), formatter));
+            excelRow.setLayerType(readString(row, requiredColumnIndex(columnIndexMap, "layerType"), formatter));
+            excelRow.setRowCount(readLong(row, requiredColumnIndex(columnIndexMap, "rowCount"), formatter));
+            excelRow.setColumnCount(readInteger(row, requiredColumnIndex(columnIndexMap, "columnCount"), formatter));
+            excelRow.setPartitionKey(readString(row, requiredColumnIndex(columnIndexMap, "partitionKey"), formatter));
+            excelRow.setFreshnessSeconds(readInteger(row, requiredColumnIndex(columnIndexMap, "freshnessSeconds"), formatter));
+            excelRow.setStatus(readString(row, requiredColumnIndex(columnIndexMap, "status"), formatter));
+            excelRow.setEnabled(readBoolean(row, requiredColumnIndex(columnIndexMap, "enabled"), formatter));
+            excelRow.setLastScanAt(readString(row, requiredColumnIndex(columnIndexMap, "lastScanAt"), formatter));
+            excelRow.setLastSyncAt(readString(row, requiredColumnIndex(columnIndexMap, "lastSyncAt"), formatter));
+            excelRow.setRemark(readString(row, requiredColumnIndex(columnIndexMap, "remark"), formatter));
             rowList.add(excelRow);
         }
         return rowList;
     }
 
-    private List<DbTableFieldMetaExcelRow> readFieldRows(String sourceKey, Sheet sheet) {
+    private List<DbTableFieldMetaExcelRow> readFieldRows(String sourceKey, Sheet sheet, WorkbookTemplateContext templateContext) {
         List<DbTableFieldMetaExcelRow> rowList = new ArrayList<>();
         if (sheet == null) {
             return rowList;
         }
+        DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig("field");
+        Map<String, Integer> columnIndexMap = buildColumnIndexMap(sheetConfig);
         DataFormatter formatter = new DataFormatter();
         for (int i = 1; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
@@ -300,31 +288,33 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             }
             DbTableFieldMetaExcelRow excelRow = new DbTableFieldMetaExcelRow();
             excelRow.setSourceKey(resolveSourceKey(sourceKey));
-            excelRow.setTableName(readRequiredString(row, 0, formatter, FIELD_SHEET_NAME, i, "tableName"));
-            excelRow.setColumnName(readRequiredString(row, 1, formatter, FIELD_SHEET_NAME, i, "columnName"));
-            excelRow.setColumnComment(readString(row, 2, formatter));
-            excelRow.setDataType(readString(row, 3, formatter));
-            excelRow.setColumnLength(readInteger(row, 4, formatter));
-            excelRow.setColumnPrecision(readInteger(row, 5, formatter));
-            excelRow.setColumnScale(readInteger(row, 6, formatter));
-            excelRow.setNullable(readBoolean(row, 7, formatter));
-            excelRow.setPrimaryKey(readBoolean(row, 8, formatter));
-            excelRow.setPartitionKey(readBoolean(row, 9, formatter));
-            excelRow.setDefaultValue(readString(row, 10, formatter));
-            excelRow.setOrdinalPosition(readInteger(row, 11, formatter));
-            excelRow.setFieldRole(readString(row, 12, formatter));
-            excelRow.setEnabled(readBoolean(row, 13, formatter));
-            excelRow.setRemark(readString(row, 14, formatter));
+            excelRow.setTableName(readRequiredString(row, requiredColumnIndex(columnIndexMap, "tableName"), formatter, sheetConfig.getName(), i, "tableName"));
+            excelRow.setColumnName(readRequiredString(row, requiredColumnIndex(columnIndexMap, "columnName"), formatter, sheetConfig.getName(), i, "columnName"));
+            excelRow.setColumnComment(readString(row, requiredColumnIndex(columnIndexMap, "columnComment"), formatter));
+            excelRow.setDataType(readString(row, requiredColumnIndex(columnIndexMap, "dataType"), formatter));
+            excelRow.setColumnLength(readInteger(row, requiredColumnIndex(columnIndexMap, "columnLength"), formatter));
+            excelRow.setColumnPrecision(readInteger(row, requiredColumnIndex(columnIndexMap, "columnPrecision"), formatter));
+            excelRow.setColumnScale(readInteger(row, requiredColumnIndex(columnIndexMap, "columnScale"), formatter));
+            excelRow.setNullable(readBoolean(row, requiredColumnIndex(columnIndexMap, "nullable"), formatter));
+            excelRow.setPrimaryKey(readBoolean(row, requiredColumnIndex(columnIndexMap, "primaryKey"), formatter));
+            excelRow.setPartitionKey(readBoolean(row, requiredColumnIndex(columnIndexMap, "partitionKey"), formatter));
+            excelRow.setDefaultValue(readString(row, requiredColumnIndex(columnIndexMap, "defaultValue"), formatter));
+            excelRow.setOrdinalPosition(readInteger(row, requiredColumnIndex(columnIndexMap, "ordinalPosition"), formatter));
+            excelRow.setFieldRole(readString(row, requiredColumnIndex(columnIndexMap, "fieldRole"), formatter));
+            excelRow.setEnabled(readBoolean(row, requiredColumnIndex(columnIndexMap, "enabled"), formatter));
+            excelRow.setRemark(readString(row, requiredColumnIndex(columnIndexMap, "remark"), formatter));
             rowList.add(excelRow);
         }
         return rowList;
     }
 
-    private List<DbTableIndexMetaExcelRow> readIndexRows(String sourceKey, Sheet sheet) {
+    private List<DbTableIndexMetaExcelRow> readIndexRows(String sourceKey, Sheet sheet, WorkbookTemplateContext templateContext) {
         List<DbTableIndexMetaExcelRow> rowList = new ArrayList<>();
         if (sheet == null) {
             return rowList;
         }
+        DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig("index");
+        Map<String, Integer> columnIndexMap = buildColumnIndexMap(sheetConfig);
         DataFormatter formatter = new DataFormatter();
         for (int i = 1; i <= sheet.getLastRowNum(); i++) {
             Row row = sheet.getRow(i);
@@ -333,15 +323,15 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             }
             DbTableIndexMetaExcelRow excelRow = new DbTableIndexMetaExcelRow();
             excelRow.setSourceKey(resolveSourceKey(sourceKey));
-            excelRow.setTableName(readRequiredString(row, 0, formatter, INDEX_SHEET_NAME, i, "tableName"));
-            excelRow.setIndexName(readRequiredString(row, 1, formatter, INDEX_SHEET_NAME, i, "indexName"));
-            excelRow.setIndexType(readString(row, 2, formatter));
-            excelRow.setUniqueFlag(readBoolean(row, 3, formatter));
-            excelRow.setPrimaryFlag(readBoolean(row, 4, formatter));
-            excelRow.setColumnName(readRequiredString(row, 5, formatter, INDEX_SHEET_NAME, i, "columnName"));
-            excelRow.setColumnOrder(readInteger(row, 6, formatter));
-            excelRow.setEnabled(readBoolean(row, 7, formatter));
-            excelRow.setRemark(readString(row, 8, formatter));
+            excelRow.setTableName(readRequiredString(row, requiredColumnIndex(columnIndexMap, "tableName"), formatter, sheetConfig.getName(), i, "tableName"));
+            excelRow.setIndexName(readRequiredString(row, requiredColumnIndex(columnIndexMap, "indexName"), formatter, sheetConfig.getName(), i, "indexName"));
+            excelRow.setIndexType(readString(row, requiredColumnIndex(columnIndexMap, "indexType"), formatter));
+            excelRow.setUniqueFlag(readBoolean(row, requiredColumnIndex(columnIndexMap, "uniqueFlag"), formatter));
+            excelRow.setPrimaryFlag(readBoolean(row, requiredColumnIndex(columnIndexMap, "primaryFlag"), formatter));
+            excelRow.setColumnName(readRequiredString(row, requiredColumnIndex(columnIndexMap, "columnName"), formatter, sheetConfig.getName(), i, "columnName"));
+            excelRow.setColumnOrder(readInteger(row, requiredColumnIndex(columnIndexMap, "columnOrder"), formatter));
+            excelRow.setEnabled(readBoolean(row, requiredColumnIndex(columnIndexMap, "enabled"), formatter));
+            excelRow.setRemark(readString(row, requiredColumnIndex(columnIndexMap, "remark"), formatter));
             rowList.add(excelRow);
         }
         return rowList;
@@ -432,10 +422,24 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         return entity;
     }
 
-    private void createHeader(Sheet sheet, String... headers) {
+    private Sheet createSheetTemplate(XSSFWorkbook workbook, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
+        Sheet sheet = workbook.createSheet(sheetConfig.getName());
+        createHeader(workbook, sheet, sheetConfig);
+        applyColumnLayout(sheet, sheetConfig);
+        return sheet;
+    }
+
+    private void createHeader(XSSFWorkbook workbook, Sheet sheet, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
         Row row = sheet.createRow(0);
-        for (int i = 0; i < headers.length; i++) {
-            row.createCell(i).setCellValue(headers[i]);
+        CreationHelper creationHelper = workbook.getCreationHelper();
+        Drawing<?> drawing = sheet.createDrawingPatriarch();
+        CellStyle headerStyle = workbook.createCellStyle();
+        for (int i = 0; i < sheetConfig.getColumns().size(); i++) {
+            DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig = sheetConfig.getColumns().get(i);
+            Cell cell = row.createCell(i);
+            cell.setCellValue(columnConfig.getLabel());
+            cell.setCellStyle(headerStyle);
+            attachHeaderCommentIfPresent(creationHelper, drawing, cell, columnConfig);
         }
     }
 
@@ -455,12 +459,53 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         }
     }
 
-    private void autoSize(Sheet sheet, int columnCount) {
-        for (int i = 0; i < columnCount; i++) {
+    private void applyColumnLayout(Sheet sheet, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
+        for (int i = 0; i < sheetConfig.getColumns().size(); i++) {
+            DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig = sheetConfig.getColumns().get(i);
+            if (columnConfig.getWidth() != null && columnConfig.getWidth() > 0) {
+                sheet.setColumnWidth(i, Math.min(columnConfig.getWidth(), 80) * 256);
+                continue;
+            }
             sheet.autoSizeColumn(i);
             int width = Math.min(sheet.getColumnWidth(i) + 1024, 40 * 256);
             sheet.setColumnWidth(i, width);
         }
+    }
+
+    private void attachHeaderCommentIfPresent(
+            CreationHelper creationHelper,
+            Drawing<?> drawing,
+            Cell cell,
+            DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig
+    ) {
+        List<String> lines = new ArrayList<>();
+        if (Boolean.TRUE.equals(columnConfig.getRequired())) {
+            lines.add("必填");
+        }
+        if (StringUtils.hasText(columnConfig.getDefaultValue())) {
+            lines.add("默认值: " + columnConfig.getDefaultValue());
+        }
+        if (!CollectionUtils.isEmpty(columnConfig.getMasks())) {
+            lines.add("枚举: " + String.join(", ", columnConfig.getMasks()));
+        }
+        if (StringUtils.hasText(columnConfig.getFormat())) {
+            lines.add("格式: " + columnConfig.getFormat());
+        }
+        if (StringUtils.hasText(columnConfig.getDescription())) {
+            lines.add(columnConfig.getDescription());
+        }
+        if (lines.isEmpty()) {
+            return;
+        }
+        XSSFClientAnchor anchor = new XSSFClientAnchor();
+        anchor.setCol1(cell.getColumnIndex());
+        anchor.setCol2(cell.getColumnIndex() + 2);
+        anchor.setRow1(cell.getRowIndex());
+        anchor.setRow2(cell.getRowIndex() + 3);
+        Comment comment = drawing.createCellComment(anchor);
+        comment.setString(creationHelper.createRichTextString(String.join("\n", lines)));
+        comment.setAddress(cell.getAddress());
+        cell.setCellComment(comment);
     }
 
     private boolean isBlankRow(Row row) {
@@ -518,10 +563,10 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             return null;
         }
         String normalized = value.trim().toLowerCase();
-        if ("true".equals(normalized) || "1".equals(normalized) || "yes".equals(normalized)) {
+        if ("true".equals(normalized) || "1".equals(normalized) || "yes".equals(normalized) || "是".equals(normalized)) {
             return true;
         }
-        if ("false".equals(normalized) || "0".equals(normalized) || "no".equals(normalized)) {
+        if ("false".equals(normalized) || "0".equals(normalized) || "no".equals(normalized) || "否".equals(normalized)) {
             return false;
         }
         throw new IllegalArgumentException("布尔值解析失败: " + value);
@@ -553,57 +598,139 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         return value != null ? value : Boolean.TRUE;
     }
 
-    private void configureWorkbookValidations(XSSFWorkbook workbook, Sheet tableSheet, Sheet fieldSheet, Sheet indexSheet) {
+    private void configureWorkbookValidations(
+            XSSFWorkbook workbook,
+            Sheet tableSheet,
+            Sheet fieldSheet,
+            Sheet indexSheet,
+            WorkbookTemplateContext templateContext
+    ) {
+        Map<String, Sheet> sheetByKey = Map.of(
+                "table", tableSheet,
+                "field", fieldSheet,
+                "index", indexSheet
+        );
         Sheet optionSheet = workbook.createSheet(OPTION_SHEET_NAME);
         workbook.setSheetHidden(workbook.getSheetIndex(optionSheet), true);
 
-        writeOptionColumn(optionSheet, 0, TABLE_TYPE_OPTIONS);
-        writeOptionColumn(optionSheet, 1, LAYER_TYPE_OPTIONS);
-        writeOptionColumn(optionSheet, 2, STATUS_OPTIONS);
-        writeOptionColumn(optionSheet, 3, BOOLEAN_OPTIONS);
-        writeOptionColumn(optionSheet, 4, FIELD_ROLE_OPTIONS);
-        writeOptionColumn(optionSheet, 5, INDEX_TYPE_OPTIONS);
-        writeOptionColumn(optionSheet, 6, DATA_TYPE_OPTIONS);
+        int optionColumnIndex = 0;
+        for (DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig : templateContext.getTemplateConfig().getSheets()) {
+            Sheet sheet = sheetByKey.get(sheetConfig.getKey());
+            if (sheet == null) {
+                continue;
+            }
+            for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
+                if (!CollectionUtils.isEmpty(columnConfig.getMasks())) {
+                    String maskRangeName = buildMaskRangeName(sheetConfig.getKey(), columnConfig.getKey());
+                    writeOptionColumn(optionSheet, optionColumnIndex, columnConfig.getMasks());
+                    createNamedRange(workbook, maskRangeName, OPTION_SHEET_NAME, optionColumnIndex, 1, columnConfig.getMasks().size());
+                    addNamedRangeValidation(sheet, maskRangeName, getColumnIndex(sheetConfig, columnConfig.getKey()));
+                    optionColumnIndex++;
+                }
+                if (StringUtils.hasText(columnConfig.getNamedRange())) {
+                    addNamedRangeValidation(sheet, columnConfig.getNamedRange(), getColumnIndex(sheetConfig, columnConfig.getKey()));
+                }
+            }
+        }
 
-        createNamedRange(workbook, "table_type_options", OPTION_SHEET_NAME, 0, 1, TABLE_TYPE_OPTIONS.length);
-        createNamedRange(workbook, "layer_type_options", OPTION_SHEET_NAME, 1, 1, LAYER_TYPE_OPTIONS.length);
-        createNamedRange(workbook, "status_options", OPTION_SHEET_NAME, 2, 1, STATUS_OPTIONS.length);
-        createNamedRange(workbook, "boolean_options", OPTION_SHEET_NAME, 3, 1, BOOLEAN_OPTIONS.length);
-        createNamedRange(workbook, "field_role_options", OPTION_SHEET_NAME, 4, 1, FIELD_ROLE_OPTIONS.length);
-        createNamedRange(workbook, "index_type_options", OPTION_SHEET_NAME, 5, 1, INDEX_TYPE_OPTIONS.length);
-        createNamedRange(workbook, "data_type_options", OPTION_SHEET_NAME, 6, 1, DATA_TYPE_OPTIONS.length);
-        createNamedRange(workbook, TABLE_NAME_RANGE, TABLE_SHEET_NAME, 0, 2, DATA_VALIDATION_LAST_ROW + 1);
-        createNamedRange(workbook, FIELD_NAME_RANGE, FIELD_SHEET_NAME, 1, 2, DATA_VALIDATION_LAST_ROW + 1);
-
-        addNamedRangeValidation(tableSheet, "table_type_options", 2);
-        addNamedRangeValidation(tableSheet, "layer_type_options", 3);
-        addNamedRangeValidation(tableSheet, "status_options", 8);
-        addNamedRangeValidation(tableSheet, "boolean_options", 9);
-
-        addNamedRangeValidation(fieldSheet, TABLE_NAME_RANGE, 0);
-        addNamedRangeValidation(fieldSheet, "data_type_options", 3);
-        addNamedRangeValidation(fieldSheet, "boolean_options", 7);
-        addNamedRangeValidation(fieldSheet, "boolean_options", 8);
-        addNamedRangeValidation(fieldSheet, "boolean_options", 9);
-        addNamedRangeValidation(fieldSheet, "field_role_options", 12);
-        addNamedRangeValidation(fieldSheet, "boolean_options", 13);
-
-        addNamedRangeValidation(indexSheet, TABLE_NAME_RANGE, 0);
-        addNamedRangeValidation(indexSheet, "index_type_options", 2);
-        addNamedRangeValidation(indexSheet, "boolean_options", 3);
-        addNamedRangeValidation(indexSheet, "boolean_options", 4);
-        addNamedRangeValidation(indexSheet, FIELD_NAME_RANGE, 5);
-        addNamedRangeValidation(indexSheet, "boolean_options", 7);
+        if (!CollectionUtils.isEmpty(templateContext.getTemplateConfig().getNamedRanges())) {
+            for (DbMetaWorkbookTemplateConfig.NamedRangeConfig namedRangeConfig : templateContext.getTemplateConfig().getNamedRanges()) {
+                DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = templateContext.getRequiredSheetConfig(namedRangeConfig.getSheetKey());
+                createNamedRange(
+                        workbook,
+                        namedRangeConfig.getName(),
+                        sheetConfig.getName(),
+                        getColumnIndex(sheetConfig, namedRangeConfig.getColumnKey()),
+                        namedRangeConfig.getStartRow(),
+                        namedRangeConfig.getEndRow()
+                );
+            }
+        }
     }
 
-    private void writeOptionColumn(Sheet optionSheet, int columnIndex, String[] values) {
-        for (int i = 0; i < values.length; i++) {
+    private void writeOptionColumn(Sheet optionSheet, int columnIndex, List<String> values) {
+        for (int i = 0; i < values.size(); i++) {
             Row row = optionSheet.getRow(i);
             if (row == null) {
                 row = optionSheet.createRow(i);
             }
-            row.createCell(columnIndex).setCellValue(values[i]);
+            row.createCell(columnIndex).setCellValue(values.get(i));
         }
+    }
+
+    private void validateTemplateConfig(DbMetaWorkbookTemplateConfig config) {
+        if (config == null || CollectionUtils.isEmpty(config.getSheets())) {
+            throw new IllegalStateException("工作簿模板配置缺少 sheets");
+        }
+        for (DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig : config.getSheets()) {
+            if (!StringUtils.hasText(sheetConfig.getKey()) || !StringUtils.hasText(sheetConfig.getName())) {
+                throw new IllegalStateException("工作簿模板 sheet 缺少 key 或 name");
+            }
+            if (CollectionUtils.isEmpty(sheetConfig.getColumns())) {
+                throw new IllegalStateException("工作簿模板 sheet[" + sheetConfig.getKey() + "] 缺少 columns");
+            }
+        }
+    }
+
+    private WorkbookTemplateContext loadTemplateContext() {
+        DbMetaWorkbookTemplateConfig config = loadTemplateConfig();
+        return new WorkbookTemplateContext(config, buildSheetConfigMap(config));
+    }
+
+    private DbMetaWorkbookTemplateConfig loadTemplateConfig() {
+        Resource resource = resolveTemplateConfigResource();
+        try (InputStream inputStream = resource.getInputStream()) {
+            DbMetaWorkbookTemplateConfig config = objectMapper.readValue(inputStream, DbMetaWorkbookTemplateConfig.class);
+            validateTemplateConfig(config);
+            return config;
+        } catch (IOException ex) {
+            throw new IllegalStateException("加载工作簿模板配置失败: " + resource.getDescription(), ex);
+        }
+    }
+
+    private Resource resolveTemplateConfigResource() {
+        if (StringUtils.hasText(templateConfigLocation)) {
+            Resource externalResource = resourceLoader.getResource(templateConfigLocation);
+            if (externalResource.exists()) {
+                return externalResource;
+            }
+            throw new IllegalStateException("工作簿模板配置不存在: " + templateConfigLocation);
+        }
+        return resourceLoader.getResource("classpath:" + TEMPLATE_CONFIG_CLASSPATH);
+    }
+
+    private Map<String, DbMetaWorkbookTemplateConfig.SheetConfig> buildSheetConfigMap(DbMetaWorkbookTemplateConfig config) {
+        return config.getSheets().stream()
+                .collect(Collectors.toMap(
+                        DbMetaWorkbookTemplateConfig.SheetConfig::getKey,
+                        sheetConfig -> sheetConfig,
+                        (left, right) -> left,
+                        HashMap::new
+                ));
+    }
+
+    private Map<String, Integer> buildColumnIndexMap(DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
+        Map<String, Integer> columnIndexMap = new HashMap<>();
+        for (int i = 0; i < sheetConfig.getColumns().size(); i++) {
+            columnIndexMap.put(sheetConfig.getColumns().get(i).getKey(), i);
+        }
+        return columnIndexMap;
+    }
+
+    private int getColumnIndex(DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig, String columnKey) {
+        return requiredColumnIndex(buildColumnIndexMap(sheetConfig), columnKey);
+    }
+
+    private int requiredColumnIndex(Map<String, Integer> columnIndexMap, String columnKey) {
+        Integer columnIndex = columnIndexMap.get(columnKey);
+        if (columnIndex == null) {
+            throw new IllegalStateException("工作簿模板缺少列配置: " + columnKey);
+        }
+        return columnIndex;
+    }
+
+    private String buildMaskRangeName(String sheetKey, String columnKey) {
+        return sheetKey + "_" + columnKey + "_masks";
     }
 
     private void createNamedRange(
@@ -614,6 +741,9 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             int startRow,
             int endRow
     ) {
+        if (!StringUtils.hasText(rangeName)) {
+            return;
+        }
         Name namedRange = workbook.createName();
         namedRange.setNameName(rangeName);
         String columnLetter = toColumnLetter(columnIndex);
@@ -621,6 +751,9 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
     }
 
     private void addNamedRangeValidation(Sheet sheet, String rangeName, int columnIndex) {
+        if (!StringUtils.hasText(rangeName)) {
+            return;
+        }
         DataValidationHelper helper = sheet.getDataValidationHelper();
         DataValidationConstraint constraint = helper.createFormulaListConstraint(rangeName);
         CellRangeAddressList addressList = new CellRangeAddressList(
@@ -643,5 +776,35 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             value = value / 26 - 1;
         }
         return builder.toString();
+    }
+
+    private static final class WorkbookTemplateContext {
+
+        private final DbMetaWorkbookTemplateConfig templateConfig;
+        private final Map<String, DbMetaWorkbookTemplateConfig.SheetConfig> sheetConfigByKey;
+
+        private WorkbookTemplateContext(
+                DbMetaWorkbookTemplateConfig templateConfig,
+                Map<String, DbMetaWorkbookTemplateConfig.SheetConfig> sheetConfigByKey
+        ) {
+            this.templateConfig = templateConfig;
+            this.sheetConfigByKey = sheetConfigByKey;
+        }
+
+        private DbMetaWorkbookTemplateConfig getTemplateConfig() {
+            return templateConfig;
+        }
+
+        private DbMetaWorkbookTemplateConfig.SheetConfig getRequiredSheetConfig(String sheetKey) {
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = sheetConfigByKey.get(sheetKey);
+            if (sheetConfig == null) {
+                throw new IllegalStateException("工作簿模板缺少 sheet: " + sheetKey);
+            }
+            return sheetConfig;
+        }
+
+        private String resolveSheetName(String sheetKey) {
+            return getRequiredSheetConfig(sheetKey).getName();
+        }
     }
 }

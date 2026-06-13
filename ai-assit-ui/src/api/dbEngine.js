@@ -1,4 +1,4 @@
-import { buildUrl, request } from '../utils/request'
+import { buildUrl, request, resolveBusinessMessage, unwrapBusinessPayload } from '../utils/request'
 import { getToken } from '../utils/session'
 
 const DB_ENGINE_META_API_PREFIX = '/dbEngine/api/v1/meta/data-source'
@@ -62,8 +62,14 @@ export async function exportDbMetaWorkbook(sourceKey) {
   })
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '')
-    throw new Error(errorText || `Request failed with status ${response.status}`)
+    const errorPayload = await tryReadErrorPayload(response)
+    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    unwrapBusinessPayload(await response.json(), '导出失败')
+    throw new Error('导出接口未返回文件流')
   }
 
   const disposition = response.headers.get('content-disposition') || ''
@@ -83,8 +89,14 @@ export async function downloadDbMetaTemplateWorkbook() {
   })
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '')
-    throw new Error(errorText || `Request failed with status ${response.status}`)
+    const errorPayload = await tryReadErrorPayload(response)
+    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    unwrapBusinessPayload(await response.json(), '模板下载失败')
+    throw new Error('模板下载接口未返回文件流')
   }
 
   const disposition = response.headers.get('content-disposition') || ''
@@ -92,4 +104,12 @@ export async function downloadDbMetaTemplateWorkbook() {
   const filename = match ? decodeURIComponent(match[1]) : 'db-meta-template.xlsx'
   const blob = await response.blob()
   return { blob, filename }
+}
+
+async function tryReadErrorPayload(response) {
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json()
+  }
+  return response.text().catch(() => '')
 }

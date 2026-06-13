@@ -36,6 +36,12 @@ spring:
               - Path=/dbEngine/**
             metadata:
               response-timeout: -1
+          - id: file-service-route
+            uri: lb://file
+            predicates:
+              - Path=/file/**
+            metadata:
+              response-timeout: -1
 
 
 gateway:

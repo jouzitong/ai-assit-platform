@@ -55,6 +55,7 @@
         <module>app/app-platform-ai-engine</module>
         <module>app/app-platform-ai-chat</module>
         <module>app/app-platform-db-engine</module>
+        <module>app/app-platform-file</module>
         <module>app/app-platform-user</module>
     </modules>
 
@@ -76,6 +77,7 @@
                     <configuration>
                         <source>${java.version}</source>
                         <target>${java.version}</target>
+                        <parameters>true</parameters>
                         <compilerArgs>
                             <arg>--enable-preview</arg>
                         </compilerArgs>

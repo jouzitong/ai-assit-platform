@@ -1,4 +1,4 @@
-import { buildUrl, request } from '../utils/request'
+import { buildUrl, request, resolveBusinessMessage, unwrapBusinessPayload } from '../utils/request'
 import { getToken } from '../utils/session'
 
 const AI_CHAT_API_PREFIX = '/aiChat/api/v1/ai/chat'
@@ -31,8 +31,14 @@ export async function queryAiChatStream(payload) {
   })
 
   if (!response.ok) {
-    const errorText = await response.text().catch(() => '')
-    throw new Error(errorText || `Request failed with status ${response.status}`)
+    const errorPayload = await tryReadErrorPayload(response)
+    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    unwrapBusinessPayload(await response.json(), '请求 ai-chat 失败')
+    throw new Error('流式接口未返回事件流')
   }
 
   return response
@@ -172,4 +178,12 @@ export function deleteAiChatModelManage(id) {
   return request(`${AI_META_API_PREFIX}/internal/model-manage/${id}`, {
     method: 'DELETE'
   })
+}
+
+async function tryReadErrorPayload(response) {
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    return response.json()
+  }
+  return response.text().catch(() => '')
 }

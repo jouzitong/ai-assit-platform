@@ -1,0 +1,28 @@
+server:
+  port: 14103
+  servlet:
+    context-path: /file
+
+spring:
+  application:
+    name: file
+  profiles:
+    active: dev
+    include: common, lib
+
+athena:
+  minio:
+    enabled: ${ATHENA_MINIO_ENABLED:true}
+    # MinIO S3 API 默认走 9000；9001 通常是 Console 管理端口
+    endpoint: ${ATHENA_MINIO_ENDPOINT:http://127.0.0.1:9000}
+    accessKey: ${ATHENA_MINIO_ACCESS_KEY:minioadmin}
+    secretKey: ${ATHENA_MINIO_SECRET_KEY:minioadmin}
+    region: ${ATHENA_MINIO_REGION:}
+    bucket: ${ATHENA_MINIO_BUCKET:platform-file}
+    secure: ${ATHENA_MINIO_SECURE:}
+    autoCreateBucket: ${ATHENA_MINIO_AUTO_CREATE_BUCKET:true}
+    presignExpirySeconds: ${ATHENA_MINIO_PRESIGN_EXPIRY_SECONDS:900}
+    connectTimeoutMs: ${ATHENA_MINIO_CONNECT_TIMEOUT_MS:3000}
+    writeTimeoutMs: ${ATHENA_MINIO_WRITE_TIMEOUT_MS:10000}
+    readTimeoutMs: ${ATHENA_MINIO_READ_TIMEOUT_MS:10000}
+    maxObjectSize: ${ATHENA_MINIO_MAX_OBJECT_SIZE:0}

@@ -13,3 +13,9 @@ server:
 
 database:
   name: 'platform_ai_assist_db_engine'
+
+aiassit:
+  db:
+    meta:
+      workbook:
+        template-config-location: classpath:db-meta-workbook-template.json
