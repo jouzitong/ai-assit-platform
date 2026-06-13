@@ -24,6 +24,9 @@ public class DbMetaWorkbookTemplateConfig {
         private String label;
         private String type;
         private Integer width;
+        private String headerColor;
+        private Boolean importable;
+        private Boolean exportable;
         private List<String> masks;
         private String format;
         private String defaultValue;
