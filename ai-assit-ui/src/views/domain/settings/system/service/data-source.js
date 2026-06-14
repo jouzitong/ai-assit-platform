@@ -73,6 +73,10 @@ export function useDataSourcePage() {
     return `is-${status}`
   }
 
+  function triggerKnowledgeSync() {
+    showNotice('知识库同步功能建设中')
+  }
+
   function openCreateDialog() {
     dialogMode.value = 'create'
     dialogError.value = ''
@@ -368,6 +372,7 @@ export function useDataSourcePage() {
     filteredSources,
     openSource,
     statusClass,
+    triggerKnowledgeSync,
     loadDataSources,
     openCreateDialog,
     openEditDialog,

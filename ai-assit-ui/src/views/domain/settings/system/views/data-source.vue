@@ -21,6 +21,7 @@ const {
   filteredSources,
   openSource,
   statusClass,
+  triggerKnowledgeSync,
   loadDataSources,
   openCreateDialog,
   openEditDialog,
@@ -53,6 +54,10 @@ const {
         </label>
 
         <div class="toolbar-actions">
+          <button type="button" class="toolbar-secondary-btn" @click="triggerKnowledgeSync">
+            <DataBoard :size="16" />
+            知识库同步
+          </button>
           <button type="button" class="toolbar-secondary-btn" @click="loadDataSources">
             <RefreshRight :size="16" />
             刷新

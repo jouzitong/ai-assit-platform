@@ -6,7 +6,9 @@ import { useDataSourceManagePage } from '../../service/data-source/manage'
 
 const {
   currentSource,
+  currentSourceList,
   pagedTables,
+  currentTables,
   fieldWorkbenchVisible,
   pageSizeOptions,
   pagination,
@@ -33,6 +35,7 @@ const {
   handlePageChange,
   handlePageSizeChange,
   openFieldWorkbench,
+  selectTable,
   formatEmpty,
   goBack,
   statusClass,
@@ -172,6 +175,27 @@ function onFileDrop(event) {
     </section>
 
     <section v-else class="field-workbench">
+      <aside class="table-picker compact">
+        <div class="picker-head">
+          <p class="eyebrow">表切换</p>
+          <h3>表名称</h3>
+        </div>
+
+        <div class="table-list">
+          <button
+            v-for="item in currentTables"
+            :key="item.name"
+            type="button"
+            class="table-item"
+            :class="{ 'is-active': item.name === selectedTableName }"
+            @click="selectTable(item)"
+          >
+            <strong>{{ item.name }}</strong>
+            <span>{{ item.columns }} 字段 · {{ item.statusLabel }}</span>
+          </button>
+        </div>
+      </aside>
+
       <section class="field-panel">
         <div class="field-panel-head">
           <div class="picker-head">
