@@ -33,6 +33,21 @@ import java.util.Objects;
 /**
  * SQL 生成节点，负责基于规划和知识上下文生成候选 SQL。
  *
+ * <p>功能：</p>
+ * <ul>
+ *     <li>消费用户问题、查询规划、知识上下文和必要历史消息。</li>
+ *     <li>调用模型生成候选 SQL 草案。</li>
+ *     <li>对模型输出做最小清洗，并将候选 SQL 写入 {@link WorkflowContext}。</li>
+ *     <li>记录 SQL 草案 artifact，供后续校验节点继续处理。</li>
+ * </ul>
+ *
+ * <p>边界描述：</p>
+ * <ul>
+ *     <li>只负责生成候选 SQL，不判定最终安全性与可执行性。</li>
+ *     <li>不负责知识检索，不负责真实执行，不负责最终答案渲染。</li>
+ *     <li>即使携带假设说明，也只输出 SQL 文本，不扩展成解释性回答。</li>
+ * </ul>
+ *
  * @author zhouzhitong
  * @since 2026/6/9
  */

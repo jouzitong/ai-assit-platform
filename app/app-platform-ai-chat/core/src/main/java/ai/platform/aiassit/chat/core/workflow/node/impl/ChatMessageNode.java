@@ -32,6 +32,23 @@ import java.util.Locale;
 import java.util.UUID;
 
 /**
+ * 会话消息准备节点。
+ *
+ * <p>功能：</p>
+ * <ul>
+ *     <li>校验本轮输入是否具备基础会话条件。</li>
+ *     <li>按 sessionCode 加载已有会话，或创建新会话。</li>
+ *     <li>加载当前会话历史消息与历史产物。</li>
+ *     <li>创建当前轮次 round，并落库当前用户消息。</li>
+ *     <li>将 session、round、history、currentUserMessage 写入 {@link WorkflowContext}。</li>
+ * </ul>
+ *
+ * <p>边界描述：</p>
+ * <ul>
+ *     <li>只负责初始化会话与消息上下文，不做意图分析。</li>
+ *     <li>不调用模型，不检索知识库，不生成或校验 SQL。</li>
+ *     <li>不负责最终答案渲染，仅为后续节点提供完整上下文。</li>
+ * </ul>
  *
  * @author zhouzhitong
  * @since 2026/6/8

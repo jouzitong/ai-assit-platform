@@ -51,6 +51,27 @@ import java.util.UUID;
  * @author zhouzhitong
  * @since 2026/6/8
  */
+/**
+ * 查询规划节点。
+ *
+ * <p>功能：</p>
+ * <ul>
+ *     <li>基于当前用户问题、历史消息和技能分析结果，提炼查询意图。</li>
+ *     <li>调用模型生成结构化规划结果，并做解析、校验、必要重试。</li>
+ *     <li>沉淀用户目标、分析摘要、所需上下文、SQL 关注点、风险等规划产物。</li>
+ *     <li>在首轮会话时刷新会话标题，并记录规划类 artifact。</li>
+ * </ul>
+ *
+ * <p>边界描述：</p>
+ * <ul>
+ *     <li>只回答“要查什么、为什么这样查、后续需要什么上下文”。</li>
+ *     <li>不直接执行知识检索，不生成 SQL，不执行 SQL。</li>
+ *     <li>不组织最终用户回复，规划结果统一通过 {@link WorkflowContext} 传递。</li>
+ * </ul>
+ *
+ * @author zhouzhitong
+ * @since 2026/6/9
+ */
 @Service
 @Slf4j
 public class QueryPlanningNode extends BaseWorkflowNode {

@@ -30,6 +30,21 @@ import java.util.Objects;
 /**
  * 知识检索节点，负责补充 SQL 生成所需的口径与背景信息。
  *
+ * <p>功能：</p>
+ * <ul>
+ *     <li>从 command 或 tool 配置中解析知识库标识。</li>
+ *     <li>基于用户问题或规划摘要发起知识库检索。</li>
+ *     <li>补充当前可用模型概览，统一组织为知识上下文结果。</li>
+ *     <li>将知识检索结果写入 {@link WorkflowContext}，供 SQL 生成阶段消费。</li>
+ * </ul>
+ *
+ * <p>边界描述：</p>
+ * <ul>
+ *     <li>只负责补充背景、口径、规则类上下文，不改写查询规划。</li>
+ *     <li>不承担 SQL 生成、SQL 校验、SQL 执行职责。</li>
+ *     <li>检索异常允许降级，但不能伪造知识命中或执行结果。</li>
+ * </ul>
+ *
  * @author zhouzhitong
  * @since 2026/6/9
  */
