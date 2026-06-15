@@ -17,6 +17,10 @@ import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.config.WorkflowProperties;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningResult;
+import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkillExecutor;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
@@ -89,6 +93,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private final WorkflowHistoryRecorder historyRecorder;
     private final ObjectMapper objectMapper;
     private final WorkflowProperties workflowProperties;
+    private final QueryPlanningSkillExecutor queryPlanningSkillExecutor;
 
     public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
                              AiMetaQueryApi aiMetaQueryApi,
@@ -96,7 +101,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                              AiChatSessionService sessionService,
                              WorkflowHistoryRecorder historyRecorder,
                              ObjectMapper objectMapper,
-                             WorkflowProperties workflowProperties) {
+                             WorkflowProperties workflowProperties,
+                             QueryPlanningSkillExecutor queryPlanningSkillExecutor) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.roundService = roundService;
@@ -104,6 +110,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         this.historyRecorder = historyRecorder;
         this.objectMapper = objectMapper;
         this.workflowProperties = workflowProperties;
+        this.queryPlanningSkillExecutor = queryPlanningSkillExecutor;
     }
 
     @Override
@@ -145,6 +152,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     historyMessages.size(),
                     historyMessages.isEmpty());
 
+            IntentAnalysisBundle intentAnalysisBundle = queryPlanningSkillExecutor.analyze(context);
+            context.put("intentAnalysisBundle", intentAnalysisBundle);
+            context.put("queryPlanningEvidences", intentAnalysisBundle.getEvidences());
+            context.publishEvent("intent-analysis-ready", "intent analysis bundle prepared");
+
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
             log.info("query planning request built, sessionCode={}, provider={}, model={}, messageCount={}",
                     context.getSession().getSessionCode(),
@@ -153,13 +165,13 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     CollectionUtils.isEmpty(planningRequest.getMessages()) ? 0 : planningRequest.getMessages().size());
 
             IR<ChatResponse> r = aiChatExecutionApi.chat(planningRequest);
-            if (!r.isOk()) {
+            if (r == null || r.getCode() != 0) {
                 log.error("query planning api call failed, sessionCode={}, roundCode={}, response={}",
                         context.getSession().getSessionCode(),
                         context.getRound().getRoundCode(),
                         r);
             }
-            ChatResponse planningResponse = r.getData();
+            ChatResponse planningResponse = r == null ? null : r.getData();
             log.info("query planning api call finished, sessionCode={}, roundCode={}, requestId={}, hasOutput={}",
                     context.getSession().getSessionCode(),
                     context.getRound().getRoundCode(),
@@ -185,6 +197,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             context.setAnalysisResult(analysisResult);
             context.put("queryPlan", analysisResult);
             context.put("queryPlanResult", planningResult);
+            context.put("queryPlanningSummary", buildIntentAnalysisSummary(intentAnalysisBundle));
             context.put("planningRequestId", planningResponse == null ? null : planningResponse.getRequestId());
             context.publishEvent("query-plan-ready", "query plan prepared");
             historyRecorder.saveArtifact(
@@ -283,6 +296,10 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         builder.append("是否新会话首轮：")
                 .append(context.getCurrentUserMessage() != null && Integer.valueOf(1).equals(context.getCurrentUserMessage().getSortNo()))
                 .append('\n');
+        IntentAnalysisBundle intentAnalysisBundle = context.get("intentAnalysisBundle");
+        if (intentAnalysisBundle != null) {
+            appendIntentAnalysisContext(builder, intentAnalysisBundle);
+        }
         List<String> resolvedTerms = context.get("resolvedBusinessTerms");
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("业务术语补充：").append(resolvedTerms).append('\n');
@@ -292,6 +309,45 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             builder.append("时间范围补充：").append(normalizedTimeRange).append('\n');
         }
         return builder.toString().trim();
+    }
+
+    private void appendIntentAnalysisContext(StringBuilder builder, IntentAnalysisBundle bundle) {
+        if (StringUtils.hasText(bundle.getIntentType())) {
+            builder.append("识别意图类型：").append(bundle.getIntentType()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getIntentLabels())) {
+            builder.append("意图标签：").append(bundle.getIntentLabels()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getTerms())) {
+            builder.append("关键词命中：").append(bundle.getTerms()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getMetrics())) {
+            builder.append("指标候选：").append(bundle.getMetrics()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getDimensions())) {
+            builder.append("维度候选：").append(bundle.getDimensions()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getCandidateDatasets())) {
+            builder.append("数据集候选：").append(bundle.getCandidateDatasets()).append('\n');
+        }
+        if (bundle.getTimeRange() != null && !bundle.getTimeRange().isEmpty()) {
+            builder.append("时间范围候选：").append(bundle.getTimeRange()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getRequiredContext())) {
+            builder.append("预判所需上下文：").append(bundle.getRequiredContext()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getRisks())) {
+            builder.append("预判风险：").append(bundle.getRisks()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getClarificationQuestions())) {
+            builder.append("建议澄清问题：").append(bundle.getClarificationQuestions()).append('\n');
+        }
+        if (bundle.getConfidence() != null) {
+            builder.append("意图分析置信度：").append(bundle.getConfidence()).append('\n');
+        }
+        if (!CollectionUtils.isEmpty(bundle.getEvidences())) {
+            builder.append("技能证据摘要：").append(buildEvidenceSummary(bundle.getEvidences())).append('\n');
+        }
     }
 
     private PlanningResult parsePlanningResult(String rawText, boolean requireSessionTitle) {
@@ -440,6 +496,69 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         return joiner.toString();
     }
 
+    private String buildIntentAnalysisSummary(IntentAnalysisBundle bundle) {
+        if (bundle == null) {
+            return "";
+        }
+        StringJoiner joiner = new StringJoiner("\n");
+        if (StringUtils.hasText(bundle.getIntentType())) {
+            joiner.add("意图类型：" + bundle.getIntentType());
+        }
+        if (!CollectionUtils.isEmpty(bundle.getIntentLabels())) {
+            joiner.add("意图标签：" + String.join("；", bundle.getIntentLabels()));
+        }
+        if (!CollectionUtils.isEmpty(bundle.getTerms())) {
+            joiner.add("关键词证据：" + String.join("；", bundle.getTerms()));
+        }
+        if (!CollectionUtils.isEmpty(bundle.getMetrics())) {
+            joiner.add("指标候选：" + String.join("；", bundle.getMetrics()));
+        }
+        if (!CollectionUtils.isEmpty(bundle.getDimensions())) {
+            joiner.add("维度候选：" + String.join("；", bundle.getDimensions()));
+        }
+        if (!CollectionUtils.isEmpty(bundle.getCandidateDatasets())) {
+            joiner.add("数据集候选：" + String.join("；", bundle.getCandidateDatasets()));
+        }
+        if (bundle.getTimeRange() != null && !bundle.getTimeRange().isEmpty()) {
+            joiner.add("时间范围候选：" + bundle.getTimeRange());
+        }
+        if (!CollectionUtils.isEmpty(bundle.getRequiredContext())) {
+            joiner.add("所需上下文：" + String.join("；", bundle.getRequiredContext()));
+        }
+        if (!CollectionUtils.isEmpty(bundle.getRisks())) {
+            joiner.add("预判风险：" + String.join("；", bundle.getRisks()));
+        }
+        if (!CollectionUtils.isEmpty(bundle.getClarificationQuestions())) {
+            joiner.add("建议澄清：" + String.join("；", bundle.getClarificationQuestions()));
+        }
+        if (bundle.getConfidence() != null) {
+            joiner.add("置信度：" + bundle.getConfidence());
+        }
+        return joiner.toString();
+    }
+
+    private String buildEvidenceSummary(List<IntentEvidence> evidences) {
+        List<String> summaries = new ArrayList<>();
+        for (IntentEvidence evidence : evidences) {
+            if (evidence == null || !StringUtils.hasText(evidence.getSource())) {
+                continue;
+            }
+            StringJoiner joiner = new StringJoiner(", ");
+            joiner.add("source=" + evidence.getSource());
+            if (StringUtils.hasText(evidence.getIntentType())) {
+                joiner.add("intentType=" + evidence.getIntentType());
+            }
+            if (evidence.getScore() != null) {
+                joiner.add("score=" + evidence.getScore());
+            }
+            if (StringUtils.hasText(evidence.getSummary())) {
+                joiner.add("summary=" + evidence.getSummary());
+            }
+            summaries.add("{" + joiner + "}");
+        }
+        return summaries.toString();
+    }
+
     private void refreshSessionName(WorkflowContext context, PlanningResult result) {
         if (context.getSession() == null || context.getSession().getId() == null || !StringUtils.hasText(result.getSessionTitle())) {
             log.debug("skip refresh session name, sessionExists={}, sessionId={}, sessionTitle={}",
@@ -581,78 +700,4 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    public static class PlanningResult {
-        private String sessionTitle;
-        private String userGoal;
-        private String analysisSummary;
-        private List<String> analysisDimensions = new ArrayList<>();
-        private List<String> requiredContext = new ArrayList<>();
-        private List<String> sqlFocus = new ArrayList<>();
-        private List<String> risks = new ArrayList<>();
-        private Boolean needClarification;
-
-        public String getSessionTitle() {
-            return sessionTitle;
-        }
-
-        public void setSessionTitle(String sessionTitle) {
-            this.sessionTitle = sessionTitle;
-        }
-
-        public String getUserGoal() {
-            return userGoal;
-        }
-
-        public void setUserGoal(String userGoal) {
-            this.userGoal = userGoal;
-        }
-
-        public String getAnalysisSummary() {
-            return analysisSummary;
-        }
-
-        public void setAnalysisSummary(String analysisSummary) {
-            this.analysisSummary = analysisSummary;
-        }
-
-        public List<String> getAnalysisDimensions() {
-            return analysisDimensions;
-        }
-
-        public void setAnalysisDimensions(List<String> analysisDimensions) {
-            this.analysisDimensions = analysisDimensions;
-        }
-
-        public List<String> getRequiredContext() {
-            return requiredContext;
-        }
-
-        public void setRequiredContext(List<String> requiredContext) {
-            this.requiredContext = requiredContext;
-        }
-
-        public List<String> getSqlFocus() {
-            return sqlFocus;
-        }
-
-        public void setSqlFocus(List<String> sqlFocus) {
-            this.sqlFocus = sqlFocus;
-        }
-
-        public List<String> getRisks() {
-            return risks;
-        }
-
-        public void setRisks(List<String> risks) {
-            this.risks = risks;
-        }
-
-        public Boolean getNeedClarification() {
-            return needClarification;
-        }
-
-        public void setNeedClarification(Boolean needClarification) {
-            this.needClarification = needClarification;
-        }
-    }
 }
