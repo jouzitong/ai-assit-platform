@@ -27,7 +27,10 @@ const {
   importDragActive,
   importFile,
   importError,
+  importFormat,
   importSubmitting,
+  exportDialogVisible,
+  exportFormat,
   exportSubmitting,
   templateSubmitting,
   notice,
@@ -42,12 +45,15 @@ const {
   refreshPage,
   openImportDialog,
   closeImportDialog,
+  openExportDialog,
+  closeExportDialog,
   handleImportDragEnter,
   handleImportDragLeave,
   handleImportFile,
   submitImport,
   exportWorkbook,
-  downloadTemplateWorkbook
+  downloadTemplateWorkbook,
+  importFormatLabel
 } = useDataSourceManagePage()
 
 const fileInputRef = ref(null)
@@ -100,7 +106,7 @@ function onFileDrop(event) {
           <Upload :size="16" />
           导入
         </button>
-        <button type="button" class="toolbar-btn secondary" :disabled="exportSubmitting" @click="exportWorkbook">
+        <button type="button" class="toolbar-btn secondary" :disabled="exportSubmitting" @click="openExportDialog">
           <Download :size="16" />
           {{ exportSubmitting ? '导出中...' : '导出' }}
         </button>
@@ -126,7 +132,7 @@ function onFileDrop(event) {
               <th>数据量</th>
               <th>分区键</th>
               <th>新鲜度</th>
-              <th>状态</th>
+              <th>字段角色</th>
               <th>操作</th>
             </tr>
           </thead>
@@ -241,12 +247,32 @@ function onFileDrop(event) {
         <header class="modal-head">
           <div>
             <h3>导入表结构元数据</h3>
-            <p>请上传包含 `表说明`、`字段说明`、`索引说明` 三个 sheet 的 Excel 文件。</p>
+            <p>
+              支持 JSON 和 Excel 导入。JSON 适合结构化回传，Excel 适合按 `表说明`、`字段说明`、`索引说明` 三个 sheet 维护。
+            </p>
           </div>
           <button class="close-btn" type="button" @click="closeImportDialog">×</button>
         </header>
 
         <p v-if="importError" class="error-banner">{{ importError }}</p>
+
+        <div class="export-format-list">
+          <label class="export-format-option" :class="{ 'is-active': importFormat === 'json' }">
+            <input v-model="importFormat" type="radio" name="import-format" value="json" />
+            <div>
+              <strong>JSON 导入</strong>
+              <span>上传 `.json` 文件，适合导出回传、版本管理和批量同步。</span>
+            </div>
+          </label>
+
+          <label class="export-format-option" :class="{ 'is-active': importFormat === 'excel' }">
+            <input v-model="importFormat" type="radio" name="import-format" value="excel" />
+            <div>
+              <strong>Excel 导入</strong>
+              <span>上传 `.xlsx` 文件，按三张 sheet 做新增或更新。</span>
+            </div>
+          </label>
+        </div>
 
         <button
           type="button"
@@ -259,19 +285,57 @@ function onFileDrop(event) {
           @drop.prevent="onFileDrop"
         >
           <Upload :size="22" />
-          <strong>{{ importFile ? importFile.name : '点击选择 Excel 文件，或直接拖拽到这里' }}</strong>
-          <span>支持 `.xlsx`，导入时会按自然键对表、字段、索引做新增或更新。</span>
+          <strong>{{ importFile ? importFile.name : `点击选择${importFormatLabel()}文件，或直接拖拽到这里` }}</strong>
+          <span v-if="importFormat === 'json'">支持 `.json`，结构与导出 JSON 一致，导入时会按自然键对表、字段、索引做新增或更新。</span>
+          <span v-else>支持 `.xlsx`，需包含 `表说明`、`字段说明`、`索引说明` 三个 sheet，导入时会按自然键对表、字段、索引做新增或更新。</span>
         </button>
 
-        <input ref="fileInputRef" class="hidden-file-input" type="file" accept=".xlsx" @change="onFileInputChange" />
+        <input ref="fileInputRef" class="hidden-file-input" type="file" :accept="importFormat === 'json' ? '.json' : '.xlsx'" @change="onFileInputChange" />
 
         <footer class="modal-actions">
           <button class="action-btn secondary-btn" type="button" :disabled="templateSubmitting" @click="downloadTemplateWorkbook">
-            {{ templateSubmitting ? '下载中...' : '下载模板' }}
+            {{ templateSubmitting ? '下载中...' : `下载${importFormatLabel()}模板` }}
           </button>
           <button class="action-btn" type="button" @click="closeImportDialog">取消</button>
           <button class="action-btn primary" type="button" :disabled="importSubmitting" @click="submitImport">
             {{ importSubmitting ? '导入中...' : '开始导入' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="exportDialogVisible" class="modal-mask" @click.self="closeExportDialog">
+      <div class="modal-card export-modal">
+        <header class="modal-head">
+          <div>
+            <h3>导出元数据</h3>
+            <p>选择导出格式。默认使用 JSON，便于再次导入或版本管理。</p>
+          </div>
+          <button class="close-btn" type="button" @click="closeExportDialog">×</button>
+        </header>
+
+        <div class="export-format-list">
+          <label class="export-format-option" :class="{ 'is-active': exportFormat === 'json' }">
+            <input v-model="exportFormat" type="radio" name="export-format" value="json" />
+            <div>
+              <strong>JSON</strong>
+              <span>结构化导出，适合回传、对比和二次导入。</span>
+            </div>
+          </label>
+
+          <label class="export-format-option" :class="{ 'is-active': exportFormat === 'excel' }">
+            <input v-model="exportFormat" type="radio" name="export-format" value="excel" />
+            <div>
+              <strong>Excel</strong>
+              <span>保留现有工作簿格式，适合人工查看和线下编辑。</span>
+            </div>
+          </label>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="action-btn" type="button" @click="closeExportDialog">取消</button>
+          <button class="action-btn primary" type="button" :disabled="exportSubmitting" @click="exportWorkbook">
+            {{ exportSubmitting ? '导出中...' : '开始导出' }}
           </button>
         </footer>
       </div>

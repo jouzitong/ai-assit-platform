@@ -16,16 +16,8 @@ Accept: application/json
   "model": "qwen-math-turbo",
   "messages": [
     {
-      "role": "SYSTEM",
-      "content": "You are a concise assistant."
-    },
-    {
       "role": "USER",
-      "content": "请用一句话介绍你自己"
-    },
-    {
-      "role": "USER",
-      "content": "我想查询张三的个人信息"
+      "content": "张三的岗位是什么？"
     }
   ],
   "options": {
@@ -37,6 +29,9 @@ Accept: application/json
   "meta": {
     "traceId": "local-http-chat-001",
     "scene": "manual-http-test"
+  },
+  "ext": {
+    "kbId": "w05enpcxa4"
   }
 }
 

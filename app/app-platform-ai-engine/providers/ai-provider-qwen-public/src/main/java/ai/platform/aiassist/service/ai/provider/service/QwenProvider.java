@@ -9,13 +9,13 @@ import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.OutputItem;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
-import ai.platform.aiassist.service.ai.api.dto.Usage;
 import ai.platform.aiassist.service.ai.api.enums.FinishReason;
 import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.OutputType;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
+import ai.platform.aiassist.service.ai.provider.client.QwenKnowledgeBaseClient;
 import ai.platform.aiassist.service.ai.provider.config.QwenProperties;
 import ai.platform.aiassist.service.ai.spi.AiProvider;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderChatRequest;
@@ -24,7 +24,6 @@ import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbDeleteRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbSearchRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbUpsertRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderRerankRequest;
-import io.micrometer.observation.ObservationRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
@@ -33,13 +32,11 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.chat.model.Generation;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.embedding.EmbeddingRequest;
-import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
-import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
-import org.springframework.ai.openai.api.OpenAiApi;
-import org.springframework.ai.retry.RetryUtils;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.ai.openai.OpenAiEmbeddingModel;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -50,38 +47,24 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 
-/**
- * 千问提供方实现（基于 Spring AI OpenAI 兼容接口）。
- */
-@Component
-//@ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")
 @Slf4j
-@EnableConfigurationProperties(QwenProperties.class)
+@Component
+@ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")
 public class QwenProvider implements AiProvider {
 
     private final QwenProperties properties;
     private final OpenAiChatModel chatModel;
     private final OpenAiEmbeddingModel embeddingModel;
+    private final QwenKnowledgeBaseClient knowledgeBaseClient;
 
-    public QwenProvider(QwenProperties properties) {
+    public QwenProvider(QwenProperties properties,
+                        OpenAiChatModel qwenChatModel,
+                        OpenAiEmbeddingModel qwenEmbeddingModel,
+                        QwenKnowledgeBaseClient knowledgeBaseClient) {
         this.properties = properties;
-        OpenAiApi openAiApi = OpenAiApi.builder()
-                .baseUrl(properties.getBaseUrl())
-                .apiKey(requireApiKey(properties))
-                .build();
-        this.chatModel = OpenAiChatModel.builder()
-                .openAiApi(openAiApi)
-                .defaultOptions(OpenAiChatOptions.builder().model(properties.getDefaultModel()).build())
-                .retryTemplate(RetryUtils.DEFAULT_RETRY_TEMPLATE)
-                .observationRegistry(ObservationRegistry.NOOP)
-                .build();
-        this.embeddingModel = new OpenAiEmbeddingModel(
-                openAiApi,
-                org.springframework.ai.document.MetadataMode.NONE,
-                OpenAiEmbeddingOptions.builder().model("text-embedding-v3").build(),
-                RetryUtils.DEFAULT_RETRY_TEMPLATE,
-                ObservationRegistry.NOOP
-        );
+        this.chatModel = qwenChatModel;
+        this.embeddingModel = qwenEmbeddingModel;
+        this.knowledgeBaseClient = knowledgeBaseClient;
     }
 
     @Override
@@ -128,17 +111,63 @@ public class QwenProvider implements AiProvider {
 
     @Override
     public KbUpsertResponse kbUpsert(ProviderKbUpsertRequest request) {
-        throw unsupported("kbUpsert");
+        List<ai.platform.aiassist.service.ai.api.dto.KbDocument> documents = safeList(request.getDocuments());
+        if (documents.isEmpty()) {
+            throw new IllegalArgumentException("kbUpsert documents must not be empty");
+        }
+        try {
+            String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
+            QwenKnowledgeBaseClient.UpsertResult result =
+                    knowledgeBaseClient.upsert(workspaceId, request.getKbId(), documents, request.getMeta());
+            KbUpsertResponse response = new KbUpsertResponse();
+            response.setKbId(result.kbId());
+            response.setAccepted(result.accepted());
+            response.setFailed(result.failedDocumentIds().size());
+            response.setFailedDocumentIds(result.failedDocumentIds());
+            return response;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Qwen knowledge base upsert failed", ex);
+        }
     }
 
     @Override
     public KbDeleteResponse kbDelete(ProviderKbDeleteRequest request) {
-        throw unsupported("kbDelete");
+        if (!StringUtils.hasText(request.getKbId())) {
+            throw new IllegalArgumentException("kbDelete kbId must not be empty");
+        }
+        List<String> documentIds = safeList(request.getDocumentIds());
+        if (documentIds.isEmpty()) {
+            throw new IllegalArgumentException("kbDelete documentIds must not be empty");
+        }
+        try {
+            String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
+            int deleted = knowledgeBaseClient.delete(workspaceId, request.getKbId(), documentIds);
+            KbDeleteResponse response = new KbDeleteResponse();
+            response.setKbId(request.getKbId());
+            response.setDeleted(deleted);
+            return response;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Qwen knowledge base delete failed", ex);
+        }
     }
 
     @Override
     public KbSearchResponse kbSearch(ProviderKbSearchRequest request) {
-        throw unsupported("kbSearch");
+        if (!StringUtils.hasText(request.getKbId())) {
+            throw new IllegalArgumentException("kbSearch kbId must not be empty");
+        }
+        if (!StringUtils.hasText(request.getQuery())) {
+            throw new IllegalArgumentException("kbSearch query must not be empty");
+        }
+        try {
+            String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
+            KbSearchResponse response = new KbSearchResponse();
+            response.setKbId(request.getKbId());
+            response.setItems(knowledgeBaseClient.search(workspaceId, request.getKbId(), request.getQuery(), request.getTopK()));
+            return response;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Qwen knowledge base search failed", ex);
+        }
     }
 
     private List<Message> toSpringMessages(List<ChatMessage> messages) {
@@ -232,8 +261,8 @@ public class QwenProvider implements AiProvider {
         observer.onChunk(chunk);
     }
 
-    private Usage toUsage(org.springframework.ai.chat.metadata.Usage usage) {
-        Usage out = new Usage();
+    private ai.platform.aiassist.service.ai.api.dto.Usage toUsage(org.springframework.ai.chat.metadata.Usage usage) {
+        ai.platform.aiassist.service.ai.api.dto.Usage out = new ai.platform.aiassist.service.ai.api.dto.Usage();
         if (usage == null) {
             return out;
         }
@@ -257,13 +286,6 @@ public class QwenProvider implements AiProvider {
         } catch (IllegalArgumentException ex) {
             return FinishReason.STOP;
         }
-    }
-
-    private String requireApiKey(QwenProperties config) {
-        if (!StringUtils.hasText(config.getApiKey())) {
-            throw new IllegalStateException("ai.provider.qwen.api-key must not be empty");
-        }
-        return config.getApiKey();
     }
 
     private String resolveModel(String requested, String fallback) {

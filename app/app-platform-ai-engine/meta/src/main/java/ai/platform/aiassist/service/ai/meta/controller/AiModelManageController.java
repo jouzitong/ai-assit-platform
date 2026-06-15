@@ -30,7 +30,7 @@ public class AiModelManageController {
     }
 
     @GetMapping("/{id}")
-    public AiModelManageDTO get(@PathVariable Long id) {
+    public AiModelManageDTO get(@PathVariable("id") Long id) {
         return domainService.get(id);
     }
 
@@ -40,17 +40,17 @@ public class AiModelManageController {
     }
 
     @PutMapping("/{id}")
-    public AiModelManageDTO update(@PathVariable Long id, @RequestBody AiModelManageDTO dto) {
+    public AiModelManageDTO update(@PathVariable("id") Long id, @RequestBody AiModelManageDTO dto) {
         return domainService.update(id, dto);
     }
 
     @PatchMapping("/{id}")
-    public AiModelManageDTO edit(@PathVariable Long id, @RequestBody AiModelManageDTO dto) {
+    public AiModelManageDTO edit(@PathVariable("id") Long id, @RequestBody AiModelManageDTO dto) {
         return domainService.edit(id, dto);
     }
 
     @DeleteMapping("/{id}")
-    public Boolean delete(@PathVariable Long id) {
+    public Boolean delete(@PathVariable("id") Long id) {
         return domainService.delete(id);
     }
 }

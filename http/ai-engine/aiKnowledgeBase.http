@@ -1,0 +1,100 @@
+### AI Knowledge Base - base vars
+# 说明:
+# 1. 路径按 `AiKnowledgeBaseExecutionApi` 的 Feign 定义组织，默认带 `/aiEngine` 前缀。
+# 2. `workspaceId` / `kbId` 可直接在 `meta.ext` 中覆盖，便于本地切换百炼业务空间或指定知识库。
+# 3. 首次导入知识库时可将 `kbId` 留空；导入成功后，把响应里的 `kbId` 回填到下面变量继续测删除/检索。
+
+@apiPrefix = /aiEngine
+@contentType = application/json;charset=UTF-8
+@acceptJson = application/json
+
+@workspaceId = ws-zi3sfdp4xf4wsb6v
+@kbId = w05enpcxa4
+@traceId = local-http-kb-001
+@scene = manual-http-test
+@docId1 = file_0661cff9804e40dbb2808dc41524957c_16686760
+@docId2 = file_f2352fe41c7f44b89e1f65be7412c1db_16686760
+@topK = 5
+
+### 1) Upsert documents
+POST {{host}}{{apiPrefix}}/api/v1/ai/execution/kb/upsert
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbId": "{{kbId}}",
+  "documents": [
+    {
+      "documentId": "{{docId1}}",
+      "content": "张三，男，28岁，来自上海，当前职位是高级数据分析师，擅长 Java、SQL 和 Python。",
+      "source": "manual-http-test/profile-001.txt",
+      "metadata": {
+        "categoryId": "default",
+        "parser": "DASHSCOPE_DOCMIND",
+        "bizType": "employee-profile",
+        "owner": "codex"
+      }
+    },
+    {
+      "documentId": "{{docId2}}",
+      "content": "李四，女，31岁，来自杭州，当前职位是后端开发工程师，主要负责 Java 与 Spring Boot 服务。",
+      "source": "manual-http-test/profile-002.txt",
+      "metadata": {
+        "categoryId": "default",
+        "parser": "DASHSCOPE_DOCMIND",
+        "bizType": "employee-profile",
+        "owner": "codex"
+      }
+    }
+  ],
+  "meta": {
+    "traceId": "{{traceId}}",
+    "scene": "{{scene}}",
+    "ext": {
+      "workspaceId": "{{workspaceId}}",
+      "kbName": "codex-http-kb-demo",
+      "structureType": "unstructured",
+      "sourceType": "DATA_CENTER_FILE",
+      "sinkType": "BUILT_IN"
+    }
+  }
+}
+
+### 2) Search knowledge base
+POST {{host}}{{apiPrefix}}/api/v1/ai/execution/kb/search
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+
+{
+  "kbId": "{{kbId}}",
+  "query": "谁擅长 boot 框架？",
+  "topK": {{topK}},
+  "meta": {
+    "traceId": "{{traceId}}-search",
+    "scene": "{{scene}}",
+    "ext": {
+      "workspaceId": "{{workspaceId}}"
+    }
+  }
+}
+
+### 3) Delete documents
+POST {{host}}{{apiPrefix}}/api/v1/ai/execution/kb/delete
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+
+{
+  "kbId": "{{kbId}}",
+  "documentIds": [
+    "{{docId1}}",
+    "{{docId2}}"
+  ],
+  "meta": {
+    "traceId": "{{traceId}}-delete",
+    "scene": "{{scene}}",
+    "ext": {
+      "workspaceId": "{{workspaceId}}"
+    }
+  }
+}

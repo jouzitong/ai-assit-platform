@@ -46,18 +46,18 @@ public class DbMetaImportExecutor {
     public DbMetaImportResultDTO importData(String requestSourceKey, MultipartFile file, String format, DbMetaImportData importData) throws java.io.IOException {
         String originalFilename = file == null ? null : file.getOriginalFilename();
         long fileSize = file == null ? 0L : file.getSize();
-        log.info("开始导入数据库元数据, format={}, sourceKey={}, fileName={}, fileSize={}", format, requestSourceKey, originalFilename, fileSize);
+        String sourceKey = resolveSourceKey(requestSourceKey);
+        log.info("开始导入数据库元数据, format={}, sourceKey={}, fileName={}, fileSize={}", format, sourceKey, originalFilename, fileSize);
         try {
             int tableCreatedCount = 0;
             int tableUpdatedCount = 0;
             for (DbMetaImportData.TableRow row : importData.getTables()) {
-                row.setSourceKey(resolveSourceKey(requestSourceKey, row.getSourceKey()));
-                DbTableMetaDTO existing = findExistingTable(row.getSourceKey(), row.getTableName());
+                DbTableMetaDTO existing = findExistingTable(sourceKey, row.getTableName());
                 if (existing == null) {
-                    tableMetaService.add(toTableDto(row, null));
+                    tableMetaService.add(toTableDto(sourceKey, row, null));
                     tableCreatedCount++;
                 } else {
-                    updateExistingTable(existing.getId(), row);
+                    updateExistingTable(sourceKey, existing.getId(), row);
                     tableUpdatedCount++;
                 }
             }
@@ -65,13 +65,12 @@ public class DbMetaImportExecutor {
             int fieldCreatedCount = 0;
             int fieldUpdatedCount = 0;
             for (DbMetaImportData.FieldRow row : importData.getFields()) {
-                row.setSourceKey(resolveSourceKey(requestSourceKey, row.getSourceKey()));
-                DbTableFieldMetaDTO existing = findExistingField(row.getSourceKey(), row.getTableName(), row.getColumnName());
+                DbTableFieldMetaDTO existing = findExistingField(sourceKey, row.getTableName(), row.getColumnName());
                 if (existing == null) {
-                    fieldMetaService.add(toFieldDto(row, null));
+                    fieldMetaService.add(toFieldDto(sourceKey, row, null));
                     fieldCreatedCount++;
                 } else {
-                    updateExistingField(existing.getId(), row);
+                    updateExistingField(sourceKey, existing.getId(), row);
                     fieldUpdatedCount++;
                 }
             }
@@ -79,18 +78,17 @@ public class DbMetaImportExecutor {
             int indexCreatedCount = 0;
             int indexUpdatedCount = 0;
             for (DbMetaImportData.IndexRow row : importData.getIndexes()) {
-                row.setSourceKey(resolveSourceKey(requestSourceKey, row.getSourceKey()));
                 DbTableIndexMetaDTO existing = findExistingIndex(
-                        row.getSourceKey(),
+                        sourceKey,
                         row.getTableName(),
                         row.getIndexName(),
                         row.getColumnName()
                 );
                 if (existing == null) {
-                    indexMetaService.add(toIndexDto(row, null));
+                    indexMetaService.add(toIndexDto(sourceKey, row, null));
                     indexCreatedCount++;
                 } else {
-                    updateExistingIndex(existing.getId(), row);
+                    updateExistingIndex(sourceKey, existing.getId(), row);
                     indexUpdatedCount++;
                 }
             }
@@ -98,7 +96,7 @@ public class DbMetaImportExecutor {
             log.info(
                     "数据库元数据导入完成, format={}, sourceKey={}, tableCreatedCount={}, tableUpdatedCount={}, fieldCreatedCount={}, fieldUpdatedCount={}, indexCreatedCount={}, indexUpdatedCount={}",
                     format,
-                    requestSourceKey,
+                    sourceKey,
                     tableCreatedCount,
                     tableUpdatedCount,
                     fieldCreatedCount,
@@ -115,7 +113,7 @@ public class DbMetaImportExecutor {
                     .indexUpdatedCount(indexUpdatedCount)
                     .build();
         } catch (Exception ex) {
-            log.error("数据库元数据导入失败, format={}, sourceKey={}, fileName={}", format, requestSourceKey, originalFilename, ex);
+            log.error("数据库元数据导入失败, format={}, sourceKey={}, fileName={}", format, sourceKey, originalFilename, ex);
             throw wrapImportException(ex);
         }
     }
@@ -151,9 +149,9 @@ public class DbMetaImportExecutor {
                 .orElse(null);
     }
 
-    private DbTableMetaDTO toTableDto(DbMetaImportData.TableRow row, DbTableMetaDTO existing) {
+    private DbTableMetaDTO toTableDto(String sourceKey, DbMetaImportData.TableRow row, DbTableMetaDTO existing) {
         DbTableMetaDTO dto = existing == null ? new DbTableMetaDTO() : existing;
-        dto.setSourceKey(row.getSourceKey());
+        dto.setSourceKey(sourceKey);
         dto.setTableName(row.getTableName());
         dto.setTableComment(row.getTableComment());
         dto.setTableType(row.getTableType());
@@ -170,10 +168,10 @@ public class DbMetaImportExecutor {
         return dto;
     }
 
-    private void updateExistingTable(Long id, DbMetaImportData.TableRow row) {
+    private void updateExistingTable(String sourceKey, Long id, DbMetaImportData.TableRow row) {
         boolean updated = tableMetaService.lambdaUpdate()
                 .eq(DbTableMetaEntity::getId, id)
-                .set(DbTableMetaEntity::getSourceKey, row.getSourceKey())
+                .set(DbTableMetaEntity::getSourceKey, sourceKey)
                 .set(DbTableMetaEntity::getTableName, row.getTableName())
                 .set(DbTableMetaEntity::getTableComment, row.getTableComment())
                 .set(DbTableMetaEntity::getTableType, row.getTableType())
@@ -193,9 +191,9 @@ public class DbMetaImportExecutor {
         }
     }
 
-    private DbTableFieldMetaDTO toFieldDto(DbMetaImportData.FieldRow row, DbTableFieldMetaDTO existing) {
+    private DbTableFieldMetaDTO toFieldDto(String sourceKey, DbMetaImportData.FieldRow row, DbTableFieldMetaDTO existing) {
         DbTableFieldMetaDTO dto = existing == null ? new DbTableFieldMetaDTO() : existing;
-        dto.setSourceKey(row.getSourceKey());
+        dto.setSourceKey(sourceKey);
         dto.setTableName(row.getTableName());
         dto.setColumnName(row.getColumnName());
         dto.setColumnComment(row.getColumnComment());
@@ -214,10 +212,10 @@ public class DbMetaImportExecutor {
         return dto;
     }
 
-    private void updateExistingField(Long id, DbMetaImportData.FieldRow row) {
+    private void updateExistingField(String sourceKey, Long id, DbMetaImportData.FieldRow row) {
         boolean updated = fieldMetaService.lambdaUpdate()
                 .eq(DbTableFieldMetaEntity::getId, id)
-                .set(DbTableFieldMetaEntity::getSourceKey, row.getSourceKey())
+                .set(DbTableFieldMetaEntity::getSourceKey, sourceKey)
                 .set(DbTableFieldMetaEntity::getTableName, row.getTableName())
                 .set(DbTableFieldMetaEntity::getColumnName, row.getColumnName())
                 .set(DbTableFieldMetaEntity::getColumnComment, row.getColumnComment())
@@ -239,9 +237,9 @@ public class DbMetaImportExecutor {
         }
     }
 
-    private DbTableIndexMetaDTO toIndexDto(DbMetaImportData.IndexRow row, DbTableIndexMetaDTO existing) {
+    private DbTableIndexMetaDTO toIndexDto(String sourceKey, DbMetaImportData.IndexRow row, DbTableIndexMetaDTO existing) {
         DbTableIndexMetaDTO dto = existing == null ? new DbTableIndexMetaDTO() : existing;
-        dto.setSourceKey(row.getSourceKey());
+        dto.setSourceKey(sourceKey);
         dto.setTableName(row.getTableName());
         dto.setIndexName(row.getIndexName());
         dto.setIndexType(row.getIndexType());
@@ -254,10 +252,10 @@ public class DbMetaImportExecutor {
         return dto;
     }
 
-    private void updateExistingIndex(Long id, DbMetaImportData.IndexRow row) {
+    private void updateExistingIndex(String sourceKey, Long id, DbMetaImportData.IndexRow row) {
         boolean updated = indexMetaService.lambdaUpdate()
                 .eq(DbTableIndexMetaEntity::getId, id)
-                .set(DbTableIndexMetaEntity::getSourceKey, row.getSourceKey())
+                .set(DbTableIndexMetaEntity::getSourceKey, sourceKey)
                 .set(DbTableIndexMetaEntity::getTableName, row.getTableName())
                 .set(DbTableIndexMetaEntity::getIndexName, row.getIndexName())
                 .set(DbTableIndexMetaEntity::getIndexType, row.getIndexType())
@@ -273,10 +271,7 @@ public class DbMetaImportExecutor {
         }
     }
 
-    private String resolveSourceKey(String requestSourceKey, String rowSourceKey) {
-        if (StringUtils.hasText(rowSourceKey)) {
-            return rowSourceKey.trim();
-        }
+    private String resolveSourceKey(String requestSourceKey) {
         if (StringUtils.hasText(requestSourceKey)) {
             return requestSourceKey.trim();
         }
