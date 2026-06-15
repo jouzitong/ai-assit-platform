@@ -28,6 +28,7 @@ import org.springframework.util.StringUtils;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -56,9 +57,14 @@ import java.util.Objects;
 public class SqlGenerateNode extends BaseWorkflowNode {
 
     private static final String DEFAULT_SCENE = "ai-chat-sql-generate";
+    private static final String SQL_GENERATION_POLICY_KEY = "sqlGenerationPolicy";
+    private static final String USER_PREFERENCE_KEY = "resolvedUserPreferences";
     private static final String SQL_GENERATION_PROMPT = """
             你是一个 NL2SQL 生成节点。
             请严格根据提供的用户问题、查询规划和知识上下文，生成一条候选 SQL。
+            你还会收到“SQL 生成规范”和“用户偏好”两个补充部分：
+            - SQL 生成规范属于硬约束，必须遵守
+            - 用户偏好属于软参考，仅在不与用户本轮要求和硬约束冲突时采用
 
             约束要求：
             1. 优先输出单条 SELECT 或 WITH 查询
@@ -173,6 +179,8 @@ public class SqlGenerateNode extends BaseWorkflowNode {
         StringBuilder builder = new StringBuilder();
         builder.append("用户问题：\n").append(command.getMessage()).append("\n\n");
         builder.append("查询规划：\n").append(context.getAnalysisResult()).append("\n\n");
+        appendStructuredSection(builder, "SQL 生成规范", context.get(SQL_GENERATION_POLICY_KEY));
+        appendStructuredSection(builder, "用户偏好", context.get(USER_PREFERENCE_KEY));
         if (StringUtils.hasText(context.getKnowledgeResult())) {
             builder.append("知识上下文：\n").append(context.getKnowledgeResult()).append("\n\n");
         }
@@ -188,6 +196,55 @@ public class SqlGenerateNode extends BaseWorkflowNode {
             }
         }
         return builder.toString();
+    }
+
+    private void appendStructuredSection(StringBuilder builder, String title, Object value) {
+        String rendered = renderValue(value, 0);
+        if (!StringUtils.hasText(rendered)) {
+            return;
+        }
+        builder.append(title).append("：\n").append(rendered).append("\n\n");
+    }
+
+    private String renderValue(Object value, int indent) {
+        if (value == null) {
+            return "";
+        }
+        if (value instanceof String str) {
+            return str.trim();
+        }
+        String indentText = "  ".repeat(Math.max(0, indent));
+        if (value instanceof Map<?, ?> map) {
+            StringBuilder builder = new StringBuilder();
+            for (Map.Entry<?, ?> entry : map.entrySet()) {
+                String renderedChild = renderValue(entry.getValue(), indent + 1);
+                if (!StringUtils.hasText(renderedChild)) {
+                    continue;
+                }
+                builder.append(indentText)
+                        .append("- ")
+                        .append(entry.getKey())
+                        .append(": ");
+                if (entry.getValue() instanceof Map<?, ?> || entry.getValue() instanceof List<?>) {
+                    builder.append('\n').append(renderedChild).append('\n');
+                } else {
+                    builder.append(renderedChild).append('\n');
+                }
+            }
+            return builder.toString().trim();
+        }
+        if (value instanceof List<?> list) {
+            StringBuilder builder = new StringBuilder();
+            for (Object item : list) {
+                String renderedChild = renderValue(item, indent + 1);
+                if (!StringUtils.hasText(renderedChild)) {
+                    continue;
+                }
+                builder.append(indentText).append("- ").append(renderedChild).append('\n');
+            }
+            return builder.toString().trim();
+        }
+        return String.valueOf(value);
     }
 
     private String extractAnswer(ChatResponse response) {

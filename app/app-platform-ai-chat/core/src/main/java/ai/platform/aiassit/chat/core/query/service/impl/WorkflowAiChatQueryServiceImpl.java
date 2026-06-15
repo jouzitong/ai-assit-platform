@@ -6,6 +6,8 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
 import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeSkillConfig;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
 import lombok.extern.slf4j.Slf4j;
@@ -92,7 +94,10 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
         nodes.put("chat-message", new WorkflowNodeConfig("chat-message", "Chat-Message", "query-planning", java.util.List.of()));
         nodes.put("query-planning", new WorkflowNodeConfig("query-planning", "Query-Planning", "knowledge-search", java.util.List.of()));
         nodes.put("knowledge-search", new WorkflowNodeConfig("knowledge-search", "Knowledge-Search", "sql-generate", java.util.List.of()));
-        nodes.put("sql-generate", new WorkflowNodeConfig("sql-generate", "Sql-Generate", "sql-validate", java.util.List.of()));
+        nodes.put("sql-generate", new WorkflowNodeConfig("sql-generate", "Sql-Generate", "sql-validate", java.util.List.of(
+                new WorkflowNodeSkillConfig("sql_generation_policy", WorkflowSkillPhase.BEFORE_EXECUTE),
+                new WorkflowNodeSkillConfig("user_preference_resolve", WorkflowSkillPhase.BEFORE_EXECUTE)
+        )));
         nodes.put("sql-validate", new WorkflowNodeConfig("sql-validate", "Sql-Validate", "sql-execute", java.util.List.of()));
         nodes.put("sql-execute", new WorkflowNodeConfig("sql-execute", "Sql-Execute", "render", java.util.List.of()));
         nodes.put("render", new WorkflowNodeConfig("render", "Render", null, java.util.List.of()));
