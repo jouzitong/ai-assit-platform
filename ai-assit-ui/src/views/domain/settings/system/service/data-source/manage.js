@@ -21,6 +21,9 @@ export function useDataSourceManagePage() {
   const importDragActive = ref(false)
   const importFile = ref(null)
   const importError = ref('')
+  const importFormat = ref('json')
+  const exportDialogVisible = ref(false)
+  const exportFormat = ref('json')
   const notice = reactive({
     type: 'success',
     text: ''
@@ -109,13 +112,25 @@ export function useDataSourceManagePage() {
     importDialogVisible.value = true
     importDragActive.value = false
     importError.value = ''
+    importFormat.value = 'json'
   }
 
   function closeImportDialog() {
     importDialogVisible.value = false
     importDragActive.value = false
     importError.value = ''
+    importFormat.value = 'json'
     importFile.value = null
+  }
+
+  function openExportDialog() {
+    exportDialogVisible.value = true
+    exportFormat.value = 'json'
+  }
+
+  function closeExportDialog() {
+    exportDialogVisible.value = false
+    exportFormat.value = 'json'
   }
 
   function handleImportDragEnter() {
@@ -130,6 +145,12 @@ export function useDataSourceManagePage() {
     if (!file) {
       return
     }
+    const extension = String(file.name || '').split('.').pop()?.toLowerCase()
+    if (extension === 'xlsx') {
+      importFormat.value = 'excel'
+    } else if (extension === 'json') {
+      importFormat.value = 'json'
+    }
     importFile.value = file
     importError.value = ''
     importDragActive.value = false
@@ -141,7 +162,13 @@ export function useDataSourceManagePage() {
       return
     }
     if (!importFile.value) {
-      importError.value = '请先选择要导入的 Excel 文件'
+      importError.value = `请先选择要导入的${importFormat.value === 'json' ? ' JSON ' : ' Excel '}文件`
+      return
+    }
+    if (!isImportFileFormatMatched(importFile.value, importFormat.value)) {
+      importError.value = importFormat.value === 'json'
+        ? '当前选择的是 JSON 导入，请上传 .json 文件'
+        : '当前选择的是 Excel 导入，请上传 .xlsx 文件'
       return
     }
 
@@ -166,15 +193,9 @@ export function useDataSourceManagePage() {
     }
     exportSubmitting.value = true
     try {
-      const { blob, filename } = await exportDbMetaWorkbook(currentSource.value.key)
-      const objectUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(objectUrl)
+      const { blob, filename } = await exportDbMetaWorkbook(currentSource.value.key, exportFormat.value)
+      triggerBrowserDownload(blob, filename)
+      closeExportDialog()
       showNotice('导出成功')
     } catch (error) {
       showNotice(error.message || '导出失败', 'error')
@@ -186,15 +207,8 @@ export function useDataSourceManagePage() {
   async function downloadTemplateWorkbook() {
     templateSubmitting.value = true
     try {
-      const { blob, filename } = await downloadDbMetaTemplateWorkbook()
-      const objectUrl = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = objectUrl
-      link.download = filename
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(objectUrl)
+      const { blob, filename } = await downloadDbMetaTemplateWorkbook(importFormat.value)
+      triggerBrowserDownload(blob, filename)
       showNotice('模板下载成功')
     } catch (error) {
       showNotice(error.message || '模板下载失败', 'error')
@@ -421,6 +435,32 @@ export function useDataSourceManagePage() {
     ].join('，')
   }
 
+  function isImportFileFormatMatched(file, format) {
+    const extension = String(file?.name || '').split('.').pop()?.toLowerCase()
+    if (format === 'json') {
+      return extension === 'json'
+    }
+    return extension === 'xlsx'
+  }
+
+  function importFormatLabel() {
+    return importFormat.value === 'json' ? 'JSON' : 'Excel'
+  }
+
+  function triggerBrowserDownload(blob, filename) {
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    window.setTimeout(() => {
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(objectUrl)
+    }, 1000)
+  }
+
   function formatFieldType(item) {
     const baseType = item?.dataType || '-'
     const scale = item?.columnScale
@@ -471,7 +511,10 @@ export function useDataSourceManagePage() {
     importDragActive,
     importFile,
     importError,
+    importFormat,
     importSubmitting,
+    exportDialogVisible,
+    exportFormat,
     exportSubmitting,
     templateSubmitting,
     notice,
@@ -487,11 +530,14 @@ export function useDataSourceManagePage() {
     refreshPage,
     openImportDialog,
     closeImportDialog,
+    openExportDialog,
+    closeExportDialog,
     handleImportDragEnter,
     handleImportDragLeave,
     handleImportFile,
     submitImport,
     exportWorkbook,
-    downloadTemplateWorkbook
+    downloadTemplateWorkbook,
+    importFormatLabel
   }
 }

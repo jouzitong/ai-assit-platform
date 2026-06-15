@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.controller;
 
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaExportFileDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaWorkbookService;
 import jakarta.servlet.http.HttpServletResponse;
@@ -27,22 +28,29 @@ public class DbMetaWorkbookController {
     }
 
     @GetMapping("/template")
-    public void exportTemplateWorkbook(HttpServletResponse response) throws IOException {
-        byte[] content = workbookService.exportTemplateWorkbook();
-        String filename = URLEncoder.encode("db-meta-template.xlsx", StandardCharsets.UTF_8).replaceAll("\\+", "%20");
-        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    public void exportTemplateWorkbook(
+            @RequestParam(required = false, defaultValue = "json") String format,
+            HttpServletResponse response
+    ) throws IOException {
+        DbMetaExportFileDTO exportFile = workbookService.exportTemplateWorkbook(format);
+        String filename = URLEncoder.encode(exportFile.getFilename(), StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+        response.setContentType(exportFile.getContentType());
         response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + filename);
-        response.getOutputStream().write(content);
+        response.getOutputStream().write(exportFile.getContent());
         response.flushBuffer();
     }
 
     @GetMapping("/export")
-    public void exportWorkbook(@RequestParam String sourceKey, HttpServletResponse response) throws IOException {
-        byte[] content = workbookService.exportWorkbook(sourceKey);
-        String filename = URLEncoder.encode(buildFilename(sourceKey), StandardCharsets.UTF_8).replaceAll("\\+", "%20");
-        response.setContentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+    public void exportWorkbook(
+            @RequestParam String sourceKey,
+            @RequestParam(required = false, defaultValue = "json") String format,
+            HttpServletResponse response
+    ) throws IOException {
+        DbMetaExportFileDTO exportFile = workbookService.exportWorkbook(sourceKey, format);
+        String filename = URLEncoder.encode(exportFile.getFilename(), StandardCharsets.UTF_8).replaceAll("\\+", "%20");
+        response.setContentType(exportFile.getContentType());
         response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + filename);
-        response.getOutputStream().write(content);
+        response.getOutputStream().write(exportFile.getContent());
         response.flushBuffer();
     }
 
@@ -57,8 +65,4 @@ public class DbMetaWorkbookController {
         return workbookService.importWorkbook(sourceKey, file);
     }
 
-    private String buildFilename(String sourceKey) {
-        String normalized = StringUtils.hasText(sourceKey) ? sourceKey : "all";
-        return normalized + "-meta-workbook.xlsx";
-    }
 }

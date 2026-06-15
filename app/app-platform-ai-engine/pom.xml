@@ -51,7 +51,7 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
-                <artifactId>service-ai-provider</artifactId>
+                <artifactId>ai-provider-qwen-public</artifactId>
                 <version>${app.platform.ai.engine.version}</version>
             </dependency>
         </dependencies>
@@ -60,7 +60,7 @@
     <modules>
         <module>service-ai-api</module>
         <module>service-ai-spi</module>
-        <module>service-ai-provider</module>
+        <module>providers/ai-provider-qwen-public</module>
         <module>service-ai-core</module>
         <module>meta</module>
         <module>boot-ai-engine</module>

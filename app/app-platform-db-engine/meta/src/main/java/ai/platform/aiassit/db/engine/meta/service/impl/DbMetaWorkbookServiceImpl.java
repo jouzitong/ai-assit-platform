@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaExportFileDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
@@ -89,7 +90,15 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
     }
 
     @Override
-    public byte[] exportWorkbook(String sourceKey) throws IOException {
+    public DbMetaExportFileDTO exportWorkbook(String sourceKey, String format) throws IOException {
+        String normalizedFormat = normalizeExportFormat(format);
+        if ("json".equals(normalizedFormat)) {
+            return exportJson(sourceKey);
+        }
+        return exportExcel(sourceKey);
+    }
+
+    private DbMetaExportFileDTO exportExcel(String sourceKey) throws IOException {
         WorkbookTemplateContext templateContext = loadTemplateContext();
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Sheet tableSheet = writeTableSheet(workbook, sourceKey, templateContext, SheetMode.EXPORT);
@@ -97,21 +106,59 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             Sheet indexSheet = writeIndexSheet(workbook, sourceKey, templateContext, SheetMode.EXPORT);
             configureWorkbookValidations(workbook, tableSheet, fieldSheet, indexSheet, templateContext, SheetMode.EXPORT);
             workbook.write(outputStream);
-            return outputStream.toByteArray();
+            return DbMetaExportFileDTO.builder()
+                    .content(outputStream.toByteArray())
+                    .filename(buildFilename(sourceKey, "excel"))
+                    .contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    .build();
         }
     }
 
+    private DbMetaExportFileDTO exportJson(String sourceKey) throws IOException {
+        DbMetaImportData exportData = new DbMetaImportData();
+        exportData.setTables(listTables(sourceKey).stream().map(this::toExportTableRow).toList());
+        exportData.setFields(listFields(sourceKey).stream().map(this::toExportFieldRow).toList());
+        exportData.setIndexes(listIndexes(sourceKey).stream().map(this::toExportIndexRow).toList());
+        return DbMetaExportFileDTO.builder()
+                .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(exportData))
+                .filename(buildFilename(sourceKey, "json"))
+                .contentType("application/json")
+                .build();
+    }
+
     @Override
-    public byte[] exportTemplateWorkbook() throws IOException {
+    public DbMetaExportFileDTO exportTemplateWorkbook(String format) throws IOException {
+        String normalizedFormat = normalizeExportFormat(format);
+        if ("json".equals(normalizedFormat)) {
+            return exportJsonTemplate();
+        }
+        return exportExcelTemplate();
+    }
+
+    private DbMetaExportFileDTO exportExcelTemplate() throws IOException {
         WorkbookTemplateContext templateContext = loadTemplateContext();
         try (XSSFWorkbook workbook = new XSSFWorkbook(); ByteArrayOutputStream outputStream = new ByteArrayOutputStream()) {
             Sheet tableSheet = createSheetTemplate(workbook, templateContext.getRequiredSheetConfig("table", SheetMode.IMPORT));
             Sheet fieldSheet = createSheetTemplate(workbook, templateContext.getRequiredSheetConfig("field", SheetMode.IMPORT));
             Sheet indexSheet = createSheetTemplate(workbook, templateContext.getRequiredSheetConfig("index", SheetMode.IMPORT));
+            fillTemplateSampleRows(tableSheet, fieldSheet, indexSheet, templateContext);
             configureWorkbookValidations(workbook, tableSheet, fieldSheet, indexSheet, templateContext, SheetMode.IMPORT);
             workbook.write(outputStream);
-            return outputStream.toByteArray();
+            return DbMetaExportFileDTO.builder()
+                    .content(outputStream.toByteArray())
+                    .filename("db-meta-template.xlsx")
+                    .contentType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+                    .build();
         }
+    }
+
+    private DbMetaExportFileDTO exportJsonTemplate() throws IOException {
+        DbMetaImportData templateData = DbMetaImportData.createTemplateSample();
+        return DbMetaExportFileDTO.builder()
+                .content(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsBytes(templateData))
+                .filename("db-meta-template.json")
+                .contentType("application/json")
+                .build();
     }
 
     @Override
@@ -288,6 +335,146 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         };
     }
 
+    private Object[] buildTemplateTableRowValues(
+            DbMetaImportData.TableRow entity,
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig
+    ) {
+        List<Object> values = new ArrayList<>();
+        for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
+            values.add(resolveTemplateTableColumnValue(entity, columnConfig.getKey()));
+        }
+        return values.toArray();
+    }
+
+    private Object resolveTemplateTableColumnValue(DbMetaImportData.TableRow entity, String columnKey) {
+        return switch (columnKey) {
+            case "tableName" -> entity.getTableName();
+            case "tableComment" -> entity.getTableComment();
+            case "tableType" -> entity.getTableType();
+            case "layerType" -> entity.getLayerType();
+            case "rowCount" -> entity.getRowCount();
+            case "columnCount" -> entity.getColumnCount();
+            case "partitionKey" -> entity.getPartitionKey();
+            case "freshnessSeconds" -> entity.getFreshnessSeconds();
+            case "status" -> entity.getStatus();
+            case "enabled" -> entity.getEnabled();
+            case "lastScanAt" -> entity.getLastScanAt();
+            case "lastSyncAt" -> entity.getLastSyncAt();
+            case "remark" -> entity.getRemark();
+            default -> null;
+        };
+    }
+
+    private Object[] buildTemplateFieldRowValues(
+            DbMetaImportData.FieldRow entity,
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig
+    ) {
+        List<Object> values = new ArrayList<>();
+        for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
+            values.add(resolveTemplateFieldColumnValue(entity, columnConfig.getKey()));
+        }
+        return values.toArray();
+    }
+
+    private Object resolveTemplateFieldColumnValue(DbMetaImportData.FieldRow entity, String columnKey) {
+        return switch (columnKey) {
+            case "tableName" -> entity.getTableName();
+            case "columnName" -> entity.getColumnName();
+            case "columnComment" -> entity.getColumnComment();
+            case "dataType" -> entity.getDataType();
+            case "columnLength" -> entity.getColumnLength();
+            case "columnPrecision" -> entity.getColumnPrecision();
+            case "columnScale" -> entity.getColumnScale();
+            case "nullable" -> entity.getNullable();
+            case "primaryKey" -> entity.getPrimaryKey();
+            case "partitionKey" -> entity.getPartitionKey();
+            case "defaultValue" -> entity.getDefaultValue();
+            case "ordinalPosition" -> entity.getOrdinalPosition();
+            case "fieldRole" -> entity.getFieldRole();
+            case "enabled" -> entity.getEnabled();
+            case "remark" -> entity.getRemark();
+            default -> null;
+        };
+    }
+
+    private Object[] buildTemplateIndexRowValues(
+            DbMetaImportData.IndexRow entity,
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig
+    ) {
+        List<Object> values = new ArrayList<>();
+        for (DbMetaWorkbookTemplateConfig.ColumnConfig columnConfig : sheetConfig.getColumns()) {
+            values.add(resolveTemplateIndexColumnValue(entity, columnConfig.getKey()));
+        }
+        return values.toArray();
+    }
+
+    private Object resolveTemplateIndexColumnValue(DbMetaImportData.IndexRow entity, String columnKey) {
+        return switch (columnKey) {
+            case "tableName" -> entity.getTableName();
+            case "indexName" -> entity.getIndexName();
+            case "indexType" -> entity.getIndexType();
+            case "uniqueFlag" -> entity.getUniqueFlag();
+            case "primaryFlag" -> entity.getPrimaryFlag();
+            case "columnName" -> entity.getColumnName();
+            case "columnOrder" -> entity.getColumnOrder();
+            case "enabled" -> entity.getEnabled();
+            case "remark" -> entity.getRemark();
+            default -> null;
+        };
+    }
+
+    private DbMetaImportData.TableRow toExportTableRow(DbTableMetaDTO entity) {
+        DbMetaImportData.TableRow row = new DbMetaImportData.TableRow();
+        row.setTableName(entity.getTableName());
+        row.setTableComment(entity.getTableComment());
+        row.setTableType(entity.getTableType());
+        row.setLayerType(entity.getLayerType());
+        row.setRowCount(entity.getRowCount());
+        row.setColumnCount(entity.getColumnCount());
+        row.setPartitionKey(entity.getPartitionKey());
+        row.setFreshnessSeconds(entity.getFreshnessSeconds());
+        row.setStatus(entity.getStatus());
+        row.setEnabled(entity.getEnabled());
+        row.setLastScanAt(formatDateTime(entity.getLastScanAt()));
+        row.setLastSyncAt(formatDateTime(entity.getLastSyncAt()));
+        row.setRemark(entity.getRemark());
+        return row;
+    }
+
+    private DbMetaImportData.FieldRow toExportFieldRow(DbTableFieldMetaDTO entity) {
+        DbMetaImportData.FieldRow row = new DbMetaImportData.FieldRow();
+        row.setTableName(entity.getTableName());
+        row.setColumnName(entity.getColumnName());
+        row.setColumnComment(entity.getColumnComment());
+        row.setDataType(entity.getDataType());
+        row.setColumnLength(entity.getColumnLength());
+        row.setColumnPrecision(entity.getColumnPrecision());
+        row.setColumnScale(entity.getColumnScale());
+        row.setNullable(entity.getNullable());
+        row.setPrimaryKey(entity.getPrimaryKey());
+        row.setPartitionKey(entity.getPartitionKey());
+        row.setDefaultValue(entity.getDefaultValue());
+        row.setOrdinalPosition(entity.getOrdinalPosition());
+        row.setFieldRole(entity.getFieldRole());
+        row.setEnabled(entity.getEnabled());
+        row.setRemark(entity.getRemark());
+        return row;
+    }
+
+    private DbMetaImportData.IndexRow toExportIndexRow(DbTableIndexMetaDTO entity) {
+        DbMetaImportData.IndexRow row = new DbMetaImportData.IndexRow();
+        row.setTableName(entity.getTableName());
+        row.setIndexName(entity.getIndexName());
+        row.setIndexType(entity.getIndexType());
+        row.setUniqueFlag(entity.getUniqueFlag());
+        row.setPrimaryFlag(entity.getPrimaryFlag());
+        row.setColumnName(entity.getColumnName());
+        row.setColumnOrder(entity.getColumnOrder());
+        row.setEnabled(entity.getEnabled());
+        row.setRemark(entity.getRemark());
+        return row;
+    }
+
     private String formatDateTime(LocalDateTime value) {
         return value == null ? null : value.format(DATE_TIME_FORMATTER);
     }
@@ -297,6 +484,57 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         createHeader(workbook, sheet, sheetConfig);
         applyColumnLayout(sheet, sheetConfig);
         return sheet;
+    }
+
+    private void fillTemplateSampleRows(
+            Sheet tableSheet,
+            Sheet fieldSheet,
+            Sheet indexSheet,
+            WorkbookTemplateContext templateContext
+    ) {
+        DbMetaImportData sampleData = DbMetaImportData.createTemplateSample();
+        writeTemplateTableRows(tableSheet, templateContext.getRequiredSheetConfig("table", SheetMode.IMPORT), sampleData.getTables());
+        writeTemplateFieldRows(fieldSheet, templateContext.getRequiredSheetConfig("field", SheetMode.IMPORT), sampleData.getFields());
+        writeTemplateIndexRows(indexSheet, templateContext.getRequiredSheetConfig("index", SheetMode.IMPORT), sampleData.getIndexes());
+    }
+
+    private void writeTemplateTableRows(
+            Sheet sheet,
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig,
+            List<DbMetaImportData.TableRow> rows
+    ) {
+        int rowIndex = 1;
+        for (DbMetaImportData.TableRow rowData : rows) {
+            Row row = sheet.createRow(rowIndex++);
+            writeRow(row, buildTemplateTableRowValues(rowData, sheetConfig));
+        }
+        applyColumnLayout(sheet, sheetConfig);
+    }
+
+    private void writeTemplateFieldRows(
+            Sheet sheet,
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig,
+            List<DbMetaImportData.FieldRow> rows
+    ) {
+        int rowIndex = 1;
+        for (DbMetaImportData.FieldRow rowData : rows) {
+            Row row = sheet.createRow(rowIndex++);
+            writeRow(row, buildTemplateFieldRowValues(rowData, sheetConfig));
+        }
+        applyColumnLayout(sheet, sheetConfig);
+    }
+
+    private void writeTemplateIndexRows(
+            Sheet sheet,
+            DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig,
+            List<DbMetaImportData.IndexRow> rows
+    ) {
+        int rowIndex = 1;
+        for (DbMetaImportData.IndexRow rowData : rows) {
+            Row row = sheet.createRow(rowIndex++);
+            writeRow(row, buildTemplateIndexRowValues(rowData, sheetConfig));
+        }
+        applyColumnLayout(sheet, sheetConfig);
     }
 
     private void createHeader(XSSFWorkbook workbook, Sheet sheet, DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig) {
@@ -630,6 +868,22 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
 
     private String resolveFilename(MultipartFile file) {
         return file == null ? "" : StringUtils.hasText(file.getOriginalFilename()) ? file.getOriginalFilename() : "";
+    }
+
+    private String normalizeExportFormat(String format) {
+        if (!StringUtils.hasText(format)) {
+            return "json";
+        }
+        String normalized = format.trim().toLowerCase();
+        if ("json".equals(normalized) || "excel".equals(normalized) || "xlsx".equals(normalized)) {
+            return "xlsx".equals(normalized) ? "excel" : normalized;
+        }
+        throw new IllegalArgumentException("暂不支持的导出格式: " + format);
+    }
+
+    private String buildFilename(String sourceKey, String format) {
+        String normalized = StringUtils.hasText(sourceKey) ? sourceKey : "all";
+        return normalized + "-meta-workbook." + ("json".equals(format) ? "json" : "xlsx");
     }
 
     private enum SheetMode {

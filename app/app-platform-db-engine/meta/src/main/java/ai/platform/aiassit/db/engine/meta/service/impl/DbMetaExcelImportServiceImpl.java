@@ -81,7 +81,6 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
                 continue;
             }
             DbMetaImportData.TableRow importRow = new DbMetaImportData.TableRow();
-            importRow.setSourceKey(sourceKey);
             importRow.setTableName(readRequiredString(row, columnIndexMap.get("tableName"), formatter, sheetConfig.getName(), i, "tableName"));
             importRow.setTableComment(readString(row, columnIndexMap.get("tableComment"), formatter));
             importRow.setTableType(readString(row, columnIndexMap.get("tableType"), formatter));
@@ -114,7 +113,6 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
                 continue;
             }
             DbMetaImportData.FieldRow importRow = new DbMetaImportData.FieldRow();
-            importRow.setSourceKey(sourceKey);
             importRow.setTableName(readRequiredString(row, columnIndexMap.get("tableName"), formatter, sheetConfig.getName(), i, "tableName"));
             importRow.setColumnName(readRequiredString(row, columnIndexMap.get("columnName"), formatter, sheetConfig.getName(), i, "columnName"));
             importRow.setColumnComment(readString(row, columnIndexMap.get("columnComment"), formatter));
@@ -149,7 +147,6 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
                 continue;
             }
             DbMetaImportData.IndexRow importRow = new DbMetaImportData.IndexRow();
-            importRow.setSourceKey(sourceKey);
             importRow.setTableName(readRequiredString(row, columnIndexMap.get("tableName"), formatter, sheetConfig.getName(), i, "tableName"));
             importRow.setIndexName(readRequiredString(row, columnIndexMap.get("indexName"), formatter, sheetConfig.getName(), i, "indexName"));
             importRow.setIndexType(readString(row, columnIndexMap.get("indexType"), formatter));
