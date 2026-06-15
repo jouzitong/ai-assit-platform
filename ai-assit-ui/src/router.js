@@ -13,6 +13,8 @@ import SystemParamsPage from './views/domain/settings/system/views/params.vue'
 import SystemComponentsPage from './views/domain/settings/system/views/components.vue'
 import SystemPermissionsPage from './views/domain/settings/system/views/permissions.vue'
 import SystemAiPage from './views/domain/settings/system/views/ai.vue'
+import SystemAiFlowPage from './views/domain/settings/system/views/ai-flow.vue'
+import SystemAiFlowDetailPage from './views/domain/settings/system/views/ai-flow-detail.vue'
 import SystemDataSourcePage from './views/domain/settings/system/views/data-source.vue'
 import SystemDataSourceManagePage from './views/domain/settings/system/views/data-source/manage.vue'
 import LoginPage from './views/domain/auth/login/index.vue'
@@ -38,7 +40,9 @@ const routes = [
       { path: 'params', component: SystemParamsPage, meta: { title: '系统参数' } },
       { path: 'components', component: SystemComponentsPage, meta: { title: '常用组件' } },
       { path: 'permissions', component: SystemPermissionsPage, meta: { title: '权限配置' } },
-      { path: 'ai', component: SystemAiPage, meta: { title: 'AI 接入' } }
+      { path: 'ai', component: SystemAiPage, meta: { title: 'AI 接入' } },
+      { path: 'ai-flow', component: SystemAiFlowPage, meta: { title: 'AI流程配置' } },
+      { path: 'ai-flow/:workflowKey', component: SystemAiFlowDetailPage, meta: { title: '流程配置详情' } }
     ]
   }
 ]

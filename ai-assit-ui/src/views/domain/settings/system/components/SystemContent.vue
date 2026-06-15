@@ -14,14 +14,13 @@
   min-height: 0;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
   gap: 18px;
   padding: 18px;
   background: #fff;
-  overflow: auto;
-  overscroll-behavior: contain;
-  scrollbar-gutter: stable;
+  overflow: hidden;
 }
 
 .system-content > * {

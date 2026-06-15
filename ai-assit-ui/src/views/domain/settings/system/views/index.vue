@@ -63,9 +63,12 @@ const {
   min-height: 0;
   display: grid;
   grid-template-columns: var(--sidebar-width) 12px minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   gap: 0;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
   border: 1px solid rgba(226, 232, 240, 0.9);
   border-radius: 0;
   background: #fff;

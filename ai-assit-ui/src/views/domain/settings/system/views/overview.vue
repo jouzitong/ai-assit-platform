@@ -9,12 +9,18 @@ import {
   Monitor,
   Notification,
   Opportunity,
+  Setting,
   Reading,
   Tickets,
   TrendCharts
 } from '@element-plus/icons-vue'
 
 const notices = [
+  {
+    date: '2026.06.15',
+    title: '新增 AI流程配置 入口',
+    desc: '系统设置侧边栏新增流程配置页，统一承载节点编排、技能挂载和 SQL 生成策略。'
+  },
   {
     date: '2026.06.04',
     title: '配置中心首页升级为门户化布局',
@@ -65,6 +71,13 @@ const quickEntries = [
     summary: 'provider、model、credential',
     icon: Monitor,
     to: '/settings/system/ai'
+  },
+  {
+    key: 'ai-flow',
+    label: 'AI流程配置',
+    summary: '工作流节点、skill 和 SQL 规范策略',
+    icon: Setting,
+    to: '/settings/system/ai-flow'
   },
   {
     key: 'overview',
@@ -163,6 +176,12 @@ const appHighlights = [
     desc: '维护 provider、model 和 credential',
     tag: 'AI',
     to: '/settings/system/ai'
+  },
+  {
+    title: 'AI流程配置',
+    desc: '统一配置节点、skill 和 SQL 生成规则',
+    tag: '流程',
+    to: '/settings/system/ai-flow'
   }
 ]
 
@@ -217,13 +236,16 @@ const cases = [
         <h2>像百炼控制台一样组织配置入口</h2>
         <p class="hero-desc">
           这页按门户首页的方式排布信息：上方看通知，中间找常用能力，下面看推荐能力、教程和案例。
-          侧边栏保持当前五个入口分域管理，其中新增了数据源配置入口。
+          侧边栏保持当前六个入口分域管理，当前已补入 AI流程配置入口，用于继续收口工作流编排和生成策略。
         </p>
 
         <div class="hero-actions">
           <RouterLink to="/settings/system/ai" class="btn primary">
             进入 AI 接入
             <ArrowRight :size="16" />
+          </RouterLink>
+          <RouterLink to="/settings/system/ai-flow" class="btn secondary">
+            查看 AI流程配置
           </RouterLink>
           <RouterLink to="/settings/system/params" class="btn secondary">
             查看系统参数
@@ -232,7 +254,7 @@ const cases = [
 
         <div class="hero-stats">
           <div class="stat-pill">
-            <strong>5</strong>
+            <strong>6</strong>
             <span>侧边栏入口</span>
           </div>
           <div class="stat-pill">
