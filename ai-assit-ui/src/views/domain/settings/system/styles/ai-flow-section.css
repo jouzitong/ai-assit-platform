@@ -124,6 +124,18 @@
   background: rgba(239, 246, 255, 0.9);
 }
 
+.flow-action-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  justify-content: end;
+}
+
+.flow-action.danger {
+  color: #dc2626;
+  border-color: rgba(220, 38, 38, 0.16);
+}
+
 .mini-action {
   border: 1px solid rgba(37, 99, 235, 0.14);
   border-radius: 10px;

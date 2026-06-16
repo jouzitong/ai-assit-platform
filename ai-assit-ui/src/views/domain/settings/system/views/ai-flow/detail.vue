@@ -3,9 +3,13 @@ import { useAiFlowDetailPage } from '../../service/ai-flow/detail'
 
 const {
   workflow,
+  loading,
+  errorMessage,
   nodeDefinitions,
   selectedNode,
   selectedNodeKey,
+  selectedNodeInputDefinitions,
+  selectedNodeOutputDefinitions,
   selectedNodeConfigItems,
   selectedNodeSkillItems,
   toastState,
@@ -36,7 +40,18 @@ const {
 
 <template>
   <div class="ai-flow-detail-page">
-    <template v-if="workflow">
+    <section v-if="loading" class="detail-empty">
+      <h2>正在加载流程详情</h2>
+      <p>请稍候...</p>
+    </section>
+
+    <section v-else-if="errorMessage" class="detail-empty">
+      <h2>流程详情加载失败</h2>
+      <p>{{ errorMessage }}</p>
+      <button type="button" class="back-link" @click="goBack">返回流程列表</button>
+    </section>
+
+    <template v-else-if="workflow">
       <header class="content-head">
         <div class="content-head-main">
           <div>
@@ -84,6 +99,7 @@ const {
               <div class="node-actions">
                 <button type="button" class="mini-action" @click.stop="openNodeEditor('edit', node)">编辑</button>
                 <button type="button" class="mini-action" @click.stop="toggleNodeStatus(node)">{{ node.status === '启用' ? '停用' : '启用' }}</button>
+                <button type="button" class="mini-action danger" @click.stop="removeItem('node', node)">删除</button>
                 <div class="node-move-actions">
                   <button type="button" class="mini-action icon" title="上移" :disabled="index === 0" @click.stop="moveNode(index, 'up')">↑</button>
                   <button type="button" class="mini-action icon" title="下移" :disabled="index === nodeDefinitions.length - 1" @click.stop="moveNode(index, 'down')">↓</button>
@@ -98,6 +114,68 @@ const {
             <p class="eyebrow">节点功能描述</p>
             <h3>{{ selectedNode?.name }}</h3>
             <p>{{ selectedNode?.summary }}</p>
+          </article>
+
+          <article class="detail-card detail-card-scroll-section">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">节点输入</p>
+                <h3>输入定义</h3>
+              </div>
+              <button type="button" class="mini-action" @click="openItemEditor('input', 'create')">新增输入</button>
+            </div>
+            <p class="section-desc-inline">维护节点消费的上下文字段、字段路径、类型和必填约束。</p>
+
+            <div class="config-list">
+              <article v-for="item in selectedNodeInputDefinitions" :key="item.fieldCode" class="config-row">
+                <div class="config-main">
+                  <div class="config-title-row">
+                    <strong>{{ item.fieldName }}</strong>
+                    <span class="config-type">{{ item.dataType || '-' }}</span>
+                    <span class="config-status" :class="{ draft: !item.required }">{{ item.required ? '必填' : '可选' }}</span>
+                  </div>
+                  <p>{{ item.fieldCode }} / {{ item.fieldPath || '-' }}</p>
+                </div>
+
+                <div class="config-actions">
+                  <button type="button" class="mini-action" @click="openItemDetail('input', item)">查看详情</button>
+                  <button type="button" class="mini-action" @click="openItemEditor('input', 'edit', item)">编辑</button>
+                  <button type="button" class="mini-action danger" @click="removeItem('input', item)">删除</button>
+                </div>
+              </article>
+              <div v-if="!selectedNodeInputDefinitions.length" class="list-empty">当前节点还没有输入定义。</div>
+            </div>
+          </article>
+
+          <article class="detail-card detail-card-scroll-section">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">节点输出</p>
+                <h3>输出定义</h3>
+              </div>
+              <button type="button" class="mini-action" @click="openItemEditor('output', 'create')">新增输出</button>
+            </div>
+            <p class="section-desc-inline">维护节点产出的核心字段定义，支持页面直接修改。</p>
+
+            <div class="config-list">
+              <article v-for="item in selectedNodeOutputDefinitions" :key="item.fieldCode" class="config-row">
+                <div class="config-main">
+                  <div class="config-title-row">
+                    <strong>{{ item.fieldName }}</strong>
+                    <span class="config-type">{{ item.dataType || '-' }}</span>
+                    <span class="config-status" :class="{ draft: !item.required }">{{ item.required ? '必填' : '可选' }}</span>
+                  </div>
+                  <p>{{ item.fieldCode }} / {{ item.fieldPath || '-' }}</p>
+                </div>
+
+                <div class="config-actions">
+                  <button type="button" class="mini-action" @click="openItemDetail('output', item)">查看详情</button>
+                  <button type="button" class="mini-action" @click="openItemEditor('output', 'edit', item)">编辑</button>
+                  <button type="button" class="mini-action danger" @click="removeItem('output', item)">删除</button>
+                </div>
+              </article>
+              <div v-if="!selectedNodeOutputDefinitions.length" class="list-empty">当前节点还没有输出定义。</div>
+            </div>
           </article>
 
           <article class="detail-card detail-card-scroll-section">
@@ -191,7 +269,11 @@ const {
         <div class="form-grid">
           <label v-if="editorState.entityType === 'node'" class="field field-full">
             <span>节点模板</span>
-            <select v-model="editorState.form.templateKey" @change="syncNodeFormWithTemplate(editorState.form.templateKey)">
+            <select
+              v-model="editorState.form.templateKey"
+              :disabled="editorState.mode === 'edit'"
+              @change="syncNodeFormWithTemplate(editorState.form.templateKey)"
+            >
               <option v-for="item in availableNodeTemplates" :key="item.key" :value="item.key">
                 {{ item.name }} / {{ item.type }}
               </option>
@@ -200,21 +282,58 @@ const {
 
           <label v-if="editorState.entityType === 'skill'" class="field field-full">
             <span>Skill 模板</span>
-            <select v-model="editorState.form.templateKey" @change="syncSkillFormWithTemplate(editorState.form.templateKey)">
+            <select
+              v-model="editorState.form.templateKey"
+              :disabled="editorState.mode === 'edit'"
+              @change="syncSkillFormWithTemplate(editorState.form.templateKey)"
+            >
               <option v-for="item in availableSkillTemplates" :key="item.key" :value="item.key">
                 {{ item.name }} / {{ item.phase }}
               </option>
             </select>
           </label>
 
-          <label v-if="editorState.entityType !== 'node' && editorState.entityType !== 'skill'" class="field">
+          <label v-if="editorState.entityType === 'config'" class="field">
             <span>{{ editorState.entityType === 'skill' ? 'Skill Key' : 'Key' }}</span>
             <input v-model.trim="editorState.form.key" type="text" placeholder="请输入唯一 Key" />
           </label>
 
-          <label v-if="editorState.entityType !== 'node' && editorState.entityType !== 'skill'" class="field">
+          <label v-if="editorState.entityType === 'config'" class="field">
             <span>{{ editorState.entityType === 'skill' ? 'Skill 名称' : '名称' }}</span>
             <input v-model.trim="editorState.form.name" type="text" placeholder="请输入名称" />
+          </label>
+
+          <label v-if="editorState.entityType === 'input' || editorState.entityType === 'output'" class="field">
+            <span>字段编码</span>
+            <input v-model.trim="editorState.form.fieldCode" type="text" placeholder="请输入字段编码" />
+          </label>
+
+          <label v-if="editorState.entityType === 'input' || editorState.entityType === 'output'" class="field">
+            <span>字段名称</span>
+            <input v-model.trim="editorState.form.fieldName" type="text" placeholder="请输入字段名称" />
+          </label>
+
+          <label v-if="editorState.entityType === 'input' || editorState.entityType === 'output'" class="field">
+            <span>字段路径</span>
+            <input v-model.trim="editorState.form.fieldPath" type="text" placeholder="例如 context.planResult.sql" />
+          </label>
+
+          <label v-if="editorState.entityType === 'input' || editorState.entityType === 'output'" class="field">
+            <span>数据类型</span>
+            <input v-model.trim="editorState.form.dataType" type="text" placeholder="例如 STRING / OBJECT / ARRAY" />
+          </label>
+
+          <label v-if="editorState.entityType === 'input' || editorState.entityType === 'output'" class="field">
+            <span>来源引用</span>
+            <input v-model.trim="editorState.form.sourceRef" type="text" placeholder="例如 context / request" />
+          </label>
+
+          <label v-if="editorState.entityType === 'input' || editorState.entityType === 'output'" class="field">
+            <span>是否必填</span>
+            <select v-model="editorState.form.required">
+              <option :value="true">是</option>
+              <option :value="false">否</option>
+            </select>
           </label>
 
           <label v-if="editorState.entityType === 'config'" class="field">
@@ -241,7 +360,7 @@ const {
             </select>
           </label>
 
-          <label class="field">
+          <label v-if="editorState.entityType === 'node' || editorState.entityType === 'config' || editorState.entityType === 'skill'" class="field">
             <span>{{ editorState.entityType === 'skill' ? '状态 / 挂载态' : '状态' }}</span>
             <select v-model="editorState.form.status">
               <option value="启用">启用</option>
@@ -254,7 +373,7 @@ const {
             </select>
           </label>
 
-          <label v-if="editorState.entityType !== 'node' && editorState.entityType !== 'skill'" class="field field-full">
+          <label v-if="editorState.entityType === 'config'" class="field field-full">
             <span>描述</span>
             <textarea v-model.trim="editorState.form.summary" rows="5" placeholder="请输入描述信息" />
           </label>
@@ -375,7 +494,7 @@ const {
             <h3>确认删除“{{ confirmState.title }}”</h3>
           </div>
         </div>
-        <p class="confirm-copy">这只是本地页面态删除，不会请求后端接口。</p>
+        <p class="confirm-copy">删除将直接写入后端配置，请确认后再执行。</p>
         <div class="panel-actions">
           <button type="button" class="ghost-action" @click="closeConfirm">取消</button>
           <button type="button" class="mini-action danger-fill" @click="confirmRemoveItem">确认删除</button>

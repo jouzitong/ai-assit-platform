@@ -1,6 +1,8 @@
 <script setup>
 import CardList from '../../components/CardList.vue'
 
+defineEmits(['create', 'edit', 'delete'])
+
 defineProps({
   sectionMeta: {
     type: Object,
@@ -18,7 +20,7 @@ defineProps({
     empty-text="当前没有 Skill 分类数据。"
   >
     <template #head-action>
-      <button type="button" class="mini-action primary">新增 Skill 类型</button>
+      <button type="button" class="mini-action primary" @click="$emit('create', 'skill')">新增 Skill 类型</button>
     </template>
 
     <template #list="{ items }">
@@ -43,9 +45,10 @@ defineProps({
             <div class="flow-tags">
               <span v-for="tag in item.tags" :key="tag" class="flow-tag">{{ tag }}</span>
             </div>
-            <button type="button" class="flow-action ghost">
-              查看列表
-            </button>
+            <div class="flow-action-group">
+              <button type="button" class="flow-action ghost" @click="$emit('edit', 'skill', item)">编辑</button>
+              <button type="button" class="flow-action ghost danger" @click="$emit('delete', 'skill', item)">删除</button>
+            </div>
           </div>
         </article>
       </div>

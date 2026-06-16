@@ -1,6 +1,8 @@
 <script setup>
 import CardList from '../../components/CardList.vue'
 
+defineEmits(['create', 'edit', 'delete'])
+
 defineProps({
   sectionMeta: {
     type: Object,
@@ -18,7 +20,7 @@ defineProps({
     empty-text="当前没有流程类型数据。"
   >
     <template #head-action>
-      <button type="button" class="mini-action primary">新增</button>
+      <button type="button" class="mini-action primary" @click="$emit('create', 'workflow')">新增</button>
     </template>
 
     <template #list="{ items }">
@@ -43,9 +45,13 @@ defineProps({
             <div class="flow-tags">
               <span v-for="tag in item.tags" :key="tag" class="flow-tag">{{ tag }}</span>
             </div>
-            <RouterLink :to="`/settings/system/ai-flow/${item.key}`" class="flow-action">
-              进入配置
-            </RouterLink>
+            <div class="flow-action-group">
+              <RouterLink :to="`/settings/system/ai-flow/${item.key}`" class="flow-action">
+                进入配置
+              </RouterLink>
+              <button type="button" class="flow-action ghost" @click="$emit('edit', 'workflow', item)">编辑</button>
+              <button type="button" class="flow-action ghost danger" @click="$emit('delete', 'workflow', item)">删除</button>
+            </div>
           </div>
         </article>
       </div>

@@ -29,6 +29,11 @@ public class WorkflowNodeCatalogConfig {
     private List<WorkflowFieldDefinition> inputDefinitions = new ArrayList<>();
 
     /**
+     * 默认配置项定义。
+     */
+    private List<WorkflowNodeConfigItem> configItems = new ArrayList<>();
+
+    /**
      * 默认输出定义。
      */
     private List<WorkflowFieldDefinition> outputDefinitions = new ArrayList<>();
