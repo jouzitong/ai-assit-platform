@@ -11,6 +11,8 @@ import ai.platform.aiassit.db.engine.meta.service.DbMetaImportJobService;
 import ai.platform.aiassit.db.engine.meta.service.importer.DbMetaImportService;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.athena.framework.security.api.model.UserContext;
+import org.athena.framework.security.auth.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.multipart.MultipartFile;
@@ -70,7 +72,15 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
         }
         ImportJobState state = new ImportJobState(jobId, sourceKey.trim(), fileName, file.getContentType());
         jobStore.put(jobId, state);
-        executorService.submit(() -> runJob(state, tempFile));
+        UserContext userContext = SecurityContextHolder.get();
+        executorService.submit(() -> {
+            SecurityContextHolder.set(userContext);
+            try {
+                runJob(state, tempFile);
+            } finally {
+                SecurityContextHolder.clear();
+            }
+        });
         return DbMetaImportJobCreateResponse.builder()
                 .jobId(jobId)
                 .build();

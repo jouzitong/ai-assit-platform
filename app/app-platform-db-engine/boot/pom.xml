@@ -32,10 +32,7 @@
             <artifactId>lombok</artifactId>
         </dependency>
 
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-security-token-jwt</artifactId>
-        </dependency>
+
 
         <dependency>
             <groupId>org.athena</groupId>

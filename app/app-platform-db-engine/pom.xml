@@ -49,6 +49,13 @@
         </dependencies>
     </dependencyManagement>
 
+    <dependencies>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-security-token-jwt</artifactId>
+        </dependency>
+    </dependencies>
+
     <modules>
         <module>api</module>
         <module>meta</module>
