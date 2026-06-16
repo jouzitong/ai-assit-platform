@@ -52,22 +52,35 @@ export function importDbMetaWorkbook(sourceKey, file) {
   })
 }
 
-export function createDbMetaImportJob(sourceKey, file) {
+export async function streamDbMetaImportWorkbook(sourceKey, file, signal) {
   const formData = new FormData()
   formData.append('file', file)
   if (sourceKey) {
     formData.append('sourceKey', sourceKey)
   }
-  return request('/dbEngine/api/v1/meta/workbook/import/jobs', {
+  const token = getToken()
+  const response = await fetch(buildUrl('/dbEngine/api/v1/meta/workbook/import/stream'), {
     method: 'POST',
-    body: formData
+    body: formData,
+    signal,
+    headers: {
+      Accept: 'text/event-stream;charset=UTF-8',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    }
   })
-}
 
-export function getDbMetaImportJobProgress(jobId) {
-  return request(`/dbEngine/api/v1/meta/workbook/import/jobs/${encodeURIComponent(jobId)}`, {
-    method: 'GET'
-  })
+  if (!response.ok) {
+    const errorPayload = await tryReadErrorPayload(response)
+    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
+  }
+
+  const contentType = response.headers.get('content-type') || ''
+  if (contentType.includes('application/json')) {
+    unwrapBusinessPayload(await response.json(), '获取导入进度流失败')
+    throw new Error('导入进度接口未返回事件流')
+  }
+
+  return response
 }
 
 export async function exportDbMetaWorkbook(sourceKey, format = 'json') {

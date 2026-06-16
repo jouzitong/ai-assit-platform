@@ -8,6 +8,8 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
+import java.util.Map;
+
 @SpringBootApplication
 @EnableFeignClients(basePackageClasses = {
         AiChatExecutionApi.class,
@@ -18,6 +20,8 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PlatformAiChatApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(PlatformAiChatApplication.class, args);
+        SpringApplication application = new SpringApplication(PlatformAiChatApplication.class);
+        application.setDefaultProperties(Map.of("athena.log.dir", "./logs/ai-assit/aiChat"));
+        application.run(args);
     }
 }

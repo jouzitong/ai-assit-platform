@@ -1,20 +1,18 @@
 package ai.platform.aiassit.db.engine.meta.controller;
 
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaExportFileDTO;
-import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportJobCreateResponse;
-import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportJobProgressDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaImportJobService;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaWorkbookService;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
-import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
 import java.net.URLEncoder;
@@ -70,20 +68,15 @@ public class DbMetaWorkbookController {
         return workbookService.importWorkbook(sourceKey, file);
     }
 
-    @PostMapping(value = "/import/jobs", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public DbMetaImportJobCreateResponse createImportJob(
+    @PostMapping(value = "/import/stream", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamImportWorkbook(
             @RequestParam(required = false) String sourceKey,
             @RequestParam("file") MultipartFile file
     ) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new IllegalArgumentException("导入文件不能为空");
         }
-        return importJobService.createImportJob(sourceKey, file);
-    }
-
-    @GetMapping("/import/jobs/{jobId}")
-    public DbMetaImportJobProgressDTO getImportJobProgress(@PathVariable("jobId") String jobId) {
-        return importJobService.getImportJobProgress(jobId);
+        return importJobService.streamImport(sourceKey, file);
     }
 
 }

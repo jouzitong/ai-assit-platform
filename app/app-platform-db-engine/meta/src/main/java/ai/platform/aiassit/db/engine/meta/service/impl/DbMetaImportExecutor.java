@@ -1,8 +1,5 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
-import ai.platform.aiassit.db.engine.meta.entity.DbTableFieldMetaEntity;
-import ai.platform.aiassit.db.engine.meta.entity.DbTableIndexMetaEntity;
-import ai.platform.aiassit.db.engine.meta.entity.DbTableMetaEntity;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
@@ -76,7 +73,7 @@ public class DbMetaImportExecutor {
                     tableMetaService.add(toTableDto(sourceKey, row, null));
                     tableCreatedCount++;
                 } else {
-                    updateExistingTable(sourceKey, existing.getId(), row);
+                    updateExistingTable(sourceKey, existing, row);
                     tableUpdatedCount++;
                 }
                 progressListener.onTableProgress(i + 1, tableRows.size(), tableCreatedCount, tableUpdatedCount);
@@ -92,7 +89,7 @@ public class DbMetaImportExecutor {
                     fieldMetaService.add(toFieldDto(sourceKey, row, null));
                     fieldCreatedCount++;
                 } else {
-                    updateExistingField(sourceKey, existing.getId(), row);
+                    updateExistingField(sourceKey, existing, row);
                     fieldUpdatedCount++;
                 }
                 progressListener.onFieldProgress(i + 1, fieldRows.size(), fieldCreatedCount, fieldUpdatedCount);
@@ -113,7 +110,7 @@ public class DbMetaImportExecutor {
                     indexMetaService.add(toIndexDto(sourceKey, row, null));
                     indexCreatedCount++;
                 } else {
-                    updateExistingIndex(sourceKey, existing.getId(), row);
+                    updateExistingIndex(sourceKey, existing, row);
                     indexUpdatedCount++;
                 }
                 progressListener.onIndexProgress(i + 1, indexRows.size(), indexCreatedCount, indexUpdatedCount);
@@ -159,11 +156,15 @@ public class DbMetaImportExecutor {
             fieldQuery.setSourceKey(sourceKey);
             fieldQuery.setTableName(tableName);
             int columnCount = fieldMetaService.queryAll(fieldQuery).size();
-            tableMetaService.lambdaUpdate()
-                    .eq(DbTableMetaEntity::getSourceKey, sourceKey)
-                    .eq(DbTableMetaEntity::getTableName, tableName)
-                    .set(DbTableMetaEntity::getColumnCount, columnCount)
-                    .update();
+            DbTableMetaDTO existing = findExistingTable(sourceKey, tableName);
+            if (existing == null) {
+                continue;
+            }
+            existing.setColumnCount(columnCount);
+            DbTableMetaDTO updated = tableMetaService.update(existing.getId(), existing);
+            if (updated == null) {
+                throw new IllegalStateException("回写表字段数失败, id=" + existing.getId() + ", tableName=" + tableName);
+            }
         }
     }
 
@@ -217,26 +218,10 @@ public class DbMetaImportExecutor {
         return dto;
     }
 
-    private void updateExistingTable(String sourceKey, Long id, DbMetaImportData.TableRow row) {
-        boolean updated = tableMetaService.lambdaUpdate()
-                .eq(DbTableMetaEntity::getId, id)
-                .set(DbTableMetaEntity::getSourceKey, sourceKey)
-                .set(DbTableMetaEntity::getTableName, row.getTableName())
-                .set(DbTableMetaEntity::getTableComment, row.getTableComment())
-                .set(DbTableMetaEntity::getTableType, row.getTableType())
-                .set(DbTableMetaEntity::getLayerType, row.getLayerType())
-                .set(DbTableMetaEntity::getRowCount, row.getRowCount())
-                .set(DbTableMetaEntity::getColumnCount, row.getColumnCount())
-                .set(DbTableMetaEntity::getPartitionKey, row.getPartitionKey())
-                .set(DbTableMetaEntity::getFreshnessSeconds, row.getFreshnessSeconds())
-                .set(DbTableMetaEntity::getStatus, row.getStatus())
-                .set(DbTableMetaEntity::getEnabled, defaultBoolean(row.getEnabled()))
-                .set(DbTableMetaEntity::getLastScanAt, parseDateTime(row.getLastScanAt()))
-                .set(DbTableMetaEntity::getLastSyncAt, parseDateTime(row.getLastSyncAt()))
-                .set(DbTableMetaEntity::getRemark, row.getRemark())
-                .update();
-        if (!updated) {
-            throw new IllegalStateException("更新表元数据失败, id=" + id + ", tableName=" + row.getTableName());
+    private void updateExistingTable(String sourceKey, DbTableMetaDTO existing, DbMetaImportData.TableRow row) {
+        DbTableMetaDTO updated = tableMetaService.update(existing.getId(), toTableDto(sourceKey, row, existing));
+        if (updated == null) {
+            throw new IllegalStateException("更新表元数据失败, id=" + existing.getId() + ", tableName=" + row.getTableName());
         }
     }
 
@@ -261,28 +246,10 @@ public class DbMetaImportExecutor {
         return dto;
     }
 
-    private void updateExistingField(String sourceKey, Long id, DbMetaImportData.FieldRow row) {
-        boolean updated = fieldMetaService.lambdaUpdate()
-                .eq(DbTableFieldMetaEntity::getId, id)
-                .set(DbTableFieldMetaEntity::getSourceKey, sourceKey)
-                .set(DbTableFieldMetaEntity::getTableName, row.getTableName())
-                .set(DbTableFieldMetaEntity::getColumnName, row.getColumnName())
-                .set(DbTableFieldMetaEntity::getColumnComment, row.getColumnComment())
-                .set(DbTableFieldMetaEntity::getDataType, row.getDataType())
-                .set(DbTableFieldMetaEntity::getColumnLength, row.getColumnLength())
-                .set(DbTableFieldMetaEntity::getColumnPrecision, row.getColumnPrecision())
-                .set(DbTableFieldMetaEntity::getColumnScale, row.getColumnScale())
-                .set(DbTableFieldMetaEntity::getNullable, defaultBoolean(row.getNullable()))
-                .set(DbTableFieldMetaEntity::getPrimaryKey, defaultBoolean(row.getPrimaryKey()))
-                .set(DbTableFieldMetaEntity::getPartitionKey, defaultBoolean(row.getPartitionKey()))
-                .set(DbTableFieldMetaEntity::getDefaultValue, row.getDefaultValue())
-                .set(DbTableFieldMetaEntity::getOrdinalPosition, row.getOrdinalPosition())
-                .set(DbTableFieldMetaEntity::getFieldRole, row.getFieldRole())
-                .set(DbTableFieldMetaEntity::getEnabled, defaultBoolean(row.getEnabled()))
-                .set(DbTableFieldMetaEntity::getRemark, row.getRemark())
-                .update();
-        if (!updated) {
-            throw new IllegalStateException("更新字段元数据失败, id=" + id + ", columnName=" + row.getColumnName());
+    private void updateExistingField(String sourceKey, DbTableFieldMetaDTO existing, DbMetaImportData.FieldRow row) {
+        DbTableFieldMetaDTO updated = fieldMetaService.update(existing.getId(), toFieldDto(sourceKey, row, existing));
+        if (updated == null) {
+            throw new IllegalStateException("更新字段元数据失败, id=" + existing.getId() + ", columnName=" + row.getColumnName());
         }
     }
 
@@ -301,22 +268,10 @@ public class DbMetaImportExecutor {
         return dto;
     }
 
-    private void updateExistingIndex(String sourceKey, Long id, DbMetaImportData.IndexRow row) {
-        boolean updated = indexMetaService.lambdaUpdate()
-                .eq(DbTableIndexMetaEntity::getId, id)
-                .set(DbTableIndexMetaEntity::getSourceKey, sourceKey)
-                .set(DbTableIndexMetaEntity::getTableName, row.getTableName())
-                .set(DbTableIndexMetaEntity::getIndexName, row.getIndexName())
-                .set(DbTableIndexMetaEntity::getIndexType, row.getIndexType())
-                .set(DbTableIndexMetaEntity::getUniqueFlag, defaultBoolean(row.getUniqueFlag()))
-                .set(DbTableIndexMetaEntity::getPrimaryFlag, defaultBoolean(row.getPrimaryFlag()))
-                .set(DbTableIndexMetaEntity::getColumnName, row.getColumnName())
-                .set(DbTableIndexMetaEntity::getColumnOrder, row.getColumnOrder())
-                .set(DbTableIndexMetaEntity::getEnabled, defaultBoolean(row.getEnabled()))
-                .set(DbTableIndexMetaEntity::getRemark, row.getRemark())
-                .update();
-        if (!updated) {
-            throw new IllegalStateException("更新索引元数据失败, id=" + id + ", indexName=" + row.getIndexName());
+    private void updateExistingIndex(String sourceKey, DbTableIndexMetaDTO existing, DbMetaImportData.IndexRow row) {
+        DbTableIndexMetaDTO updated = indexMetaService.update(existing.getId(), toIndexDto(sourceKey, row, existing));
+        if (updated == null) {
+            throw new IllegalStateException("更新索引元数据失败, id=" + existing.getId() + ", indexName=" + row.getIndexName());
         }
     }
 

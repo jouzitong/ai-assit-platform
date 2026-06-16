@@ -8,19 +8,18 @@ spring:
         group: DEFAULT_GROUP
         file-extension: yaml
         username: 'nacos'
-        password: 'nacos'
+        password: 'root01@root02'
         shared-configs:
           - data-id: common.yaml
             group: DEFAULT_GROUP
             refresh: true
         extension-configs:
-          - data-id: application-${spring.application.name}.yaml
+          - data-id: application-aiEngine.yaml
             group: DEFAULT_GROUP
             refresh: true
       discovery:
         server-addr: 43.142.108.229:18848
-        context-path: /nacos
         namespace: a3aa9d79-006b-4e9f-86d6-c75828643fb5
         group: DEFAULT_GROUP
         username: 'nacos'
-        password: 'nacos'
+        password: 'root01@root02'

@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { createDbMetaImportJob, downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, getDbMetaImportJobProgress, searchDbDataSources, searchDbTableFields, searchDbTables } from '../../../../../../api/dbEngine'
+import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook } from '../../../../../../api/dbEngine'
 import { showPopup } from '../../../../../../utils/popup'
 
 export function useDataSourceManagePage() {
@@ -28,7 +28,7 @@ export function useDataSourceManagePage() {
   const exportDialogVisible = ref(false)
   const exportFormat = ref('json')
   const pageSizeOptions = [10, 20, 50]
-  let importProgressPollTimer = 0
+  let importProgressStreamAbortController = null
 
   const sourceKey = computed(() => String(route.params.sourceKey ?? ''))
   const currentSource = computed(() => {
@@ -68,7 +68,7 @@ export function useDataSourceManagePage() {
   })
 
   onBeforeUnmount(() => {
-    stopImportProgressPolling()
+    stopImportProgressStream()
   })
 
   watch(sourceKey, async () => {
@@ -202,12 +202,8 @@ export function useDataSourceManagePage() {
     importSubmitting.value = true
     importError.value = ''
     try {
-      const payload = unwrapPayload(await createDbMetaImportJob(currentSource.value.key, importFile.value))
-      if (!payload?.jobId) {
-        throw new Error('导入任务创建失败')
-      }
       resetImportJobProgress()
-      importJobProgress.jobId = payload.jobId
+      importJobProgress.jobId = ''
       importJobProgress.sourceKey = currentSource.value.key
       importJobProgress.fileName = importFile.value.name
       importJobProgress.status = 'PENDING'
@@ -215,7 +211,7 @@ export function useDataSourceManagePage() {
       importJobProgress.message = '导入任务已创建，等待后台处理'
       closeImportDialog()
       importProgressDialogVisible.value = true
-      await pollImportJobProgress(payload.jobId, { shouldScheduleNext: true, showTerminalToast: true })
+      await consumeImportStream(currentSource.value.key, importFile.value, { showTerminalToast: true })
     } catch (error) {
       importError.value = error.message || '导入失败'
     } finally {
@@ -487,51 +483,93 @@ export function useDataSourceManagePage() {
     return importFormat.value === 'json' ? 'JSON' : 'Excel'
   }
 
-  async function pollImportJobProgress(jobId, options = {}) {
-    const { shouldScheduleNext = false, showTerminalToast = false } = options
+  async function consumeImportStream(sourceKey, file, options = {}) {
+    const { showTerminalToast = false } = options
+    stopImportProgressStream()
+    const abortController = new AbortController()
+    importProgressStreamAbortController = abortController
+    const response = await streamDbMetaImportWorkbook(sourceKey, file, abortController.signal)
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('导入进度流不可用')
+    }
+
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
     try {
-      const payload = unwrapPayload(await getDbMetaImportJobProgress(jobId))
-      applyImportJobProgress(payload)
-      const status = String(payload?.status || '')
-      if (status === 'COMPLETED') {
-        stopImportProgressPolling()
-        if (showTerminalToast) {
-          showPopup.success(buildImportNotice(payload?.result), { title: 'Import Complete', duration: 3200 })
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) {
+          break
         }
-        await refreshPage()
-        return
-      }
-      if (status === 'FAILED') {
-        stopImportProgressPolling()
-        if (showTerminalToast) {
-          showPopup.error(payload?.message || '导入失败')
+        buffer += decoder.decode(value, { stream: true })
+        const frames = buffer.split('\n\n')
+        buffer = frames.pop() ?? ''
+        for (const frame of frames) {
+          await handleImportStreamFrame(frame, showTerminalToast)
         }
-        return
       }
-      if (shouldScheduleNext) {
-        scheduleImportProgressPoll(jobId, showTerminalToast)
+      if (buffer.trim()) {
+        await handleImportStreamFrame(buffer, showTerminalToast)
       }
     } catch (error) {
-      if (shouldScheduleNext) {
-        scheduleImportProgressPoll(jobId, showTerminalToast)
+      if (abortController.signal.aborted) {
+        return
       }
-      if (!importJobActive.value) {
-        throw error
+      throw error
+    } finally {
+      if (importProgressStreamAbortController === abortController) {
+        importProgressStreamAbortController = null
       }
     }
   }
 
-  function scheduleImportProgressPoll(jobId, showTerminalToast) {
-    stopImportProgressPolling()
-    importProgressPollTimer = window.setTimeout(() => {
-      pollImportJobProgress(jobId, { shouldScheduleNext: true, showTerminalToast })
-    }, 1500)
+  async function handleImportStreamFrame(frame, showTerminalToast) {
+    const lines = String(frame || '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+    if (!lines.length) {
+      return
+    }
+    let eventName = 'progress'
+    const dataLines = []
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventName = line.slice('event:'.length).trim() || 'progress'
+        continue
+      }
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice('data:'.length).trim())
+      }
+    }
+    if (!dataLines.length) {
+      return
+    }
+    const payload = JSON.parse(dataLines.join('\n'))
+    applyImportJobProgress(payload)
+    const status = String(payload?.status || '')
+    if (eventName === 'complete' || status === 'COMPLETED') {
+      stopImportProgressStream()
+      if (showTerminalToast) {
+        showPopup.success(buildImportNotice(payload?.result), { title: 'Import Complete', duration: 3200 })
+      }
+      await refreshPage()
+      return
+    }
+    if (eventName === 'failed' || status === 'FAILED') {
+      stopImportProgressStream()
+      if (showTerminalToast) {
+        showPopup.error(payload?.message || '导入失败')
+      }
+    }
   }
 
-  function stopImportProgressPolling() {
-    if (importProgressPollTimer) {
-      window.clearTimeout(importProgressPollTimer)
-      importProgressPollTimer = 0
+  function stopImportProgressStream() {
+    if (importProgressStreamAbortController) {
+      importProgressStreamAbortController.abort()
+      importProgressStreamAbortController = null
     }
   }
 
@@ -550,7 +588,7 @@ export function useDataSourceManagePage() {
 
   function resetImportJobProgress() {
     Object.assign(importJobProgress, createEmptyImportJobProgress())
-    stopImportProgressPolling()
+    stopImportProgressStream()
   }
 
   function resolveImportStageLabel(stage) {
