@@ -14,7 +14,7 @@ spring:
             group: DEFAULT_GROUP
             refresh: true
         extension-configs:
-          - data-id: application-aiEngine.yaml
+          - data-id: application-file.yaml
             group: DEFAULT_GROUP
             refresh: true
       discovery:

@@ -19,9 +19,8 @@ ai:
       base-url: "https://dashscope.aliyuncs.com/compatible-mode"
       default-model: "qwen-math-turbo"
       workspaceId: 'w05enpcxa4'
-
+      accessKeyId: ${AI_PROVIDER_QWEN_ACCESS_KEY_ID:}
+      accessKeySecret: ${AI_PROVIDER_QWEN_ACCESS_KEY_SECRET:}
 
 database:
   name: 'platform_ai_assist_ai_chat'
-
-

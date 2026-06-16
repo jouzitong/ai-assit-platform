@@ -23,9 +23,3 @@ spring:
         group: DEFAULT_GROUP
         username: 'nacos'
         password: 'root01@root02'
-
-ai:
-  provider:
-    qwen:
-      accessKeyId: ${AI_PROVIDER_QWEN_ACCESS_KEY_ID:}
-      accessKeySecret: ${AI_PROVIDER_QWEN_ACCESS_KEY_SECRET:}
