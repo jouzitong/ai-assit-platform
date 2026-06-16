@@ -19,6 +19,9 @@
 .notice-bar.is-success {
   color: #166534;
   background: #ecfdf5;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .notice-bar.is-error {
@@ -174,6 +177,10 @@
 
 .export-modal {
   width: min(520px, 100%);
+}
+
+.import-progress-modal {
+  width: min(760px, 100%);
 }
 
 .modal-head {
@@ -478,6 +485,103 @@
   background: transparent;
 }
 
+.inline-link {
+  font-weight: 700;
+}
+
+.progress-overview {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  border: 1px solid rgba(191, 219, 254, 0.95);
+}
+
+.progress-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.progress-header strong {
+  color: #0f172a;
+  font-size: 16px;
+}
+
+.progress-header span,
+.progress-message {
+  color: #475569;
+  font-size: 13px;
+}
+
+.progress-message {
+  margin: 0;
+}
+
+.progress-bar-track {
+  position: relative;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: rgba(191, 219, 254, 0.6);
+}
+
+.progress-bar-fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2563eb 0%, #0ea5e9 100%);
+}
+
+.progress-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.progress-card {
+  display: grid;
+  gap: 6px;
+  padding: 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+}
+
+.progress-card strong {
+  color: #0f172a;
+  font-size: 15px;
+}
+
+.progress-card span,
+.progress-log li {
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.progress-log {
+  display: grid;
+  gap: 10px;
+  padding: 16px 18px;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.progress-log strong {
+  color: #0f172a;
+  font-size: 14px;
+}
+
+.progress-log ul {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding-left: 18px;
+}
+
 .action-btn {
   min-height: 44px;
   padding: 0 16px;
@@ -555,6 +659,10 @@
 
 @media (max-width: 760px) {
   .field-workbench {
+    grid-template-columns: 1fr;
+  }
+
+  .progress-grid {
     grid-template-columns: 1fr;
   }
 

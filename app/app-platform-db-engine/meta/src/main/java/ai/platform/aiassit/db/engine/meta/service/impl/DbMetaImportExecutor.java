@@ -8,6 +8,7 @@ import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.importer.DbMetaImportData;
+import ai.platform.aiassit.db.engine.meta.enums.DbMetaImportJobStage;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableIndexMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaQueryRequest;
@@ -46,6 +47,17 @@ public class DbMetaImportExecutor {
 
     @Transactional(rollbackFor = Exception.class)
     public DbMetaImportResultDTO importData(String requestSourceKey, MultipartFile file, String format, DbMetaImportData importData) throws java.io.IOException {
+        return importData(requestSourceKey, file, format, importData, DbMetaImportProgressListener.NOOP);
+    }
+
+    @Transactional(rollbackFor = Exception.class)
+    public DbMetaImportResultDTO importData(
+            String requestSourceKey,
+            MultipartFile file,
+            String format,
+            DbMetaImportData importData,
+            DbMetaImportProgressListener progressListener
+    ) throws java.io.IOException {
         String originalFilename = file == null ? null : file.getOriginalFilename();
         long fileSize = file == null ? 0L : file.getSize();
         String sourceKey = resolveSourceKey(requestSourceKey);
@@ -53,7 +65,12 @@ public class DbMetaImportExecutor {
         try {
             int tableCreatedCount = 0;
             int tableUpdatedCount = 0;
-            for (DbMetaImportData.TableRow row : importData.getTables()) {
+            List<DbMetaImportData.TableRow> tableRows = importData.getTables();
+            List<DbMetaImportData.FieldRow> fieldRows = importData.getFields();
+            List<DbMetaImportData.IndexRow> indexRows = importData.getIndexes();
+            progressListener.onStageChanged(DbMetaImportJobStage.IMPORTING_TABLES, "开始导入表元数据");
+            for (int i = 0; i < tableRows.size(); i++) {
+                DbMetaImportData.TableRow row = tableRows.get(i);
                 DbTableMetaDTO existing = findExistingTable(sourceKey, row.getTableName());
                 if (existing == null) {
                     tableMetaService.add(toTableDto(sourceKey, row, null));
@@ -62,11 +79,14 @@ public class DbMetaImportExecutor {
                     updateExistingTable(sourceKey, existing.getId(), row);
                     tableUpdatedCount++;
                 }
+                progressListener.onTableProgress(i + 1, tableRows.size(), tableCreatedCount, tableUpdatedCount);
             }
 
             int fieldCreatedCount = 0;
             int fieldUpdatedCount = 0;
-            for (DbMetaImportData.FieldRow row : importData.getFields()) {
+            progressListener.onStageChanged(DbMetaImportJobStage.IMPORTING_FIELDS, "开始导入字段元数据");
+            for (int i = 0; i < fieldRows.size(); i++) {
+                DbMetaImportData.FieldRow row = fieldRows.get(i);
                 DbTableFieldMetaDTO existing = findExistingField(sourceKey, row.getTableName(), row.getColumnName());
                 if (existing == null) {
                     fieldMetaService.add(toFieldDto(sourceKey, row, null));
@@ -75,11 +95,14 @@ public class DbMetaImportExecutor {
                     updateExistingField(sourceKey, existing.getId(), row);
                     fieldUpdatedCount++;
                 }
+                progressListener.onFieldProgress(i + 1, fieldRows.size(), fieldCreatedCount, fieldUpdatedCount);
             }
 
             int indexCreatedCount = 0;
             int indexUpdatedCount = 0;
-            for (DbMetaImportData.IndexRow row : importData.getIndexes()) {
+            progressListener.onStageChanged(DbMetaImportJobStage.IMPORTING_INDEXES, "开始导入索引元数据");
+            for (int i = 0; i < indexRows.size(); i++) {
+                DbMetaImportData.IndexRow row = indexRows.get(i);
                 DbTableIndexMetaDTO existing = findExistingIndex(
                         sourceKey,
                         row.getTableName(),
@@ -93,9 +116,11 @@ public class DbMetaImportExecutor {
                     updateExistingIndex(sourceKey, existing.getId(), row);
                     indexUpdatedCount++;
                 }
+                progressListener.onIndexProgress(i + 1, indexRows.size(), indexCreatedCount, indexUpdatedCount);
             }
 
-            refreshImportedTableColumnCounts(sourceKey, importData.getFields());
+            progressListener.onStageChanged(DbMetaImportJobStage.FINALIZING, "正在回写表字段数");
+            refreshImportedTableColumnCounts(sourceKey, fieldRows);
 
             log.info(
                     "数据库元数据导入完成, format={}, sourceKey={}, tableCreatedCount={}, tableUpdatedCount={}, fieldCreatedCount={}, fieldUpdatedCount={}, indexCreatedCount={}, indexUpdatedCount={}",

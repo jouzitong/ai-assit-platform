@@ -29,6 +29,13 @@ const {
   importError,
   importFormat,
   importSubmitting,
+  importProgressDialogVisible,
+  importJobProgress,
+  importJobActive,
+  importProgressNoticeVisible,
+  importProgressStageLabel,
+  importProgressSummary,
+  importActionLabel,
   exportDialogVisible,
   exportFormat,
   exportSubmitting,
@@ -44,6 +51,8 @@ const {
   refreshPage,
   openImportDialog,
   closeImportDialog,
+  openImportProgressDialog,
+  closeImportProgressDialog,
   openExportDialog,
   closeExportDialog,
   handleImportDragEnter,
@@ -99,7 +108,7 @@ function onFileDrop(event) {
         </button>
         <button type="button" class="toolbar-btn secondary" @click="openImportDialog">
           <Upload :size="16" />
-          导入
+          {{ importActionLabel }}
         </button>
         <button type="button" class="toolbar-btn secondary" :disabled="exportSubmitting" @click="openExportDialog">
           <Download :size="16" />
@@ -107,6 +116,11 @@ function onFileDrop(event) {
         </button>
       </div>
     </section>
+
+    <div v-if="importProgressNoticeVisible" class="notice-bar is-success">
+      <span>导入任务进行中：{{ importProgressStageLabel }} · {{ importJobProgress.progressPercent }}%</span>
+      <button type="button" class="link-btn inline-link" @click="openImportProgressDialog">查看详情</button>
+    </div>
 
     <section v-if="!fieldWorkbenchVisible" class="table-card">
       <div v-if="sourceError" class="table-state is-error">{{ sourceError }}</div>
@@ -327,6 +341,60 @@ function onFileDrop(event) {
           <button class="action-btn" type="button" @click="closeExportDialog">取消</button>
           <button class="action-btn primary" type="button" :disabled="exportSubmitting" @click="exportWorkbook">
             {{ exportSubmitting ? '导出中...' : '开始导出' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="importProgressDialogVisible" class="modal-mask" @click.self="closeImportProgressDialog">
+      <div class="modal-card import-progress-modal">
+        <header class="modal-head">
+          <div>
+            <h3>导入进度</h3>
+            <p>{{ importJobProgress.fileName || '正在处理导入任务' }}</p>
+          </div>
+          <button class="close-btn" type="button" @click="closeImportProgressDialog">×</button>
+        </header>
+
+        <div class="progress-overview">
+          <div class="progress-header">
+            <strong>{{ importProgressStageLabel }}</strong>
+            <span>{{ importJobProgress.progressPercent }}%</span>
+          </div>
+          <div class="progress-bar-track">
+            <div class="progress-bar-fill" :style="{ width: `${importJobProgress.progressPercent}%` }" />
+          </div>
+          <p class="progress-message">{{ importJobProgress.message || '任务已创建，等待处理' }}</p>
+        </div>
+
+        <div class="progress-grid">
+          <article class="progress-card">
+            <strong>表</strong>
+            <span>总数 {{ importProgressSummary.tableTotal }} · 已处理 {{ importProgressSummary.tableProcessed }}</span>
+            <span>新增 {{ importProgressSummary.tableCreatedCount }} · 更新 {{ importProgressSummary.tableUpdatedCount }}</span>
+          </article>
+          <article class="progress-card">
+            <strong>字段</strong>
+            <span>总数 {{ importProgressSummary.fieldTotal }} · 已处理 {{ importProgressSummary.fieldProcessed }}</span>
+            <span>新增 {{ importProgressSummary.fieldCreatedCount }} · 更新 {{ importProgressSummary.fieldUpdatedCount }}</span>
+          </article>
+          <article class="progress-card">
+            <strong>索引</strong>
+            <span>总数 {{ importProgressSummary.indexTotal }} · 已处理 {{ importProgressSummary.indexProcessed }}</span>
+            <span>新增 {{ importProgressSummary.indexCreatedCount }} · 更新 {{ importProgressSummary.indexUpdatedCount }}</span>
+          </article>
+        </div>
+
+        <div v-if="importJobProgress.recentMessages?.length" class="progress-log">
+          <strong>最近状态</strong>
+          <ul>
+            <li v-for="item in importJobProgress.recentMessages" :key="item">{{ item }}</li>
+          </ul>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="action-btn" type="button" @click="closeImportProgressDialog">
+            {{ importJobActive ? '后台继续' : '关闭' }}
           </button>
         </footer>
       </div>

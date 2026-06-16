@@ -1,6 +1,6 @@
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, importDbMetaWorkbook, searchDbDataSources, searchDbTableFields, searchDbTables } from '../../../../../../api/dbEngine'
+import { createDbMetaImportJob, downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, getDbMetaImportJobProgress, searchDbDataSources, searchDbTableFields, searchDbTables } from '../../../../../../api/dbEngine'
 import { showPopup } from '../../../../../../utils/popup'
 
 export function useDataSourceManagePage() {
@@ -23,9 +23,12 @@ export function useDataSourceManagePage() {
   const importFile = ref(null)
   const importError = ref('')
   const importFormat = ref('json')
+  const importProgressDialogVisible = ref(false)
+  const importJobProgress = reactive(createEmptyImportJobProgress())
   const exportDialogVisible = ref(false)
   const exportFormat = ref('json')
   const pageSizeOptions = [10, 20, 50]
+  let importProgressPollTimer = 0
 
   const sourceKey = computed(() => String(route.params.sourceKey ?? ''))
   const currentSource = computed(() => {
@@ -54,9 +57,18 @@ export function useDataSourceManagePage() {
     return currentTables.value.find(item => item.name === selectedTableName.value) ?? currentTables.value[0] ?? null
   })
   const selectedFields = computed(() => fieldList.value)
+  const importJobActive = computed(() => ['PENDING', 'RUNNING'].includes(String(importJobProgress.status || '')))
+  const importProgressNoticeVisible = computed(() => importJobActive.value && !importProgressDialogVisible.value)
+  const importProgressStageLabel = computed(() => resolveImportStageLabel(importJobProgress.stage))
+  const importProgressSummary = computed(() => importJobProgress.summary || createEmptyImportProgressSummary())
+  const importActionLabel = computed(() => importJobActive.value ? '查看进度' : '导入')
 
   onMounted(async () => {
     await loadInitialData()
+  })
+
+  onBeforeUnmount(() => {
+    stopImportProgressPolling()
   })
 
   watch(sourceKey, async () => {
@@ -105,6 +117,10 @@ export function useDataSourceManagePage() {
   }
 
   function openImportDialog() {
+    if (importJobActive.value) {
+      importProgressDialogVisible.value = true
+      return
+    }
     importDialogVisible.value = true
     importDragActive.value = false
     importError.value = ''
@@ -113,10 +129,25 @@ export function useDataSourceManagePage() {
 
   function closeImportDialog() {
     importDialogVisible.value = false
+    resetImportDialogState()
+  }
+
+  function resetImportDialogState() {
     importDragActive.value = false
     importError.value = ''
     importFormat.value = 'json'
     importFile.value = null
+  }
+
+  function openImportProgressDialog() {
+    if (!importJobProgress.jobId) {
+      return
+    }
+    importProgressDialogVisible.value = true
+  }
+
+  function closeImportProgressDialog() {
+    importProgressDialogVisible.value = false
   }
 
   function openExportDialog() {
@@ -171,10 +202,20 @@ export function useDataSourceManagePage() {
     importSubmitting.value = true
     importError.value = ''
     try {
-      const payload = unwrapPayload(await importDbMetaWorkbook(currentSource.value.key, importFile.value))
-      showPopup.success(buildImportNotice(payload), { title: 'Import Complete', duration: 3200 })
+      const payload = unwrapPayload(await createDbMetaImportJob(currentSource.value.key, importFile.value))
+      if (!payload?.jobId) {
+        throw new Error('导入任务创建失败')
+      }
+      resetImportJobProgress()
+      importJobProgress.jobId = payload.jobId
+      importJobProgress.sourceKey = currentSource.value.key
+      importJobProgress.fileName = importFile.value.name
+      importJobProgress.status = 'PENDING'
+      importJobProgress.stage = 'QUEUED'
+      importJobProgress.message = '导入任务已创建，等待后台处理'
       closeImportDialog()
-      await refreshPage()
+      importProgressDialogVisible.value = true
+      await pollImportJobProgress(payload.jobId, { shouldScheduleNext: true, showTerminalToast: true })
     } catch (error) {
       importError.value = error.message || '导入失败'
     } finally {
@@ -307,8 +348,11 @@ export function useDataSourceManagePage() {
 
   function resolvePageTotal(total, listLength) {
     const parsed = Number(total)
-    if (Number.isFinite(parsed) && parsed >= 0) {
+    if (Number.isFinite(parsed) && parsed > 0) {
       return parsed
+    }
+    if (listLength > 0) {
+      return listLength
     }
     return listLength
   }
@@ -443,6 +487,118 @@ export function useDataSourceManagePage() {
     return importFormat.value === 'json' ? 'JSON' : 'Excel'
   }
 
+  async function pollImportJobProgress(jobId, options = {}) {
+    const { shouldScheduleNext = false, showTerminalToast = false } = options
+    try {
+      const payload = unwrapPayload(await getDbMetaImportJobProgress(jobId))
+      applyImportJobProgress(payload)
+      const status = String(payload?.status || '')
+      if (status === 'COMPLETED') {
+        stopImportProgressPolling()
+        if (showTerminalToast) {
+          showPopup.success(buildImportNotice(payload?.result), { title: 'Import Complete', duration: 3200 })
+        }
+        await refreshPage()
+        return
+      }
+      if (status === 'FAILED') {
+        stopImportProgressPolling()
+        if (showTerminalToast) {
+          showPopup.error(payload?.message || '导入失败')
+        }
+        return
+      }
+      if (shouldScheduleNext) {
+        scheduleImportProgressPoll(jobId, showTerminalToast)
+      }
+    } catch (error) {
+      if (shouldScheduleNext) {
+        scheduleImportProgressPoll(jobId, showTerminalToast)
+      }
+      if (!importJobActive.value) {
+        throw error
+      }
+    }
+  }
+
+  function scheduleImportProgressPoll(jobId, showTerminalToast) {
+    stopImportProgressPolling()
+    importProgressPollTimer = window.setTimeout(() => {
+      pollImportJobProgress(jobId, { shouldScheduleNext: true, showTerminalToast })
+    }, 1500)
+  }
+
+  function stopImportProgressPolling() {
+    if (importProgressPollTimer) {
+      window.clearTimeout(importProgressPollTimer)
+      importProgressPollTimer = 0
+    }
+  }
+
+  function applyImportJobProgress(payload) {
+    importJobProgress.jobId = payload?.jobId || ''
+    importJobProgress.sourceKey = payload?.sourceKey || ''
+    importJobProgress.fileName = payload?.fileName || ''
+    importJobProgress.status = payload?.status || ''
+    importJobProgress.stage = payload?.stage || ''
+    importJobProgress.progressPercent = Number(payload?.progressPercent ?? 0)
+    importJobProgress.message = payload?.message || ''
+    importJobProgress.recentMessages = Array.isArray(payload?.recentMessages) ? payload.recentMessages : []
+    importJobProgress.summary = payload?.summary || createEmptyImportProgressSummary()
+    importJobProgress.result = payload?.result || null
+  }
+
+  function resetImportJobProgress() {
+    Object.assign(importJobProgress, createEmptyImportJobProgress())
+    stopImportProgressPolling()
+  }
+
+  function resolveImportStageLabel(stage) {
+    const labelMap = {
+      QUEUED: '等待处理',
+      PARSING: '解析文件',
+      IMPORTING_TABLES: '导入表',
+      IMPORTING_FIELDS: '导入字段',
+      IMPORTING_INDEXES: '导入索引',
+      FINALIZING: '收尾同步',
+      COMPLETED: '导入完成',
+      FAILED: '导入失败'
+    }
+    return labelMap[stage] || '处理中'
+  }
+
+  function createEmptyImportProgressSummary() {
+    return {
+      tableTotal: 0,
+      tableProcessed: 0,
+      tableCreatedCount: 0,
+      tableUpdatedCount: 0,
+      fieldTotal: 0,
+      fieldProcessed: 0,
+      fieldCreatedCount: 0,
+      fieldUpdatedCount: 0,
+      indexTotal: 0,
+      indexProcessed: 0,
+      indexCreatedCount: 0,
+      indexUpdatedCount: 0
+    }
+  }
+
+  function createEmptyImportJobProgress() {
+    return {
+      jobId: '',
+      sourceKey: '',
+      fileName: '',
+      status: '',
+      stage: '',
+      progressPercent: 0,
+      message: '',
+      recentMessages: [],
+      summary: createEmptyImportProgressSummary(),
+      result: null
+    }
+  }
+
   function triggerBrowserDownload(blob, filename) {
     const objectUrl = window.URL.createObjectURL(blob)
     const link = document.createElement('a')
@@ -498,6 +654,13 @@ export function useDataSourceManagePage() {
     importError,
     importFormat,
     importSubmitting,
+    importProgressDialogVisible,
+    importJobProgress,
+    importJobActive,
+    importProgressNoticeVisible,
+    importProgressStageLabel,
+    importProgressSummary,
+    importActionLabel,
     exportDialogVisible,
     exportFormat,
     exportSubmitting,
@@ -514,6 +677,8 @@ export function useDataSourceManagePage() {
     refreshPage,
     openImportDialog,
     closeImportDialog,
+    openImportProgressDialog,
+    closeImportProgressDialog,
     openExportDialog,
     closeExportDialog,
     handleImportDragEnter,

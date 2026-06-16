@@ -52,6 +52,24 @@ export function importDbMetaWorkbook(sourceKey, file) {
   })
 }
 
+export function createDbMetaImportJob(sourceKey, file) {
+  const formData = new FormData()
+  formData.append('file', file)
+  if (sourceKey) {
+    formData.append('sourceKey', sourceKey)
+  }
+  return request('/dbEngine/api/v1/meta/workbook/import/jobs', {
+    method: 'POST',
+    body: formData
+  })
+}
+
+export function getDbMetaImportJobProgress(jobId) {
+  return request(`/dbEngine/api/v1/meta/workbook/import/jobs/${encodeURIComponent(jobId)}`, {
+    method: 'GET'
+  })
+}
+
 export async function exportDbMetaWorkbook(sourceKey, format = 'json') {
   const token = getToken()
   const response = await fetch(buildUrl(`/dbEngine/api/v1/meta/workbook/export?sourceKey=${encodeURIComponent(sourceKey)}&format=${encodeURIComponent(format)}`), {
