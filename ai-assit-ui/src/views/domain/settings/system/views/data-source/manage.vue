@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { ArrowLeft, Download, Plus, RefreshRight, Upload } from '@element-plus/icons-vue'
+import { ArrowLeft, Download, RefreshRight, Upload } from '@element-plus/icons-vue'
 import '../../styles/data-source/manage.css'
 import { useDataSourceManagePage } from '../../service/data-source/manage'
 
@@ -33,7 +33,6 @@ const {
   exportFormat,
   exportSubmitting,
   templateSubmitting,
-  notice,
   handleSourceChange,
   handlePageChange,
   handlePageSizeChange,
@@ -74,10 +73,6 @@ function onFileDrop(event) {
 
 <template>
   <div class="data-source-manage-page">
-    <div v-if="notice.text" :class="['notice-bar', notice.type === 'error' ? 'is-error' : 'is-success']">
-      {{ notice.text }}
-    </div>
-
     <section class="content-head compact">
       <div class="head-copy">
         <button type="button" class="back-btn" @click="goBack">
@@ -109,10 +104,6 @@ function onFileDrop(event) {
         <button type="button" class="toolbar-btn secondary" :disabled="exportSubmitting" @click="openExportDialog">
           <Download :size="16" />
           {{ exportSubmitting ? '导出中...' : '导出' }}
-        </button>
-        <button type="button" class="toolbar-btn primary">
-          <Plus :size="16" />
-          新增表
         </button>
       </div>
     </section>

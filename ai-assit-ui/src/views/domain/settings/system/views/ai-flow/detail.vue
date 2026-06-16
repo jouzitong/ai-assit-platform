@@ -12,7 +12,6 @@ const {
   selectedNodeOutputDefinitions,
   selectedNodeConfigItems,
   selectedNodeSkillItems,
-  toastState,
   editorState,
   detailState,
   confirmState,
@@ -249,12 +248,6 @@ const {
       <p>未找到对应的流程类型，请返回流程列表重新选择。</p>
       <button type="button" class="back-link" @click="goBack">返回流程列表</button>
     </section>
-
-    <transition name="fade">
-      <div v-if="toastState.visible" class="toast" :class="toastState.tone">
-        {{ toastState.text }}
-      </div>
-    </transition>
 
     <div v-if="editorState.visible" class="floating-mask" @click.self="closeEditor">
       <section class="floating-panel">

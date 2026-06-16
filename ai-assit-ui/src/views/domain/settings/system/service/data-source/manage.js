@@ -1,6 +1,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, importDbMetaWorkbook, searchDbDataSources, searchDbTableFields, searchDbTables } from '../../../../../../api/dbEngine'
+import { showPopup } from '../../../../../../utils/popup'
 
 export function useDataSourceManagePage() {
   const route = useRoute()
@@ -24,11 +25,6 @@ export function useDataSourceManagePage() {
   const importFormat = ref('json')
   const exportDialogVisible = ref(false)
   const exportFormat = ref('json')
-  const notice = reactive({
-    type: 'success',
-    text: ''
-  })
-  let noticeTimer = null
   const pageSizeOptions = [10, 20, 50]
 
   const sourceKey = computed(() => String(route.params.sourceKey ?? ''))
@@ -176,7 +172,7 @@ export function useDataSourceManagePage() {
     importError.value = ''
     try {
       const payload = unwrapPayload(await importDbMetaWorkbook(currentSource.value.key, importFile.value))
-      showNotice(buildImportNotice(payload))
+      showPopup.success(buildImportNotice(payload), { title: 'Import Complete', duration: 3200 })
       closeImportDialog()
       await refreshPage()
     } catch (error) {
@@ -188,7 +184,7 @@ export function useDataSourceManagePage() {
 
   async function exportWorkbook() {
     if (!currentSource.value?.key) {
-      showNotice('当前没有可导出的数据源', 'error')
+      showPopup.error('当前没有可导出的数据源')
       return
     }
     exportSubmitting.value = true
@@ -196,9 +192,9 @@ export function useDataSourceManagePage() {
       const { blob, filename } = await exportDbMetaWorkbook(currentSource.value.key, exportFormat.value)
       triggerBrowserDownload(blob, filename)
       closeExportDialog()
-      showNotice('导出成功')
+      showPopup.success('导出成功')
     } catch (error) {
-      showNotice(error.message || '导出失败', 'error')
+      showPopup.error(error.message || '导出失败')
     } finally {
       exportSubmitting.value = false
     }
@@ -209,9 +205,9 @@ export function useDataSourceManagePage() {
     try {
       const { blob, filename } = await downloadDbMetaTemplateWorkbook(importFormat.value)
       triggerBrowserDownload(blob, filename)
-      showNotice('模板下载成功')
+      showPopup.success('模板下载成功')
     } catch (error) {
-      showNotice(error.message || '模板下载失败', 'error')
+      showPopup.error(error.message || '模板下载失败')
     } finally {
       templateSubmitting.value = false
     }
@@ -478,17 +474,6 @@ export function useDataSourceManagePage() {
     return baseType
   }
 
-  function showNotice(text, type = 'success') {
-    notice.type = type
-    notice.text = text
-    if (noticeTimer) {
-      window.clearTimeout(noticeTimer)
-    }
-    noticeTimer = window.setTimeout(() => {
-      notice.text = ''
-    }, 2600)
-  }
-
   return {
     currentSource,
     currentSourceList: sourceList,
@@ -517,7 +502,6 @@ export function useDataSourceManagePage() {
     exportFormat,
     exportSubmitting,
     templateSubmitting,
-    notice,
     handleSourceChange,
     handlePageChange,
     handlePageSizeChange,

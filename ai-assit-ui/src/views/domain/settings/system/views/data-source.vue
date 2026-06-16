@@ -13,7 +13,6 @@ const {
   dialogError,
   saving,
   form,
-  notice,
   sourceTypeOptions,
   syncModeOptions,
   statusOptions,
@@ -41,10 +40,6 @@ const {
         </p>
       </div>
     </section>
-
-    <div v-if="notice.text" :class="['notice-bar', notice.type === 'error' ? 'is-error' : 'is-success']">
-      {{ notice.text }}
-    </div>
 
     <section class="source-list-card">
       <div class="toolbar">

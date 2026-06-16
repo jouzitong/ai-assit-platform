@@ -53,7 +53,9 @@ defineProps({
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   gap: 12px;
+  height: 100%;
   min-height: 0;
+  overflow: hidden;
 }
 
 .card-list-head {
@@ -90,6 +92,9 @@ defineProps({
 .card-list-body {
   min-height: 0;
   display: grid;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .card-list-empty {

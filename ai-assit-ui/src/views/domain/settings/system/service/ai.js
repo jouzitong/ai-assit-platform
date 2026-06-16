@@ -13,6 +13,7 @@ import {
   updateAiChatProviderConfig
 } from '../../../../../api/aiChat'
 import { createModelForm, createProviderForm, enabledOptions, pageSizeOptions } from '../data/ai'
+import { showPopup } from '../../../../../utils/popup'
 
 export function useAiPage() {
   const activeTab = ref('provider')
@@ -59,13 +60,6 @@ export function useAiPage() {
   const modelDialogMode = ref('create')
   const modelError = ref('')
   const modelForm = reactive(createModelForm())
-
-  const notice = reactive({
-    type: 'success',
-    text: ''
-  })
-
-  let noticeTimer = null
 
   const currentStats = computed(() => {
     if (activeTab.value === 'provider') {
@@ -177,7 +171,7 @@ export function useAiPage() {
       providerList.value = payload?.list ?? []
       providerPagination.total = resolvePageTotal(payload?.pageInfo?.total, providerList.value.length)
     } catch (error) {
-      showNotice(error.message || 'Provider 列表加载失败', 'error')
+      showPopup.error(error.message || 'Provider 列表加载失败')
     } finally {
       loading.provider = false
     }
@@ -190,7 +184,7 @@ export function useAiPage() {
       modelList.value = payload?.list ?? []
       modelPagination.total = resolvePageTotal(payload?.pageInfo?.total, modelList.value.length)
     } catch (error) {
-      showNotice(error.message || 'Model 列表加载失败', 'error')
+      showPopup.error(error.message || 'Model 列表加载失败')
     } finally {
       loading.model = false
     }
@@ -206,7 +200,7 @@ export function useAiPage() {
       )
       providerOptions.value = payload?.list ?? []
     } catch (error) {
-      showNotice(error.message || 'Provider 选项加载失败', 'error')
+      showPopup.error(error.message || 'Provider 选项加载失败')
     }
   }
 
@@ -246,7 +240,7 @@ export function useAiPage() {
       })
       modelDialogVisible.value = true
     } catch (error) {
-      showNotice(error.message || 'Model 详情加载失败', 'error')
+      showPopup.error(error.message || 'Model 详情加载失败')
     }
   }
 
@@ -315,10 +309,10 @@ export function useAiPage() {
 
       if (providerDialogMode.value === 'create') {
         await createAiChatProviderConfig(payload)
-        showNotice('Provider 新增成功')
+        showPopup.success('Provider 新增成功')
       } else {
         await updateAiChatProviderConfig(providerForm.id, payload)
-        showNotice('Provider 更新成功')
+        showPopup.success('Provider 更新成功')
       }
 
       providerDialogVisible.value = false
@@ -361,10 +355,10 @@ export function useAiPage() {
 
       if (modelDialogMode.value === 'create') {
         await createAiChatModelManage(payload)
-        showNotice('Model 新增成功')
+        showPopup.success('Model 新增成功')
       } else {
         await updateAiChatModelManage(modelForm.id, payload)
-        showNotice('Model 更新成功')
+        showPopup.success('Model 更新成功')
       }
 
       modelDialogVisible.value = false
@@ -381,9 +375,9 @@ export function useAiPage() {
     try {
       await editAiChatProviderConfig(row.id, { enabled: nextValue })
       row.enabled = nextValue
-      showNotice(`Provider 已${nextValue ? '启用' : '停用'}`)
+      showPopup.success(`Provider 已${nextValue ? '启用' : '停用'}`)
     } catch (error) {
-      showNotice(error.message || 'Provider 状态更新失败', 'error')
+      showPopup.error(error.message || 'Provider 状态更新失败')
     }
   }
 
@@ -392,9 +386,9 @@ export function useAiPage() {
     try {
       await editAiChatModelManage(row.id, { enabled: nextValue })
       row.enabled = nextValue
-      showNotice(`Model 已${nextValue ? '启用' : '停用'}`)
+      showPopup.success(`Model 已${nextValue ? '启用' : '停用'}`)
     } catch (error) {
-      showNotice(error.message || 'Model 状态更新失败', 'error')
+      showPopup.error(error.message || 'Model 状态更新失败')
     }
   }
 
@@ -404,10 +398,10 @@ export function useAiPage() {
     }
     try {
       await deleteAiChatProviderConfig(row.id)
-      showNotice('Provider 已删除')
+      showPopup.success('Provider 已删除')
       await Promise.all([loadProviderPage(), ensureProviderOptions()])
     } catch (error) {
-      showNotice(error.message || 'Provider 删除失败', 'error')
+      showPopup.error(error.message || 'Provider 删除失败')
     }
   }
 
@@ -417,10 +411,10 @@ export function useAiPage() {
     }
     try {
       await deleteAiChatModelManage(row.id)
-      showNotice('Model 已删除')
+      showPopup.success('Model 已删除')
       await loadModelPage()
     } catch (error) {
-      showNotice(error.message || 'Model 删除失败', 'error')
+      showPopup.error(error.message || 'Model 删除失败')
     }
   }
 
@@ -538,17 +532,6 @@ export function useAiPage() {
       .filter(Boolean)
   }
 
-  function showNotice(text, type = 'success') {
-    notice.type = type
-    notice.text = text
-    if (noticeTimer) {
-      window.clearTimeout(noticeTimer)
-    }
-    noticeTimer = window.setTimeout(() => {
-      notice.text = ''
-    }, 2400)
-  }
-
   return {
     activeTab,
     loading,
@@ -569,7 +552,6 @@ export function useAiPage() {
     modelForm,
     enabledOptions,
     pageSizeOptions,
-    notice,
     currentStats,
     currentTotal,
     currentPage,

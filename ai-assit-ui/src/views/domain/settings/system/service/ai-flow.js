@@ -16,6 +16,7 @@ import {
   updateAiFlowWorkflow
 } from '../../../../../api/aiFlow'
 import { aiFlowSectionTabs } from '../data/ai-flow'
+import { showPopup } from '../../../../../utils/popup'
 
 const SECTION_META_MAP = {
   workflow: {
@@ -53,11 +54,6 @@ export function useAiFlowPage() {
   const nodeEntities = ref([])
   const skillEntities = ref([])
 
-  const notice = reactive({
-    visible: false,
-    type: 'success',
-    text: ''
-  })
   const dialogState = reactive({
     visible: false,
     entityType: 'workflow',
@@ -73,8 +69,6 @@ export function useAiFlowPage() {
     title: '',
     targetId: null
   })
-  let noticeTimer = null
-
   const activeSection = computed(() => {
     const section = route.query.section
     return typeof section === 'string' && aiFlowSectionTabs.some(item => item.key === section) ? section : 'workflow'
@@ -144,7 +138,7 @@ export function useAiFlowPage() {
   function openEditDialog(entityType, item) {
     const entity = findEntity(entityType, item.id)
     if (!entity) {
-      showNotice('未找到对应配置实体', 'warn')
+      showPopup.warning('未找到对应配置实体')
       return
     }
     dialogState.visible = true
@@ -199,7 +193,7 @@ export function useAiFlowPage() {
       }
       closeDialog()
       await loadOverview()
-      showNotice(dialogState.mode === 'create' ? '新增成功' : '更新成功')
+      showPopup.success(dialogState.mode === 'create' ? '新增成功' : '更新成功')
     } catch (error) {
       dialogState.error = error.message || '保存失败'
     } finally {
@@ -222,22 +216,12 @@ export function useAiFlowPage() {
       }
       closeDeleteConfirm()
       await loadOverview()
-      showNotice('删除成功')
+      showPopup.success('删除成功')
     } catch (error) {
-      showNotice(error.message || '删除失败', 'warn')
+      showPopup.warning(error.message || '删除失败')
     } finally {
       confirmState.deleting = false
     }
-  }
-
-  function showNotice(text, type = 'success') {
-    notice.visible = true
-    notice.type = type
-    notice.text = text
-    clearTimeout(noticeTimer)
-    noticeTimer = setTimeout(() => {
-      notice.visible = false
-    }, 2200)
   }
 
   function findEntity(entityType, id) {
@@ -251,7 +235,6 @@ export function useAiFlowPage() {
     sectionMeta,
     loading,
     errorMessage,
-    notice,
     dialogState,
     confirmState,
     switchSection,

@@ -22,7 +22,6 @@ const {
   modelForm,
   enabledOptions,
   pageSizeOptions,
-  notice,
   currentStats,
   currentPage,
   currentSize,
@@ -68,10 +67,6 @@ const {
         <span>{{ item.label }}</span>
       </article>
     </section>
-
-    <div v-if="notice.text" :class="['notice-bar', notice.type === 'error' ? 'is-error' : 'is-success']">
-      {{ notice.text }}
-    </div>
 
     <section class="workspace-card">
       <div class="tab-strip">

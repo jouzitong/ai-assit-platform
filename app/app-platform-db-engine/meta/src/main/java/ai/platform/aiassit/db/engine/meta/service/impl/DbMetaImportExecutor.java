@@ -20,7 +20,9 @@ import org.springframework.web.multipart.MultipartFile;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Slf4j
 @Service
@@ -93,6 +95,8 @@ public class DbMetaImportExecutor {
                 }
             }
 
+            refreshImportedTableColumnCounts(sourceKey, importData.getFields());
+
             log.info(
                     "数据库元数据导入完成, format={}, sourceKey={}, tableCreatedCount={}, tableUpdatedCount={}, fieldCreatedCount={}, fieldUpdatedCount={}, indexCreatedCount={}, indexUpdatedCount={}",
                     format,
@@ -115,6 +119,26 @@ public class DbMetaImportExecutor {
         } catch (Exception ex) {
             log.error("数据库元数据导入失败, format={}, sourceKey={}, fileName={}", format, sourceKey, originalFilename, ex);
             throw wrapImportException(ex);
+        }
+    }
+
+    private void refreshImportedTableColumnCounts(String sourceKey, List<DbMetaImportData.FieldRow> fieldRows) {
+        Set<String> importedTableNames = new LinkedHashSet<>();
+        for (DbMetaImportData.FieldRow row : fieldRows) {
+            if (row != null && StringUtils.hasText(row.getTableName())) {
+                importedTableNames.add(row.getTableName());
+            }
+        }
+        for (String tableName : importedTableNames) {
+            DbTableFieldMetaQueryRequest fieldQuery = new DbTableFieldMetaQueryRequest();
+            fieldQuery.setSourceKey(sourceKey);
+            fieldQuery.setTableName(tableName);
+            int columnCount = fieldMetaService.queryAll(fieldQuery).size();
+            tableMetaService.lambdaUpdate()
+                    .eq(DbTableMetaEntity::getSourceKey, sourceKey)
+                    .eq(DbTableMetaEntity::getTableName, tableName)
+                    .set(DbTableMetaEntity::getColumnCount, columnCount)
+                    .update();
         }
     }
 

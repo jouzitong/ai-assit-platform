@@ -1,6 +1,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { createDbDataSource, searchDbDataSources, updateDbDataSource } from '../../../../../api/dbEngine'
+import { showPopup } from '../../../../../utils/popup'
 
 export function useDataSourcePage() {
   const router = useRouter()
@@ -14,12 +15,6 @@ export function useDataSourcePage() {
   const dialogError = ref('')
   const saving = ref(false)
   const form = reactive(createEmptyForm())
-  const notice = reactive({
-    type: 'success',
-    text: ''
-  })
-  let noticeTimer = null
-
   const sourceTypeOptions = [
     { label: '数据库', value: 'DATABASE' },
     { label: 'HTTP API', value: 'HTTP_API' },
@@ -74,7 +69,7 @@ export function useDataSourcePage() {
   }
 
   function triggerKnowledgeSync() {
-    showNotice('知识库同步功能建设中')
+    showPopup.warning('知识库同步功能建设中')
   }
 
   function openCreateDialog() {
@@ -200,10 +195,10 @@ export function useDataSourcePage() {
       const payload = buildPayload()
       if (dialogMode.value === 'create') {
         await createDbDataSource(payload)
-        showNotice('数据源新增成功')
+        showPopup.success('数据源新增成功')
       } else {
         await updateDbDataSource(form.id, payload)
-        showNotice('数据源更新成功')
+        showPopup.success('数据源更新成功')
       }
       dialogVisible.value = false
       await loadDataSources()
@@ -343,17 +338,6 @@ export function useDataSourcePage() {
     return String(value)
   }
 
-  function showNotice(text, type = 'success') {
-    notice.type = type
-    notice.text = text
-    if (noticeTimer) {
-      window.clearTimeout(noticeTimer)
-    }
-    noticeTimer = window.setTimeout(() => {
-      notice.text = ''
-    }, 2400)
-  }
-
   return {
     keyword,
     selectedSourceKey,
@@ -364,7 +348,6 @@ export function useDataSourcePage() {
     dialogError,
     saving,
     form,
-    notice,
     sourceTypeOptions,
     syncModeOptions,
     statusOptions,

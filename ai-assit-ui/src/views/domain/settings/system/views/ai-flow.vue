@@ -10,7 +10,6 @@ const {
   sectionMeta,
   loading,
   errorMessage,
-  notice,
   dialogState,
   confirmState,
   switchSection,
@@ -74,12 +73,6 @@ const {
       @delete="openDeleteConfirm"
     />
     <SkillList v-else :section-meta="sectionMeta" @create="openCreateDialog" @edit="openEditDialog" @delete="openDeleteConfirm" />
-
-    <transition name="fade">
-      <div v-if="notice.visible" class="toast" :class="notice.type">
-        {{ notice.text }}
-      </div>
-    </transition>
 
     <div v-if="dialogState.visible" class="floating-mask" @click.self="closeDialog">
       <section class="floating-panel">

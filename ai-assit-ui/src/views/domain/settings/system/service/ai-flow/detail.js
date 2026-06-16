@@ -1,4 +1,4 @@
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import {
   createAiFlowConfigNode,
@@ -11,6 +11,7 @@ import {
   updateAiFlowConfigNode,
   updateAiFlowConfigNodeSkill
 } from '../../../../../../api/aiFlow'
+import { showPopup } from '../../../../../../utils/popup'
 
 const AI_FLOW_LIST_PATH = '/settings/system/ai-flow'
 
@@ -49,12 +50,6 @@ export function useAiFlowDetailPage() {
   const selectedNodeSkillItems = computed(() => selectedNode.value?.skillItems || [])
   const nodeTemplateCatalog = computed(() => nodeCatalog.value)
   const skillTemplateCatalog = computed(() => skillCatalog.value)
-
-  const toastState = reactive({
-    visible: false,
-    tone: 'success',
-    text: ''
-  })
 
   const editorState = reactive({
     visible: false,
@@ -133,12 +128,6 @@ export function useAiFlowDetailPage() {
     }
   })
 
-  let toastTimer = null
-
-  onBeforeUnmount(() => {
-    clearTimeout(toastTimer)
-  })
-
   async function loadPage(workflowKey, options = {}) {
     if (!workflowKey) {
       detail.value = null
@@ -168,16 +157,6 @@ export function useAiFlowDetailPage() {
     } finally {
       loading.value = false
     }
-  }
-
-  function showToast(text, tone = 'success') {
-    toastState.visible = true
-    toastState.tone = tone
-    toastState.text = text
-    clearTimeout(toastTimer)
-    toastTimer = setTimeout(() => {
-      toastState.visible = false
-    }, 2200)
   }
 
   function goBack() {
@@ -258,7 +237,7 @@ export function useAiFlowDetailPage() {
 
   function openItemEditor(entityType, mode, item = null) {
     if (!selectedNode.value) {
-      showToast('请先选择节点', 'warn')
+      showPopup.warning('请先选择节点')
       return
     }
     editorState.visible = true
@@ -348,9 +327,9 @@ export function useAiFlowDetailPage() {
     try {
       await persistNodeOrder(list)
       await loadPage(route.params.workflowKey, { preferNodeKey: item.key })
-      showToast(`节点已${direction === 'up' ? '上移' : '下移'}`)
+      showPopup.success(`节点已${direction === 'up' ? '上移' : '下移'}`)
     } catch (error) {
-      showToast(error.message || '节点顺序更新失败', 'warn')
+      showPopup.warning(error.message || '节点顺序更新失败')
     }
   }
 
@@ -361,9 +340,9 @@ export function useAiFlowDetailPage() {
         status: node.status === '启用' ? '停用' : '启用'
       }))
       await loadPage(route.params.workflowKey, { preferNodeKey: node.key })
-      showToast(`${node.name} 状态已更新`)
+      showPopup.success(`${node.name} 状态已更新`)
     } catch (error) {
-      showToast(error.message || '节点状态更新失败', 'warn')
+      showPopup.warning(error.message || '节点状态更新失败')
     }
   }
 
@@ -409,9 +388,9 @@ export function useAiFlowDetailPage() {
       }
       closeConfirm()
       await loadPage(route.params.workflowKey, { preferNodeKey: selectedNode.value.key })
-      showToast('删除成功')
+      showPopup.success('删除成功')
     } catch (error) {
-      showToast(error.message || '删除失败', 'warn')
+      showPopup.warning(error.message || '删除失败')
     }
   }
 
@@ -429,7 +408,7 @@ export function useAiFlowDetailPage() {
       closeEditor()
       await loadPage(route.params.workflowKey, { preferNodeKey: editorState.targetNodeKey || selectedNode.value?.key || editorState.form.key })
     } catch (error) {
-      showToast(error.message || '保存失败', 'warn')
+      showPopup.warning(error.message || '保存失败')
     }
   }
 
@@ -457,7 +436,7 @@ export function useAiFlowDetailPage() {
         }
       })
       editorState.targetNodeKey = template.key
-      showToast('节点已新增')
+      showPopup.success('节点已新增')
       return
     }
     const target = selectedNode.value
@@ -471,7 +450,7 @@ export function useAiFlowDetailPage() {
       summary: form.summary
     }))
     editorState.targetNodeKey = target.key
-    showToast('节点已更新')
+    showPopup.success('节点已更新')
   }
 
   async function submitSkillEditor() {
@@ -497,7 +476,7 @@ export function useAiFlowDetailPage() {
         }
       })
       editorState.targetNodeKey = selectedNode.value.key
-      showToast('Skill 已新增')
+      showPopup.success('Skill 已新增')
       return
     }
     const target = selectedNode.value.skillItems.find(item => item.key === editorState.originalKey)
@@ -518,7 +497,7 @@ export function useAiFlowDetailPage() {
       }
     })
     editorState.targetNodeKey = selectedNode.value.key
-    showToast('Skill 已更新')
+    showPopup.success('Skill 已更新')
   }
 
   async function submitConfigItemEditor() {
@@ -548,7 +527,7 @@ export function useAiFlowDetailPage() {
       configItems: nextList
     }))
     editorState.targetNodeKey = selectedNode.value.key
-    showToast(`配置项已${editorState.mode === 'create' ? '新增' : '更新'}`)
+    showPopup.success(`配置项已${editorState.mode === 'create' ? '新增' : '更新'}`)
   }
 
   async function submitFieldDefinitionEditor(entityType) {
@@ -582,7 +561,7 @@ export function useAiFlowDetailPage() {
       outputDefinitions: entityType === 'output' ? sourceList : selectedNode.value.outputDefinitions
     }))
     editorState.targetNodeKey = selectedNode.value.key
-    showToast(`字段定义已${editorState.mode === 'create' ? '新增' : '更新'}`)
+    showPopup.success(`字段定义已${editorState.mode === 'create' ? '新增' : '更新'}`)
   }
 
   return {
@@ -596,7 +575,6 @@ export function useAiFlowDetailPage() {
     selectedNodeOutputDefinitions,
     selectedNodeConfigItems,
     selectedNodeSkillItems,
-    toastState,
     editorState,
     detailState,
     confirmState,
