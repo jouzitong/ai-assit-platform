@@ -44,6 +44,11 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-ai-chat-data-workflow</artifactId>
+                <version>${app.platform.ai.chat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>service-ai-api</artifactId>
                 <version>${app.platform.ai.engine.version}</version>
             </dependency>
@@ -74,5 +79,6 @@
         <module>core</module>
         <module>boot</module>
         <module>chat-history</module>
+        <module>data-workflow</module>
     </modules>
 </project>

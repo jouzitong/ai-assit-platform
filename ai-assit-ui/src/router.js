@@ -14,7 +14,7 @@ import SystemComponentsPage from './views/domain/settings/system/views/component
 import SystemPermissionsPage from './views/domain/settings/system/views/permissions.vue'
 import SystemAiPage from './views/domain/settings/system/views/ai.vue'
 import SystemAiFlowPage from './views/domain/settings/system/views/ai-flow.vue'
-import SystemAiFlowDetailPage from './views/domain/settings/system/views/ai-flow-detail.vue'
+import SystemAiFlowDetailPage from './views/domain/settings/system/views/ai-flow/detail.vue'
 import SystemDataSourcePage from './views/domain/settings/system/views/data-source.vue'
 import SystemDataSourceManagePage from './views/domain/settings/system/views/data-source/manage.vue'
 import LoginPage from './views/domain/auth/login/index.vue'
