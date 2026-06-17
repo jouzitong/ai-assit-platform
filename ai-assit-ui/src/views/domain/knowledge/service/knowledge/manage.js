@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getKnowledgeDocumentDetail } from '../../../../../api/knowledge'
+import { getKnowledgeDocumentByCode } from '../../data'
 import { showPopup } from '../../../../../utils/popup'
 
 export function useKnowledgeManagePage() {
@@ -49,7 +49,7 @@ export function useKnowledgeManagePage() {
   async function loadDetail(options = {}) {
     const { showPopupNotice = false } = options
     if (!kbCode.value || !documentCode.value) {
-      errorMessage.value = '缺少 kbCode 或 documentCode，无法查看文档内容'
+      errorMessage.value = ''
       detail.value = null
       return
     }
@@ -59,17 +59,12 @@ export function useKnowledgeManagePage() {
       showPopup.info('文档内容刷新中...', { title: 'Loading', duration: 1600 })
     }
     try {
-      detail.value = await getKnowledgeDocumentDetail({
-        kbCode: kbCode.value,
-        documentCode: documentCode.value
-      })
-      if (showPopupNotice) {
+      detail.value = getKnowledgeDocumentByCode(kbCode.value, documentCode.value)
+      if (!detail.value) {
+        showPopup.warning('未找到对应的本地文档内容')
+      } else if (showPopupNotice) {
         showPopup.success('文档内容已刷新')
       }
-    } catch (error) {
-      errorMessage.value = error.message || '文档内容加载失败'
-      detail.value = null
-      showPopup.error(error.message || '文档内容加载失败')
     } finally {
       loading.value = false
     }

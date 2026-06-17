@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { listKnowledgeDocuments } from '../../../../api/knowledge'
+import { KNOWLEDGE_DOCUMENTS } from '../data'
 import { showPopup } from '../../../../utils/popup'
 
 export function useKnowledgePage() {
@@ -36,16 +36,10 @@ export function useKnowledgePage() {
       showPopup.info('知识库文档刷新中...', { title: 'Loading', duration: 1600 })
     }
     try {
-      const response = await listKnowledgeDocuments()
-      const payload = Array.isArray(response) ? response : []
-      sourceList.value = payload.map(mapDocumentItem)
+      sourceList.value = KNOWLEDGE_DOCUMENTS.map(mapDocumentItem)
       if (showSuccessPopup) {
         showPopup.success('知识库文档列表已刷新')
       }
-    } catch (error) {
-      errorMessage.value = error.message || '知识库文档列表加载失败'
-      sourceList.value = []
-      showPopup.error(error.message || '知识库文档列表加载失败')
     } finally {
       loading.value = false
     }
@@ -75,10 +69,6 @@ export function useKnowledgePage() {
     showPopup.warning('新建知识库文档功能建设中')
   }
 
-  function openEditDialog(item) {
-    openSource(item)
-  }
-
   return {
     activeTab,
     keyword,
@@ -89,8 +79,7 @@ export function useKnowledgePage() {
     openSource,
     triggerKnowledgeSync,
     loadDataSources,
-    openCreateDialog,
-    openEditDialog
+    openCreateDialog
   }
 }
 

@@ -6,6 +6,14 @@ import DataTable from '../../../components/commons/list/DataTable.vue'
 import FilterBar from '../../../components/commons/list/FilterBar.vue'
 import HeaderBar from '../../../components/commons/list/HeaderBar.vue'
 import ListCommonLayout from '../../../components/commons/list/ListCommonLayout.vue'
+import {
+  KNOWLEDGE_ACTION_ITEMS,
+  KNOWLEDGE_FILTER_SCHEMA,
+  KNOWLEDGE_HEADER_TABS,
+  KNOWLEDGE_LIST_CONFIG,
+  KNOWLEDGE_PAGE_TITLE,
+  KNOWLEDGE_TABLE_COLUMNS
+} from './data'
 import { useKnowledgePage } from './service/knowledge'
 
 const page = ref(1)
@@ -24,66 +32,20 @@ const {
   openCreateDialog
 } = useKnowledgePage()
 
-const filterSchema = ref([
-  {
-    key: 'keyword',
-    label: '搜索',
-    type: 'input',
-    value: keyword.value,
-    action: 'keyword-change',
-    type_config: {
-      placeholder: '搜索 kbCode / documentCode / documentName / bizKey',
-      width: 280,
-      clearable: true
-    }
-  }
-])
+const filterSchema = ref(KNOWLEDGE_FILTER_SCHEMA.map(item => ({ ...item })))
 
-const tableColumns = [
-  { key: 'kbCode', label: '知识库编码', width: 12 },
-  { key: 'documentCode', label: '文档编码', width: 16 },
-  { key: 'documentName', label: '文档名称', width: 16 },
-  { key: 'documentType', label: '文档类型', width: 12 },
-  { key: 'bizType', label: '业务类型', width: 12 },
-  { key: 'bizKey', label: '业务唯一键', width: 14 },
-  { key: 'sourceSystem', label: '来源系统', width: 12 },
-  {
-    key: 'status',
-    label: '状态',
-    width: 10,
-    class: row => `knowledge-status ${row.statusClass || ''}`
-  },
-  { key: 'draftVersionNo', label: '草稿版本号', width: 10 },
-  { key: 'contentFormat', label: '内容格式', width: 12 },
-  { key: 'contentSize', label: '内容大小', width: 10 },
-  { key: 'reviewStatus', label: '审核状态', width: 12 },
-  { key: 'lastGeneratedAt', label: '最近生成时间', width: 14 }
-]
+const tableColumns = KNOWLEDGE_TABLE_COLUMNS
 
-const listConfig = {
-  striped: true,
-  actionColumns: [
-    { key: 'preview', label: '查看正文' }
-  ],
-  sorts_config: {
-    header_enable: true,
-    sorts: ['kbCode', 'documentCode', 'documentName', 'documentType', 'bizType', 'status', 'draftVersionNo', 'reviewStatus', 'lastGeneratedAt']
-  }
-}
+const listConfig = KNOWLEDGE_LIST_CONFIG
 
-const actionItems = computed(() => ([
-  { key: 'create', label: '新建知识库', type: 'primary', action: 'create' },
-  { key: 'refresh', label: '刷新', variant: 'ghost', action: 'refresh', loading: loading.value },
-  { key: 'sync', label: '同步', variant: 'ghost', action: 'sync' }
-]))
+const actionItems = computed(() => KNOWLEDGE_ACTION_ITEMS.map(item => ({
+  ...item,
+  loading: item.key === 'refresh' ? loading.value : item.loading
+})))
 
 const headerTab = computed(() => ({
   activeTab: activeTab.value,
-  list: [
-    { key: 'current', label: '生效' },
-    { key: 'draft', label: '草稿' },
-    { key: 'history', label: '历史' }
-  ]
+  list: KNOWLEDGE_HEADER_TABS
 }))
 
 const pagedRows = computed(() => {
@@ -160,7 +122,7 @@ function handleTableAction(payload) {
   <div class="knowledge-page">
     <ListCommonLayout>
       <template #header>
-        <HeaderBar :showTitle="true"  title="知识库 · V1.0.0" :tab="headerTab" @update:tab="handleHeaderTabChange">
+        <HeaderBar :showTitle="true" :title="KNOWLEDGE_PAGE_TITLE" :tab="headerTab" @update:tab="handleHeaderTabChange">
           <template #left>
             <FilterBar :schema="filterSchema" @action="handleFilterAction" />
           </template>
