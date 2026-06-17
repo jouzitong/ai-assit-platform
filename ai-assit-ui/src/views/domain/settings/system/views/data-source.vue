@@ -1,6 +1,6 @@
 <script setup>
 import { Connection, DataBoard, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
-import '../styles/data-source.css'
+import '../styles/data-source.scss'
 import { useDataSourcePage } from '../service/data-source'
 
 const {

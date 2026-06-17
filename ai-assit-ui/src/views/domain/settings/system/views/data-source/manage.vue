@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { ArrowLeft, Download, RefreshRight, Upload } from '@element-plus/icons-vue'
-import '../../styles/data-source/manage.css'
+import '../../styles/data-source/manage.scss'
 import { useDataSourceManagePage } from '../../service/data-source/manage'
 
 const {

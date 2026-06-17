@@ -497,4 +497,4 @@ const {
   </div>
 </template>
 
-<style scoped src="../../styles/ai-flow/detail.css"></style>
+<style scoped src="../../styles/ai-flow/detail.scss"></style>

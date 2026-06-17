@@ -1,5 +1,5 @@
 <script setup>
-import '../styles/ai.css'
+import '../styles/ai.scss'
 import { useAiPage } from '../service/ai'
 
 const {

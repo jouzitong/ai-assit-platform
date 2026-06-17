@@ -1,6 +1,6 @@
 <script setup>
 import { Connection, DataBoard, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
-import './styles/knowledge.css'
+import './styles/knowledge.scss'
 import { useKnowledgePage } from './service/knowledge'
 
 const {

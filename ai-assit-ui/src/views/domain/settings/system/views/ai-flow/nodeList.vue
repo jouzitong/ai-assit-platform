@@ -56,4 +56,4 @@ defineProps({
   </CardList>
 </template>
 
-<style scoped src="../../styles/ai-flow-section.css"></style>
+<style scoped src="../../styles/ai-flow-section.scss"></style>

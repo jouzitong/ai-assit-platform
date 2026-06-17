@@ -1,7 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { ArrowLeft, Download, RefreshRight, Upload } from '@element-plus/icons-vue'
-import '../../styles/knowledge/manage.css'
+import '../../styles/knowledge/manage.scss'
 import { useKnowledgeManagePage } from '../../service/knowledge/manage'
 
 const {

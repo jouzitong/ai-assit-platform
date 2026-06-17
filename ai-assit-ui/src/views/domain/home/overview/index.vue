@@ -1,6 +1,6 @@
 <script setup>
 import HomeOverviewView from './views/index.vue'
-import './styles/index.css'
+import './styles/index.scss'
 import { useHomeOverview } from './service'
 
 const page = useHomeOverview()
