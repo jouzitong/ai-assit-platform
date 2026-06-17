@@ -1,109 +1,103 @@
 <script setup>
-import { ArrowLeft, RefreshRight } from '@element-plus/icons-vue'
 import { useKnowledgeManagePage } from '../../service/knowledge/manage'
 
 const {
   detail,
+  documentList,
+  currentDocumentKey,
   contentText,
-  metaItems,
+  summaryInfo,
   loading,
   errorMessage,
-  goBack,
-  refreshPage
+  selectDocument
 } = useKnowledgeManagePage()
 </script>
 
 <template>
   <div class="knowledge-detail-page">
-    <section class="detail-head">
-      <div class="detail-head__left">
-        <button type="button" class="toolbar-btn secondary" @click="goBack">
-          <ArrowLeft :size="16" />
-          返回列表
-        </button>
-        <div class="detail-copy">
-          <p class="eyebrow">文档内容</p>
-          <h2>{{ detail?.documentName || detail?.documentCode || '知识库文档' }}</h2>
-          <p class="section-desc">{{ detail?.kbCode || '-' }} / {{ detail?.documentCode || '-' }}</p>
-        </div>
-      </div>
-      <div class="detail-head__right">
-        <button type="button" class="toolbar-btn secondary" @click="refreshPage">
-          <RefreshRight :size="16" />
-          刷新
-        </button>
-      </div>
-    </section>
-
     <div v-if="errorMessage" class="page-state is-error">
       {{ errorMessage }}
     </div>
     <div v-else-if="loading" class="page-state">
       正在加载文档内容...
     </div>
-    <template v-else>
-      <section class="meta-grid">
-        <article v-for="item in metaItems" :key="item.label" class="meta-card">
-          <span>{{ item.label }}</span>
-          <strong>{{ item.value }}</strong>
-        </article>
-      </section>
-
-      <section class="content-card">
-        <div class="content-card__head">
-          <p class="eyebrow">正文</p>
-          <span>{{ detail?.contentFormat || '-' }}</span>
+    <section v-else class="detail-layout">
+      <aside class="document-sidebar">
+        <div class="document-sidebar__head">
+          <p class="eyebrow">Documents</p>
+          <strong>{{ documentList.length }} 篇</strong>
         </div>
-        <pre class="content-body">{{ contentText }}</pre>
+        <div class="document-list">
+          <button
+            v-for="item in documentList"
+            :key="`${item.kbCode}::${item.documentCode}`"
+            type="button"
+            class="document-item"
+            :class="{ 'is-active': `${item.kbCode}::${item.documentCode}` === currentDocumentKey }"
+            @click="selectDocument(item)"
+          >
+            <strong>{{ item.documentName }}</strong>
+            <span>{{ item.kbCode }}</span>
+            <em>{{ item.documentCode }}</em>
+          </button>
+        </div>
+      </aside>
+
+      <section class="detail-main">
+        <section class="summary-panel">
+          <div class="summary-panel__head">
+            <p class="eyebrow">文档概览</p>
+            <strong>{{ detail?.documentName || '-' }}</strong>
+          </div>
+          <div class="summary-panel__body">
+            <div class="summary-item">
+              <span>编号</span>
+              <strong>{{ summaryInfo.code }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>来源</span>
+              <strong>{{ summaryInfo.source }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>状态</span>
+              <strong>{{ summaryInfo.status }}</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="content-card">
+          <div class="content-card__head">
+            <p class="eyebrow">正文</p>
+            <span>{{ detail?.contentFormat || '-' }}</span>
+          </div>
+          <pre class="content-body">{{ contentText }}</pre>
+        </section>
       </section>
-    </template>
+    </section>
   </div>
 </template>
 
 <style scoped>
 .knowledge-detail-page {
   display: grid;
-  gap: 18px;
-}
-
-.detail-head {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  gap: 16px;
-}
-
-.detail-head__left {
-  display: flex;
-  align-items: flex-start;
   gap: 12px;
 }
 
-.detail-copy h2 {
-  margin: 0 0 6px;
+.detail-layout {
+  display: grid;
+  grid-template-columns: 280px minmax(0, 1fr);
+  gap: 16px;
+  min-height: 0;
 }
 
-.section-desc,
 .eyebrow {
   margin: 0;
-}
-
-.eyebrow {
   color: var(--text-dim);
-  font-size: 12px;
+  font-size: 11px;
 }
 
-.section-desc {
-  color: var(--text-dim);
-}
-
-.meta-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: 12px;
-}
-
-.meta-card,
+.document-sidebar,
+.summary-panel,
 .content-card,
 .page-state {
   border: 1px solid var(--stroke);
@@ -111,19 +105,105 @@ const {
   background: #fff;
 }
 
-.meta-card {
-  padding: 14px 16px;
-  display: grid;
-  gap: 8px;
+.document-sidebar {
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
 }
 
-.meta-card span {
+.document-sidebar__head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--stroke);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.document-list {
+  padding: 10px;
+  display: grid;
+  gap: 8px;
+  overflow: auto;
+}
+
+.document-item {
+  padding: 12px 14px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: var(--control-bg);
+  text-align: left;
+  display: grid;
+  gap: 4px;
+}
+
+.document-item strong,
+.document-item span,
+.document-item em {
+  font-style: normal;
+}
+
+.document-item span,
+.document-item em {
   color: var(--text-dim);
   font-size: 12px;
 }
 
-.content-card {
+.document-item.is-active {
+  border-color: rgba(37, 99, 235, 0.3);
+  background: rgba(37, 99, 235, 0.08);
+}
+
+.detail-main {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: 16px;
+  min-width: 0;
+  min-height: 0;
+}
+
+.summary-panel {
+  padding: 8px 12px;
+  display: grid;
+  gap: 4px;
+  max-height: 80px;
   overflow: hidden;
+}
+
+.summary-panel__head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.summary-panel__body {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, max-content));
+  gap: 18px;
+  align-items: center;
+}
+
+.summary-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.summary-item span {
+  color: var(--text-dim);
+  font-size: 11px;
+}
+
+.summary-item strong,
+.summary-panel__head strong {
+  line-height: 1.2;
+}
+
+.content-card {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+  min-height: 0;
 }
 
 .content-card__head {
@@ -137,13 +217,15 @@ const {
 .content-body {
   margin: 0;
   padding: 18px 16px;
-  min-height: 420px;
+  min-height: 0;
+  height: 100%;
   white-space: pre-wrap;
   word-break: break-word;
   font-family: SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
   font-size: 13px;
   line-height: 1.6;
   background: #f8fafc;
+  overflow: auto;
 }
 
 .page-state {
@@ -155,14 +237,13 @@ const {
   background: rgba(254, 242, 242, 0.9);
 }
 
-.toolbar-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: 34px;
-  padding: 0 14px;
-  border: 1px solid var(--stroke);
-  border-radius: 10px;
-  background: var(--control-bg);
+@media (max-width: 1000px) {
+  .detail-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .summary-panel__body {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

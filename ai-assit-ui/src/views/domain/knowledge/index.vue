@@ -38,10 +38,18 @@ const tableColumns = KNOWLEDGE_TABLE_COLUMNS
 
 const listConfig = KNOWLEDGE_LIST_CONFIG
 
-const actionItems = computed(() => KNOWLEDGE_ACTION_ITEMS.map(item => ({
-  ...item,
-  loading: item.key === 'refresh' ? loading.value : item.loading
-})))
+const actionItems = computed(() => {
+  if (activeTab.value === 'draft') {
+    return [{ key: 'publish', label: '发布', type: 'primary', action: 'publish' }]
+  }
+  if (activeTab.value === 'history') {
+    return [
+      { key: 'select', label: '选择', variant: 'ghost', action: 'select' },
+      { key: 'rollback', label: '版本回退', type: 'primary', action: 'rollback' }
+    ]
+  }
+  return []
+})
 
 const headerTab = computed(() => ({
   activeTab: activeTab.value,
@@ -91,16 +99,17 @@ function handleHeaderTabChange(nextTab) {
 }
 
 function handleToolbarAction(payload) {
-  if (payload?.action === 'create') {
-    openCreateDialog()
-    return
-  }
-  if (payload?.action === 'refresh') {
-    loadDataSources({ showLoadingPopup: true, showSuccessPopup: true })
-    return
-  }
-  if (payload?.action === 'sync') {
+  if (payload?.action === 'publish') {
     triggerKnowledgeSync()
+    return
+  }
+  if (payload?.action === 'select') {
+    triggerKnowledgeSync()
+    return
+  }
+  if (payload?.action === 'rollback') {
+    triggerKnowledgeSync()
+    return
   }
 }
 

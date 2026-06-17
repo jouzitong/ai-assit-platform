@@ -1,6 +1,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getKnowledgeDocumentByCode } from '../../data'
+import { getKnowledgeDocumentByCode, KNOWLEDGE_DOCUMENTS } from '../../data'
 import { showPopup } from '../../../../../utils/popup'
 
 export function useKnowledgeManagePage() {
@@ -12,6 +12,8 @@ export function useKnowledgeManagePage() {
 
   const kbCode = computed(() => String(route.query.kbCode ?? ''))
   const documentCode = computed(() => String(route.params.sourceKey ?? ''))
+  const documentList = computed(() => KNOWLEDGE_DOCUMENTS)
+  const currentDocumentKey = computed(() => `${kbCode.value}::${documentCode.value}`)
   const contentText = computed(() => {
     if (detail.value?.renderedContent) {
       return detail.value.renderedContent
@@ -21,22 +23,11 @@ export function useKnowledgeManagePage() {
     }
     return '暂无文档内容'
   })
-  const metaItems = computed(() => ([
-    { label: '知识库编码', value: detail.value?.kbCode || '-' },
-    { label: '文档编码', value: detail.value?.documentCode || '-' },
-    { label: '文档名称', value: detail.value?.documentName || '-' },
-    { label: '文档类型', value: detail.value?.documentType || '-' },
-    { label: '业务类型', value: detail.value?.bizType || '-' },
-    { label: '业务唯一键', value: detail.value?.bizKey || '-' },
-    { label: '来源系统', value: detail.value?.sourceSystem || '-' },
-    { label: '状态', value: detail.value?.status || '-' },
-    { label: '草稿版本号', value: detail.value?.draftVersionNo ?? '-' },
-    { label: '内容格式', value: detail.value?.contentFormat || '-' },
-    { label: '内容大小', value: detail.value?.contentSize ?? '-' },
-    { label: '审核状态', value: detail.value?.reviewStatus || '-' },
-    { label: '最近生成时间', value: formatDateTime(detail.value?.lastGeneratedAt) },
-    { label: '备注', value: detail.value?.remark || '-' }
-  ]))
+  const summaryInfo = computed(() => ({
+    code: detail.value?.documentCode || '-',
+    source: detail.value?.sourceSystem || '-',
+    status: detail.value?.status || '-'
+  }))
 
   onMounted(() => {
     loadDetail()
@@ -78,22 +69,26 @@ export function useKnowledgeManagePage() {
     loadDetail({ showPopupNotice: true })
   }
 
+  function selectDocument(item) {
+    if (!item?.kbCode || !item?.documentCode) {
+      return
+    }
+    router.push({
+      path: `/knowledge/${encodeURIComponent(item.documentCode)}`,
+      query: {
+        kbCode: item.kbCode
+      }
+    })
+  }
+
   return {
     detail,
-    kbCode,
-    documentCode,
+    documentList,
+    currentDocumentKey,
     contentText,
-    metaItems,
+    summaryInfo,
     loading,
     errorMessage,
-    goBack,
-    refreshPage
+    selectDocument
   }
-}
-
-function formatDateTime(value) {
-  if (!value) {
-    return '-'
-  }
-  return String(value).replace('T', ' ').slice(0, 19)
 }
