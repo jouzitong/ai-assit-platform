@@ -6,6 +6,8 @@ import QueryPage from './views/domain/query/assistant/index.vue'
 import AttendancePage from './views/domain/emp/attendance/index.vue'
 import PerformancePage from './views/domain/emp/performance/index.vue'
 import CostPage from './views/domain/emp/cost/index.vue'
+import KnowledgePage from './views/domain/knowledge/index.vue'
+import KnowledgeManagePage from './views/domain/knowledge/views/knowledge/manage.vue'
 import ProfilePage from './views/domain/settings/profile/index.vue'
 import SystemPage from './views/domain/settings/system/index.vue'
 import SystemOverviewPage from './views/domain/settings/system/views/overview.vue'
@@ -24,6 +26,8 @@ const routes = [
   { path: '/login', component: LoginPage, meta: { title: '登录', public: true, plainLayout: true } },
   { path: '/home', component: HomePage, meta: { title: '首页' } },
   { path: '/query', component: QueryPage, meta: { title: '智能问数' } },
+  { path: '/knowledge', component: KnowledgePage, meta: { title: '知识库' } },
+  { path: '/knowledge/:sourceKey', component: KnowledgeManagePage, meta: { title: '知识库详情' } },
   { path: '/emp/attendance', component: AttendancePage, meta: { title: '考勤看板' } },
   { path: '/emp/performance', component: PerformancePage, meta: { title: '绩效洞察' } },
   { path: '/emp/cost', component: CostPage, meta: { title: '人力成本分析' } },

@@ -1,9 +1,9 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook } from '../../../../../../api/dbEngine'
-import { showPopup } from '../../../../../../utils/popup'
+import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook } from '../../../../../api/dbEngine'
+import { showPopup } from '../../../../../utils/popup'
 
-export function useDataSourceManagePage() {
+export function useKnowledgeManagePage() {
   const route = useRoute()
   const router = useRouter()
   const sourceList = ref([])
@@ -34,7 +34,6 @@ export function useDataSourceManagePage() {
   const currentSource = computed(() => {
     return sourceList.value.find(item => item.key === sourceKey.value) ?? sourceList.value[0] ?? null
   })
-  const currentSourceList = computed(() => sourceList.value)
   const currentTables = computed(() => tableList.value)
   const fieldWorkbenchVisible = ref(false)
   const selectedTableName = ref('')
@@ -63,7 +62,6 @@ export function useDataSourceManagePage() {
   const importProgressStageLabel = computed(() => resolveImportStageLabel(importJobProgress.stage))
   const importProgressSummary = computed(() => importJobProgress.summary || createEmptyImportProgressSummary())
   const importActionLabel = computed(() => importJobActive.value ? '查看进度' : '导入')
-  const importFormatLabel = computed(() => importFormat.value === 'excel' ? 'Excel' : 'JSON')
 
   onMounted(async () => {
     await loadInitialData()
@@ -96,7 +94,7 @@ export function useDataSourceManagePage() {
   }
 
   function handleSourceChange(event) {
-    router.push(`/settings/system/data-source/${event.target.value}`)
+    router.push(`/knowledge/${event.target.value}`)
   }
 
   async function openFieldWorkbench(item) {
@@ -115,7 +113,7 @@ export function useDataSourceManagePage() {
   }
 
   function goBack() {
-    router.push('/settings/system/data-source')
+    router.push('/knowledge')
   }
 
   function openImportDialog() {
@@ -261,22 +259,22 @@ export function useDataSourceManagePage() {
   }
 
   async function loadInitialData() {
-    await loadSourceList()
-    await loadTables()
-    if (fieldWorkbenchVisible.value) {
-      await loadFields()
-    }
+    await Promise.all([loadSourceList(), loadTables()])
   }
 
   async function loadSourceList() {
     sourceLoading.value = true
     sourceError.value = ''
     try {
-      const response = await searchDbDataSources({ page: 1, size: 200 })
-      const payload = unwrapPayload(response)
+      const payload = unwrapPayload(
+        await searchDbDataSources({
+          page: 1,
+          size: 200
+        })
+      )
       sourceList.value = (payload?.list ?? []).map(mapSourceItem)
     } catch (error) {
-      sourceError.value = error.message || '数据源加载失败'
+      sourceError.value = error.message || '数据源列表加载失败'
       sourceList.value = []
     } finally {
       sourceLoading.value = false
@@ -289,23 +287,24 @@ export function useDataSourceManagePage() {
       pagination.total = 0
       return
     }
+
     tableLoading.value = true
     tableError.value = ''
     try {
-      const response = await searchDbTables({
-        sourceKey: sourceKey.value,
-        page: pagination.page,
-        size: pagination.size
-      })
-      const payload = unwrapPayload(response)
-      const records = payload?.list ?? payload?.records ?? []
-      tableList.value = records.map(mapTableItem)
-      pagination.total = payload?.total ?? records.length
+      const payload = unwrapPayload(
+        await searchDbTables({
+          page: pagination.page,
+          size: pagination.size,
+          sourceKey: sourceKey.value
+        })
+      )
+      tableList.value = (payload?.list ?? []).map(mapTableItem)
+      pagination.total = resolvePageTotal(payload?.pageInfo?.total, tableList.value.length)
       if (!selectedTableName.value && tableList.value.length) {
         selectedTableName.value = tableList.value[0].name
       }
     } catch (error) {
-      tableError.value = error.message || '数据表加载失败'
+      tableError.value = error.message || '数据表列表加载失败'
       tableList.value = []
       pagination.total = 0
     } finally {
@@ -318,19 +317,21 @@ export function useDataSourceManagePage() {
       fieldList.value = []
       return
     }
+
     fieldLoading.value = true
     fieldError.value = ''
     try {
-      const response = await searchDbTableFields({
-        sourceKey: sourceKey.value,
-        tableName: selectedTableName.value,
-        page: 1,
-        size: 500
-      })
-      const payload = unwrapPayload(response)
-      fieldList.value = (payload?.list ?? payload?.records ?? []).map(mapFieldItem)
+      const payload = unwrapPayload(
+        await searchDbTableFields({
+          page: 1,
+          size: 500,
+          sourceKey: sourceKey.value,
+          tableName: selectedTableName.value
+        })
+      )
+      fieldList.value = (payload?.list ?? []).map(mapFieldItem)
     } catch (error) {
-      fieldError.value = error.message || '字段加载失败'
+      fieldError.value = error.message || '字段列表加载失败'
       fieldList.value = []
     } finally {
       fieldLoading.value = false
@@ -341,97 +342,228 @@ export function useDataSourceManagePage() {
     return response?.data ?? response
   }
 
+  function resolvePageTotal(total, listLength) {
+    const parsed = Number(total)
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed
+    }
+    if (listLength > 0) {
+      return listLength
+    }
+    return listLength
+  }
+
   function mapSourceItem(item) {
-    const databaseConfig = item?.config?.database ?? {}
-    const host = databaseConfig.host
-      ? `${databaseConfig.host}${databaseConfig.port ? `:${databaseConfig.port}` : ''}`
-      : item?.config?.endpoint || '-'
     return {
       key: item.sourceKey || String(item.id ?? ''),
       name: item.sourceName || item.sourceKey || '未命名数据源',
-      type: item.sourceType || '-',
-      host,
-      raw: item
+      type: formatSourceType(item.sourceType)
     }
   }
 
   function mapTableItem(item) {
     return {
-      name: item.tableName || item.name || '-',
-      columns: item.fieldCount ?? item.columns ?? '-',
-      rows: item.rowCount ?? item.rows ?? '-',
-      partition: item.partitionKey || item.partition || 'none',
-      freshness: item.freshness || item.syncLag || '-',
-      status: normalizeStatus(item),
-      statusLabel: normalizeStatusLabel(item)
+      id: item.id,
+      name: item.tableName,
+      columns: item.columnCount ?? 0,
+      rows: formatRowCount(item.rowCount),
+      partition: item.partitionKey || '无',
+      freshness: formatFreshness(item.freshnessSeconds),
+      status: resolveTableStatus(item),
+      statusLabel: resolveTableStatusLabel(item),
+      raw: item
     }
   }
 
   function mapFieldItem(item) {
     return {
-      name: item.fieldName || item.name || '-',
-      type: item.fieldType || item.type || '-',
-      indexName: item.indexName || '',
-      relatedTable: item.relatedTable || '',
-      description: item.description || item.comment || '',
-      statusLabel: item.roleLabel || item.statusLabel || '业务字段'
+      id: item.id,
+      name: item.columnName,
+      type: formatFieldType(item),
+      indexName: item.primaryKey ? 'PRIMARY' : '',
+      relatedTable: '',
+      description: item.columnComment || item.remark || '-',
+      statusLabel: resolveFieldStatusLabel(item),
+      raw: item
     }
   }
 
-  function normalizeStatus(item) {
+  function formatSourceType(value) {
+    const labelMap = {
+      DATABASE: '数据库',
+      HTTP_API: 'HTTP API',
+      SERVICE_API: '服务接口',
+      FILE: '文件',
+      STREAM: '流式数据'
+    }
+    return labelMap[value] || value || '-'
+  }
+
+  function formatRowCount(value) {
+    if (value === null || value === undefined) {
+      return '-'
+    }
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric)) {
+      return String(value)
+    }
+    return numeric.toLocaleString('zh-CN')
+  }
+
+  function formatFreshness(value) {
+    const numeric = Number(value)
+    if (!Number.isFinite(numeric) || numeric < 0) {
+      return '-'
+    }
+    if (numeric < 60) {
+      return `${numeric} sec`
+    }
+    if (numeric < 3600) {
+      return `${Math.round(numeric / 60)} min`
+    }
+    return `${Math.round(numeric / 3600)} h`
+  }
+
+  function resolveTableStatus(item) {
     if (item?.enabled === false) {
       return 'offline'
     }
     if (String(item?.status || '').toUpperCase() === 'ACTIVE') {
       return 'ready'
     }
-    return 'draft'
+    return 'warning'
   }
 
-  function normalizeStatusLabel(item) {
+  function resolveTableStatusLabel(item) {
     if (item?.enabled === false) {
       return '已停用'
     }
     if (String(item?.status || '').toUpperCase() === 'ACTIVE') {
       return '可用'
     }
-    return item?.statusLabel || '待配置'
+    return item?.status || '待校验'
+  }
+
+  function resolveFieldStatusLabel(item) {
+    if (item?.primaryKey) {
+      return '主键'
+    }
+    if (item?.partitionKey) {
+      return '分区字段'
+    }
+    if (item?.fieldRole) {
+      return item.fieldRole
+    }
+    if (item?.nullable === false) {
+      return '必填'
+    }
+    return '字段'
+  }
+
+  function buildImportNotice(payload) {
+    if (!payload) {
+      return '导入成功'
+    }
+    return [
+      `表 新增 ${payload.tableCreatedCount ?? 0} / 更新 ${payload.tableUpdatedCount ?? 0}`,
+      `字段 新增 ${payload.fieldCreatedCount ?? 0} / 更新 ${payload.fieldUpdatedCount ?? 0}`,
+      `索引 新增 ${payload.indexCreatedCount ?? 0} / 更新 ${payload.indexUpdatedCount ?? 0}`
+    ].join('，')
   }
 
   function isImportFileFormatMatched(file, format) {
     const extension = String(file?.name || '').split('.').pop()?.toLowerCase()
-    return format === 'excel' ? extension === 'xlsx' : extension === 'json'
+    if (format === 'json') {
+      return extension === 'json'
+    }
+    return extension === 'xlsx'
   }
 
-  async function consumeImportStream(currentSourceKey, file, options = {}) {
+  function importFormatLabel() {
+    return importFormat.value === 'json' ? 'JSON' : 'Excel'
+  }
+
+  async function consumeImportStream(sourceKey, file, options = {}) {
+    const { showTerminalToast = false } = options
     stopImportProgressStream()
-    importProgressStreamAbortController = new AbortController()
+    const abortController = new AbortController()
+    importProgressStreamAbortController = abortController
+    const response = await streamDbMetaImportWorkbook(sourceKey, file, abortController.signal)
+    const reader = response.body?.getReader()
+    if (!reader) {
+      throw new Error('导入进度流不可用')
+    }
+
+    const decoder = new TextDecoder('utf-8')
+    let buffer = ''
+
     try {
-      await streamDbMetaImportWorkbook(currentSourceKey, file, importFormat.value, {
-        signal: importProgressStreamAbortController.signal,
-        onMessage: handleImportProgressMessage
-      })
-      if (options.showTerminalToast) {
-        showPopup.success('导入任务已提交')
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) {
+          break
+        }
+        buffer += decoder.decode(value, { stream: true })
+        const frames = buffer.split('\n\n')
+        buffer = frames.pop() ?? ''
+        for (const frame of frames) {
+          await handleImportStreamFrame(frame, showTerminalToast)
+        }
       }
-      await refreshPage()
+      if (buffer.trim()) {
+        await handleImportStreamFrame(buffer, showTerminalToast)
+      }
+    } catch (error) {
+      if (abortController.signal.aborted) {
+        return
+      }
+      throw error
     } finally {
-      stopImportProgressStream()
+      if (importProgressStreamAbortController === abortController) {
+        importProgressStreamAbortController = null
+      }
     }
   }
 
-  function handleImportProgressMessage(message) {
-    if (!message || typeof message !== 'object') {
+  async function handleImportStreamFrame(frame, showTerminalToast) {
+    const lines = String(frame || '')
+      .split('\n')
+      .map(line => line.trim())
+      .filter(Boolean)
+    if (!lines.length) {
       return
     }
-    importJobProgress.jobId = message.jobId || importJobProgress.jobId
-    importJobProgress.sourceKey = message.sourceKey || importJobProgress.sourceKey
-    importJobProgress.fileName = message.fileName || importJobProgress.fileName
-    importJobProgress.status = message.status || importJobProgress.status
-    importJobProgress.stage = message.stage || importJobProgress.stage
-    importJobProgress.message = message.message || importJobProgress.message
-    importJobProgress.progressPercent = Number(message.progressPercent ?? importJobProgress.progressPercent ?? 0)
-    importJobProgress.summary = message.summary || importJobProgress.summary
+    let eventName = 'progress'
+    const dataLines = []
+    for (const line of lines) {
+      if (line.startsWith('event:')) {
+        eventName = line.slice('event:'.length).trim() || 'progress'
+        continue
+      }
+      if (line.startsWith('data:')) {
+        dataLines.push(line.slice('data:'.length).trim())
+      }
+    }
+    if (!dataLines.length) {
+      return
+    }
+    const payload = JSON.parse(dataLines.join('\n'))
+    applyImportJobProgress(payload)
+    const status = String(payload?.status || '')
+    if (eventName === 'complete' || status === 'COMPLETED') {
+      stopImportProgressStream()
+      if (showTerminalToast) {
+        showPopup.success(buildImportNotice(payload?.result), { title: 'Import Complete', duration: 3200 })
+      }
+      await refreshPage()
+      return
+    }
+    if (eventName === 'failed' || status === 'FAILED') {
+      stopImportProgressStream()
+      if (showTerminalToast) {
+        showPopup.error(payload?.message || '导入失败')
+      }
+    }
   }
 
   function stopImportProgressStream() {
@@ -441,25 +573,53 @@ export function useDataSourceManagePage() {
     }
   }
 
-  function triggerBrowserDownload(blob, filename) {
-    const url = window.URL.createObjectURL(blob)
-    const anchor = document.createElement('a')
-    anchor.href = url
-    anchor.download = filename || 'download.bin'
-    anchor.click()
-    window.URL.revokeObjectURL(url)
+  function applyImportJobProgress(payload) {
+    importJobProgress.jobId = payload?.jobId || ''
+    importJobProgress.sourceKey = payload?.sourceKey || ''
+    importJobProgress.fileName = payload?.fileName || ''
+    importJobProgress.status = payload?.status || ''
+    importJobProgress.stage = payload?.stage || ''
+    importJobProgress.progressPercent = Number(payload?.progressPercent ?? 0)
+    importJobProgress.message = payload?.message || ''
+    importJobProgress.recentMessages = Array.isArray(payload?.recentMessages) ? payload.recentMessages : []
+    importJobProgress.summary = payload?.summary || createEmptyImportProgressSummary()
+    importJobProgress.result = payload?.result || null
+  }
+
+  function resetImportJobProgress() {
+    Object.assign(importJobProgress, createEmptyImportJobProgress())
+    stopImportProgressStream()
   }
 
   function resolveImportStageLabel(stage) {
     const labelMap = {
-      QUEUED: '排队中',
-      UPLOADING: '上传中',
-      PARSING: '解析中',
-      IMPORTING: '导入中',
-      COMPLETED: '已完成',
-      FAILED: '失败'
+      QUEUED: '等待处理',
+      PARSING: '解析文件',
+      IMPORTING_TABLES: '导入表',
+      IMPORTING_FIELDS: '导入字段',
+      IMPORTING_INDEXES: '导入索引',
+      FINALIZING: '收尾同步',
+      COMPLETED: '导入完成',
+      FAILED: '导入失败'
     }
-    return labelMap[stage] || stage || '处理中'
+    return labelMap[stage] || '处理中'
+  }
+
+  function createEmptyImportProgressSummary() {
+    return {
+      tableTotal: 0,
+      tableProcessed: 0,
+      tableCreatedCount: 0,
+      tableUpdatedCount: 0,
+      fieldTotal: 0,
+      fieldProcessed: 0,
+      fieldCreatedCount: 0,
+      fieldUpdatedCount: 0,
+      indexTotal: 0,
+      indexProcessed: 0,
+      indexCreatedCount: 0,
+      indexUpdatedCount: 0
+    }
   }
 
   function createEmptyImportJobProgress() {
@@ -469,28 +629,48 @@ export function useDataSourceManagePage() {
       fileName: '',
       status: '',
       stage: '',
-      message: '',
       progressPercent: 0,
-      summary: createEmptyImportProgressSummary()
+      message: '',
+      recentMessages: [],
+      summary: createEmptyImportProgressSummary(),
+      result: null
     }
   }
 
-  function createEmptyImportProgressSummary() {
-    return {
-      processed: 0,
-      success: 0,
-      failed: 0
-    }
+  function triggerBrowserDownload(blob, filename) {
+    const objectUrl = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = objectUrl
+    link.download = filename
+    link.style.display = 'none'
+    document.body.appendChild(link)
+    link.click()
+    window.setTimeout(() => {
+      document.body.removeChild(link)
+      window.URL.revokeObjectURL(objectUrl)
+    }, 1000)
   }
 
-  function resetImportJobProgress() {
-    Object.assign(importJobProgress, createEmptyImportJobProgress())
+  function formatFieldType(item) {
+    const baseType = item?.dataType || '-'
+    const scale = item?.columnScale
+    const precision = item?.columnPrecision
+    const length = item?.columnLength
+    if (Number.isFinite(Number(precision)) && Number(precision) > 0) {
+      if (Number.isFinite(Number(scale)) && Number(scale) >= 0) {
+        return `${baseType}(${precision},${scale})`
+      }
+      return `${baseType}(${precision})`
+    }
+    if (Number.isFinite(Number(length)) && Number(length) > 0) {
+      return `${baseType}(${length})`
+    }
+    return baseType
   }
 
   return {
     currentSource,
-    currentSourceList,
-    pagedTables,
+    currentSourceList: sourceList,
     currentTables,
     fieldWorkbenchVisible,
     pageSizeOptions,
@@ -531,6 +711,7 @@ export function useDataSourceManagePage() {
     formatEmpty,
     goBack,
     statusClass,
+    pagedTables,
     refreshPage,
     openImportDialog,
     closeImportDialog,

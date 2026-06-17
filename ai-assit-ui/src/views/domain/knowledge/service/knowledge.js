@@ -1,11 +1,12 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { createDbDataSource, searchDbDataSources, updateDbDataSource } from '../../../../../api/dbEngine'
-import { showPopup } from '../../../../../utils/popup'
+import { createDbDataSource, searchDbDataSources, updateDbDataSource } from '../../../../api/dbEngine'
+import { showPopup } from '../../../../utils/popup'
 
-export function useDataSourcePage() {
+export function useKnowledgePage() {
   const router = useRouter()
   const keyword = ref('')
+  const activeTab = ref('current')
   const selectedSourceKey = ref('')
   const sourceList = ref([])
   const loading = ref(false)
@@ -42,17 +43,28 @@ export function useDataSourcePage() {
     { label: 'API Key', value: 'API_KEY' }
   ]
 
+  const tabOptions = [
+    { key: 'current', label: '当前' },
+    { key: 'draft', label: '草稿' },
+    { key: 'history', label: '历史' }
+  ]
+
   const filteredSources = computed(() => {
     const normalized = keyword.value.trim().toLowerCase()
+    const matchedByTab = sourceList.value.filter(item => matchTab(item, activeTab.value))
     if (!normalized) {
-      return sourceList.value
+      return matchedByTab
     }
 
-    return sourceList.value.filter(item =>
+    return matchedByTab.filter(item =>
       [item.name, item.type, item.owner, item.host, item.database].some(value =>
         String(value).toLowerCase().includes(normalized)
       )
     )
+  })
+
+  const activeTabLabel = computed(() => {
+    return tabOptions.find(item => item.key === activeTab.value)?.label || '当前'
   })
 
   onMounted(() => {
@@ -61,7 +73,11 @@ export function useDataSourcePage() {
 
   function openSource(key) {
     selectedSourceKey.value = key
-    router.push(`/settings/system/data-source/${key}`)
+    router.push(`/knowledge/${key}`)
+  }
+
+  function selectTab(tabKey) {
+    activeTab.value = tabKey
   }
 
   function statusClass(status) {
@@ -136,6 +152,16 @@ export function useDataSourcePage() {
       summary: item.summary || item.remark || '暂无说明。',
       raw: item
     }
+  }
+
+  function matchTab(item, tabKey) {
+    if (tabKey === 'draft') {
+      return item.status === 'warning'
+    }
+    if (tabKey === 'history') {
+      return item.status === 'offline'
+    }
+    return item.status === 'online'
   }
 
   function resolveHost(item) {
@@ -261,7 +287,12 @@ export function useDataSourcePage() {
         },
         auth: {
           authType: form.authType,
-          token: emptyToUndefined(form.token)
+          username: emptyToUndefined(form.username),
+          passwordCiphertext: emptyToUndefined(form.passwordCiphertext),
+          tokenCiphertext: emptyToUndefined(form.tokenCiphertext),
+          accessKey: emptyToUndefined(form.accessKey),
+          secretKeyCiphertext: emptyToUndefined(form.secretKeyCiphertext),
+          credentialRef: emptyToUndefined(form.credentialRef)
         },
         database: {
           dbType: emptyToUndefined(form.dbType),
@@ -269,104 +300,74 @@ export function useDataSourcePage() {
           port: normalizeNumber(form.port),
           databaseName: emptyToUndefined(form.databaseName),
           schemaName: emptyToUndefined(form.schemaName),
-          jdbcUrl: emptyToUndefined(form.jdbcUrl),
-          username: emptyToUndefined(form.username),
-          password: emptyToUndefined(form.password)
-        },
-        attributes: parseAttributesText(form.attributesText)
+          jdbcUrl: emptyToUndefined(form.jdbcUrl)
+        }
       }
     }
   }
 
-  function parseAttributesText(value) {
-    if (!value.trim()) {
-      return undefined
-    }
-    try {
-      return JSON.parse(value)
-    } catch {
-      throw new Error('扩展属性必须是合法 JSON')
+  function createFormFromItem(item) {
+    const raw = item?.raw ?? {}
+    const config = raw.config ?? {}
+    const auth = config.auth ?? {}
+    const network = config.network ?? {}
+    const database = config.database ?? {}
+    return {
+      id: raw.id ?? item?.id ?? null,
+      sourceKey: raw.sourceKey ?? '',
+      sourceName: raw.sourceName ?? '',
+      sourceType: raw.sourceType ?? 'DATABASE',
+      ownerTeam: raw.ownerTeam ?? '',
+      ownerUser: raw.ownerUser ?? '',
+      status: raw.status ?? 'ACTIVE',
+      enabled: raw.enabled ?? true,
+      syncMode: raw.syncMode ?? 'REALTIME',
+      summary: raw.summary ?? '',
+      remark: raw.remark ?? '',
+      endpoint: config.endpoint ?? '',
+      connectTimeoutMs: stringifyNumber(network.connectTimeoutMs),
+      readTimeoutMs: stringifyNumber(network.readTimeoutMs),
+      writeTimeoutMs: stringifyNumber(network.writeTimeoutMs),
+      authType: auth.authType ?? 'BASIC',
+      username: auth.username ?? '',
+      passwordCiphertext: auth.passwordCiphertext ?? '',
+      tokenCiphertext: auth.tokenCiphertext ?? '',
+      accessKey: auth.accessKey ?? '',
+      secretKeyCiphertext: auth.secretKeyCiphertext ?? '',
+      credentialRef: auth.credentialRef ?? '',
+      dbType: database.dbType ?? '',
+      host: database.host ?? '',
+      port: stringifyNumber(database.port),
+      databaseName: database.databaseName ?? '',
+      schemaName: database.schemaName ?? '',
+      jdbcUrl: database.jdbcUrl ?? ''
     }
   }
 
   function emptyToUndefined(value) {
-    return value.trim() ? value.trim() : undefined
+    const normalized = String(value ?? '').trim()
+    return normalized || undefined
   }
 
   function normalizeNumber(value) {
     if (value === '' || value === null || value === undefined) {
-      return undefined
+      return null
     }
-    const numericValue = Number(value)
-    return Number.isFinite(numericValue) ? numericValue : undefined
+    const parsed = Number(value)
+    return Number.isFinite(parsed) ? parsed : null
   }
 
-  function createFormFromItem(item) {
-    const raw = item?.raw ?? {}
-    const databaseConfig = raw?.config?.database ?? {}
-    const authConfig = raw?.config?.auth ?? {}
-    return {
-      id: raw.id ?? item.id ?? null,
-      sourceKey: raw.sourceKey || item.key || '',
-      sourceName: raw.sourceName || item.name || '',
-      sourceType: raw.sourceType || 'DATABASE',
-      ownerTeam: raw.ownerTeam || '',
-      ownerUser: raw.ownerUser || '',
-      status: raw.status || 'ACTIVE',
-      enabled: raw.enabled !== false,
-      syncMode: raw.syncMode || 'REALTIME',
-      endpoint: raw?.config?.endpoint || '',
-      summary: raw.summary || '',
-      remark: raw.remark || '',
-      dbType: databaseConfig.dbType || '',
-      host: databaseConfig.host || '',
-      port: databaseConfig.port ?? '',
-      databaseName: databaseConfig.databaseName || '',
-      schemaName: databaseConfig.schemaName || '',
-      jdbcUrl: databaseConfig.jdbcUrl || '',
-      username: databaseConfig.username || '',
-      password: databaseConfig.password || '',
-      connectTimeoutMs: raw?.config?.network?.connectTimeoutMs ?? '',
-      readTimeoutMs: raw?.config?.network?.readTimeoutMs ?? '',
-      writeTimeoutMs: raw?.config?.network?.writeTimeoutMs ?? '',
-      authType: authConfig.authType || 'NONE',
-      token: authConfig.token || '',
-      attributesText: raw?.config?.attributes ? JSON.stringify(raw.config.attributes, null, 2) : ''
+  function stringifyNumber(value) {
+    if (value === null || value === undefined || value === '') {
+      return ''
     }
-  }
-
-  function createEmptyForm() {
-    return {
-      id: null,
-      sourceKey: '',
-      sourceName: '',
-      sourceType: 'DATABASE',
-      ownerTeam: '',
-      ownerUser: '',
-      status: 'ACTIVE',
-      enabled: true,
-      syncMode: 'REALTIME',
-      endpoint: '',
-      summary: '',
-      remark: '',
-      dbType: '',
-      host: '',
-      port: '',
-      databaseName: '',
-      schemaName: '',
-      jdbcUrl: '',
-      username: '',
-      password: '',
-      connectTimeoutMs: '',
-      readTimeoutMs: '',
-      writeTimeoutMs: '',
-      authType: 'NONE',
-      token: '',
-      attributesText: ''
-    }
+    return String(value)
   }
 
   return {
+    activeTab,
+    activeTabLabel,
+    tabOptions,
     keyword,
     selectedSourceKey,
     loading,
@@ -382,6 +383,7 @@ export function useDataSourcePage() {
     authTypeOptions,
     filteredSources,
     openSource,
+    selectTab,
     statusClass,
     triggerKnowledgeSync,
     loadDataSources,
@@ -389,5 +391,38 @@ export function useDataSourcePage() {
     openEditDialog,
     closeDialog,
     submitForm
+  }
+}
+
+function createEmptyForm() {
+  return {
+    id: null,
+    sourceKey: '',
+    sourceName: '',
+    sourceType: 'DATABASE',
+    ownerTeam: '',
+    ownerUser: '',
+    status: 'ACTIVE',
+    enabled: true,
+    syncMode: 'REALTIME',
+    summary: '',
+    remark: '',
+    endpoint: '',
+    connectTimeoutMs: '3000',
+    readTimeoutMs: '30000',
+    writeTimeoutMs: '30000',
+    authType: 'BASIC',
+    username: '',
+    passwordCiphertext: '',
+    tokenCiphertext: '',
+    accessKey: '',
+    secretKeyCiphertext: '',
+    credentialRef: '',
+    dbType: 'mysql',
+    host: '',
+    port: '3306',
+    databaseName: '',
+    schemaName: '',
+    jdbcUrl: ''
   }
 }

@@ -29,14 +29,6 @@ public class AiProviderConfigServiceImpl
         return aiProviderConfigConvert;
     }
 
-    public AiProviderConfigDTO newDTO() {
-        return new AiProviderConfigDTO();
-    }
-
-    public AiProviderConfigEntity newEntity() {
-        return new AiProviderConfigEntity();
-    }
-
     @Override
     protected <Query extends BaseRequest> QueryWrapper<AiProviderConfigEntity> buildQuery(Query query) {
         QueryWrapper<AiProviderConfigEntity> wrapper = super.buildQuery(query);

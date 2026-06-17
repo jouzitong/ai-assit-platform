@@ -26,8 +26,8 @@ public interface AiKnowledgeBaseManageApi {
     @PostMapping("/internal/v1/ai/kb/document/upsert")
     R<AiKbDocumentUpsertResponse> upsertDocument(@RequestBody AiKbDocumentUpsertRequest request);
 
-
     @PostMapping(value = "/internal/v1/ai/kb/list", produces = MediaType.APPLICATION_JSON_VALUE)
     @IgnoredResultWrapper
     List<AiKbInfoDTO> kbList(@RequestBody(required = false) AiKbListRequest request);
+
 }

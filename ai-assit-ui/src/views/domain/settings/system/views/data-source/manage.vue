@@ -220,181 +220,172 @@ function onFileDrop(event) {
 
         <div v-if="fieldError" class="table-state is-error">{{ fieldError }}</div>
         <div v-else-if="fieldLoading" class="table-state">正在加载字段列表...</div>
-        <div v-else-if="!selectedFields.length" class="table-state">当前表下还没有字段元数据。</div>
+        <div v-else-if="!selectedFields.length" class="table-state">当前表还没有字段元数据。</div>
 
-        <table v-else class="field-table">
-          <thead>
-            <tr>
-              <th>字段名</th>
-              <th>类型</th>
-              <th>索引</th>
-              <th>外键关联表</th>
-              <th>说明</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="field in selectedFields" :key="field.name">
-              <td><strong>{{ field.name }}</strong></td>
-              <td>{{ field.type }}</td>
-              <td>{{ formatEmpty(field.indexName) }}</td>
-              <td>{{ formatEmpty(field.relatedTable) }}</td>
-              <td>{{ field.description }}</td>
-              <td><span class="status-chip is-ready">{{ field.statusLabel }}</span></td>
-            </tr>
-          </tbody>
-        </table>
+        <div v-else class="table-body">
+          <table class="config-table field-table">
+            <thead>
+              <tr>
+                <th>字段名</th>
+                <th>类型</th>
+                <th>索引</th>
+                <th>关联表</th>
+                <th>描述</th>
+                <th>角色</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="field in selectedFields" :key="field.name">
+                <td><strong>{{ field.name }}</strong></td>
+                <td>{{ field.type }}</td>
+                <td>{{ formatEmpty(field.indexName) }}</td>
+                <td>{{ formatEmpty(field.relatedTable) }}</td>
+                <td>{{ formatEmpty(field.description) }}</td>
+                <td>{{ field.statusLabel }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </section>
     </section>
 
     <div v-if="importDialogVisible" class="modal-mask" @click.self="closeImportDialog">
-      <div class="modal-card import-modal">
+      <div class="modal-card modal-medium">
         <header class="modal-head">
-          <div>
-            <h3>导入表结构元数据</h3>
-            <p>
-              支持 JSON 和 Excel 导入。JSON 适合结构化回传，Excel 适合按 `表说明`、`字段说明`、`索引说明` 三个 sheet 维护。
-            </p>
-          </div>
+          <h3>导入元数据</h3>
           <button class="close-btn" type="button" @click="closeImportDialog">×</button>
         </header>
 
-        <p v-if="importError" class="error-banner">{{ importError }}</p>
+        <div class="modal-body">
+          <section class="dialog-section section-panel">
+            <header class="section-head">
+              <h4>导入文件</h4>
+              <p>支持 JSON 和 Excel 模板，导入后会进入后台解析流程。</p>
+            </header>
 
-        <div class="export-format-list">
-          <label class="export-format-option" :class="{ 'is-active': importFormat === 'json' }">
-            <input v-model="importFormat" type="radio" name="import-format" value="json" />
-            <div>
-              <strong>JSON 导入</strong>
-              <span>上传 `.json` 文件，适合导出回传、版本管理和批量同步。</span>
+            <div class="form-grid">
+              <label class="field-block">
+                <span>导入格式</span>
+                <select v-model="importFormat" class="field-control">
+                  <option value="json">JSON</option>
+                  <option value="excel">Excel</option>
+                </select>
+              </label>
             </div>
-          </label>
 
-          <label class="export-format-option" :class="{ 'is-active': importFormat === 'excel' }">
-            <input v-model="importFormat" type="radio" name="import-format" value="excel" />
-            <div>
-              <strong>Excel 导入</strong>
-              <span>上传 `.xlsx` 文件，按三张 sheet 做新增或更新。</span>
+            <div
+              class="upload-dropzone"
+              :class="{ 'is-active': importDragActive }"
+              @dragenter.prevent="handleImportDragEnter"
+              @dragover.prevent="handleImportDragEnter"
+              @dragleave.prevent="handleImportDragLeave"
+              @drop.prevent="onFileDrop"
+            >
+              <p>{{ importFile ? `已选择：${importFile.name}` : `拖拽或选择${importFormatLabel}文件` }}</p>
+              <div class="dropzone-actions">
+                <button type="button" class="toolbar-btn secondary" @click="triggerFilePicker">选择文件</button>
+                <button type="button" class="toolbar-btn secondary" :disabled="templateSubmitting" @click="downloadTemplateWorkbook">
+                  {{ templateSubmitting ? '下载中...' : '下载模板' }}
+                </button>
+              </div>
+              <input ref="fileInputRef" class="file-input" type="file" @change="onFileInputChange" />
             </div>
-          </label>
+
+            <p v-if="importError" class="error-banner">{{ importError }}</p>
+          </section>
         </div>
 
-        <button
-          type="button"
-          class="drop-zone"
-          :class="{ 'is-dragover': importDragActive }"
-          @click="triggerFilePicker"
-          @dragenter.prevent="handleImportDragEnter"
-          @dragover.prevent="handleImportDragEnter"
-          @dragleave.prevent="handleImportDragLeave"
-          @drop.prevent="onFileDrop"
-        >
-          <Upload :size="22" />
-          <strong>{{ importFile ? importFile.name : `点击选择${importFormatLabel()}文件，或直接拖拽到这里` }}</strong>
-          <span v-if="importFormat === 'json'">支持 `.json`，结构与导出 JSON 一致，导入时会按自然键对表、字段、索引做新增或更新。</span>
-          <span v-else>支持 `.xlsx`，需包含 `表说明`、`字段说明`、`索引说明` 三个 sheet，导入时会按自然键对表、字段、索引做新增或更新。</span>
-        </button>
-
-        <input ref="fileInputRef" class="hidden-file-input" type="file" :accept="importFormat === 'json' ? '.json' : '.xlsx'" @change="onFileInputChange" />
-
-        <footer class="modal-actions">
-          <button class="action-btn secondary-btn" type="button" :disabled="templateSubmitting" @click="downloadTemplateWorkbook">
-            {{ templateSubmitting ? '下载中...' : `下载${importFormatLabel()}模板` }}
-          </button>
-          <button class="action-btn" type="button" @click="closeImportDialog">取消</button>
-          <button class="action-btn primary" type="button" :disabled="importSubmitting" @click="submitImport">
+        <footer class="modal-foot">
+          <button type="button" class="toolbar-secondary-btn" @click="closeImportDialog">取消</button>
+          <button type="button" class="toolbar-add-btn" :disabled="importSubmitting" @click="submitImport">
             {{ importSubmitting ? '导入中...' : '开始导入' }}
           </button>
         </footer>
       </div>
     </div>
 
-    <div v-if="exportDialogVisible" class="modal-mask" @click.self="closeExportDialog">
-      <div class="modal-card export-modal">
-        <header class="modal-head">
-          <div>
-            <h3>导出元数据</h3>
-            <p>选择导出格式。默认使用 JSON，便于再次导入或版本管理。</p>
-          </div>
-          <button class="close-btn" type="button" @click="closeExportDialog">×</button>
-        </header>
-
-        <div class="export-format-list">
-          <label class="export-format-option" :class="{ 'is-active': exportFormat === 'json' }">
-            <input v-model="exportFormat" type="radio" name="export-format" value="json" />
-            <div>
-              <strong>JSON</strong>
-              <span>结构化导出，适合回传、对比和二次导入。</span>
-            </div>
-          </label>
-
-          <label class="export-format-option" :class="{ 'is-active': exportFormat === 'excel' }">
-            <input v-model="exportFormat" type="radio" name="export-format" value="excel" />
-            <div>
-              <strong>Excel</strong>
-              <span>保留现有工作簿格式，适合人工查看和线下编辑。</span>
-            </div>
-          </label>
-        </div>
-
-        <footer class="modal-actions">
-          <button class="action-btn" type="button" @click="closeExportDialog">取消</button>
-          <button class="action-btn primary" type="button" :disabled="exportSubmitting" @click="exportWorkbook">
-            {{ exportSubmitting ? '导出中...' : '开始导出' }}
-          </button>
-        </footer>
-      </div>
-    </div>
-
     <div v-if="importProgressDialogVisible" class="modal-mask" @click.self="closeImportProgressDialog">
-      <div class="modal-card import-progress-modal">
+      <div class="modal-card modal-medium">
         <header class="modal-head">
-          <div>
-            <h3>导入进度</h3>
-            <p>{{ importJobProgress.fileName || '正在处理导入任务' }}</p>
-          </div>
+          <h3>导入进度</h3>
           <button class="close-btn" type="button" @click="closeImportProgressDialog">×</button>
         </header>
 
-        <div class="progress-overview">
-          <div class="progress-header">
-            <strong>{{ importProgressStageLabel }}</strong>
-            <span>{{ importJobProgress.progressPercent }}%</span>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" :style="{ width: `${importJobProgress.progressPercent}%` }" />
-          </div>
-          <p class="progress-message">{{ importJobProgress.message || '任务已创建，等待处理' }}</p>
+        <div class="modal-body">
+          <section class="dialog-section section-panel">
+            <header class="section-head">
+              <h4>{{ importProgressStageLabel }}</h4>
+              <p>{{ importJobProgress.message || '后台正在处理导入任务。' }}</p>
+            </header>
+
+            <div class="progress-shell">
+              <div class="progress-track">
+                <span class="progress-bar" :style="{ width: `${importJobProgress.progressPercent || 0}%` }" />
+              </div>
+              <strong>{{ importJobProgress.progressPercent || 0 }}%</strong>
+            </div>
+
+            <dl class="progress-summary">
+              <div>
+                <dt>任务状态</dt>
+                <dd>{{ importJobProgress.status || '-' }}</dd>
+              </div>
+              <div>
+                <dt>任务 ID</dt>
+                <dd>{{ importJobProgress.jobId || '-' }}</dd>
+              </div>
+              <div>
+                <dt>文件名</dt>
+                <dd>{{ importJobProgress.fileName || '-' }}</dd>
+              </div>
+              <div>
+                <dt>已处理</dt>
+                <dd>{{ importProgressSummary.processed ?? 0 }}</dd>
+              </div>
+              <div>
+                <dt>成功数</dt>
+                <dd>{{ importProgressSummary.success ?? 0 }}</dd>
+              </div>
+              <div>
+                <dt>失败数</dt>
+                <dd>{{ importProgressSummary.failed ?? 0 }}</dd>
+              </div>
+            </dl>
+          </section>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="exportDialogVisible" class="modal-mask" @click.self="closeExportDialog">
+      <div class="modal-card modal-medium">
+        <header class="modal-head">
+          <h3>导出元数据</h3>
+          <button class="close-btn" type="button" @click="closeExportDialog">×</button>
+        </header>
+
+        <div class="modal-body">
+          <section class="dialog-section section-panel">
+            <header class="section-head">
+              <h4>导出格式</h4>
+              <p>导出当前数据源下的表和字段元数据。</p>
+            </header>
+
+            <div class="form-grid">
+              <label class="field-block">
+                <span>导出格式</span>
+                <select v-model="exportFormat" class="field-control">
+                  <option value="json">JSON</option>
+                  <option value="excel">Excel</option>
+                </select>
+              </label>
+            </div>
+          </section>
         </div>
 
-        <div class="progress-grid">
-          <article class="progress-card">
-            <strong>表</strong>
-            <span>总数 {{ importProgressSummary.tableTotal }} · 已处理 {{ importProgressSummary.tableProcessed }}</span>
-            <span>新增 {{ importProgressSummary.tableCreatedCount }} · 更新 {{ importProgressSummary.tableUpdatedCount }}</span>
-          </article>
-          <article class="progress-card">
-            <strong>字段</strong>
-            <span>总数 {{ importProgressSummary.fieldTotal }} · 已处理 {{ importProgressSummary.fieldProcessed }}</span>
-            <span>新增 {{ importProgressSummary.fieldCreatedCount }} · 更新 {{ importProgressSummary.fieldUpdatedCount }}</span>
-          </article>
-          <article class="progress-card">
-            <strong>索引</strong>
-            <span>总数 {{ importProgressSummary.indexTotal }} · 已处理 {{ importProgressSummary.indexProcessed }}</span>
-            <span>新增 {{ importProgressSummary.indexCreatedCount }} · 更新 {{ importProgressSummary.indexUpdatedCount }}</span>
-          </article>
-        </div>
-
-        <div v-if="importJobProgress.recentMessages?.length" class="progress-log">
-          <strong>最近状态</strong>
-          <ul>
-            <li v-for="item in importJobProgress.recentMessages" :key="item">{{ item }}</li>
-          </ul>
-        </div>
-
-        <footer class="modal-actions">
-          <button class="action-btn" type="button" @click="closeImportProgressDialog">
-            {{ importJobActive ? '后台继续' : '关闭' }}
+        <footer class="modal-foot">
+          <button type="button" class="toolbar-secondary-btn" @click="closeExportDialog">取消</button>
+          <button type="button" class="toolbar-add-btn" :disabled="exportSubmitting" @click="exportWorkbook">
+            {{ exportSubmitting ? '导出中...' : '开始导出' }}
           </button>
         </footer>
       </div>

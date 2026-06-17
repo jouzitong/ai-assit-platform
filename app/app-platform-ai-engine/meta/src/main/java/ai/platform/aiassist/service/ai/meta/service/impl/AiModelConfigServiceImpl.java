@@ -32,14 +32,6 @@ public class AiModelConfigServiceImpl
         return aiModelConfigConvert;
     }
 
-    public AiModelConfigDTO newDTO() {
-        return new AiModelConfigDTO();
-    }
-
-    public AiModelConfigEntity newEntity() {
-        return new AiModelConfigEntity();
-    }
-
     @Override
     public List<AiEnabledModelDTO> selectEnabledModels() {
         return baseMapper.selectEnabledModels();

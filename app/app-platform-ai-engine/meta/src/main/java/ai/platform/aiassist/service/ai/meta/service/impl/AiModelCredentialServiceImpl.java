@@ -29,14 +29,6 @@ public class AiModelCredentialServiceImpl
         return aiModelCredentialConvert;
     }
 
-    public AiModelCredentialDTO newDTO() {
-        return new AiModelCredentialDTO();
-    }
-
-    public AiModelCredentialEntity newEntity() {
-        return new AiModelCredentialEntity();
-    }
-
     @Override
     protected <Query extends BaseRequest> QueryWrapper<AiModelCredentialEntity> buildQuery(Query query) {
         QueryWrapper<AiModelCredentialEntity> wrapper = super.buildQuery(query);

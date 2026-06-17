@@ -12,6 +12,7 @@ const isDarkTheme = ref(false)
 const menus = [
   { path: '/home', label: 'AI 首页', short: '首页' },
   { path: '/query', label: '智能问数', short: '问数' },
+  { path: '/knowledge', label: '知识库', short: '知识库' },
   { path: '/emp/attendance', label: '考勤看板', short: '考勤' },
   { path: '/emp/performance', label: '绩效洞察', short: '绩效' },
   { path: '/emp/cost', label: '人力成本分析', short: '成本' }
@@ -23,6 +24,10 @@ const settingsMenus = [
 ]
 
 const themeLabel = computed(() => (isDarkTheme.value ? '切换浅色主题' : '切换深色主题'))
+
+function isActivePath(targetPath) {
+  return route.path === targetPath || route.path.startsWith(`${targetPath}/`)
+}
 
 function applyTheme(nextIsDark) {
   isDarkTheme.value = nextIsDark
@@ -70,7 +75,7 @@ onMounted(() => {
         :key="item.path"
         :to="item.path"
         class="menu-link"
-        :class="{ active: route.path === item.path }"
+        :class="{ active: isActivePath(item.path) }"
         :title="item.label"
       >
         {{ item.label }}
@@ -80,7 +85,7 @@ onMounted(() => {
     <div class="settings-group">
       <button
         class="avatar-trigger"
-        :class="{ active: settingsMenus.some((item) => item.path === route.path) || settingsOpen }"
+        :class="{ active: settingsMenus.some((item) => isActivePath(item.path)) || settingsOpen }"
         @click="settingsOpen = !settingsOpen"
         aria-label="打开个人设置菜单"
         type="button"
@@ -98,7 +103,7 @@ onMounted(() => {
           :key="item.path"
           :to="item.path"
           class="dropdown-link"
-          :class="{ active: route.path === item.path }"
+          :class="{ active: isActivePath(item.path) }"
           :title="item.label"
           @click="settingsOpen = false"
         >

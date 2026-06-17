@@ -1,9 +1,12 @@
 <script setup>
 import { Connection, DataBoard, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
-import '../styles/data-source.css'
-import { useDataSourcePage } from '../service/data-source'
+import './styles/knowledge.css'
+import { useKnowledgePage } from './service/knowledge'
 
 const {
+  activeTab,
+  activeTabLabel,
+  tabOptions,
   keyword,
   selectedSourceKey,
   loading,
@@ -19,6 +22,7 @@ const {
   authTypeOptions,
   filteredSources,
   openSource,
+  selectTab,
   statusClass,
   triggerKnowledgeSync,
   loadDataSources,
@@ -26,18 +30,31 @@ const {
   openEditDialog,
   closeDialog,
   submitForm
-} = useDataSourcePage()
+} = useKnowledgePage()
 </script>
 
 <template>
   <div class="data-source-page">
     <section class="content-head compact">
-      <div>
-        <p class="eyebrow">数据源配置</p>
-        <h2>把连接管理和表数据运维收在一个工作台里</h2>
+      <div class="knowledge-head-copy">
+        <p class="eyebrow">知识库</p>
+        <h2>把知识源接入、同步和表级维护收在独立业务工作台里</h2>
         <p class="section-desc">
-          第一屏先看数据源清单，确认名称、连接信息、类型、状态和归属。
+          第一屏先看知识库接入清单，确认来源、连接信息、状态和归属，再进入详情维护。
         </p>
+      </div>
+
+      <div class="knowledge-head-tabs" aria-label="知识库状态切换">
+        <button
+          v-for="tab in tabOptions"
+          :key="tab.key"
+          type="button"
+          class="knowledge-tab-btn"
+          :class="{ active: activeTab === tab.key }"
+          @click="selectTab(tab.key)"
+        >
+          {{ tab.label }}
+        </button>
       </div>
     </section>
 
@@ -73,51 +90,69 @@ const {
           <p>{{ errorMessage }}</p>
         </div>
 
-        <div
-          v-else
-          v-for="item in filteredSources"
-          :key="item.key"
-          class="source-row"
-          :class="{ active: selectedSourceKey === item.key }"
-          @click="openSource(item.key)"
-          role="button"
-          tabindex="0"
-          @keydown.enter.prevent="openSource(item.key)"
-          @keydown.space.prevent="openSource(item.key)"
-        >
-          <div class="source-row-main">
-            <div class="source-title">
-              <strong>{{ item.name }}</strong>
-              <span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span>
-            </div>
-
-            <p>{{ item.summary }}</p>
-
-            <div class="source-meta">
-              <span><Connection :size="14" /> {{ item.host }}</span>
-              <span><DataBoard :size="14" /> {{ item.database }}</span>
-              <span>{{ item.type }}</span>
-              <span>{{ item.owner }}</span>
-            </div>
-          </div>
-
-          <div class="source-row-side">
-            <div class="source-metric">
-              <strong>{{ item.tables }}</strong>
-              <span>表数量</span>
-            </div>
-            <div class="source-metric">
-              <strong>{{ item.syncMode }}</strong>
-              <span>同步频率</span>
-            </div>
-            <button type="button" class="row-action-btn" @click.stop="openEditDialog(item)">
-              编辑
-            </button>
-          </div>
+        <div v-else-if="filteredSources.length" class="knowledge-table-wrap">
+          <table class="knowledge-table">
+            <colgroup>
+              <col class="col-name" />
+              <col class="col-status" />
+              <col class="col-host" />
+              <col class="col-database" />
+              <col class="col-type" />
+              <col class="col-owner" />
+              <col class="col-tables" />
+              <col class="col-sync" />
+              <col class="col-actions" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>知识库名称</th>
+                <th>状态</th>
+                <th>来源地址</th>
+                <th>库 / 标识</th>
+                <th>类型</th>
+                <th>负责人</th>
+                <th>表数量</th>
+                <th>同步频率</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="item in filteredSources"
+                :key="item.key"
+                class="knowledge-table-row"
+                :class="{ active: selectedSourceKey === item.key }"
+                @click="openSource(item.key)"
+              >
+                <td class="knowledge-name-cell">
+                  <strong>{{ item.name }}</strong>
+                  <p>{{ item.summary }}</p>
+                </td>
+                <td>
+                  <span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span>
+                </td>
+                <td>
+                  <span class="cell-inline"><Connection :size="14" /> {{ item.host }}</span>
+                </td>
+                <td>
+                  <span class="cell-inline"><DataBoard :size="14" /> {{ item.database }}</span>
+                </td>
+                <td>{{ item.type }}</td>
+                <td>{{ item.owner }}</td>
+                <td>{{ item.tables }}</td>
+                <td>{{ item.syncMode }}</td>
+                <td class="knowledge-row-actions">
+                  <button type="button" class="row-action-btn" @click.stop="openEditDialog(item)">
+                    编辑
+                  </button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
         </div>
 
         <div v-if="!loading && !errorMessage && !filteredSources.length" class="placeholder-panel">
-          <p>没有匹配到数据源，当前列表已经直接读取 `meta` 模块对象。</p>
+          <p>当前没有匹配到“{{ activeTabLabel }}”分类的知识库数据。</p>
         </div>
       </div>
     </section>
@@ -222,37 +257,17 @@ const {
                 <span>Schema</span>
                 <input v-model="form.schemaName" class="field-control" type="text" />
               </label>
-              <label class="field-block">
+              <label class="field-block full-span">
                 <span>JDBC URL</span>
                 <input v-model="form.jdbcUrl" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>用户名</span>
-                <input v-model="form.username" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>密码</span>
-                <input v-model="form.password" class="field-control" type="password" />
-              </label>
-              <label class="field-block">
-                <span>连接超时(ms)</span>
-                <input v-model="form.connectTimeoutMs" class="field-control" type="number" min="0" />
-              </label>
-              <label class="field-block">
-                <span>读取超时(ms)</span>
-                <input v-model="form.readTimeoutMs" class="field-control" type="number" min="0" />
-              </label>
-              <label class="field-block">
-                <span>写入超时(ms)</span>
-                <input v-model="form.writeTimeoutMs" class="field-control" type="number" min="0" />
               </label>
             </div>
           </section>
 
           <section class="dialog-section section-panel">
             <header class="section-head">
-              <h4>认证与扩展</h4>
-              <p>统一维护认证类型、令牌和扩展元信息。</p>
+              <h4>认证与网络</h4>
+              <p>认证密文字段保持后端对象结构，不在前端做额外封装。</p>
             </header>
 
             <div class="form-grid two-column">
@@ -263,20 +278,50 @@ const {
                 </select>
               </label>
               <label class="field-block">
-                <span>Bearer Token</span>
-                <input v-model="form.token" class="field-control" type="text" />
+                <span>用户名</span>
+                <input v-model="form.username" class="field-control" type="text" />
+              </label>
+              <label class="field-block">
+                <span>凭证引用</span>
+                <input v-model="form.credentialRef" class="field-control" type="text" />
+              </label>
+              <label class="field-block">
+                <span>Access Key</span>
+                <input v-model="form.accessKey" class="field-control" type="text" />
+              </label>
+
+              <label class="field-block">
+                <span>密码密文/引用</span>
+                <input v-model="form.passwordCiphertext" class="field-control" type="text" />
+              </label>
+              <label class="field-block">
+                <span>Token 密文/引用</span>
+                <input v-model="form.tokenCiphertext" class="field-control" type="text" />
               </label>
               <label class="field-block full-span">
-                <span>扩展属性(JSON)</span>
-                <textarea v-model="form.attributesText" class="field-control textarea-control" rows="4" placeholder='{"region":"cn-hz"}' />
+                <span>Secret Key 密文/引用</span>
+                <input v-model="form.secretKeyCiphertext" class="field-control" type="text" />
+              </label>
+
+              <label class="field-block">
+                <span>连接超时(ms)</span>
+                <input v-model="form.connectTimeoutMs" class="field-control" type="number" min="0" />
+              </label>
+              <label class="field-block">
+                <span>读取超时(ms)</span>
+                <input v-model="form.readTimeoutMs" class="field-control" type="number" min="0" />
+              </label>
+              <label class="field-block full-span">
+                <span>写入超时(ms)</span>
+                <input v-model="form.writeTimeoutMs" class="field-control" type="number" min="0" />
               </label>
             </div>
           </section>
         </div>
 
-        <footer class="modal-foot">
-          <button type="button" class="toolbar-secondary-btn" @click="closeDialog">取消</button>
-          <button type="button" class="toolbar-add-btn" :disabled="saving" @click="submitForm">
+        <footer class="modal-actions">
+          <button class="action-btn" type="button" @click="closeDialog">取消</button>
+          <button class="action-btn primary" type="button" :disabled="saving" @click="submitForm">
             {{ saving ? '保存中...' : '保存' }}
           </button>
         </footer>
