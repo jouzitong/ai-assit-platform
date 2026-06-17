@@ -1,0 +1,22 @@
+{
+  "title": "看板",
+  "settings": {
+  },
+  "actions": [
+  ],
+  "filters": [
+  ],
+  "class": [
+    "",
+    ""
+  ],
+  "components": [
+    {
+      "id": "board",
+      "component": "board",
+      "props": {
+        "data": "board"
+      }
+    }
+  ]
+}

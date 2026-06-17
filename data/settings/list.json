@@ -1,0 +1,59 @@
+{
+  "title": "测试列表页面",
+  "tab": {
+    "type": "tab",
+    "active_tab": "all",
+    "tabs": [
+      {
+        "value": "all",
+        "name": "all",
+        "label": "全部"
+      },
+      {
+        "value": "mine",
+        "name": "mine",
+        "label": "我的"
+      }
+    ]
+  },
+  "datasource": {
+    "type": "system",
+    "model": "ai_kb_document",
+    "filter_dict": {
+      "status": 1,
+      "is_delete": 0
+    },
+    "relations": [
+    ]
+  },
+  "filters": [
+    {
+      "name": "title",
+      "label": "标题",
+      "type": "text"
+    }
+  ],
+  "fields": [
+    {
+      "name": "id",
+      "label": "ID"
+    }
+  ],
+  "actions": [
+    {
+      "name": "add",
+      "label": "添加",
+      "type": "add"
+    }
+  ],
+  "list_config": {
+    "item_operate": {
+    },
+    "events": [
+    ]
+  },
+  "life_cycle": {
+    "before_load": "=function(){}",
+    "after_load": "=function(){}"
+  }
+}

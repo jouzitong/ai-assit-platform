@@ -1,0 +1,25 @@
+{
+  "title": "Demo",
+  "fields": [
+  ],
+  "groups": [
+    {
+      "key": "Demo",
+      "title": "Demo",
+      "fields": [
+        "name",
+        "description"
+      ]
+    }
+  ],
+  "children": [
+  ],
+  "actions": [
+  ],
+  "form_relations": [
+  ],
+  "life_cycle": {
+    "before_load": "=function(){}",
+    "after_load": "=function(){}"
+  }
+}

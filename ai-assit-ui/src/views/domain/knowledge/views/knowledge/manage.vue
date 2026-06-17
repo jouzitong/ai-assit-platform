@@ -1,403 +1,168 @@
 <script setup>
-import { ref } from 'vue'
-import { ArrowLeft, Download, RefreshRight, Upload } from '@element-plus/icons-vue'
-import '../../styles/knowledge/manage.scss'
+import { ArrowLeft, RefreshRight } from '@element-plus/icons-vue'
 import { useKnowledgeManagePage } from '../../service/knowledge/manage'
 
 const {
-  currentSource,
-  currentSourceList,
-  pagedTables,
-  currentTables,
-  fieldWorkbenchVisible,
-  pageSizeOptions,
-  pagination,
-  pageSummary,
-  totalPages,
-  selectedTableName,
-  selectedTable,
-  selectedFields,
-  sourceLoading,
-  tableLoading,
-  fieldLoading,
-  sourceError,
-  tableError,
-  fieldError,
-  importDialogVisible,
-  importDragActive,
-  importFile,
-  importError,
-  importFormat,
-  importSubmitting,
-  importProgressDialogVisible,
-  importJobProgress,
-  importJobActive,
-  importProgressNoticeVisible,
-  importProgressStageLabel,
-  importProgressSummary,
-  importActionLabel,
-  exportDialogVisible,
-  exportFormat,
-  exportSubmitting,
-  templateSubmitting,
-  handleSourceChange,
-  handlePageChange,
-  handlePageSizeChange,
-  openFieldWorkbench,
-  selectTable,
-  formatEmpty,
+  detail,
+  contentText,
+  metaItems,
+  loading,
+  errorMessage,
   goBack,
-  statusClass,
-  refreshPage,
-  openImportDialog,
-  closeImportDialog,
-  openImportProgressDialog,
-  closeImportProgressDialog,
-  openExportDialog,
-  closeExportDialog,
-  handleImportDragEnter,
-  handleImportDragLeave,
-  handleImportFile,
-  submitImport,
-  exportWorkbook,
-  downloadTemplateWorkbook,
-  importFormatLabel
+  refreshPage
 } = useKnowledgeManagePage()
-
-const fileInputRef = ref(null)
-
-function triggerFilePicker() {
-  fileInputRef.value?.click()
-}
-
-function onFileInputChange(event) {
-  handleImportFile(event.target.files?.[0] ?? null)
-  event.target.value = ''
-}
-
-function onFileDrop(event) {
-  handleImportFile(event.dataTransfer?.files?.[0] ?? null)
-}
 </script>
 
 <template>
-  <div class="data-source-manage-page">
-    <section class="content-head compact">
-      <div class="head-copy">
-        <button type="button" class="back-btn" @click="goBack">
+  <div class="knowledge-detail-page">
+    <section class="detail-head">
+      <div class="detail-head__left">
+        <button type="button" class="toolbar-btn secondary" @click="goBack">
           <ArrowLeft :size="16" />
           返回列表
         </button>
-        <div>
-          <p class="eyebrow">知识库详情</p>
-          <select class="source-switcher" :value="currentSource?.key || ''" aria-label="切换数据源" @change="handleSourceChange">
-            <option v-for="source in currentSourceList" :key="source.key" :value="source.key">
-              {{ source.name }} · {{ source.type }}
-            </option>
-          </select>
-          <p class="section-desc">
-            这里主要管理当前知识库来源下的表配置、字段、同步和权限。
-          </p>
+        <div class="detail-copy">
+          <p class="eyebrow">文档内容</p>
+          <h2>{{ detail?.documentName || detail?.documentCode || '知识库文档' }}</h2>
+          <p class="section-desc">{{ detail?.kbCode || '-' }} / {{ detail?.documentCode || '-' }}</p>
         </div>
       </div>
-
-      <div class="head-actions">
+      <div class="detail-head__right">
         <button type="button" class="toolbar-btn secondary" @click="refreshPage">
           <RefreshRight :size="16" />
           刷新
         </button>
-        <button type="button" class="toolbar-btn secondary" @click="openImportDialog">
-          <Upload :size="16" />
-          {{ importActionLabel }}
-        </button>
-        <button type="button" class="toolbar-btn secondary" :disabled="exportSubmitting" @click="openExportDialog">
-          <Download :size="16" />
-          {{ exportSubmitting ? '导出中...' : '导出' }}
-        </button>
       </div>
     </section>
 
-    <div v-if="importProgressNoticeVisible" class="notice-bar is-success">
-      <span>导入任务进行中：{{ importProgressStageLabel }} · {{ importJobProgress.progressPercent }}%</span>
-      <button type="button" class="link-btn inline-link" @click="openImportProgressDialog">查看详情</button>
+    <div v-if="errorMessage" class="page-state is-error">
+      {{ errorMessage }}
     </div>
-
-    <section v-if="!fieldWorkbenchVisible" class="table-card">
-      <div v-if="sourceError" class="table-state is-error">{{ sourceError }}</div>
-      <div v-else-if="tableError" class="table-state is-error">{{ tableError }}</div>
-      <div v-else-if="sourceLoading || tableLoading" class="table-state">正在加载数据表列表...</div>
-      <div v-else-if="!pagedTables.length" class="table-state">当前数据源下还没有数据表元数据。</div>
-
-      <div v-else class="table-body">
-        <table class="config-table">
-          <thead>
-            <tr>
-              <th>表名</th>
-              <th>字段数</th>
-              <th>数据量</th>
-              <th>分区键</th>
-              <th>新鲜度</th>
-              <th>字段角色</th>
-              <th>操作</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="item in pagedTables" :key="item.name">
-              <td><strong>{{ item.name }}</strong></td>
-              <td>{{ item.columns }}</td>
-              <td>{{ item.rows }}</td>
-              <td>{{ item.partition }}</td>
-              <td>{{ item.freshness }}</td>
-              <td><span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span></td>
-              <td class="row-actions">
-                <button type="button" class="link-btn">数据查看</button>
-                <button type="button" class="link-btn" @click="openFieldWorkbench(item)">字段</button>
-                <button type="button" class="link-btn">同步</button>
-                <button type="button" class="link-btn">权限</button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-
-      <footer class="pagination-bar">
-        <span class="page-summary">{{ pageSummary }}</span>
-        <div class="page-controls">
-          <select class="field-control page-size" :value="pagination.size" @change="handlePageSizeChange">
-            <option v-for="size in pageSizeOptions" :key="size" :value="size">{{ size }} / 页</option>
-          </select>
-
-          <div class="pager">
-            <button class="action-btn" type="button" :disabled="pagination.page <= 1" @click="handlePageChange(pagination.page - 1)">
-              上一页
-            </button>
-            <span class="pager-indicator">{{ pagination.page }} / {{ totalPages }}</span>
-            <button
-              class="action-btn"
-              type="button"
-              :disabled="pagination.page >= totalPages"
-              @click="handlePageChange(pagination.page + 1)"
-            >
-              下一页
-            </button>
-          </div>
-        </div>
-      </footer>
-    </section>
-
-    <section v-else class="field-workbench">
-      <aside class="table-picker compact">
-        <div class="picker-head">
-          <p class="eyebrow">表切换</p>
-          <h3>表名称</h3>
-        </div>
-
-        <div class="table-list">
-          <button
-            v-for="item in currentTables"
-            :key="item.name"
-            type="button"
-            class="table-item"
-            :class="{ 'is-active': item.name === selectedTableName }"
-            @click="selectTable(item)"
-          >
-            <strong>{{ item.name }}</strong>
-            <span>{{ item.columns }} 字段 · {{ item.statusLabel }}</span>
-          </button>
-        </div>
-      </aside>
-
-      <section class="field-panel">
-        <div class="field-panel-head">
-          <div class="picker-head">
-            <p class="eyebrow">字段列表</p>
-            <h3>{{ selectedTable?.name }}</h3>
-          </div>
-          <button type="button" class="toolbar-btn secondary field-back-btn" @click="fieldWorkbenchVisible = false">
-            返回表列表
-          </button>
-        </div>
-
-        <div v-if="fieldError" class="table-state is-error">{{ fieldError }}</div>
-        <div v-else-if="fieldLoading" class="table-state">正在加载字段列表...</div>
-        <div v-else-if="!selectedFields.length" class="table-state">当前表下还没有字段元数据。</div>
-
-        <table v-else class="field-table">
-          <thead>
-            <tr>
-              <th>字段名</th>
-              <th>类型</th>
-              <th>索引</th>
-              <th>外键关联表</th>
-              <th>说明</th>
-              <th>状态</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="field in selectedFields" :key="field.name">
-              <td><strong>{{ field.name }}</strong></td>
-              <td>{{ field.type }}</td>
-              <td>{{ formatEmpty(field.indexName) }}</td>
-              <td>{{ formatEmpty(field.relatedTable) }}</td>
-              <td>{{ field.description }}</td>
-              <td><span class="status-chip is-ready">{{ field.statusLabel }}</span></td>
-            </tr>
-          </tbody>
-        </table>
+    <div v-else-if="loading" class="page-state">
+      正在加载文档内容...
+    </div>
+    <template v-else>
+      <section class="meta-grid">
+        <article v-for="item in metaItems" :key="item.label" class="meta-card">
+          <span>{{ item.label }}</span>
+          <strong>{{ item.value }}</strong>
+        </article>
       </section>
-    </section>
 
-    <div v-if="importDialogVisible" class="modal-mask" @click.self="closeImportDialog">
-      <div class="modal-card import-modal">
-        <header class="modal-head">
-          <div>
-            <h3>导入表结构元数据</h3>
-            <p>
-              支持 JSON 和 Excel 导入。JSON 适合结构化回传，Excel 适合按 `表说明`、`字段说明`、`索引说明` 三个 sheet 维护。
-            </p>
-          </div>
-          <button class="close-btn" type="button" @click="closeImportDialog">×</button>
-        </header>
-
-        <p v-if="importError" class="error-banner">{{ importError }}</p>
-
-        <div class="export-format-list">
-          <label class="export-format-option" :class="{ 'is-active': importFormat === 'json' }">
-            <input v-model="importFormat" type="radio" name="import-format" value="json" />
-            <div>
-              <strong>JSON 导入</strong>
-              <span>上传 `.json` 文件，适合导出回传、版本管理和批量同步。</span>
-            </div>
-          </label>
-
-          <label class="export-format-option" :class="{ 'is-active': importFormat === 'excel' }">
-            <input v-model="importFormat" type="radio" name="import-format" value="excel" />
-            <div>
-              <strong>Excel 导入</strong>
-              <span>上传 `.xlsx` 文件，按三张 sheet 做新增或更新。</span>
-            </div>
-          </label>
+      <section class="content-card">
+        <div class="content-card__head">
+          <p class="eyebrow">正文</p>
+          <span>{{ detail?.contentFormat || '-' }}</span>
         </div>
-
-        <button
-          type="button"
-          class="drop-zone"
-          :class="{ 'is-dragover': importDragActive }"
-          @click="triggerFilePicker"
-          @dragenter.prevent="handleImportDragEnter"
-          @dragover.prevent="handleImportDragEnter"
-          @dragleave.prevent="handleImportDragLeave"
-          @drop.prevent="onFileDrop"
-        >
-          <Upload :size="22" />
-          <strong>{{ importFile ? importFile.name : `点击选择${importFormatLabel()}文件，或直接拖拽到这里` }}</strong>
-          <span v-if="importFormat === 'json'">支持 `.json`，结构与导出 JSON 一致，导入时会按自然键对表、字段、索引做新增或更新。</span>
-          <span v-else>支持 `.xlsx`，需包含 `表说明`、`字段说明`、`索引说明` 三个 sheet，导入时会按自然键对表、字段、索引做新增或更新。</span>
-        </button>
-
-        <input ref="fileInputRef" class="hidden-file-input" type="file" :accept="importFormat === 'json' ? '.json' : '.xlsx'" @change="onFileInputChange" />
-
-        <footer class="modal-actions">
-          <button class="action-btn secondary-btn" type="button" :disabled="templateSubmitting" @click="downloadTemplateWorkbook">
-            {{ templateSubmitting ? '下载中...' : `下载${importFormatLabel()}模板` }}
-          </button>
-          <button class="action-btn" type="button" @click="closeImportDialog">取消</button>
-          <button class="action-btn primary" type="button" :disabled="importSubmitting" @click="submitImport">
-            {{ importSubmitting ? '导入中...' : '开始导入' }}
-          </button>
-        </footer>
-      </div>
-    </div>
-
-    <div v-if="exportDialogVisible" class="modal-mask" @click.self="closeExportDialog">
-      <div class="modal-card export-modal">
-        <header class="modal-head">
-          <div>
-            <h3>导出元数据</h3>
-            <p>选择导出格式。默认使用 JSON，便于再次导入或版本管理。</p>
-          </div>
-          <button class="close-btn" type="button" @click="closeExportDialog">×</button>
-        </header>
-
-        <div class="export-format-list">
-          <label class="export-format-option" :class="{ 'is-active': exportFormat === 'json' }">
-            <input v-model="exportFormat" type="radio" name="export-format" value="json" />
-            <div>
-              <strong>JSON</strong>
-              <span>结构化导出，适合回传、对比和二次导入。</span>
-            </div>
-          </label>
-
-          <label class="export-format-option" :class="{ 'is-active': exportFormat === 'excel' }">
-            <input v-model="exportFormat" type="radio" name="export-format" value="excel" />
-            <div>
-              <strong>Excel</strong>
-              <span>保留现有工作簿格式，适合人工查看和线下编辑。</span>
-            </div>
-          </label>
-        </div>
-
-        <footer class="modal-actions">
-          <button class="action-btn" type="button" @click="closeExportDialog">取消</button>
-          <button class="action-btn primary" type="button" :disabled="exportSubmitting" @click="exportWorkbook">
-            {{ exportSubmitting ? '导出中...' : '开始导出' }}
-          </button>
-        </footer>
-      </div>
-    </div>
-
-    <div v-if="importProgressDialogVisible" class="modal-mask" @click.self="closeImportProgressDialog">
-      <div class="modal-card import-progress-modal">
-        <header class="modal-head">
-          <div>
-            <h3>导入进度</h3>
-            <p>{{ importJobProgress.fileName || '正在处理导入任务' }}</p>
-          </div>
-          <button class="close-btn" type="button" @click="closeImportProgressDialog">×</button>
-        </header>
-
-        <div class="progress-overview">
-          <div class="progress-header">
-            <strong>{{ importProgressStageLabel }}</strong>
-            <span>{{ importJobProgress.progressPercent }}%</span>
-          </div>
-          <div class="progress-bar-track">
-            <div class="progress-bar-fill" :style="{ width: `${importJobProgress.progressPercent}%` }" />
-          </div>
-          <p class="progress-message">{{ importJobProgress.message || '任务已创建，等待处理' }}</p>
-        </div>
-
-        <div class="progress-grid">
-          <article class="progress-card">
-            <strong>表</strong>
-            <span>总数 {{ importProgressSummary.tableTotal }} · 已处理 {{ importProgressSummary.tableProcessed }}</span>
-            <span>新增 {{ importProgressSummary.tableCreatedCount }} · 更新 {{ importProgressSummary.tableUpdatedCount }}</span>
-          </article>
-          <article class="progress-card">
-            <strong>字段</strong>
-            <span>总数 {{ importProgressSummary.fieldTotal }} · 已处理 {{ importProgressSummary.fieldProcessed }}</span>
-            <span>新增 {{ importProgressSummary.fieldCreatedCount }} · 更新 {{ importProgressSummary.fieldUpdatedCount }}</span>
-          </article>
-          <article class="progress-card">
-            <strong>索引</strong>
-            <span>总数 {{ importProgressSummary.indexTotal }} · 已处理 {{ importProgressSummary.indexProcessed }}</span>
-            <span>新增 {{ importProgressSummary.indexCreatedCount }} · 更新 {{ importProgressSummary.indexUpdatedCount }}</span>
-          </article>
-        </div>
-
-        <div v-if="importJobProgress.recentMessages?.length" class="progress-log">
-          <strong>最近状态</strong>
-          <ul>
-            <li v-for="item in importJobProgress.recentMessages" :key="item">{{ item }}</li>
-          </ul>
-        </div>
-
-        <footer class="modal-actions">
-          <button class="action-btn" type="button" @click="closeImportProgressDialog">
-            {{ importJobActive ? '后台继续' : '关闭' }}
-          </button>
-        </footer>
-      </div>
-    </div>
+        <pre class="content-body">{{ contentText }}</pre>
+      </section>
+    </template>
   </div>
 </template>
+
+<style scoped>
+.knowledge-detail-page {
+  display: grid;
+  gap: 18px;
+}
+
+.detail-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.detail-head__left {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.detail-copy h2 {
+  margin: 0 0 6px;
+}
+
+.section-desc,
+.eyebrow {
+  margin: 0;
+}
+
+.eyebrow {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.section-desc {
+  color: var(--text-dim);
+}
+
+.meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 12px;
+}
+
+.meta-card,
+.content-card,
+.page-state {
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: #fff;
+}
+
+.meta-card {
+  padding: 14px 16px;
+  display: grid;
+  gap: 8px;
+}
+
+.meta-card span {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.content-card {
+  overflow: hidden;
+}
+
+.content-card__head {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--stroke);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.content-body {
+  margin: 0;
+  padding: 18px 16px;
+  min-height: 420px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  background: #f8fafc;
+}
+
+.page-state {
+  padding: 16px;
+}
+
+.page-state.is-error {
+  color: #b91c1c;
+  background: rgba(254, 242, 242, 0.9);
+}
+
+.toolbar-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 34px;
+  padding: 0 14px;
+  border: 1px solid var(--stroke);
+  border-radius: 10px;
+  background: var(--control-bg);
+}
+</style>
