@@ -106,9 +106,13 @@ export function useKnowledgePage() {
     dialogVisible.value = false
   }
 
-  async function loadDataSources() {
+  async function loadDataSources(options = {}) {
+    const { showLoadingPopup = false, showSuccessPopup = false } = options
     loading.value = true
     errorMessage.value = ''
+    if (showLoadingPopup) {
+      showPopup.info('知识库列表刷新中...', { title: 'Loading', duration: 1600 })
+    }
     try {
       const response = await searchDbDataSources({
         page: 1,
@@ -120,9 +124,13 @@ export function useKnowledgePage() {
       if (!selectedSourceKey.value && nextSourceList.length) {
         selectedSourceKey.value = nextSourceList[0].key
       }
+      if (showSuccessPopup) {
+        showPopup.success('知识库列表已刷新')
+      }
     } catch (error) {
       errorMessage.value = error.message || '数据源列表加载失败'
       sourceList.value = []
+      showPopup.error(error.message || '数据源列表加载失败')
     } finally {
       loading.value = false
     }
@@ -370,6 +378,7 @@ export function useKnowledgePage() {
     tabOptions,
     keyword,
     selectedSourceKey,
+    sourceList,
     loading,
     errorMessage,
     dialogVisible,

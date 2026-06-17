@@ -11,17 +11,17 @@ defineProps({
   <div class="list-common">
     <div class="container" :class="{ 'no-sidebar': !$slots.sidebar }">
       <aside v-if="$slots.sidebar" class="sidebar-area" :class="{ 'is-collapsed': sidebarCollapsed }">
-        <slot name="sidebar" />
+        <slot name="sidebar"/>
       </aside>
       <main class="main">
-        <slot name="header" />
-        <slot name="advanced-filters" />
-        <slot name="filter-summary" />
+        <slot name="header"/>
+        <slot name="advanced-filters"/>
+        <slot name="filter-summary"/>
         <div class="content">
-          <slot name="stats" />
-          <slot name="table" />
+          <slot name="stats"/>
+          <slot name="table"/>
         </div>
-        <slot name="footer" />
+        <slot name="footer"/>
       </main>
     </div>
   </div>
@@ -34,8 +34,8 @@ defineProps({
   color: var(--text);
   font-family: var(--font-family-base);
   background: radial-gradient(1200px 600px at 10% -10%, var(--surface-glow-1), transparent 60%),
-    radial-gradient(900px 600px at 85% 10%, var(--surface-glow-2), transparent 55%),
-    var(--bg);
+  radial-gradient(900px 600px at 85% 10%, var(--surface-glow-2), transparent 55%),
+  var(--bg);
   overflow: hidden;
   width: 100%;
   border-radius: 24px;
@@ -73,7 +73,7 @@ defineProps({
 
 .content {
   flex: 1;
-  padding: 20px 24px 10px;
+  padding: 3px 3px;
   border-bottom: 1px solid var(--stroke);
   display: flex;
   flex-direction: column;

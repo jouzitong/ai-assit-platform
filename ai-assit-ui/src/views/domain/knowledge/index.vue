@@ -1,331 +1,325 @@
 <script setup>
-import { Connection, DataBoard, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
-import './styles/knowledge.scss'
+import { computed, ref, watch } from 'vue'
+import ActionBar from '../../../components/commons/list/ActionBar.vue'
+import DataListFooter from '../../../components/commons/list/DataListFooter.vue'
+import DataTable from '../../../components/commons/list/DataTable.vue'
+import FilterBar from '../../../components/commons/list/FilterBar.vue'
+import HeaderBar from '../../../components/commons/list/HeaderBar.vue'
+import ListCommonLayout from '../../../components/commons/list/ListCommonLayout.vue'
+import Sidebar from '../../../components/commons/list/Sidebar.vue'
 import { useKnowledgePage } from './service/knowledge'
+
+const page = ref(1)
+const pageSize = ref(10)
+const sidebarCollapsed = ref(false)
+const sorts = ref([{ key: 'name', type: 'asc' }])
 
 const {
   activeTab,
   activeTabLabel,
   tabOptions,
   keyword,
-  selectedSourceKey,
+  sourceList,
   loading,
   errorMessage,
-  dialogVisible,
-  dialogMode,
-  dialogError,
-  saving,
-  form,
-  sourceTypeOptions,
-  syncModeOptions,
-  statusOptions,
-  authTypeOptions,
   filteredSources,
   openSource,
-  selectTab,
-  statusClass,
   triggerKnowledgeSync,
   loadDataSources,
   openCreateDialog,
-  openEditDialog,
-  closeDialog,
-  submitForm
+  openEditDialog
 } = useKnowledgePage()
+
+const filterSchema = ref([
+  {
+    key: 'keyword',
+    label: '搜索',
+    type: 'input',
+    value: keyword.value,
+    action: 'keyword-change',
+    type_config: {
+      placeholder: '搜索知识库名称 / 类型 / 负责人 / 主机',
+      width: 280,
+      clearable: true
+    }
+  },
+  {
+    key: 'tab',
+    label: '视图',
+    type: 'select',
+    value: activeTab.value,
+    action: 'tab-change',
+    type_config: {
+      width: 140,
+      options: tabOptions.map(item => ({
+        code: item.key,
+        name: item.label
+      }))
+    }
+  }
+])
+
+const tableColumns = [
+  { key: 'name', label: '知识库名称', width: 24 },
+  { key: 'type', label: '类型', width: 14 },
+  { key: 'owner', label: '负责人', width: 16 },
+  { key: 'host', label: '主机', width: 18 },
+  { key: 'database', label: '库 / Schema', width: 16 },
+  { key: 'syncMode', label: '同步模式', width: 12 },
+  {
+    key: 'statusLabel',
+    label: '状态',
+    width: 10,
+    class: row => `knowledge-status ${row.status || ''}`
+  }
+]
+
+const listConfig = {
+  striped: true,
+  actionColumns: [
+    { key: 'preview', label: '查看' },
+    { key: 'edit', label: '编辑' }
+  ],
+  sorts_config: {
+    header_enable: true,
+    sorts: ['name', 'type', 'owner', 'syncMode', 'statusLabel']
+  }
+}
+
+const actionItems = computed(() => ([
+  { key: 'create', label: '新建知识库', type: 'primary', action: 'create' },
+  { key: 'refresh', label: '刷新', variant: 'ghost', action: 'refresh', loading: loading.value },
+  { key: 'sync', label: '同步', variant: 'ghost', action: 'sync' }
+]))
+
+const keywordScopedSources = computed(() => {
+  const normalized = keyword.value.trim().toLowerCase()
+  if (!normalized) {
+    return sourceList.value
+  }
+  return sourceList.value.filter(item =>
+    [item.name, item.type, item.owner, item.host, item.database].some(value =>
+      String(value ?? '').toLowerCase().includes(normalized)
+    )
+  )
+})
+
+const sidebarItems = computed(() => tabOptions.map(item => ({
+  key: item.key,
+  label: item.label,
+  count: keywordScopedSources.value.filter(row => matchesTab(row, item.key)).length
+})))
+
+const pagedRows = computed(() => {
+  const start = (page.value - 1) * pageSize.value
+  return filteredSources.value.slice(start, start + pageSize.value)
+})
+
+watch(keyword, (value) => {
+  updateFilterValue('keyword', value)
+  page.value = 1
+})
+
+watch(activeTab, (value) => {
+  updateFilterValue('tab', value)
+  page.value = 1
+})
+
+watch(filteredSources, (rows) => {
+  const maxPage = Math.max(1, Math.ceil(rows.length / pageSize.value))
+  if (page.value > maxPage) {
+    page.value = maxPage
+  }
+})
+
+watch(pageSize, () => {
+  page.value = 1
+})
+
+function updateFilterValue(key, value) {
+  const field = filterSchema.value.find(item => item.key === key)
+  if (field) {
+    field.value = value
+  }
+}
+
+function matchesTab(item, tabKey) {
+  if (tabKey === 'draft') {
+    return item.status === 'warning'
+  }
+  if (tabKey === 'history') {
+    return item.status === 'offline'
+  }
+  return item.status === 'online'
+}
+
+function handleFilterAction(payload) {
+  if (payload?.action === 'keyword-change') {
+    keyword.value = payload.value ?? ''
+    return
+  }
+  if (payload?.action === 'tab-change') {
+    activeTab.value = payload.value || 'current'
+  }
+}
+
+function handleSidebarSelect(tabKey) {
+  activeTab.value = tabKey
+}
+
+function handleToolbarAction(payload) {
+  if (payload?.action === 'create') {
+    openCreateDialog()
+    return
+  }
+  if (payload?.action === 'refresh') {
+    loadDataSources({ showLoadingPopup: true, showSuccessPopup: true })
+    return
+  }
+  if (payload?.action === 'sync') {
+    triggerKnowledgeSync()
+  }
+}
+
+function handleRowClick(payload) {
+  if (payload?.row?.key) {
+    openSource(payload.row.key)
+  }
+}
+
+function handleTableAction(payload) {
+  if (!payload?.row) {
+    return
+  }
+  if (payload.actionItem?.key === 'edit') {
+    openEditDialog(payload.row)
+    return
+  }
+  openSource(payload.row.key)
+}
 </script>
 
 <template>
-  <div class="data-source-page">
-    <section class="content-head compact">
-      <div class="knowledge-head-copy">
-        <p class="eyebrow">知识库</p>
-        <h2>把知识源接入、同步和表级维护收在独立业务工作台里</h2>
-        <p class="section-desc">
-          第一屏先看知识库接入清单，确认来源、连接信息、状态和归属，再进入详情维护。
-        </p>
-      </div>
+  <div class="knowledge-page">
+    <ListCommonLayout :sidebar-collapsed="sidebarCollapsed">
+      <template #sidebar>
+        <Sidebar title="知识库分组" collapsible :collapsed="sidebarCollapsed" @toggle="sidebarCollapsed = $event">
+          <template #main>
+            <button
+              v-for="item in sidebarItems"
+              :key="item.key"
+              type="button"
+              class="sidebar-entry"
+              :class="{ active: activeTab === item.key }"
+              @click="handleSidebarSelect(item.key)"
+            >
+              <span>{{ item.label }}</span>
+              <strong>{{ item.count }}</strong>
+            </button>
+          </template>
+        </Sidebar>
+      </template>
 
-      <div class="knowledge-head-tabs" aria-label="知识库状态切换">
-        <button
-          v-for="tab in tabOptions"
-          :key="tab.key"
-          type="button"
-          class="knowledge-tab-btn"
-          :class="{ active: activeTab === tab.key }"
-          @click="selectTab(tab.key)"
-        >
-          {{ tab.label }}
-        </button>
-      </div>
-    </section>
+      <template #header>
+        <HeaderBar title="知识库" :meta="`${activeTabLabel} · ${filteredSources.length} 条`" :show-title="true">
+          <template #left>
+            <FilterBar :schema="filterSchema" @action="handleFilterAction" />
+          </template>
+          <template #right>
+            <ActionBar :actions="actionItems" @action="handleToolbarAction" />
+          </template>
+        </HeaderBar>
+      </template>
 
-    <section class="source-list-card">
-      <div class="toolbar">
-        <label class="search-box">
-          <Search :size="16" />
-          <input v-model="keyword" type="text" placeholder="搜索数据源名称、类型、负责人或库名" />
-        </label>
-
-        <div class="toolbar-actions">
-          <button type="button" class="toolbar-secondary-btn" @click="triggerKnowledgeSync">
-            <DataBoard :size="16" />
-            知识库同步
-          </button>
-          <button type="button" class="toolbar-secondary-btn" @click="loadDataSources">
-            <RefreshRight :size="16" />
-            刷新
-          </button>
-          <button type="button" class="toolbar-add-btn" @click="openCreateDialog">
-            <Plus :size="16" />
-            新增
-          </button>
+      <template #table>
+        <div class="knowledge-table-panel">
+          <div v-if="errorMessage" class="knowledge-message is-error">
+            {{ errorMessage }}
+          </div>
+          <DataTable
+            :rows="pagedRows"
+            :columns="tableColumns"
+            :list-config="listConfig"
+            :sorts="sorts"
+            row-key="key"
+            @update:sorts="sorts = $event"
+            @row-click="handleRowClick"
+            @action-click="handleTableAction"
+          />
         </div>
-      </div>
+      </template>
 
-      <div class="source-stack">
-        <div v-if="loading" class="placeholder-panel">
-          <p>正在加载 `/dbEngine/api/v1/meta/data-source/_search` 的数据源列表...</p>
-        </div>
-
-        <div v-else-if="errorMessage" class="placeholder-panel is-error">
-          <p>{{ errorMessage }}</p>
-        </div>
-
-        <div v-else-if="filteredSources.length" class="knowledge-table-wrap">
-          <table class="knowledge-table">
-            <colgroup>
-              <col class="col-name" />
-              <col class="col-status" />
-              <col class="col-host" />
-              <col class="col-database" />
-              <col class="col-type" />
-              <col class="col-owner" />
-              <col class="col-tables" />
-              <col class="col-sync" />
-              <col class="col-actions" />
-            </colgroup>
-            <thead>
-              <tr>
-                <th>知识库名称</th>
-                <th>状态</th>
-                <th>来源地址</th>
-                <th>库 / 标识</th>
-                <th>类型</th>
-                <th>负责人</th>
-                <th>表数量</th>
-                <th>同步频率</th>
-                <th>操作</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr
-                v-for="item in filteredSources"
-                :key="item.key"
-                class="knowledge-table-row"
-                :class="{ active: selectedSourceKey === item.key }"
-                @click="openSource(item.key)"
-              >
-                <td class="knowledge-name-cell">
-                  <strong>{{ item.name }}</strong>
-                  <p>{{ item.summary }}</p>
-                </td>
-                <td>
-                  <span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span>
-                </td>
-                <td>
-                  <span class="cell-inline"><Connection :size="14" /> {{ item.host }}</span>
-                </td>
-                <td>
-                  <span class="cell-inline"><DataBoard :size="14" /> {{ item.database }}</span>
-                </td>
-                <td>{{ item.type }}</td>
-                <td>{{ item.owner }}</td>
-                <td>{{ item.tables }}</td>
-                <td>{{ item.syncMode }}</td>
-                <td class="knowledge-row-actions">
-                  <button type="button" class="row-action-btn" @click.stop="openEditDialog(item)">
-                    编辑
-                  </button>
-                </td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-
-        <div v-if="!loading && !errorMessage && !filteredSources.length" class="placeholder-panel">
-          <p>当前没有匹配到“{{ activeTabLabel }}”分类的知识库数据。</p>
-        </div>
-      </div>
-    </section>
-
-    <div v-if="dialogVisible" class="modal-mask" @click.self="closeDialog">
-      <div class="modal-card modal-large">
-        <header class="modal-head">
-          <h3>{{ dialogMode === 'create' ? '新增数据源' : '编辑数据源' }}</h3>
-          <button class="close-btn" type="button" @click="closeDialog">×</button>
-        </header>
-
-        <p v-if="dialogError" class="error-banner">{{ dialogError }}</p>
-
-        <div class="modal-body">
-          <section class="dialog-section section-panel">
-            <header class="section-head">
-              <h4>基础信息</h4>
-              <p>维护数据源编码、归属、状态和同步策略。</p>
-            </header>
-
-            <div class="form-grid two-column">
-              <label class="field-block">
-                <span>数据源 Key</span>
-                <input v-model="form.sourceKey" class="field-control" type="text" :disabled="dialogMode === 'edit'" />
-              </label>
-              <label class="field-block">
-                <span>数据源名称</span>
-                <input v-model="form.sourceName" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>数据源类型</span>
-                <select v-model="form.sourceType" class="field-control">
-                  <option v-for="item in sourceTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                </select>
-              </label>
-              <label class="field-block">
-                <span>状态</span>
-                <select v-model="form.status" class="field-control">
-                  <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                </select>
-              </label>
-
-              <label class="field-block">
-                <span>归属团队</span>
-                <input v-model="form.ownerTeam" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>负责人</span>
-                <input v-model="form.ownerUser" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>同步模式</span>
-                <select v-model="form.syncMode" class="field-control">
-                  <option v-for="item in syncModeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                </select>
-              </label>
-              <label class="field-block">
-                <span>统一 Endpoint</span>
-                <input v-model="form.endpoint" class="field-control" type="text" placeholder="jdbc:mysql://host:3306/db" />
-              </label>
-
-              <label class="switch-block full-span inline-switch">
-                <input v-model="form.enabled" type="checkbox" />
-                <span>启用数据源</span>
-              </label>
-
-              <label class="field-block full-span">
-                <span>摘要说明</span>
-                <textarea v-model="form.summary" class="field-control textarea-control" rows="3" />
-              </label>
-              <label class="field-block full-span">
-                <span>备注</span>
-                <textarea v-model="form.remark" class="field-control textarea-control" rows="3" />
-              </label>
-            </div>
-          </section>
-
-          <section class="dialog-section section-panel">
-            <header class="section-head">
-              <h4>数据库配置</h4>
-              <p>当前列表页先按 `DATABASE` 作为主要维护场景接通。</p>
-            </header>
-
-            <div class="form-grid two-column">
-              <label class="field-block">
-                <span>数据库类型</span>
-                <input v-model="form.dbType" class="field-control" type="text" placeholder="mysql / postgresql / clickhouse" />
-              </label>
-              <label class="field-block">
-                <span>主机</span>
-                <input v-model="form.host" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>端口</span>
-                <input v-model="form.port" class="field-control" type="number" min="0" />
-              </label>
-              <label class="field-block">
-                <span>库名</span>
-                <input v-model="form.databaseName" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>Schema</span>
-                <input v-model="form.schemaName" class="field-control" type="text" />
-              </label>
-              <label class="field-block full-span">
-                <span>JDBC URL</span>
-                <input v-model="form.jdbcUrl" class="field-control" type="text" />
-              </label>
-            </div>
-          </section>
-
-          <section class="dialog-section section-panel">
-            <header class="section-head">
-              <h4>认证与网络</h4>
-              <p>认证密文字段保持后端对象结构，不在前端做额外封装。</p>
-            </header>
-
-            <div class="form-grid two-column">
-              <label class="field-block">
-                <span>认证类型</span>
-                <select v-model="form.authType" class="field-control">
-                  <option v-for="item in authTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                </select>
-              </label>
-              <label class="field-block">
-                <span>用户名</span>
-                <input v-model="form.username" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>凭证引用</span>
-                <input v-model="form.credentialRef" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>Access Key</span>
-                <input v-model="form.accessKey" class="field-control" type="text" />
-              </label>
-
-              <label class="field-block">
-                <span>密码密文/引用</span>
-                <input v-model="form.passwordCiphertext" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>Token 密文/引用</span>
-                <input v-model="form.tokenCiphertext" class="field-control" type="text" />
-              </label>
-              <label class="field-block full-span">
-                <span>Secret Key 密文/引用</span>
-                <input v-model="form.secretKeyCiphertext" class="field-control" type="text" />
-              </label>
-
-              <label class="field-block">
-                <span>连接超时(ms)</span>
-                <input v-model="form.connectTimeoutMs" class="field-control" type="number" min="0" />
-              </label>
-              <label class="field-block">
-                <span>读取超时(ms)</span>
-                <input v-model="form.readTimeoutMs" class="field-control" type="number" min="0" />
-              </label>
-              <label class="field-block full-span">
-                <span>写入超时(ms)</span>
-                <input v-model="form.writeTimeoutMs" class="field-control" type="number" min="0" />
-              </label>
-            </div>
-          </section>
-        </div>
-
-        <footer class="modal-actions">
-          <button class="action-btn" type="button" @click="closeDialog">取消</button>
-          <button class="action-btn primary" type="button" :disabled="saving" @click="submitForm">
-            {{ saving ? '保存中...' : '保存' }}
-          </button>
-        </footer>
-      </div>
-    </div>
+      <template #footer>
+        <DataListFooter
+          :total-items="filteredSources.length"
+          :page="page"
+          :page-size="pageSize"
+          show-page-size
+          @update:page="page = $event"
+          @update:pageSize="pageSize = $event"
+        />
+      </template>
+    </ListCommonLayout>
   </div>
 </template>
+
+<style scoped>
+.knowledge-page {
+  min-height: calc(100vh - 140px);
+}
+
+.knowledge-table-panel {
+  display: grid;
+  gap: 12px;
+  min-height: 0;
+}
+
+.knowledge-message {
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: var(--surface-bg-1);
+  color: var(--text-dim);
+}
+
+.knowledge-message.is-error {
+  border-color: rgba(220, 38, 38, 0.22);
+  background: rgba(254, 242, 242, 0.9);
+  color: #b91c1c;
+}
+
+.sidebar-entry {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  background: var(--control-bg);
+  color: var(--text);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.sidebar-entry.active {
+  border-color: rgba(37, 99, 235, 0.35);
+  background: rgba(37, 99, 235, 0.08);
+  box-shadow: 0 10px 18px rgba(37, 99, 235, 0.08);
+}
+
+:deep(.knowledge-status.online) {
+  color: #15803d;
+  font-weight: 600;
+}
+
+:deep(.knowledge-status.warning) {
+  color: #b45309;
+  font-weight: 600;
+}
+
+:deep(.knowledge-status.offline) {
+  color: #b91c1c;
+  font-weight: 600;
+}
+</style>

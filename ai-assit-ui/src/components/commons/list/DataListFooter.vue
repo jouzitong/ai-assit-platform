@@ -1,5 +1,5 @@
 <script setup>
-import Pagination from '../../comm/Pagination.vue'
+import Pagination from './Pagination.vue'
 
 defineProps({
   totalItems: {

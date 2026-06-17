@@ -1,6 +1,6 @@
 <script setup>
 import { computed, ref, watch } from 'vue'
-import Pagination from '../../comm/Pagination.vue'
+import Pagination from './Pagination.vue'
 import ListItem from './item/ListItem.vue'
 import CardListItem from './item/CardListItem.vue'
 

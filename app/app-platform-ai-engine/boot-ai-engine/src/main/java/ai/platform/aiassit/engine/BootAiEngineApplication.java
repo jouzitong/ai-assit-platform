@@ -6,7 +6,7 @@ import org.mybatis.spring.annotation.MapperScan;
 
 import java.util.Map;
 
-@MapperScan("ai.platform.aiassist.service.ai.meta.mapper")
+@MapperScan({"ai.platform.aiassist.service.ai.meta.mapper", "ai.platform.aiassist.service.ai.kb.mapper"})
 @SpringBootApplication(scanBasePackages = "ai.platform.aiassist")
 public class BootAiEngineApplication {
 

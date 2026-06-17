@@ -428,6 +428,9 @@ function formatByParts(parts, format) {
   background: var(--control-bg);
   color: var(--text);
   font: inherit;
+  outline: none;
+  box-shadow: none;
+  transition: border-color 0.18s ease, background-color 0.18s ease;
 }
 
 .field input,
@@ -441,6 +444,24 @@ function formatByParts(parts, format) {
   min-height: 92px;
   padding: 10px 12px;
   resize: vertical;
+}
+
+.field input:focus,
+.field select:focus,
+.field textarea:focus,
+.field button:focus {
+  outline: none;
+  box-shadow: none;
+  border-color: rgba(59, 130, 246, 0.42);
+  background: #fff;
+}
+
+.field input:focus-visible,
+.field select:focus-visible,
+.field textarea:focus-visible,
+.field button:focus-visible {
+  outline: none;
+  box-shadow: none;
 }
 
 .field--compact input,
