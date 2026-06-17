@@ -1,10 +1,9 @@
 import { createApp } from 'vue'
-import './style.css'
+import './style.scss'
 import App from './App.vue'
 import router from './router'
-import { THEME_STORAGE_KEY } from './utils/session'
+import { initTheme } from './assets/style/themes/theme-manager'
 
-const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-document.documentElement.dataset.theme = savedTheme === 'dark' ? 'dark' : 'light'
+initTheme()
 
 createApp(App).use(router).mount('#app')

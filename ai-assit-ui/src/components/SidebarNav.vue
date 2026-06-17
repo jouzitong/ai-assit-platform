@@ -1,8 +1,9 @@
 <script setup>
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { clearSession, getToken, THEME_STORAGE_KEY } from '../utils/session'
+import { clearSession, getToken } from '../utils/session'
 import { logoutAuth } from '../api/auth'
+import { applyTheme as setTheme, getSavedTheme } from '../assets/style/themes/theme-manager'
 
 const route = useRoute()
 const router = useRouter()
@@ -30,9 +31,8 @@ function isActivePath(targetPath) {
 }
 
 function applyTheme(nextIsDark) {
-  isDarkTheme.value = nextIsDark
-  document.documentElement.dataset.theme = nextIsDark ? 'dark' : 'light'
-  window.localStorage.setItem(THEME_STORAGE_KEY, nextIsDark ? 'dark' : 'light')
+  const nextTheme = setTheme(nextIsDark ? 'dark' : 'light')
+  isDarkTheme.value = nextTheme === 'dark'
 }
 
 function toggleTheme() {
@@ -57,8 +57,7 @@ async function handleLogout() {
 }
 
 onMounted(() => {
-  const savedTheme = window.localStorage.getItem(THEME_STORAGE_KEY)
-  applyTheme(savedTheme === 'dark')
+  applyTheme(getSavedTheme() === 'dark')
 })
 </script>
 

@@ -1,0 +1,7 @@
+@mixin register-theme($selector, $tokens) {
+  #{$selector} {
+    @each $name, $value in $tokens {
+      --theme-#{$name}: #{$value};
+    }
+  }
+}
