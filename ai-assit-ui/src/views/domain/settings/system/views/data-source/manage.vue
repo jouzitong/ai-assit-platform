@@ -133,6 +133,7 @@ function onFileDrop(event) {
           <thead>
             <tr>
               <th>表名</th>
+              <th>中文说明</th>
               <th>字段数</th>
               <th>数据量</th>
               <th>分区键</th>
@@ -144,16 +145,20 @@ function onFileDrop(event) {
           <tbody>
             <tr v-for="item in pagedTables" :key="item.name">
               <td><strong>{{ item.name }}</strong></td>
+              <td>{{ formatEmpty(item.comment) }}</td>
               <td>{{ item.columns }}</td>
               <td>{{ item.rows }}</td>
               <td>{{ item.partition }}</td>
               <td>{{ item.freshness }}</td>
               <td><span class="status-chip" :class="statusClass(item.status)">{{ item.statusLabel }}</span></td>
-              <td class="row-actions">
-                <button type="button" class="link-btn">数据查看</button>
-                <button type="button" class="link-btn" @click="openFieldWorkbench(item)">字段</button>
-                <button type="button" class="link-btn">同步</button>
-                <button type="button" class="link-btn">权限</button>
+              <td class="row-actions-cell">
+                <div class="row-actions">
+                  <button type="button" class="link-btn">数据查看</button>
+                  <button type="button" class="link-btn">知识库预览</button>
+                  <button type="button" class="link-btn" @click="openFieldWorkbench(item)">字段</button>
+                  <button type="button" class="link-btn">同步</button>
+                  <button type="button" class="link-btn">权限</button>
+                </div>
               </td>
             </tr>
           </tbody>
@@ -208,43 +213,83 @@ function onFileDrop(event) {
       </aside>
 
       <section class="field-panel">
-        <div class="field-panel-head">
-          <div class="picker-head">
-            <p class="eyebrow">字段列表</p>
-            <h3>{{ selectedTable?.name }}</h3>
-          </div>
-          <button type="button" class="toolbar-btn secondary field-back-btn" @click="fieldWorkbenchVisible = false">
-            返回表列表
-          </button>
-        </div>
+<!--        <div class="field-panel-head">-->
+<!--          <div class="picker-head">-->
+<!--            <p class="eyebrow">字段列表</p>-->
+<!--            <h3>{{ selectedTable?.name }}</h3>-->
+<!--          </div>-->
+<!--          <button type="button" class="toolbar-btn secondary field-back-btn" @click="fieldWorkbenchVisible = false">-->
+<!--            返回表列表-->
+<!--          </button>-->
+<!--        </div>-->
 
         <div v-if="fieldError" class="table-state is-error">{{ fieldError }}</div>
         <div v-else-if="fieldLoading" class="table-state">正在加载字段列表...</div>
         <div v-else-if="!selectedFields.length" class="table-state">当前表还没有字段元数据。</div>
 
-        <div v-else class="table-body">
-          <table class="config-table field-table">
-            <thead>
-              <tr>
-                <th>字段名</th>
-                <th>类型</th>
-                <th>索引</th>
-                <th>关联表</th>
-                <th>描述</th>
-                <th>角色</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="field in selectedFields" :key="field.name">
-                <td><strong>{{ field.name }}</strong></td>
-                <td>{{ field.type }}</td>
-                <td>{{ formatEmpty(field.indexName) }}</td>
-                <td>{{ formatEmpty(field.relatedTable) }}</td>
-                <td>{{ formatEmpty(field.description) }}</td>
-                <td>{{ field.statusLabel }}</td>
-              </tr>
-            </tbody>
-          </table>
+        <div v-else class="content">
+          <section class="content__table-meta">
+            <div class="content__section-head">
+              <div>
+                <p class="eyebrow">表元数据信息</p>
+                <h4>{{ selectedTable?.name }}</h4>
+              </div>
+              <span class="status-chip" :class="statusClass(selectedTable?.status)">{{ selectedTable?.statusLabel }}</span>
+            </div>
+
+            <dl class="content__meta-grid">
+              <div class="content__meta-item">
+                <dt>字段数</dt>
+                <dd>{{ selectedTable?.columns ?? '-' }}</dd>
+              </div>
+              <div class="content__meta-item">
+                <dt>数据量</dt>
+                <dd>{{ selectedTable?.rows ?? '-' }}</dd>
+              </div>
+              <div class="content__meta-item">
+                <dt>分区键</dt>
+                <dd>{{ formatEmpty(selectedTable?.partition) }}</dd>
+              </div>
+              <div class="content__meta-item">
+                <dt>新鲜度</dt>
+                <dd>{{ formatEmpty(selectedTable?.freshness) }}</dd>
+              </div>
+            </dl>
+          </section>
+
+          <section class="content__field-list">
+            <div class="content__section-head content__section-head--field-list">
+              <div>
+                <p class="eyebrow">字段列表</p>
+                <h4>{{ selectedTable?.name }}</h4>
+              </div>
+            </div>
+
+            <div class="table-body">
+              <table class="config-table field-table">
+                <thead>
+                  <tr>
+                    <th>字段名</th>
+                    <th>类型</th>
+                    <th>索引</th>
+                    <th>关联表</th>
+                    <th>描述</th>
+                    <th>角色</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="field in selectedFields" :key="field.name">
+                    <td><strong>{{ field.name }}</strong></td>
+                    <td>{{ field.type }}</td>
+                    <td>{{ formatEmpty(field.indexName) }}</td>
+                    <td>{{ formatEmpty(field.relatedTable) }}</td>
+                    <td>{{ formatEmpty(field.description) }}</td>
+                    <td>{{ field.statusLabel }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </section>
         </div>
       </section>
     </section>

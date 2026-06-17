@@ -408,10 +408,19 @@
 }
 
 .field-panel {
+  border: none;
+  display: grid;
+  padding: 1px;
+  align-content: start;
+  gap: 5px;
+  overflow: auto;
+}
+
+.content {
   display: grid;
   align-content: start;
-  gap: 14px;
-  overflow: auto;
+  gap: 16px;
+  min-height: 0;
 }
 
 .field-panel-head {
@@ -424,6 +433,77 @@
 
 .field-back-btn {
   flex-shrink: 0;
+}
+
+.content__table-meta,
+.content__field-list {
+  display: grid;
+  gap: 14px;
+  padding: 16px 18px;
+  border-radius: 20px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+}
+
+.content__table-meta {
+  border-color: rgba(191, 219, 254, 0.95);
+  background: linear-gradient(180deg, #f8fbff 0%, #ffffff 100%);
+}
+
+.content__field-list {
+  gap: 12px;
+}
+
+.content__section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.content__section-head h4 {
+  margin: 4px 0 0;
+  color: #0f172a;
+  font-size: 20px;
+  line-height: 1.2;
+}
+
+.content__section-head--field-list {
+  padding-bottom: 2px;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.95);
+}
+
+.content__meta-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+  height: 100%;
+}
+
+.content__meta-item {
+  display: grid;
+  gap: 6px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(255, 255, 255, 0.9);
+}
+
+.content__meta-item dt {
+  margin: 0;
+  color: #64748b;
+  font-size: 12px;
+}
+
+.content__meta-item dd {
+  margin: 0;
+  color: #0f172a;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.3;
+  word-break: break-word;
 }
 
 .field-table {
@@ -457,11 +537,17 @@
 
 .table-body {
   overflow: auto;
+  height: 100%;
 }
 
 .config-table {
   width: 100%;
   border-collapse: collapse;
+}
+
+.row-actions-cell {
+  vertical-align: middle;
+  text-align: center;
 }
 
 .row-actions {
@@ -470,6 +556,7 @@
   justify-content: center;
   gap: 10px;
   flex-wrap: wrap;
+  min-height: 20px;
 }
 
 .link-btn,

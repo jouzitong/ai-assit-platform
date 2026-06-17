@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.kb.controller;
+package ai.platform.aiassist.service.ai.kb.controller.impl;
 
 import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseManageApi;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;

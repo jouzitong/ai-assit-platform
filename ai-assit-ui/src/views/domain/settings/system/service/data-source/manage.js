@@ -358,10 +358,11 @@ export function useDataSourceManagePage() {
   function mapTableItem(item) {
     return {
       name: item.tableName || item.name || '-',
-      columns: item.fieldCount ?? item.columns ?? '-',
+      comment: item.tableComment || item.comment || item.remark || '-',
+      columns: item.fieldCount ?? item.columnCount ?? item.columns ?? '-',
       rows: item.rowCount ?? item.rows ?? '-',
       partition: item.partitionKey || item.partition || 'none',
-      freshness: item.freshness || item.syncLag || '-',
+      freshness: formatFreshness(item.freshness ?? item.freshnessSeconds ?? item.syncLag),
       status: normalizeStatus(item),
       statusLabel: normalizeStatusLabel(item)
     }
@@ -369,13 +370,45 @@ export function useDataSourceManagePage() {
 
   function mapFieldItem(item) {
     return {
-      name: item.fieldName || item.name || '-',
-      type: item.fieldType || item.type || '-',
+      name: item.columnName || item.fieldName || item.name || '-',
+      type: item.dataType || item.fieldType || item.type || '-',
       indexName: item.indexName || '',
       relatedTable: item.relatedTable || '',
-      description: item.description || item.comment || '',
-      statusLabel: item.roleLabel || item.statusLabel || '业务字段'
+      description: item.columnComment || item.description || item.comment || item.remark || '',
+      statusLabel: normalizeFieldRoleLabel(item.fieldRole || item.roleLabel || item.statusLabel)
     }
+  }
+
+  function formatFreshness(value) {
+    if (value === null || value === undefined || value === '') {
+      return '-'
+    }
+    const seconds = Number(value)
+    if (Number.isNaN(seconds)) {
+      return String(value)
+    }
+    if (seconds < 60) {
+      return `${seconds}s`
+    }
+    if (seconds < 3600) {
+      return `${Math.floor(seconds / 60)}m`
+    }
+    if (seconds < 86400) {
+      return `${Math.floor(seconds / 3600)}h`
+    }
+    return `${Math.floor(seconds / 86400)}d`
+  }
+
+  function normalizeFieldRoleLabel(role) {
+    const roleLabelMap = {
+      PRIMARY_KEY: '主键字段',
+      PARTITION_KEY: '分区字段',
+      DIMENSION: '维度字段',
+      METRIC: '指标字段',
+      FACT: '事实字段'
+    }
+    const normalizedRole = String(role || '').toUpperCase()
+    return roleLabelMap[normalizedRole] || role || '业务字段'
   }
 
   function normalizeStatus(item) {
