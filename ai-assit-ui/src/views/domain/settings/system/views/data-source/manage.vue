@@ -39,6 +39,10 @@ const {
   exportDialogVisible,
   exportFormat,
   exportSubmitting,
+  knowledgePreviewVisible,
+  knowledgePreviewLoading,
+  knowledgePreviewError,
+  knowledgePreviewData,
   templateSubmitting,
   handleSourceChange,
   handlePageChange,
@@ -55,6 +59,8 @@ const {
   closeImportProgressDialog,
   openExportDialog,
   closeExportDialog,
+  openKnowledgePreview,
+  closeKnowledgePreview,
   handleImportDragEnter,
   handleImportDragLeave,
   handleImportFile,
@@ -154,7 +160,7 @@ function onFileDrop(event) {
               <td class="row-actions-cell">
                 <div class="row-actions">
                   <button type="button" class="link-btn">数据查看</button>
-                  <button type="button" class="link-btn">知识库预览</button>
+                  <button type="button" class="link-btn" @click="openKnowledgePreview(item)">知识库预览</button>
                   <button type="button" class="link-btn" @click="openFieldWorkbench(item)">字段</button>
                   <button type="button" class="link-btn">同步</button>
                   <button type="button" class="link-btn">权限</button>
@@ -433,6 +439,24 @@ function onFileDrop(event) {
             {{ exportSubmitting ? '导出中...' : '开始导出' }}
           </button>
         </footer>
+      </div>
+    </div>
+
+    <div v-if="knowledgePreviewVisible" class="modal-mask" @click.self="closeKnowledgePreview">
+      <div class="modal-card knowledge-preview-modal">
+        <header class="modal-head">
+          <div>
+            <h3>知识库预览</h3>
+            <p>{{ knowledgePreviewData.tableName || '当前表' }} · {{ knowledgePreviewData.type || 'markdown' }}</p>
+          </div>
+          <button class="close-btn" type="button" @click="closeKnowledgePreview">×</button>
+        </header>
+
+        <div v-if="knowledgePreviewError" class="error-banner">{{ knowledgePreviewError }}</div>
+        <div v-else-if="knowledgePreviewLoading" class="table-state">正在加载知识库预览...</div>
+        <div v-else class="knowledge-preview-body">
+          <pre class="knowledge-preview-content">{{ knowledgePreviewData.content || '暂无预览内容。' }}</pre>
+        </div>
       </div>
     </div>
   </div>

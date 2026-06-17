@@ -40,6 +40,16 @@ export function searchDbTableFields(payload) {
   })
 }
 
+export function previewDbTableKnowledge(sourceKey, tableName) {
+  const query = new URLSearchParams({
+    sourceKey: sourceKey ?? '',
+    tableName: tableName ?? ''
+  })
+  return request(`${DB_ENGINE_TABLE_META_API_PREFIX}/knowledge-preview?${query.toString()}`, {
+    method: 'GET'
+  })
+}
+
 export function importDbMetaWorkbook(sourceKey, file) {
   const formData = new FormData()
   formData.append('file', file)

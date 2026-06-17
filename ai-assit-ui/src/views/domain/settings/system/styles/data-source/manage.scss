@@ -148,6 +148,27 @@
   background: rgba(254, 242, 242, 0.92);
 }
 
+.knowledge-preview-body {
+  min-height: 0;
+  overflow: hidden;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 18px;
+  background: #f8fafc;
+}
+
+.knowledge-preview-content {
+  margin: 0;
+  padding: 18px 20px;
+  max-height: min(64vh, 720px);
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: SFMono-Regular, Menlo, Monaco, Consolas, Liberation Mono, monospace;
+  font-size: 13px;
+  line-height: 1.7;
+  color: #0f172a;
+}
+
 .modal-mask {
   position: fixed;
   inset: 0;
@@ -181,6 +202,11 @@
 
 .import-progress-modal {
   width: min(760px, 100%);
+}
+
+.knowledge-preview-modal {
+  width: min(980px, 100%);
+  max-height: min(88vh, 920px);
 }
 
 .modal-head {

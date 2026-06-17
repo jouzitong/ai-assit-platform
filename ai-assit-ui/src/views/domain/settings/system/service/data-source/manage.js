@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook } from '../../../../../../api/dbEngine'
+import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, previewDbTableKnowledge, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook } from '../../../../../../api/dbEngine'
 import { showPopup } from '../../../../../../utils/popup'
 
 export function useDataSourceManagePage() {
@@ -27,6 +27,10 @@ export function useDataSourceManagePage() {
   const importJobProgress = reactive(createEmptyImportJobProgress())
   const exportDialogVisible = ref(false)
   const exportFormat = ref('json')
+  const knowledgePreviewVisible = ref(false)
+  const knowledgePreviewLoading = ref(false)
+  const knowledgePreviewError = ref('')
+  const knowledgePreviewData = reactive(createEmptyKnowledgePreview())
   const pageSizeOptions = [10, 20, 50]
   let importProgressStreamAbortController = null
 
@@ -160,6 +164,37 @@ export function useDataSourceManagePage() {
   function closeExportDialog() {
     exportDialogVisible.value = false
     exportFormat.value = 'json'
+  }
+
+  async function openKnowledgePreview(item) {
+    if (!sourceKey.value || !item?.name) {
+      showPopup.error('当前表信息不完整，无法预览知识库')
+      return
+    }
+    knowledgePreviewVisible.value = true
+    knowledgePreviewLoading.value = true
+    knowledgePreviewError.value = ''
+    knowledgePreviewData.tableName = item.name
+    knowledgePreviewData.type = ''
+    knowledgePreviewData.content = ''
+    try {
+      const response = await previewDbTableKnowledge(sourceKey.value, item.name)
+      const payload = unwrapPayload(response)
+      knowledgePreviewData.tableName = item.name
+      knowledgePreviewData.type = payload?.type || 'markdown'
+      knowledgePreviewData.content = payload?.content || ''
+    } catch (error) {
+      knowledgePreviewError.value = error.message || '知识库预览加载失败'
+    } finally {
+      knowledgePreviewLoading.value = false
+    }
+  }
+
+  function closeKnowledgePreview() {
+    knowledgePreviewVisible.value = false
+    knowledgePreviewLoading.value = false
+    knowledgePreviewError.value = ''
+    Object.assign(knowledgePreviewData, createEmptyKnowledgePreview())
   }
 
   function handleImportDragEnter() {
@@ -516,6 +551,14 @@ export function useDataSourceManagePage() {
     }
   }
 
+  function createEmptyKnowledgePreview() {
+    return {
+      tableName: '',
+      type: '',
+      content: ''
+    }
+  }
+
   function resetImportJobProgress() {
     Object.assign(importJobProgress, createEmptyImportJobProgress())
   }
@@ -555,6 +598,10 @@ export function useDataSourceManagePage() {
     exportDialogVisible,
     exportFormat,
     exportSubmitting,
+    knowledgePreviewVisible,
+    knowledgePreviewLoading,
+    knowledgePreviewError,
+    knowledgePreviewData,
     templateSubmitting,
     handleSourceChange,
     handlePageChange,
@@ -571,6 +618,8 @@ export function useDataSourceManagePage() {
     closeImportProgressDialog,
     openExportDialog,
     closeExportDialog,
+    openKnowledgePreview,
+    closeKnowledgePreview,
     handleImportDragEnter,
     handleImportDragLeave,
     handleImportFile,
