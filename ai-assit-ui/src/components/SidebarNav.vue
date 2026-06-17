@@ -4,11 +4,14 @@ import { useRoute, useRouter } from 'vue-router'
 import { clearSession, getToken } from '../utils/session'
 import { logoutAuth } from '../api/auth'
 import { applyTheme as setTheme, getSavedTheme } from '../assets/style/themes/theme-manager'
+import { showPopup } from '../utils/popup'
 
 const route = useRoute()
 const router = useRouter()
 const settingsOpen = ref(false)
 const isDarkTheme = ref(false)
+const developerModeEnabled = ref(false)
+const DEVELOPER_MODE_KEY = 'emp-console:developer-mode'
 
 const menus = [
   { path: '/home', label: 'AI 首页', short: '首页' },
@@ -40,6 +43,17 @@ function toggleTheme() {
   settingsOpen.value = false
 }
 
+function syncDeveloperMode() {
+  developerModeEnabled.value = window.localStorage.getItem(DEVELOPER_MODE_KEY) === 'true'
+}
+
+function toggleDeveloperMode() {
+  developerModeEnabled.value = !developerModeEnabled.value
+  window.localStorage.setItem(DEVELOPER_MODE_KEY, String(developerModeEnabled.value))
+  showPopup.success(`开发者模式已${developerModeEnabled.value ? '开启' : '关闭'}`)
+  settingsOpen.value = false
+}
+
 async function handleLogout() {
   settingsOpen.value = false
   const token = getToken()
@@ -58,6 +72,7 @@ async function handleLogout() {
 
 onMounted(() => {
   applyTheme(getSavedTheme() === 'dark')
+  syncDeveloperMode()
 })
 </script>
 
@@ -108,6 +123,16 @@ onMounted(() => {
         >
           {{ item.label }}
         </RouterLink>
+
+        <button
+          class="dropdown-action"
+          :class="{ active: developerModeEnabled }"
+          type="button"
+          title="切换开发者模式"
+          @click="toggleDeveloperMode"
+        >
+          开发者模式
+        </button>
 
         <button
           class="dropdown-action"

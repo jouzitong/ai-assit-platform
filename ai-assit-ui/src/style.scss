@@ -298,6 +298,7 @@ body::-webkit-scrollbar-thumb:hover,
 
 .dropdown-link.active,
 .dropdown-link:hover,
+.dropdown-action.active,
 .dropdown-action:hover {
   background: var(--topbar-hover);
   color: #fff;
