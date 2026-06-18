@@ -18,15 +18,11 @@
     <dependencies>
         <dependency>
             <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-cloud-openfeign</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-data-jdbc</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-data-mybatis</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

@@ -16,6 +16,11 @@
     <name>app-platform-user-data-system-settings</name>
 
     <dependencies>
+
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-data-jdbc</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-data-mybatis</artifactId>

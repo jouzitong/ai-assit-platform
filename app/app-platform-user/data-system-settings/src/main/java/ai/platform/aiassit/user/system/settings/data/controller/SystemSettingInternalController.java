@@ -2,6 +2,7 @@ package ai.platform.aiassit.user.system.settings.data.controller;
 
 import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import ai.platform.aiassit.user.system.settings.data.service.SystemSettingService;
+import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -16,7 +17,7 @@ public class SystemSettingInternalController implements SystemSettingInternalApi
     }
 
     @Override
-    public String queryValueByKey(String key) {
-        return service.queryValueByKey(key);
+    public R<String> queryValueByKey(String key) {
+        return R.ok(service.queryValueByKey(key));
     }
 }
