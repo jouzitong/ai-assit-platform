@@ -7,8 +7,11 @@ import {
   editAiChatModelManage,
   editAiChatProviderConfig,
   getAiChatModelManage,
+  getAiKnowledgeBaseDocumentDetail,
+  listAiKnowledgeBaseDocuments,
   searchAiChatModelManages,
   searchAiChatProviderConfigs,
+  searchAiKnowledgeBases,
   updateAiChatModelManage,
   updateAiChatProviderConfig
 } from '../../../../../api/aiChat'
@@ -20,6 +23,8 @@ export function useAiPage() {
   const loading = reactive({
     provider: false,
     model: false,
+    kb: false,
+    kbDetail: false,
     providerSaving: false,
     modelSaving: false
   })
@@ -35,6 +40,12 @@ export function useAiPage() {
     enabled: ''
   })
 
+  const kbFilters = reactive({
+    kbId: '',
+    keyword: '',
+    enabled: ''
+  })
+
   const providerPagination = reactive({
     page: 1,
     size: 10,
@@ -47,9 +58,17 @@ export function useAiPage() {
     total: 0
   })
 
+  const kbPagination = reactive({
+    page: 1,
+    size: 10,
+    total: 0
+  })
+
   const providerList = ref([])
   const modelList = ref([])
   const providerOptions = ref([])
+  const knowledgeBaseList = ref([])
+  const kbDocumentList = ref([])
 
   const providerDialogVisible = ref(false)
   const providerDialogMode = ref('create')
@@ -60,6 +79,26 @@ export function useAiPage() {
   const modelDialogMode = ref('create')
   const modelError = ref('')
   const modelForm = reactive(createModelForm())
+
+  const kbDetailVisible = ref(false)
+  const kbDetailError = ref('')
+  const kbDetail = ref(null)
+
+  const filteredKbDocuments = computed(() => {
+    const keyword = kbFilters.keyword.trim().toLowerCase()
+    if (!keyword) {
+      return kbDocumentList.value
+    }
+    return kbDocumentList.value.filter((item) => {
+      const fields = [item.documentCode, item.documentName, item.bizKey, item.sourceSystem, item.status, item.reviewStatus]
+      return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
+    })
+  })
+
+  const pagedKbDocuments = computed(() => {
+    const start = (kbPagination.page - 1) * kbPagination.size
+    return filteredKbDocuments.value.slice(start, start + kbPagination.size)
+  })
 
   const currentStats = computed(() => {
     if (activeTab.value === 'provider') {
@@ -72,36 +111,75 @@ export function useAiPage() {
       ]
     }
 
-    const enabledCount = modelList.value.filter((item) => item.enabled).length
-    const credentialCount = modelList.value.filter((item) => item.credentialCode).length
+    if (activeTab.value === 'model') {
+      const enabledCount = modelList.value.filter((item) => item.enabled).length
+      const credentialCount = modelList.value.filter((item) => item.credentialCode).length
+      return [
+        { label: '总记录', value: modelPagination.total },
+        { label: '当前页', value: modelList.value.length },
+        { label: '启用中', value: enabledCount },
+        { label: '已绑定凭证', value: credentialCount }
+      ]
+    }
+
+    const enabledCount = knowledgeBaseList.value.filter((item) => item.enabled).length
+    const providerBoundCount = knowledgeBaseList.value.filter((item) => item.providerKbId).length
     return [
-      { label: '总记录', value: modelPagination.total },
-      { label: '当前页', value: modelList.value.length },
+      { label: '知识库', value: knowledgeBaseList.value.length },
+      { label: '当前文档', value: filteredKbDocuments.value.length },
       { label: '启用中', value: enabledCount },
-      { label: '已绑定凭证', value: credentialCount }
+      { label: '已绑定 Provider KB', value: providerBoundCount }
     ]
   })
 
-  const currentTotal = computed(() => (activeTab.value === 'provider' ? providerPagination.total : modelPagination.total))
+  const currentTotal = computed(() => {
+    if (activeTab.value === 'provider') {
+      return providerPagination.total
+    }
+    if (activeTab.value === 'model') {
+      return modelPagination.total
+    }
+    return filteredKbDocuments.value.length
+  })
 
   const currentPage = computed({
-    get: () => (activeTab.value === 'provider' ? providerPagination.page : modelPagination.page),
+    get: () => {
+      if (activeTab.value === 'provider') {
+        return providerPagination.page
+      }
+      if (activeTab.value === 'model') {
+        return modelPagination.page
+      }
+      return kbPagination.page
+    },
     set: (value) => {
       if (activeTab.value === 'provider') {
         providerPagination.page = value
-      } else {
+      } else if (activeTab.value === 'model') {
         modelPagination.page = value
+      } else {
+        kbPagination.page = value
       }
     }
   })
 
   const currentSize = computed({
-    get: () => (activeTab.value === 'provider' ? providerPagination.size : modelPagination.size),
+    get: () => {
+      if (activeTab.value === 'provider') {
+        return providerPagination.size
+      }
+      if (activeTab.value === 'model') {
+        return modelPagination.size
+      }
+      return kbPagination.size
+    },
     set: (value) => {
       if (activeTab.value === 'provider') {
         providerPagination.size = value
-      } else {
+      } else if (activeTab.value === 'model') {
         modelPagination.size = value
+      } else {
+        kbPagination.size = value
       }
     }
   })
@@ -123,11 +201,34 @@ export function useAiPage() {
   const totalPages = computed(() => Math.max(1, Math.ceil(currentTotal.value / currentSize.value)))
 
   watch(activeTab, async () => {
+    if (activeTab.value === 'kb') {
+      await loadKbPage()
+      return
+    }
     await Promise.all([loadActiveTab(), ensureProviderOptions()])
   })
 
+  watch(
+    filteredKbDocuments,
+    (documents) => {
+      kbPagination.total = documents.length
+      const maxPage = Math.max(1, Math.ceil(documents.length / kbPagination.size))
+      if (kbPagination.page > maxPage) {
+        kbPagination.page = maxPage
+      }
+    },
+    { immediate: true }
+  )
+
+  watch(
+    () => kbFilters.keyword,
+    () => {
+      kbPagination.page = 1
+    }
+  )
+
   onMounted(async () => {
-    await Promise.all([loadProviderPage(), loadModelPage(), ensureProviderOptions()])
+    await Promise.all([loadProviderPage(), loadModelPage(), ensureProviderOptions(), loadKbPage()])
   })
 
   function buildProviderQuery() {
@@ -159,8 +260,10 @@ export function useAiPage() {
   async function loadActiveTab() {
     if (activeTab.value === 'provider') {
       await loadProviderPage()
-    } else {
+    } else if (activeTab.value === 'model') {
       await loadModelPage()
+    } else {
+      await loadKbPage()
     }
   }
 
@@ -204,6 +307,36 @@ export function useAiPage() {
     }
   }
 
+  async function loadKbPage() {
+    loading.kb = true
+    try {
+      const payload = await searchAiKnowledgeBases({
+        enabled: parseBooleanFilter(kbFilters.enabled)
+      })
+      knowledgeBaseList.value = Array.isArray(payload) ? payload : []
+      const nextKbId = resolveActiveKbId(knowledgeBaseList.value, kbFilters.kbId)
+      if (nextKbId !== kbFilters.kbId) {
+        kbFilters.kbId = nextKbId
+      }
+      await loadKbDocuments()
+    } catch (error) {
+      showPopup.error(error.message || '知识库列表加载失败')
+    } finally {
+      loading.kb = false
+    }
+  }
+
+  async function loadKbDocuments() {
+    try {
+      const payload = await listAiKnowledgeBaseDocuments(kbFilters.kbId ? { kbCode: kbFilters.kbId } : {})
+      kbDocumentList.value = Array.isArray(payload) ? payload : []
+      kbPagination.page = 1
+    } catch (error) {
+      kbDocumentList.value = []
+      showPopup.error(error.message || '知识库文档加载失败')
+    }
+  }
+
   function openProviderCreate() {
     providerDialogMode.value = 'create'
     providerError.value = ''
@@ -241,6 +374,20 @@ export function useAiPage() {
       modelDialogVisible.value = true
     } catch (error) {
       showPopup.error(error.message || 'Model 详情加载失败')
+    }
+  }
+
+  async function openKbDetail(row) {
+    loading.kbDetail = true
+    kbDetailError.value = ''
+    kbDetail.value = null
+    kbDetailVisible.value = true
+    try {
+      kbDetail.value = await getAiKnowledgeBaseDocumentDetail(row.kbCode, row.documentCode)
+    } catch (error) {
+      kbDetailError.value = error.message || '知识库文档详情加载失败'
+    } finally {
+      loading.kbDetail = false
     }
   }
 
@@ -433,13 +580,24 @@ export function useAiPage() {
     loadModelPage()
   }
 
+  function resetKbFilters() {
+    kbFilters.kbId = ''
+    kbFilters.keyword = ''
+    kbFilters.enabled = ''
+    kbPagination.page = 1
+    loadKbPage()
+  }
+
   function handleSearch() {
     if (activeTab.value === 'provider') {
       providerPagination.page = 1
       loadProviderPage()
-    } else {
+    } else if (activeTab.value === 'model') {
       modelPagination.page = 1
       loadModelPage()
+    } else {
+      kbPagination.page = 1
+      loadKbPage()
     }
   }
 
@@ -448,21 +606,38 @@ export function useAiPage() {
       return
     }
     currentPage.value = nextPage
-    loadActiveTab()
+    if (activeTab.value !== 'kb') {
+      loadActiveTab()
+    }
   }
 
   function handlePageSizeChange(event) {
     currentSize.value = Number(event.target.value)
     currentPage.value = 1
-    loadActiveTab()
+    if (activeTab.value !== 'kb') {
+      loadActiveTab()
+    }
   }
 
   function openCreateByTab() {
     if (activeTab.value === 'provider') {
       openProviderCreate()
-    } else {
+    } else if (activeTab.value === 'model') {
       openModelCreate()
+    } else {
+      refreshKbPanel()
     }
+  }
+
+  async function refreshKbPanel() {
+    await loadKbPage()
+    showPopup.success('知识库数据已刷新')
+  }
+
+  async function selectKnowledgeBase(kbId) {
+    kbFilters.kbId = kbId
+    kbPagination.page = 1
+    await loadKbDocuments()
   }
 
   function normalizeNumber(value) {
@@ -483,6 +658,13 @@ export function useAiPage() {
       return parsed
     }
     return listLength
+  }
+
+  function resolveActiveKbId(list, currentKbId) {
+    if (currentKbId && list.some((item) => item.kbId === currentKbId)) {
+      return currentKbId
+    }
+    return list[0]?.kbId || ''
   }
 
   function formatDateTime(value) {
@@ -518,6 +700,20 @@ export function useAiPage() {
     )}:${pad(date.getSeconds())}`
   }
 
+  function formatContentSize(value) {
+    const size = Number(value)
+    if (!Number.isFinite(size) || size < 0) {
+      return '-'
+    }
+    if (size < 1024) {
+      return `${size} B`
+    }
+    if (size < 1024 * 1024) {
+      return `${(size / 1024).toFixed(1)} KB`
+    }
+    return `${(size / (1024 * 1024)).toFixed(1)} MB`
+  }
+
   function pad(value) {
     return String(value).padStart(2, '0')
   }
@@ -537,11 +733,15 @@ export function useAiPage() {
     loading,
     providerFilters,
     modelFilters,
+    kbFilters,
     providerPagination,
     modelPagination,
+    kbPagination,
     providerList,
     modelList,
     providerOptions,
+    knowledgeBaseList,
+    pagedKbDocuments,
     providerDialogVisible,
     providerDialogMode,
     providerError,
@@ -550,6 +750,9 @@ export function useAiPage() {
     modelDialogMode,
     modelError,
     modelForm,
+    kbDetailVisible,
+    kbDetailError,
+    kbDetail,
     enabledOptions,
     pageSizeOptions,
     currentStats,
@@ -562,6 +765,7 @@ export function useAiPage() {
     openProviderEdit,
     openModelCreate,
     openModelEdit,
+    openKbDetail,
     submitProviderForm,
     submitModelForm,
     toggleProviderStatus,
@@ -570,11 +774,14 @@ export function useAiPage() {
     confirmDeleteModel,
     resetProviderFilters,
     resetModelFilters,
+    resetKbFilters,
     handleSearch,
     handlePageChange,
     handlePageSizeChange,
     openCreateByTab,
+    selectKnowledgeBase,
     formatDateTime,
+    formatContentSize,
     tagList
   }
 }

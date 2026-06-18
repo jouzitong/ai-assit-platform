@@ -4,6 +4,7 @@ import { getToken } from '../utils/session'
 const AI_CHAT_API_PREFIX = '/aiChat/api/v1/ai/chat'
 const AI_META_API_PREFIX = '/aiEngine/api/v1/ai/meta'
 const AI_ENGINE_API_PREFIX = '/aiEngine/api/v1/ai'
+const AI_ENGINE_INTERNAL_PREFIX = '/aiEngine'
 
 function buildAuthorizedHeaders(extraHeaders = {}) {
   const token = getToken()
@@ -177,6 +178,30 @@ export function editAiChatModelManage(id, payload) {
 export function deleteAiChatModelManage(id) {
   return request(`${AI_META_API_PREFIX}/internal/model-manage/${id}`, {
     method: 'DELETE'
+  })
+}
+
+export function searchAiKnowledgeBases(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/list`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function listAiKnowledgeBaseDocuments(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/document/list`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function getAiKnowledgeBaseDocumentDetail(kbCode, documentCode) {
+  const query = new URLSearchParams({
+    kbCode,
+    documentCode
+  })
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/document/detail?${query.toString()}`, {
+    method: 'GET'
   })
 }
 

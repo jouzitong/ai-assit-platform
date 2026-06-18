@@ -33,6 +33,10 @@
             <artifactId>app-platform-user-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-user-data-system-settings</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-cloud-nacos</artifactId>
         </dependency>

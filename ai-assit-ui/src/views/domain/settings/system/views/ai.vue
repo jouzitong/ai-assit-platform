@@ -7,11 +7,12 @@ const {
   loading,
   providerFilters,
   modelFilters,
-  providerPagination,
-  modelPagination,
+  kbFilters,
   providerList,
   modelList,
   providerOptions,
+  knowledgeBaseList,
+  pagedKbDocuments,
   providerDialogVisible,
   providerDialogMode,
   providerError,
@@ -20,6 +21,9 @@ const {
   modelDialogMode,
   modelError,
   modelForm,
+  kbDetailVisible,
+  kbDetailError,
+  kbDetail,
   enabledOptions,
   pageSizeOptions,
   currentStats,
@@ -27,9 +31,9 @@ const {
   currentSize,
   pageSummary,
   totalPages,
-  openProviderCreate,
   openProviderEdit,
   openModelEdit,
+  openKbDetail,
   submitProviderForm,
   submitModelForm,
   toggleProviderStatus,
@@ -38,11 +42,14 @@ const {
   confirmDeleteModel,
   resetProviderFilters,
   resetModelFilters,
+  resetKbFilters,
   handleSearch,
   handlePageChange,
   handlePageSizeChange,
   openCreateByTab,
+  selectKnowledgeBase,
   formatDateTime,
+  formatContentSize,
   tagList
 } = useAiPage()
 </script>
@@ -53,11 +60,11 @@ const {
       <div class="head-copy">
         <p class="crumb">系统设置 / AI 接入</p>
         <h1>AI 元数据维护</h1>
-        <p class="desc">页面只维护真实的 Provider 与 Model 配置。Model 编辑同时管理内部凭证配置。</p>
+        <p class="desc">页面统一维护 Provider、Model 与本地知识库文档台账；KB 视图当前聚焦查询与详情查看。</p>
       </div>
 
       <button class="create-pill" type="button" @click="openCreateByTab">
-        {{ activeTab === 'provider' ? '新增 Provider' : '新增 Model' }}
+        {{ activeTab === 'provider' ? '新增 Provider' : activeTab === 'model' ? '新增 Model' : '刷新 KB' }}
       </button>
     </header>
 
@@ -70,22 +77,13 @@ const {
 
     <section class="workspace-card">
       <div class="tab-strip">
-        <button
-          class="tab-pill"
-          :class="{ active: activeTab === 'provider' }"
-          type="button"
-          @click="activeTab = 'provider'"
-        >
+        <button class="tab-pill" :class="{ active: activeTab === 'provider' }" type="button" @click="activeTab = 'provider'">
           Provider 管理
         </button>
-        <button
-          class="tab-pill"
-          :class="{ active: activeTab === 'model' }"
-          type="button"
-          @click="activeTab = 'model'"
-        >
+        <button class="tab-pill" :class="{ active: activeTab === 'model' }" type="button" @click="activeTab = 'model'">
           Model 管理
         </button>
+        <button class="tab-pill" :class="{ active: activeTab === 'kb' }" type="button" @click="activeTab = 'kb'">Kb管理</button>
       </div>
 
       <div v-if="activeTab === 'provider'" class="panel-shell">
@@ -135,12 +133,7 @@ const {
                     <td>{{ row.connectTimeoutMs }} ms</td>
                     <td>{{ row.readTimeoutMs }} ms</td>
                     <td>
-                      <button
-                        class="status-btn"
-                        :class="row.enabled ? 'is-on' : 'is-off'"
-                        type="button"
-                        @click="toggleProviderStatus(row)"
-                      >
+                      <button class="status-btn" :class="row.enabled ? 'is-on' : 'is-off'" type="button" @click="toggleProviderStatus(row)">
                         {{ row.enabled ? '启用' : '停用' }}
                       </button>
                     </td>
@@ -163,7 +156,7 @@ const {
         </div>
       </div>
 
-      <div v-else class="panel-shell">
+      <div v-else-if="activeTab === 'model'" class="panel-shell">
         <div class="toolbar-grid model-toolbar">
           <input
             v-model="modelFilters.keyword"
@@ -230,12 +223,7 @@ const {
                       </div>
                     </td>
                     <td>
-                      <button
-                        class="status-btn"
-                        :class="row.enabled ? 'is-on' : 'is-off'"
-                        type="button"
-                        @click="toggleModelStatus(row)"
-                      >
+                      <button class="status-btn" :class="row.enabled ? 'is-on' : 'is-off'" type="button" @click="toggleModelStatus(row)">
                         {{ row.enabled ? '启用' : '停用' }}
                       </button>
                     </td>
@@ -257,6 +245,112 @@ const {
                   </tr>
                   <tr v-if="!modelList.length">
                     <td colspan="12" class="empty-cell">暂无 Model 数据</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+      </div>
+
+      <div v-else class="panel-shell">
+        <div class="toolbar-grid kb-toolbar">
+          <input
+            v-model="kbFilters.keyword"
+            class="field-control"
+            type="text"
+            placeholder="搜索文档编码、文档名称、业务键、来源系统"
+            @keyup.enter="handleSearch"
+          />
+
+          <select v-model="kbFilters.kbId" class="field-control" @change="selectKnowledgeBase(kbFilters.kbId)">
+            <option value="">全部知识库</option>
+            <option v-for="item in knowledgeBaseList" :key="item.kbId" :value="item.kbId">
+              {{ item.kbName }} ({{ item.kbId }})
+            </option>
+          </select>
+
+          <select v-model="kbFilters.enabled" class="field-control">
+            <option v-for="item in enabledOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
+          </select>
+
+          <div class="toolbar-actions">
+            <button class="action-btn primary" type="button" @click="handleSearch">查询</button>
+            <button class="action-btn" type="button" @click="resetKbFilters">重置</button>
+          </div>
+        </div>
+
+        <section class="kb-summary-card">
+          <header class="kb-summary-head">
+            <div>
+              <h3>知识库清单</h3>
+              <p>优先查看本地知识库主表状态，再下钻文档台账。</p>
+            </div>
+          </header>
+
+          <div v-if="loading.kb" class="table-state">正在加载知识库列表...</div>
+
+          <div v-else class="kb-chip-grid">
+            <button
+              v-for="item in knowledgeBaseList"
+              :key="item.kbId"
+              class="kb-chip"
+              :class="{ active: kbFilters.kbId === item.kbId }"
+              type="button"
+              @click="selectKnowledgeBase(item.kbId)"
+            >
+              <div class="kb-chip-head">
+                <strong>{{ item.kbName }}</strong>
+                <span class="state-chip" :class="item.enabled ? 'is-on' : 'is-off'">
+                  {{ item.enabled ? '启用' : '停用' }}
+                </span>
+              </div>
+              <span>{{ item.kbId }}</span>
+              <span>{{ item.sourceType || '-' }} / {{ item.sourceKey || '-' }}</span>
+              <span>{{ item.providerKbId || '未绑定 Provider KB' }}</span>
+            </button>
+
+            <div v-if="!knowledgeBaseList.length" class="empty-cell">暂无知识库数据</div>
+          </div>
+        </section>
+
+        <div class="table-card">
+          <div v-if="loading.kb" class="table-state">正在加载知识库文档...</div>
+
+          <template v-else>
+            <div class="table-scroll">
+              <table class="data-table kb-table">
+                <thead>
+                  <tr>
+                    <th>知识库</th>
+                    <th>文档编码</th>
+                    <th>文档名称</th>
+                    <th>状态</th>
+                    <th>审核状态</th>
+                    <th>内容格式</th>
+                    <th>内容大小</th>
+                    <th>最近生成</th>
+                    <th>操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="row in pagedKbDocuments" :key="`${row.kbCode}-${row.documentCode}`">
+                    <td>{{ row.kbCode }}</td>
+                    <td>{{ row.documentCode }}</td>
+                    <td>{{ row.documentName || '-' }}</td>
+                    <td>{{ row.status || '-' }}</td>
+                    <td>{{ row.reviewStatus || '-' }}</td>
+                    <td>{{ row.contentFormat || '-' }}</td>
+                    <td>{{ formatContentSize(row.contentSize) }}</td>
+                    <td>{{ formatDateTime(row.lastGeneratedAt) }}</td>
+                    <td>
+                      <div class="row-actions">
+                        <button class="link-btn" type="button" @click="openKbDetail(row)">详情</button>
+                      </div>
+                    </td>
+                  </tr>
+                  <tr v-if="!pagedKbDocuments.length">
+                    <td colspan="9" class="empty-cell">暂无知识库文档数据</td>
                   </tr>
                 </tbody>
               </table>
@@ -464,6 +558,51 @@ const {
             {{ loading.modelSaving ? '保存中...' : '保存' }}
           </button>
         </footer>
+      </div>
+    </div>
+
+    <div v-if="kbDetailVisible" class="modal-mask" @click.self="kbDetailVisible = false">
+      <div class="modal-card modal-large">
+        <header class="modal-head">
+          <h3>知识库文档详情</h3>
+          <button class="close-btn" type="button" @click="kbDetailVisible = false">×</button>
+        </header>
+
+        <p v-if="kbDetailError" class="error-banner">{{ kbDetailError }}</p>
+        <div v-else-if="loading.kbDetail" class="table-state">正在加载文档详情...</div>
+
+        <template v-else-if="kbDetail">
+          <section class="dialog-section">
+            <header class="section-head">
+              <h4>{{ kbDetail.documentName || kbDetail.documentCode }}</h4>
+              <p>{{ kbDetail.kbCode }} / {{ kbDetail.documentCode }}</p>
+            </header>
+
+            <div class="kb-detail-grid">
+              <div class="detail-item">
+                <span>状态</span>
+                <strong>{{ kbDetail.status || '-' }}</strong>
+              </div>
+              <div class="detail-item">
+                <span>审核状态</span>
+                <strong>{{ kbDetail.reviewStatus || '-' }}</strong>
+              </div>
+              <div class="detail-item">
+                <span>内容格式</span>
+                <strong>{{ kbDetail.contentFormat || '-' }}</strong>
+              </div>
+              <div class="detail-item">
+                <span>内容大小</span>
+                <strong>{{ formatContentSize(kbDetail.contentSize) }}</strong>
+              </div>
+            </div>
+
+            <div class="kb-detail-section">
+              <h4>正文内容</h4>
+              <pre class="kb-detail-pre">{{ kbDetail.renderedContent || '-' }}</pre>
+            </div>
+          </section>
+        </template>
       </div>
     </div>
   </div>

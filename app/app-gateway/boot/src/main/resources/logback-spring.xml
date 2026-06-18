@@ -102,6 +102,7 @@
     </appender>
 
     <logger name="ai.platform" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SERVER_FILE"/>
     </logger>
 
@@ -110,6 +111,7 @@
     </logger>
 
     <logger name="org.athena" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SERVER_FILE"/>
     </logger>
 
@@ -122,23 +124,26 @@
     </logger>
 
     <logger name="org.apache.ibatis" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="org.mybatis" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="com.baomidou.mybatisplus" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="java.sql" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <root level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ALL_FILE"/>
     </root>
 </configuration>

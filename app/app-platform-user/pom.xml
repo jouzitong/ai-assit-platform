@@ -36,12 +36,24 @@
                 <artifactId>app-platform-user-boot</artifactId>
                 <version>${app.platform.user.version}</version>
             </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-user-system-settings-api</artifactId>
+                <version>${app.platform.user.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-user-data-system-settings</artifactId>
+                <version>${app.platform.user.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
     <modules>
         <module>api</module>
         <module>core</module>
+        <module>system-settings-api</module>
+        <module>data-system-settings</module>
         <module>boot</module>
     </modules>
 </project>
