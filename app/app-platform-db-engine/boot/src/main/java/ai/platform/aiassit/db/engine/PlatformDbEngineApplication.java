@@ -1,12 +1,20 @@
 package ai.platform.aiassit.db.engine;
 
+import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseManageApi;
+import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 import java.util.Map;
 
 @SpringBootApplication
 //@MapperScan("com.zhouzhitong.test.mybatis.mapper")
+@EnableFeignClients(basePackageClasses = {
+        AiKnowledgeBaseManageApi.class,
+        SystemSettingInternalApi.class,
+})
+
 public class PlatformDbEngineApplication {
 
     public static void main(String[] args) {

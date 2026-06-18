@@ -43,6 +43,8 @@ const {
   knowledgePreviewLoading,
   knowledgePreviewError,
   knowledgePreviewData,
+  knowledgeSyncSubmitting,
+  knowledgeSyncTarget,
   templateSubmitting,
   handleSourceChange,
   handlePageChange,
@@ -61,6 +63,7 @@ const {
   closeExportDialog,
   openKnowledgePreview,
   closeKnowledgePreview,
+  syncKnowledgeBase,
   handleImportDragEnter,
   handleImportDragLeave,
   handleImportFile,
@@ -120,6 +123,9 @@ function onFileDrop(event) {
           <Download :size="16" />
           {{ exportSubmitting ? '导出中...' : '导出' }}
         </button>
+        <button type="button" class="toolbar-btn secondary" :disabled="knowledgeSyncSubmitting" @click="syncKnowledgeBase()">
+          {{ knowledgeSyncSubmitting && !knowledgeSyncTarget ? '同步中...' : '同步知识库' }}
+        </button>
       </div>
     </section>
 
@@ -162,7 +168,9 @@ function onFileDrop(event) {
                   <button type="button" class="link-btn">数据查看</button>
                   <button type="button" class="link-btn" @click="openKnowledgePreview(item)">知识库预览</button>
                   <button type="button" class="link-btn" @click="openFieldWorkbench(item)">字段</button>
-                  <button type="button" class="link-btn">同步</button>
+                  <button type="button" class="link-btn" :disabled="knowledgeSyncSubmitting" @click="syncKnowledgeBase(item)">
+                    {{ knowledgeSyncSubmitting && knowledgeSyncTarget === item.name ? '同步中...' : '同步' }}
+                  </button>
                   <button type="button" class="link-btn">权限</button>
                 </div>
               </td>

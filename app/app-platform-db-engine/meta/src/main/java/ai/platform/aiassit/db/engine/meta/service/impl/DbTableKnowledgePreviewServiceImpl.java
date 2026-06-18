@@ -40,7 +40,11 @@ public class DbTableKnowledgePreviewServiceImpl implements DbTableKnowledgePrevi
 
         DbTableMetaDTO tableMeta = findTable(sourceKey, tableName);
         List<DbTableFieldMetaDTO> fields = findFields(sourceKey, tableName);
+        return preview(tableMeta, fields);
+    }
 
+    @Override
+    public DbTableKnowledgePreviewDTO preview(DbTableMetaDTO tableMeta, List<DbTableFieldMetaDTO> fields) {
         DbTableKnowledgePreviewDTO preview = new DbTableKnowledgePreviewDTO();
         preview.setType("markdown");
         preview.setContent(buildMarkdown(tableMeta, fields));

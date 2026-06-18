@@ -50,6 +50,13 @@ export function previewDbTableKnowledge(sourceKey, tableName) {
   })
 }
 
+export function syncDbTableKnowledge(payload) {
+  return request(`${DB_ENGINE_TABLE_META_API_PREFIX}/knowledge-sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
 export function importDbMetaWorkbook(sourceKey, file) {
   const formData = new FormData()
   formData.append('file', file)

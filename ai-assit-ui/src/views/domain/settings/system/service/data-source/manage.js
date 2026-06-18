@@ -1,6 +1,6 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, previewDbTableKnowledge, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook } from '../../../../../../api/dbEngine'
+import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, previewDbTableKnowledge, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook, syncDbTableKnowledge } from '../../../../../../api/dbEngine'
 import { showPopup } from '../../../../../../utils/popup'
 
 export function useDataSourceManagePage() {
@@ -31,6 +31,8 @@ export function useDataSourceManagePage() {
   const knowledgePreviewLoading = ref(false)
   const knowledgePreviewError = ref('')
   const knowledgePreviewData = reactive(createEmptyKnowledgePreview())
+  const knowledgeSyncSubmitting = ref(false)
+  const knowledgeSyncTarget = ref('')
   const pageSizeOptions = [10, 20, 50]
   let importProgressStreamAbortController = null
 
@@ -195,6 +197,39 @@ export function useDataSourceManagePage() {
     knowledgePreviewLoading.value = false
     knowledgePreviewError.value = ''
     Object.assign(knowledgePreviewData, createEmptyKnowledgePreview())
+  }
+
+  async function syncKnowledgeBase(item = null) {
+    if (!sourceKey.value) {
+      showPopup.error('当前数据源信息不完整，无法同步知识库')
+      return
+    }
+    const tableName = item?.name || ''
+    const confirmMessage = tableName
+      ? `确认同步数据表「${tableName}」到知识库吗？`
+      : `确认同步当前数据源「${currentSource.value?.name || sourceKey.value}」下的全部数据表到知识库吗？`
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+    knowledgeSyncSubmitting.value = true
+    knowledgeSyncTarget.value = tableName
+    try {
+      const response = await syncDbTableKnowledge({
+        sourceKey: sourceKey.value,
+        tableName: tableName || undefined
+      })
+      const payload = unwrapPayload(response) || {}
+      const totalCount = Number(payload.totalCount ?? 0)
+      const createdCount = Number(payload.createdCount ?? 0)
+      const updatedCount = Number(payload.updatedCount ?? 0)
+      const unchangedCount = Number(payload.unchangedCount ?? 0)
+      showPopup.success(`知识库同步完成：共 ${totalCount} 张表，新增 ${createdCount}，更新 ${updatedCount}，未变更 ${unchangedCount}`)
+    } catch (error) {
+      showPopup.error(error.message || '知识库同步失败')
+    } finally {
+      knowledgeSyncSubmitting.value = false
+      knowledgeSyncTarget.value = ''
+    }
   }
 
   function handleImportDragEnter() {
@@ -602,6 +637,8 @@ export function useDataSourceManagePage() {
     knowledgePreviewLoading,
     knowledgePreviewError,
     knowledgePreviewData,
+    knowledgeSyncSubmitting,
+    knowledgeSyncTarget,
     templateSubmitting,
     handleSourceChange,
     handlePageChange,
@@ -620,6 +657,7 @@ export function useDataSourceManagePage() {
     closeExportDialog,
     openKnowledgePreview,
     closeKnowledgePreview,
+    syncKnowledgeBase,
     handleImportDragEnter,
     handleImportDragLeave,
     handleImportFile,
