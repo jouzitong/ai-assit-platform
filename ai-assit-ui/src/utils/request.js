@@ -45,11 +45,22 @@ function unwrapBusinessPayload(payload, fallback = '请求失败') {
 }
 
 async function readResponsePayload(response) {
+  if (response.status === 204 || response.status === 205) {
+    return null
+  }
+
+  const contentLength = response.headers.get('content-length')
+  if (contentLength === '0') {
+    return null
+  }
+
   const contentType = response.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
     return response.json()
   }
-  return response.text()
+
+  const text = await response.text()
+  return text.trim() ? text : null
 }
 
 async function request(path, options = {}) {
