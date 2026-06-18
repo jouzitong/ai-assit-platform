@@ -100,38 +100,6 @@ export function useAiPage() {
     return filteredKbDocuments.value.slice(start, start + kbPagination.size)
   })
 
-  const currentStats = computed(() => {
-    if (activeTab.value === 'provider') {
-      const enabledCount = providerList.value.filter((item) => item.enabled).length
-      return [
-        { label: '总记录', value: providerPagination.total },
-        { label: '当前页', value: providerList.value.length },
-        { label: '启用中', value: enabledCount },
-        { label: '已停用', value: Math.max(providerList.value.length - enabledCount, 0) }
-      ]
-    }
-
-    if (activeTab.value === 'model') {
-      const enabledCount = modelList.value.filter((item) => item.enabled).length
-      const credentialCount = modelList.value.filter((item) => item.credentialCode).length
-      return [
-        { label: '总记录', value: modelPagination.total },
-        { label: '当前页', value: modelList.value.length },
-        { label: '启用中', value: enabledCount },
-        { label: '已绑定凭证', value: credentialCount }
-      ]
-    }
-
-    const enabledCount = knowledgeBaseList.value.filter((item) => item.enabled).length
-    const providerBoundCount = knowledgeBaseList.value.filter((item) => item.providerKbId).length
-    return [
-      { label: '知识库', value: knowledgeBaseList.value.length },
-      { label: '当前文档', value: filteredKbDocuments.value.length },
-      { label: '启用中', value: enabledCount },
-      { label: '已绑定 Provider KB', value: providerBoundCount }
-    ]
-  })
-
   const currentTotal = computed(() => {
     if (activeTab.value === 'provider') {
       return providerPagination.total
@@ -755,7 +723,6 @@ export function useAiPage() {
     kbDetail,
     enabledOptions,
     pageSizeOptions,
-    currentStats,
     currentTotal,
     currentPage,
     currentSize,

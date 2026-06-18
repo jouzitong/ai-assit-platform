@@ -26,7 +26,6 @@ const {
   kbDetail,
   enabledOptions,
   pageSizeOptions,
-  currentStats,
   currentPage,
   currentSize,
   pageSummary,
@@ -67,13 +66,6 @@ const {
         {{ activeTab === 'provider' ? '新增 Provider' : activeTab === 'model' ? '新增 Model' : '刷新 KB' }}
       </button>
     </header>
-
-    <section class="stats-row">
-      <article v-for="item in currentStats" :key="item.label" class="stat-card">
-        <strong>{{ item.value }}</strong>
-        <span>{{ item.label }}</span>
-      </article>
-    </section>
 
     <section class="workspace-card">
       <div class="tab-strip">
