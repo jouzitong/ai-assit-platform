@@ -10,6 +10,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 
 import java.time.LocalDateTime;
@@ -26,59 +27,91 @@ import java.util.Map;
 @TableName(value = "ai_kb_store", autoResultMap = true)
 public class AiKbStoreEntity extends AuditableEntity {
 
-    /** 本地知识库编码。 */
+    /**
+     * 本地知识库编码。
+     *
+     * @see #providerKbId 与 kbCode 相同
+     */
     @TableField("kb_code")
     private String kbCode;
 
-    /** 知识库名称。 */
+    /**
+     * 知识库名称。
+     */
     @TableField("kb_name")
     private String kbName;
 
-    /** 业务类型，例如 DB_DATA_SOURCE。 */
-    @TableField("biz_type")
+    /**
+     * 业务类型，例如 DB_DATA_SOURCE。
+     */
+    @TableField(value = "biz_type", typeHandler = DefaultEnumTypeHandler.class)
     private AiKbBizType bizType;
 
-    /** 业务唯一键，例如 sourceKey。 */
+    /**
+     * 业务唯一键，例如 sourceKey。
+     */
     @TableField("biz_key")
     private String bizKey;
 
-    /** Provider 编码，例如 qwen。 */
+    /**
+     * Provider 编码，例如 qwen。
+     *
+     * @see AiProviderConfigEntity#getProviderCode
+     */
     @TableField("provider_code")
     private String providerCode;
 
-    /** AI 侧真实知识库 ID。 */
+    /**
+     * AI 侧真实知识库 ID。
+     */
     @TableField("provider_kb_id")
     private String providerKbId;
 
-    /** 当前生效版本 ID。 */
+    /**
+     * 当前生效版本 ID。
+     */
     @TableField("current_version_id")
     private Long currentVersionId;
 
-    /** 当前生效版本号。 */
+    /**
+     * 当前生效版本号。
+     */
     @TableField("current_version_no")
     private Integer currentVersionNo;
 
-    /** 状态，例如 INIT、ACTIVE、SYNCING、FAILED、DISABLED。 */
-    @TableField("status")
+    /**
+     * 状态，例如 INIT、ACTIVE、SYNCING、FAILED、DISABLED。
+     */
+    @TableField(value = "status", typeHandler = DefaultEnumTypeHandler.class)
     private AiKbStoreStatus status;
 
-    /** 是否启用。 */
+    /**
+     * 是否启用。
+     */
     @TableField("enabled")
     private Boolean enabled;
 
-    /** 知识库级可配置参数。 */
+    /**
+     * 知识库级可配置参数。
+     */
     @TableField(value = "config_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> configJson;
 
-    /** 扩展信息。 */
+    /**
+     * 扩展信息。
+     */
     @TableField(value = "ext_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> extJson;
 
-    /** 最近一次发布时间。 */
+    /**
+     * 最近一次发布时间。
+     */
     @TableField("last_publish_at")
     private LocalDateTime lastPublishAt;
 
-    /** 备注。 */
+    /**
+     * 备注。
+     */
     @TableField("remark")
     private String remark;
 }

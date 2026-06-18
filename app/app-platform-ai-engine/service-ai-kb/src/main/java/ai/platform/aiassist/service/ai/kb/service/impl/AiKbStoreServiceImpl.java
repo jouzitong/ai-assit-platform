@@ -76,17 +76,36 @@ public class AiKbStoreServiceImpl
             if (StringUtils.hasText(req.getKbCode())) {
                 wrapper.lambda().eq(AiKbStoreEntity::getKbCode, req.getKbCode());
             }
+            if (StringUtils.hasText(req.getKbName())) {
+                wrapper.lambda().like(AiKbStoreEntity::getKbName, req.getKbName().trim());
+            }
             if (StringUtils.hasText(req.getBizKey())) {
                 wrapper.lambda().eq(AiKbStoreEntity::getBizKey, req.getBizKey());
             }
             if (req.getBizType() != null) {
                 wrapper.lambda().eq(AiKbStoreEntity::getBizType, req.getBizType());
             }
+            if (StringUtils.hasText(req.getProviderCode())) {
+                wrapper.lambda().eq(AiKbStoreEntity::getProviderCode, req.getProviderCode().trim());
+            }
             if (req.getStatus() != null) {
                 wrapper.lambda().eq(AiKbStoreEntity::getStatus, req.getStatus());
             }
             if (req.getEnabled() != null) {
                 wrapper.lambda().eq(AiKbStoreEntity::getEnabled, req.getEnabled());
+            }
+            if (StringUtils.hasText(req.getKeyword())) {
+                String keyword = req.getKeyword().trim();
+                wrapper.and(item -> item.lambda()
+                        .like(AiKbStoreEntity::getKbCode, keyword)
+                        .or()
+                        .like(AiKbStoreEntity::getKbName, keyword)
+                        .or()
+                        .like(AiKbStoreEntity::getBizKey, keyword)
+                        .or()
+                        .like(AiKbStoreEntity::getProviderCode, keyword)
+                        .or()
+                        .like(AiKbStoreEntity::getProviderKbId, keyword));
             }
             wrapper.lambda().orderByDesc(AiKbStoreEntity::getUpdateTime, AiKbStoreEntity::getId);
         }

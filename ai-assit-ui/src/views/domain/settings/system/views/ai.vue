@@ -10,9 +10,8 @@ const {
   kbFilters,
   providerList,
   modelList,
+  kbList,
   providerOptions,
-  knowledgeBaseList,
-  pagedKbDocuments,
   providerDialogVisible,
   providerDialogMode,
   providerError,
@@ -21,10 +20,13 @@ const {
   modelDialogMode,
   modelError,
   modelForm,
-  kbDetailVisible,
-  kbDetailError,
-  kbDetail,
+  kbDialogVisible,
+  kbDialogMode,
+  kbError,
+  kbForm,
   enabledOptions,
+  kbBizTypeOptions,
+  kbStatusOptions,
   pageSizeOptions,
   currentPage,
   currentSize,
@@ -32,13 +34,16 @@ const {
   totalPages,
   openProviderEdit,
   openModelEdit,
-  openKbDetail,
+  openKbEdit,
   submitProviderForm,
   submitModelForm,
+  submitKbForm,
   toggleProviderStatus,
   toggleModelStatus,
+  toggleKbStatus,
   confirmDeleteProvider,
   confirmDeleteModel,
+  confirmDeleteKb,
   resetProviderFilters,
   resetModelFilters,
   resetKbFilters,
@@ -46,9 +51,7 @@ const {
   handlePageChange,
   handlePageSizeChange,
   openCreateByTab,
-  selectKnowledgeBase,
   formatDateTime,
-  formatContentSize,
   tagList
 } = useAiPage()
 </script>
@@ -59,11 +62,11 @@ const {
       <div class="head-copy">
         <p class="crumb">系统设置 / AI 接入</p>
         <h1>AI 元数据维护</h1>
-        <p class="desc">页面统一维护 Provider、Model 与本地知识库文档台账；KB 视图当前聚焦查询与详情查看。</p>
+        <p class="desc">页面统一维护 Provider、Model 与本地知识库主表配置，KB 管理直接对齐 ai_kb_store。</p>
       </div>
 
       <button class="create-pill" type="button" @click="openCreateByTab">
-        {{ activeTab === 'provider' ? '新增 Provider' : activeTab === 'model' ? '新增 Model' : '刷新 KB' }}
+        {{ activeTab === 'provider' ? '新增 Provider' : activeTab === 'model' ? '新增 Model' : '新增 KB' }}
       </button>
     </header>
 
@@ -251,15 +254,19 @@ const {
             v-model="kbFilters.keyword"
             class="field-control"
             type="text"
-            placeholder="搜索文档编码、文档名称、业务键、来源系统"
+            placeholder="搜索 KB 编码、名称、业务键、Provider KB"
             @keyup.enter="handleSearch"
           />
 
-          <select v-model="kbFilters.kbId" class="field-control" @change="selectKnowledgeBase(kbFilters.kbId)">
-            <option value="">全部知识库</option>
-            <option v-for="item in knowledgeBaseList" :key="item.kbId" :value="item.kbId">
-              {{ item.kbName }} ({{ item.kbId }})
+          <select v-model="kbFilters.providerCode" class="field-control">
+            <option value="">全部 Provider</option>
+            <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
+              {{ item.providerName }} ({{ item.providerCode }})
             </option>
+          </select>
+
+          <select v-model="kbFilters.status" class="field-control">
+            <option v-for="item in kbStatusOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
           </select>
 
           <select v-model="kbFilters.enabled" class="field-control">
@@ -272,77 +279,54 @@ const {
           </div>
         </div>
 
-        <section class="kb-summary-card">
-          <header class="kb-summary-head">
-            <div>
-              <h3>知识库清单</h3>
-              <p>优先查看本地知识库主表状态，再下钻文档台账。</p>
-            </div>
-          </header>
-
-          <div v-if="loading.kb" class="table-state">正在加载知识库列表...</div>
-
-          <div v-else class="kb-chip-grid">
-            <button
-              v-for="item in knowledgeBaseList"
-              :key="item.kbId"
-              class="kb-chip"
-              :class="{ active: kbFilters.kbId === item.kbId }"
-              type="button"
-              @click="selectKnowledgeBase(item.kbId)"
-            >
-              <div class="kb-chip-head">
-                <strong>{{ item.kbName }}</strong>
-                <span class="state-chip" :class="item.enabled ? 'is-on' : 'is-off'">
-                  {{ item.enabled ? '启用' : '停用' }}
-                </span>
-              </div>
-              <span>{{ item.kbId }}</span>
-              <span>{{ item.sourceType || '-' }} / {{ item.sourceKey || '-' }}</span>
-              <span>{{ item.providerKbId || '未绑定 Provider KB' }}</span>
-            </button>
-
-            <div v-if="!knowledgeBaseList.length" class="empty-cell">暂无知识库数据</div>
-          </div>
-        </section>
-
         <div class="table-card">
-          <div v-if="loading.kb" class="table-state">正在加载知识库文档...</div>
+          <div v-if="loading.kb" class="table-state">正在加载 KB 列表...</div>
 
           <template v-else>
             <div class="table-scroll">
               <table class="data-table kb-table">
                 <thead>
                   <tr>
-                    <th>知识库</th>
-                    <th>文档编码</th>
-                    <th>文档名称</th>
+                    <th>KB 编码</th>
+                    <th>KB 名称</th>
+                    <th>业务类型</th>
+                    <th>业务键</th>
+                    <th>Provider</th>
+                    <th>Provider KB ID</th>
+                    <th>当前版本</th>
                     <th>状态</th>
-                    <th>审核状态</th>
-                    <th>内容格式</th>
-                    <th>内容大小</th>
-                    <th>最近生成</th>
+                    <th>启用</th>
+                    <th>最近发布</th>
+                    <th>备注</th>
                     <th>操作</th>
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="row in pagedKbDocuments" :key="`${row.kbCode}-${row.documentCode}`">
+                  <tr v-for="row in kbList" :key="row.id">
                     <td>{{ row.kbCode }}</td>
-                    <td>{{ row.documentCode }}</td>
-                    <td>{{ row.documentName || '-' }}</td>
+                    <td>{{ row.kbName }}</td>
+                    <td>{{ row.bizType || '-' }}</td>
+                    <td>{{ row.bizKey }}</td>
+                    <td>{{ row.providerCode || '-' }}</td>
+                    <td class="ellipsis">{{ row.providerKbId || '-' }}</td>
+                    <td>{{ row.currentVersionNo ?? '-' }}</td>
                     <td>{{ row.status || '-' }}</td>
-                    <td>{{ row.reviewStatus || '-' }}</td>
-                    <td>{{ row.contentFormat || '-' }}</td>
-                    <td>{{ formatContentSize(row.contentSize) }}</td>
-                    <td>{{ formatDateTime(row.lastGeneratedAt) }}</td>
+                    <td>
+                      <button class="status-btn" :class="row.enabled ? 'is-on' : 'is-off'" type="button" @click="toggleKbStatus(row)">
+                        {{ row.enabled ? '启用' : '停用' }}
+                      </button>
+                    </td>
+                    <td>{{ formatDateTime(row.lastPublishAt) }}</td>
+                    <td class="ellipsis">{{ row.remark || '-' }}</td>
                     <td>
                       <div class="row-actions">
-                        <button class="link-btn" type="button" @click="openKbDetail(row)">详情</button>
+                        <button class="link-btn" type="button" @click="openKbEdit(row)">编辑</button>
+                        <button class="link-btn danger" type="button" @click="confirmDeleteKb(row)">删除</button>
                       </div>
                     </td>
                   </tr>
-                  <tr v-if="!pagedKbDocuments.length">
-                    <td colspan="9" class="empty-cell">暂无知识库文档数据</td>
+                  <tr v-if="!kbList.length">
+                    <td colspan="12" class="empty-cell">暂无 KB 数据</td>
                   </tr>
                 </tbody>
               </table>
@@ -363,12 +347,7 @@ const {
               上一页
             </button>
             <span class="pager-indicator">{{ currentPage }} / {{ totalPages }}</span>
-            <button
-              class="action-btn"
-              type="button"
-              :disabled="currentPage >= totalPages"
-              @click="handlePageChange(currentPage + 1)"
-            >
+            <button class="action-btn" type="button" :disabled="currentPage >= totalPages" @click="handlePageChange(currentPage + 1)">
               下一页
             </button>
           </div>
@@ -553,48 +532,76 @@ const {
       </div>
     </div>
 
-    <div v-if="kbDetailVisible" class="modal-mask" @click.self="kbDetailVisible = false">
+    <div v-if="kbDialogVisible" class="modal-mask" @click.self="kbDialogVisible = false">
       <div class="modal-card modal-large">
         <header class="modal-head">
-          <h3>知识库文档详情</h3>
-          <button class="close-btn" type="button" @click="kbDetailVisible = false">×</button>
+          <h3>{{ kbDialogMode === 'create' ? '新增 KB' : '编辑 KB' }}</h3>
+          <button class="close-btn" type="button" @click="kbDialogVisible = false">×</button>
         </header>
 
-        <p v-if="kbDetailError" class="error-banner">{{ kbDetailError }}</p>
-        <div v-else-if="loading.kbDetail" class="table-state">正在加载文档详情...</div>
+        <p v-if="kbError" class="error-banner">{{ kbError }}</p>
 
-        <template v-else-if="kbDetail">
-          <section class="dialog-section">
-            <header class="section-head">
-              <h4>{{ kbDetail.documentName || kbDetail.documentCode }}</h4>
-              <p>{{ kbDetail.kbCode }} / {{ kbDetail.documentCode }}</p>
-            </header>
+        <div class="form-grid three-column">
+          <label class="field-block">
+            <span>KB 编码</span>
+            <input v-model="kbForm.kbCode" class="field-control" type="text" :disabled="kbDialogMode === 'edit'" />
+          </label>
+          <label class="field-block">
+            <span>KB 名称</span>
+            <input v-model="kbForm.kbName" class="field-control" type="text" />
+          </label>
+          <label class="field-block">
+            <span>业务类型</span>
+            <select v-model="kbForm.bizType" class="field-control">
+              <option v-for="item in kbBizTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
 
-            <div class="kb-detail-grid">
-              <div class="detail-item">
-                <span>状态</span>
-                <strong>{{ kbDetail.status || '-' }}</strong>
-              </div>
-              <div class="detail-item">
-                <span>审核状态</span>
-                <strong>{{ kbDetail.reviewStatus || '-' }}</strong>
-              </div>
-              <div class="detail-item">
-                <span>内容格式</span>
-                <strong>{{ kbDetail.contentFormat || '-' }}</strong>
-              </div>
-              <div class="detail-item">
-                <span>内容大小</span>
-                <strong>{{ formatContentSize(kbDetail.contentSize) }}</strong>
-              </div>
-            </div>
+          <label class="field-block">
+            <span>业务键</span>
+            <input v-model="kbForm.bizKey" class="field-control" type="text" />
+          </label>
+          <label class="field-block">
+            <span>Provider</span>
+            <select v-model="kbForm.providerCode" class="field-control">
+              <option value="">未绑定</option>
+              <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
+                {{ item.providerName }} ({{ item.providerCode }})
+              </option>
+            </select>
+          </label>
+          <label class="field-block">
+            <span>Provider KB ID</span>
+            <input v-model="kbForm.providerKbId" class="field-control" type="text" />
+          </label>
 
-            <div class="kb-detail-section">
-              <h4>正文内容</h4>
-              <pre class="kb-detail-pre">{{ kbDetail.renderedContent || '-' }}</pre>
-            </div>
-          </section>
-        </template>
+          <label class="field-block">
+            <span>当前版本号</span>
+            <input v-model="kbForm.currentVersionNo" class="field-control" type="number" min="0" />
+          </label>
+          <label class="field-block">
+            <span>状态</span>
+            <select v-model="kbForm.status" class="field-control">
+              <option v-for="item in kbStatusOptions.slice(1)" :key="item.value" :value="item.value">{{ item.label }}</option>
+            </select>
+          </label>
+          <label class="switch-block">
+            <input v-model="kbForm.enabled" type="checkbox" />
+            <span>启用 KB</span>
+          </label>
+
+          <label class="field-block full-span">
+            <span>备注</span>
+            <textarea v-model="kbForm.remark" class="field-control textarea-control" rows="4" />
+          </label>
+        </div>
+
+        <footer class="modal-actions">
+          <button class="action-btn" type="button" @click="kbDialogVisible = false">取消</button>
+          <button class="action-btn primary" type="button" :disabled="loading.kbSaving" @click="submitKbForm">
+            {{ loading.kbSaving ? '保存中...' : '保存' }}
+          </button>
+        </footer>
       </div>
     </div>
   </div>

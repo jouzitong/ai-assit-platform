@@ -139,7 +139,12 @@
 }
 
 .kb-toolbar {
-  grid-template-columns: minmax(220px, 1.5fr) minmax(220px, 260px) minmax(180px, 200px) auto;
+  grid-template-columns:
+    minmax(240px, 1.5fr)
+    minmax(200px, 220px)
+    minmax(180px, 200px)
+    minmax(180px, 200px)
+    auto;
 }
 
 .field-control {
@@ -338,7 +343,7 @@
 }
 
 .kb-table {
-  min-width: 1080px;
+  min-width: 1400px;
 }
 
 .provider-cell {

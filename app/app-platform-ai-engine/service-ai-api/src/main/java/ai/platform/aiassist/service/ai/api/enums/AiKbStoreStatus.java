@@ -2,6 +2,7 @@ package ai.platform.aiassist.service.ai.api.enums;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
+import org.arthena.framework.common.annotation.EnumValue;
 import org.arthena.framework.common.enums.IEnum;
 
 @Getter
@@ -13,6 +14,7 @@ public enum AiKbStoreStatus implements IEnum {
     DISABLED(5, "DISABLED", "停用"),
     ;
 
+    @EnumValue
     private final int code;
 
     @JsonValue

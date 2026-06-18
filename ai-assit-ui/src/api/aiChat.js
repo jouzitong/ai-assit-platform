@@ -181,7 +181,41 @@ export function deleteAiChatModelManage(id) {
   })
 }
 
-export function searchAiKnowledgeBases(payload) {
+export function searchAiKbStores(payload) {
+  return request(`${AI_ENGINE_API_PREFIX}/kb/internal/store/_search`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function createAiKbStore(payload) {
+  return request(`${AI_ENGINE_API_PREFIX}/kb/internal/store`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function updateAiKbStore(id, payload) {
+  return request(`${AI_ENGINE_API_PREFIX}/kb/internal/store/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function editAiKbStore(id, payload) {
+  return request(`${AI_ENGINE_API_PREFIX}/kb/internal/store/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function deleteAiKbStore(id) {
+  return request(`${AI_ENGINE_API_PREFIX}/kb/internal/store/${id}`, {
+    method: 'DELETE'
+  })
+}
+
+export function listAiKnowledgeBases(payload) {
   return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/list`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})

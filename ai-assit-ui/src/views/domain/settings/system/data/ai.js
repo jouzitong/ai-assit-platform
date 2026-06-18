@@ -6,6 +6,17 @@ export const enabledOptions = [
 
 export const pageSizeOptions = [10, 20, 50]
 
+export const kbBizTypeOptions = [{ label: '数据库数据源', value: 'DB_DATA_SOURCE' }]
+
+export const kbStatusOptions = [
+  { label: '全部状态', value: '' },
+  { label: 'INIT', value: 'INIT' },
+  { label: 'ACTIVE', value: 'ACTIVE' },
+  { label: 'SYNCING', value: 'SYNCING' },
+  { label: 'FAILED', value: 'FAILED' },
+  { label: 'DISABLED', value: 'DISABLED' }
+]
+
 export function createProviderForm() {
   return {
     id: null,
@@ -41,5 +52,21 @@ export function createModelForm() {
     credentialEnabled: true,
     expireAt: '',
     credentialRemark: ''
+  }
+}
+
+export function createKbForm() {
+  return {
+    id: null,
+    kbCode: '',
+    kbName: '',
+    bizType: 'DB_DATA_SOURCE',
+    bizKey: '',
+    providerCode: '',
+    providerKbId: '',
+    currentVersionNo: '',
+    status: 'INIT',
+    enabled: true,
+    remark: ''
   }
 }

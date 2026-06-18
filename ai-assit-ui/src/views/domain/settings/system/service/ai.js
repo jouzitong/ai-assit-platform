@@ -2,20 +2,30 @@ import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   createAiChatModelManage,
   createAiChatProviderConfig,
+  createAiKbStore,
   deleteAiChatModelManage,
   deleteAiChatProviderConfig,
+  deleteAiKbStore,
   editAiChatModelManage,
   editAiChatProviderConfig,
+  editAiKbStore,
   getAiChatModelManage,
-  getAiKnowledgeBaseDocumentDetail,
-  listAiKnowledgeBaseDocuments,
   searchAiChatModelManages,
   searchAiChatProviderConfigs,
-  searchAiKnowledgeBases,
+  searchAiKbStores,
   updateAiChatModelManage,
-  updateAiChatProviderConfig
+  updateAiChatProviderConfig,
+  updateAiKbStore
 } from '../../../../../api/aiChat'
-import { createModelForm, createProviderForm, enabledOptions, pageSizeOptions } from '../data/ai'
+import {
+  createKbForm,
+  createModelForm,
+  createProviderForm,
+  enabledOptions,
+  kbBizTypeOptions,
+  kbStatusOptions,
+  pageSizeOptions
+} from '../data/ai'
 import { showPopup } from '../../../../../utils/popup'
 
 export function useAiPage() {
@@ -24,9 +34,9 @@ export function useAiPage() {
     provider: false,
     model: false,
     kb: false,
-    kbDetail: false,
     providerSaving: false,
-    modelSaving: false
+    modelSaving: false,
+    kbSaving: false
   })
 
   const providerFilters = reactive({
@@ -41,8 +51,9 @@ export function useAiPage() {
   })
 
   const kbFilters = reactive({
-    kbId: '',
     keyword: '',
+    providerCode: '',
+    status: '',
     enabled: ''
   })
 
@@ -66,9 +77,8 @@ export function useAiPage() {
 
   const providerList = ref([])
   const modelList = ref([])
+  const kbList = ref([])
   const providerOptions = ref([])
-  const knowledgeBaseList = ref([])
-  const kbDocumentList = ref([])
 
   const providerDialogVisible = ref(false)
   const providerDialogMode = ref('create')
@@ -80,25 +90,10 @@ export function useAiPage() {
   const modelError = ref('')
   const modelForm = reactive(createModelForm())
 
-  const kbDetailVisible = ref(false)
-  const kbDetailError = ref('')
-  const kbDetail = ref(null)
-
-  const filteredKbDocuments = computed(() => {
-    const keyword = kbFilters.keyword.trim().toLowerCase()
-    if (!keyword) {
-      return kbDocumentList.value
-    }
-    return kbDocumentList.value.filter((item) => {
-      const fields = [item.documentCode, item.documentName, item.bizKey, item.sourceSystem, item.status, item.reviewStatus]
-      return fields.some((field) => String(field || '').toLowerCase().includes(keyword))
-    })
-  })
-
-  const pagedKbDocuments = computed(() => {
-    const start = (kbPagination.page - 1) * kbPagination.size
-    return filteredKbDocuments.value.slice(start, start + kbPagination.size)
-  })
+  const kbDialogVisible = ref(false)
+  const kbDialogMode = ref('create')
+  const kbError = ref('')
+  const kbForm = reactive(createKbForm())
 
   const currentTotal = computed(() => {
     if (activeTab.value === 'provider') {
@@ -107,7 +102,7 @@ export function useAiPage() {
     if (activeTab.value === 'model') {
       return modelPagination.total
     }
-    return filteredKbDocuments.value.length
+    return kbPagination.total
   })
 
   const currentPage = computed({
@@ -170,33 +165,14 @@ export function useAiPage() {
 
   watch(activeTab, async () => {
     if (activeTab.value === 'kb') {
-      await loadKbPage()
+      await Promise.all([loadKbPage(), ensureProviderOptions()])
       return
     }
     await Promise.all([loadActiveTab(), ensureProviderOptions()])
   })
 
-  watch(
-    filteredKbDocuments,
-    (documents) => {
-      kbPagination.total = documents.length
-      const maxPage = Math.max(1, Math.ceil(documents.length / kbPagination.size))
-      if (kbPagination.page > maxPage) {
-        kbPagination.page = maxPage
-      }
-    },
-    { immediate: true }
-  )
-
-  watch(
-    () => kbFilters.keyword,
-    () => {
-      kbPagination.page = 1
-    }
-  )
-
   onMounted(async () => {
-    await Promise.all([loadProviderPage(), loadModelPage(), ensureProviderOptions(), loadKbPage()])
+    await Promise.all([loadProviderPage(), loadModelPage(), loadKbPage(), ensureProviderOptions()])
   })
 
   function buildProviderQuery() {
@@ -215,6 +191,17 @@ export function useAiPage() {
       keyword: modelFilters.keyword || undefined,
       providerCode: modelFilters.providerCode || undefined,
       enabled: parseBooleanFilter(modelFilters.enabled)
+    }
+  }
+
+  function buildKbQuery() {
+    return {
+      page: kbPagination.page,
+      size: kbPagination.size,
+      keyword: kbFilters.keyword || undefined,
+      providerCode: kbFilters.providerCode || undefined,
+      status: kbFilters.status || undefined,
+      enabled: parseBooleanFilter(kbFilters.enabled)
     }
   }
 
@@ -261,6 +248,19 @@ export function useAiPage() {
     }
   }
 
+  async function loadKbPage() {
+    loading.kb = true
+    try {
+      const payload = unwrapPayload(await searchAiKbStores(buildKbQuery()))
+      kbList.value = payload?.list ?? []
+      kbPagination.total = resolvePageTotal(payload?.pageInfo?.total, kbList.value.length)
+    } catch (error) {
+      showPopup.error(error.message || 'KB 列表加载失败')
+    } finally {
+      loading.kb = false
+    }
+  }
+
   async function ensureProviderOptions() {
     try {
       const payload = unwrapPayload(
@@ -272,36 +272,6 @@ export function useAiPage() {
       providerOptions.value = payload?.list ?? []
     } catch (error) {
       showPopup.error(error.message || 'Provider 选项加载失败')
-    }
-  }
-
-  async function loadKbPage() {
-    loading.kb = true
-    try {
-      const payload = await searchAiKnowledgeBases({
-        enabled: parseBooleanFilter(kbFilters.enabled)
-      })
-      knowledgeBaseList.value = Array.isArray(payload) ? payload : []
-      const nextKbId = resolveActiveKbId(knowledgeBaseList.value, kbFilters.kbId)
-      if (nextKbId !== kbFilters.kbId) {
-        kbFilters.kbId = nextKbId
-      }
-      await loadKbDocuments()
-    } catch (error) {
-      showPopup.error(error.message || '知识库列表加载失败')
-    } finally {
-      loading.kb = false
-    }
-  }
-
-  async function loadKbDocuments() {
-    try {
-      const payload = await listAiKnowledgeBaseDocuments(kbFilters.kbId ? { kbCode: kbFilters.kbId } : {})
-      kbDocumentList.value = Array.isArray(payload) ? payload : []
-      kbPagination.page = 1
-    } catch (error) {
-      kbDocumentList.value = []
-      showPopup.error(error.message || '知识库文档加载失败')
     }
   }
 
@@ -345,18 +315,20 @@ export function useAiPage() {
     }
   }
 
-  async function openKbDetail(row) {
-    loading.kbDetail = true
-    kbDetailError.value = ''
-    kbDetail.value = null
-    kbDetailVisible.value = true
-    try {
-      kbDetail.value = await getAiKnowledgeBaseDocumentDetail(row.kbCode, row.documentCode)
-    } catch (error) {
-      kbDetailError.value = error.message || '知识库文档详情加载失败'
-    } finally {
-      loading.kbDetail = false
-    }
+  function openKbCreate() {
+    kbDialogMode.value = 'create'
+    kbError.value = ''
+    Object.assign(kbForm, createKbForm())
+    kbDialogVisible.value = true
+  }
+
+  function openKbEdit(row) {
+    kbDialogMode.value = 'edit'
+    kbError.value = ''
+    Object.assign(kbForm, createKbForm(), JSON.parse(JSON.stringify(row)), {
+      currentVersionNo: row.currentVersionNo ?? ''
+    })
+    kbDialogVisible.value = true
   }
 
   function validateProviderForm() {
@@ -402,6 +374,27 @@ export function useAiPage() {
       return false
     }
     modelError.value = ''
+    return true
+  }
+
+  function validateKbForm() {
+    if (!kbForm.kbCode.trim()) {
+      kbError.value = '请输入 KB 编码'
+      return false
+    }
+    if (!kbForm.kbName.trim()) {
+      kbError.value = '请输入 KB 名称'
+      return false
+    }
+    if (!kbForm.bizType) {
+      kbError.value = '请选择业务类型'
+      return false
+    }
+    if (!kbForm.bizKey.trim()) {
+      kbError.value = '请输入业务键'
+      return false
+    }
+    kbError.value = ''
     return true
   }
 
@@ -485,6 +478,43 @@ export function useAiPage() {
     }
   }
 
+  async function submitKbForm() {
+    if (!validateKbForm()) {
+      return
+    }
+
+    loading.kbSaving = true
+    try {
+      const payload = {
+        kbCode: kbForm.kbCode.trim(),
+        kbName: kbForm.kbName.trim(),
+        bizType: kbForm.bizType,
+        bizKey: kbForm.bizKey.trim(),
+        providerCode: kbForm.providerCode || null,
+        providerKbId: kbForm.providerKbId.trim() || null,
+        currentVersionNo: normalizeNumber(kbForm.currentVersionNo),
+        status: kbForm.status,
+        enabled: kbForm.enabled,
+        remark: kbForm.remark.trim()
+      }
+
+      if (kbDialogMode.value === 'create') {
+        await createAiKbStore(payload)
+        showPopup.success('KB 新增成功')
+      } else {
+        await updateAiKbStore(kbForm.id, payload)
+        showPopup.success('KB 更新成功')
+      }
+
+      kbDialogVisible.value = false
+      await loadKbPage()
+    } catch (error) {
+      kbError.value = error.message || 'KB 保存失败'
+    } finally {
+      loading.kbSaving = false
+    }
+  }
+
   async function toggleProviderStatus(row) {
     const nextValue = !row.enabled
     try {
@@ -504,6 +534,20 @@ export function useAiPage() {
       showPopup.success(`Model 已${nextValue ? '启用' : '停用'}`)
     } catch (error) {
       showPopup.error(error.message || 'Model 状态更新失败')
+    }
+  }
+
+  async function toggleKbStatus(row) {
+    const nextValue = !row.enabled
+    try {
+      await editAiKbStore(row.id, { enabled: nextValue })
+      row.enabled = nextValue
+      if (!nextValue && row.status !== 'DISABLED') {
+        row.status = 'DISABLED'
+      }
+      showPopup.success(`KB 已${nextValue ? '启用' : '停用'}`)
+    } catch (error) {
+      showPopup.error(error.message || 'KB 状态更新失败')
     }
   }
 
@@ -533,6 +577,19 @@ export function useAiPage() {
     }
   }
 
+  async function confirmDeleteKb(row) {
+    if (!window.confirm(`确认删除 KB「${row.kbName}」吗？`)) {
+      return
+    }
+    try {
+      await deleteAiKbStore(row.id)
+      showPopup.success('KB 已删除')
+      await loadKbPage()
+    } catch (error) {
+      showPopup.error(error.message || 'KB 删除失败')
+    }
+  }
+
   function resetProviderFilters() {
     providerFilters.providerCode = ''
     providerFilters.enabled = ''
@@ -549,8 +606,9 @@ export function useAiPage() {
   }
 
   function resetKbFilters() {
-    kbFilters.kbId = ''
     kbFilters.keyword = ''
+    kbFilters.providerCode = ''
+    kbFilters.status = ''
     kbFilters.enabled = ''
     kbPagination.page = 1
     loadKbPage()
@@ -574,17 +632,13 @@ export function useAiPage() {
       return
     }
     currentPage.value = nextPage
-    if (activeTab.value !== 'kb') {
-      loadActiveTab()
-    }
+    loadActiveTab()
   }
 
   function handlePageSizeChange(event) {
     currentSize.value = Number(event.target.value)
     currentPage.value = 1
-    if (activeTab.value !== 'kb') {
-      loadActiveTab()
-    }
+    loadActiveTab()
   }
 
   function openCreateByTab() {
@@ -593,19 +647,8 @@ export function useAiPage() {
     } else if (activeTab.value === 'model') {
       openModelCreate()
     } else {
-      refreshKbPanel()
+      openKbCreate()
     }
-  }
-
-  async function refreshKbPanel() {
-    await loadKbPage()
-    showPopup.success('知识库数据已刷新')
-  }
-
-  async function selectKnowledgeBase(kbId) {
-    kbFilters.kbId = kbId
-    kbPagination.page = 1
-    await loadKbDocuments()
   }
 
   function normalizeNumber(value) {
@@ -626,13 +669,6 @@ export function useAiPage() {
       return parsed
     }
     return listLength
-  }
-
-  function resolveActiveKbId(list, currentKbId) {
-    if (currentKbId && list.some((item) => item.kbId === currentKbId)) {
-      return currentKbId
-    }
-    return list[0]?.kbId || ''
   }
 
   function formatDateTime(value) {
@@ -668,20 +704,6 @@ export function useAiPage() {
     )}:${pad(date.getSeconds())}`
   }
 
-  function formatContentSize(value) {
-    const size = Number(value)
-    if (!Number.isFinite(size) || size < 0) {
-      return '-'
-    }
-    if (size < 1024) {
-      return `${size} B`
-    }
-    if (size < 1024 * 1024) {
-      return `${(size / 1024).toFixed(1)} KB`
-    }
-    return `${(size / (1024 * 1024)).toFixed(1)} MB`
-  }
-
   function pad(value) {
     return String(value).padStart(2, '0')
   }
@@ -702,14 +724,10 @@ export function useAiPage() {
     providerFilters,
     modelFilters,
     kbFilters,
-    providerPagination,
-    modelPagination,
-    kbPagination,
     providerList,
     modelList,
+    kbList,
     providerOptions,
-    knowledgeBaseList,
-    pagedKbDocuments,
     providerDialogVisible,
     providerDialogMode,
     providerError,
@@ -718,27 +736,30 @@ export function useAiPage() {
     modelDialogMode,
     modelError,
     modelForm,
-    kbDetailVisible,
-    kbDetailError,
-    kbDetail,
+    kbDialogVisible,
+    kbDialogMode,
+    kbError,
+    kbForm,
     enabledOptions,
+    kbBizTypeOptions,
+    kbStatusOptions,
     pageSizeOptions,
-    currentTotal,
     currentPage,
     currentSize,
     pageSummary,
     totalPages,
-    openProviderCreate,
     openProviderEdit,
-    openModelCreate,
     openModelEdit,
-    openKbDetail,
+    openKbEdit,
     submitProviderForm,
     submitModelForm,
+    submitKbForm,
     toggleProviderStatus,
     toggleModelStatus,
+    toggleKbStatus,
     confirmDeleteProvider,
     confirmDeleteModel,
+    confirmDeleteKb,
     resetProviderFilters,
     resetModelFilters,
     resetKbFilters,
@@ -746,9 +767,7 @@ export function useAiPage() {
     handlePageChange,
     handlePageSizeChange,
     openCreateByTab,
-    selectKnowledgeBase,
     formatDateTime,
-    formatContentSize,
     tagList
   }
 }
