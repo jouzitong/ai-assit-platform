@@ -9,7 +9,7 @@ import time
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 from urllib.parse import parse_qs, urlparse
 
 
@@ -19,8 +19,9 @@ CONFIG_PATH = BASE_DIR / "services.json"
 HTML_PATH = BASE_DIR / "index.html"
 RUNTIME_DIR = BASE_DIR / "runtime"
 RUNTIME_DIR.mkdir(exist_ok=True)
+STATE_PATH = RUNTIME_DIR / "process-state.json"
 
-PROCESS_LOCK = threading.Lock()
+PROCESS_LOCK = threading.RLock()
 RUNNING_PROCESSES: Dict[str, Dict] = {}
 
 
@@ -60,6 +61,9 @@ def load_services() -> List[Dict]:
                     "command": command_line,
                     "background": bool(command.get("background", False)),
                     "cwd": command.get("cwd", cwd),
+                    "statusCommand": command.get("statusCommand"),
+                    "stopCommand": command.get("stopCommand"),
+                    "logFile": command.get("logFile"),
                 }
             )
 
@@ -89,6 +93,73 @@ def process_is_running(proc: subprocess.Popen) -> bool:
     return proc.poll() is None
 
 
+def pid_is_running(pid: int) -> bool:
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
+def load_process_state() -> Dict[str, Dict]:
+    if not STATE_PATH.is_file():
+        return {}
+    try:
+        with STATE_PATH.open("r", encoding="utf-8") as file:
+            payload = json.load(file)
+        return payload if isinstance(payload, dict) else {}
+    except Exception:  # noqa: BLE001
+        return {}
+
+
+def save_process_state(state: Dict[str, Dict]) -> None:
+    with STATE_PATH.open("w", encoding="utf-8") as file:
+        json.dump(state, file, ensure_ascii=False, indent=2)
+
+
+def update_process_state(key: str, payload: Optional[Dict]) -> None:
+    with PROCESS_LOCK:
+        state = load_process_state()
+        if payload is None:
+            state.pop(key, None)
+        else:
+            state[key] = payload
+        save_process_state(state)
+
+
+def persisted_process_info(key: str) -> Optional[Dict]:
+    state = load_process_state()
+    item = state.get(key)
+    if not item:
+        return None
+    pid = item.get("pid")
+    if not isinstance(pid, int) or not pid_is_running(pid):
+        update_process_state(key, None)
+        return None
+    return item
+
+
+def run_shell_command(command_line: str, cwd: str, shell_name: str) -> subprocess.CompletedProcess:
+    return subprocess.run(
+        command_line,
+        shell=True,
+        cwd=resolve_cwd(cwd),
+        executable=shell_executable(shell_name),
+        capture_output=True,
+        text=True,
+    )
+
+
+def is_external_command_running(service: Dict, command: Dict) -> bool:
+    status_command = command.get("statusCommand")
+    if not status_command:
+        return False
+    completed = run_shell_command(status_command, command["cwd"], service["shell"])
+    return completed.returncode == 0
+
+
 def cleanup_processes() -> None:
     with PROCESS_LOCK:
         stale_keys = []
@@ -100,6 +171,8 @@ def cleanup_processes() -> None:
                 stale_keys.append(key)
         for key in stale_keys:
             RUNNING_PROCESSES.pop(key, None)
+    for key in list(load_process_state().keys()):
+        persisted_process_info(key)
 
 
 def shell_executable(shell_name: str) -> str:
@@ -108,14 +181,7 @@ def shell_executable(shell_name: str) -> str:
 
 def run_sync_command(service: Dict, command: Dict) -> Dict:
     started_at = time.time()
-    completed = subprocess.run(
-        command["command"],
-        shell=True,
-        cwd=resolve_cwd(command["cwd"]),
-        executable=shell_executable(service["shell"]),
-        capture_output=True,
-        text=True,
-    )
+    completed = run_shell_command(command["command"], command["cwd"], service["shell"])
     ended_at = time.time()
     return {
         "mode": "sync",
@@ -127,8 +193,43 @@ def run_sync_command(service: Dict, command: Dict) -> Dict:
 
 
 def run_background_command(service: Dict, command: Dict) -> Dict:
+    if command.get("statusCommand"):
+        if is_external_command_running(service, command):
+            return {
+                "mode": "background",
+                "status": "already_running",
+                "logFile": command.get("logFile"),
+            }
+
+        completed = run_shell_command(command["command"], command["cwd"], service["shell"])
+        if completed.returncode != 0:
+            return {
+                "mode": "background",
+                "status": "failed",
+                "returncode": completed.returncode,
+                "stdout": completed.stdout,
+                "stderr": completed.stderr,
+                "logFile": command.get("logFile"),
+            }
+
+        return {
+            "mode": "background",
+            "status": "started" if is_external_command_running(service, command) else "submitted",
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "logFile": command.get("logFile"),
+        }
+
     cleanup_processes()
     key = process_key(service["name"], command["name"])
+    persisted = persisted_process_info(key)
+    if persisted:
+        return {
+            "mode": "background",
+            "status": "already_running",
+            "pid": persisted.get("pid"),
+            "logFile": persisted.get("logFile"),
+        }
 
     with PROCESS_LOCK:
         existing = RUNNING_PROCESSES.get(key)
@@ -163,6 +264,16 @@ def run_background_command(service: Dict, command: Dict) -> Dict:
             "service_name": service["name"],
             "command_name": command["name"],
         }
+        update_process_state(
+            key,
+            {
+                "pid": proc.pid,
+                "logFile": str(log_path),
+                "startedAt": time.time(),
+                "serviceName": service["name"],
+                "commandName": command["name"],
+            },
+        )
 
     return {
         "mode": "background",
@@ -174,15 +285,33 @@ def run_background_command(service: Dict, command: Dict) -> Dict:
 
 def stop_background_command(service_name: str, command_name: str) -> Dict:
     cleanup_processes()
+    services = load_services()
+    service, command = find_command(services, service_name, command_name)
+
+    if command.get("stopCommand"):
+        completed = run_shell_command(command["stopCommand"], command["cwd"], service["shell"])
+        stopped = not is_external_command_running(service, command)
+        return {
+            "stopped": stopped,
+            "message": "process stopped" if stopped else "stop command submitted",
+            "stdout": completed.stdout,
+            "stderr": completed.stderr,
+            "returncode": completed.returncode,
+        }
+
     key = process_key(service_name, command_name)
 
     with PROCESS_LOCK:
         item = RUNNING_PROCESSES.get(key)
-        if not item:
-            return {"stopped": False, "message": "process not running"}
+        item = RUNNING_PROCESSES.get(key)
 
+    persisted = persisted_process_info(key)
+    pid = None
+    forced = False
+
+    if item:
         proc = item["process"]
-        forced = False
+        pid = proc.pid
         if process_is_running(proc):
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             try:
@@ -195,7 +324,25 @@ def stop_background_command(service_name: str, command_name: str) -> Dict:
         log_handle = item.get("log_handle")
         if log_handle and not log_handle.closed:
             log_handle.close()
-        RUNNING_PROCESSES.pop(key, None)
+        with PROCESS_LOCK:
+            RUNNING_PROCESSES.pop(key, None)
+    elif persisted:
+        pid = persisted["pid"]
+        try:
+            os.killpg(os.getpgid(pid), signal.SIGTERM)
+            for _ in range(20):
+                if not pid_is_running(pid):
+                    break
+                time.sleep(0.5)
+            if pid_is_running(pid):
+                forced = True
+                os.killpg(os.getpgid(pid), signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+    else:
+        return {"stopped": False, "message": "process not running"}
+
+    update_process_state(key, None)
 
     if forced:
         return {"stopped": True, "message": "process force killed after timeout"}
@@ -223,10 +370,11 @@ def run_all_background_commands() -> Dict:
 def stop_all_background_commands() -> Dict:
     cleanup_processes()
     with PROCESS_LOCK:
-        keys = list(RUNNING_PROCESSES.keys())
+        keys = set(RUNNING_PROCESSES.keys())
+    keys.update(load_process_state().keys())
 
     results = []
-    for key in keys:
+    for key in sorted(keys):
         service_name, command_name = key.split("::", 1)
         result = stop_background_command(service_name, command_name)
         results.append(
@@ -247,14 +395,18 @@ def service_snapshot() -> List[Dict]:
         for service in services:
             commands = []
             for command in service["commands"]:
+                external_running = bool(command.get("statusCommand")) and is_external_command_running(service, command)
                 key = process_key(service["name"], command["name"])
                 item = RUNNING_PROCESSES.get(key)
+                in_process_running = bool(item and process_is_running(item["process"]))
+                persisted = persisted_process_info(key)
+                running = external_running or in_process_running or bool(persisted)
                 commands.append(
                     {
                         **command,
-                        "running": bool(item and process_is_running(item["process"])),
-                        "pid": item["process"].pid if item and process_is_running(item["process"]) else None,
-                        "logFile": str(item["log_path"]) if item else None,
+                        "running": running,
+                        "pid": item["process"].pid if in_process_running else (persisted.get("pid") if persisted else None),
+                        "logFile": command.get("logFile") or (str(item["log_path"]) if item else (persisted.get("logFile") if persisted else None)),
                     }
                 )
             snapshot.append({**service, "commands": commands})
@@ -269,6 +421,25 @@ def find_command(services: List[Dict], service_name: str, command_name: str) -> 
             if command["name"] == command_name:
                 return service, command
     raise KeyError(f"command not found: {service_name} / {command_name}")
+
+
+def is_allowed_log_file(path: Path) -> bool:
+    if path.is_file() and RUNTIME_DIR in path.parents:
+        return True
+
+    try:
+        services = load_services()
+    except Exception:  # noqa: BLE001
+        return False
+
+    for service in services:
+        for command in service["commands"]:
+            log_file = command.get("logFile")
+            if not log_file:
+                continue
+            if Path(log_file).resolve() == path.resolve() and path.is_file():
+                return True
+    return False
 
 
 class ServiceManagerHandler(BaseHTTPRequestHandler):
@@ -310,7 +481,7 @@ class ServiceManagerHandler(BaseHTTPRequestHandler):
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "file is required"})
                 return
             path = Path(log_file)
-            if not path.is_file() or RUNTIME_DIR not in path.parents:
+            if not is_allowed_log_file(path):
                 self._send_json(HTTPStatus.BAD_REQUEST, {"error": "invalid log file"})
                 return
             content = path.read_text(encoding="utf-8", errors="replace")

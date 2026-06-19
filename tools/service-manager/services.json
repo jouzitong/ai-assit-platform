@@ -1,5 +1,20 @@
 [
   {
+    "name": "Nacos",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-nacos-local.sh",
+        "background": true,
+        "statusCommand": "./tools/service-manager/scripts/status-nacos-local.sh",
+        "stopCommand": "./tools/service-manager/scripts/stop-nacos-local.sh",
+        "logFile": "/Users/zhouzhitong/tools/cloud/nacos-2.3.1/nacos/logs/start-standalone.log"
+      }
+    ]
+  },
+  {
     "name": "AI 引擎",
     "shell": "zsh",
     "cwd": ".",

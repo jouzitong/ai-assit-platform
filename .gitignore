@@ -17,6 +17,8 @@ logs/
 */logs/
 *.log
 
+tools/service-manager/runtime/process-state.json
+
 ### Eclipse ###
 .apt_generated
 .classpath
