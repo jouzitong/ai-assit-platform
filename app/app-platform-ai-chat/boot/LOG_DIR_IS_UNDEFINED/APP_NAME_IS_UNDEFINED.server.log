@@ -1,4 +1,0 @@
-2026-06-19 21:29:22.062 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] o.a.f.s.a.c.f.SecurityContextFilter - Security context set user id = 1 for uri=/aiChat/api/v1/ai/chat/conversation/list
-2026-06-19 21:29:22.234 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] o.a.i.logging.jdbc.BaseJdbcLogger - ==>  Preparing: SELECT id,session_code,user_id,business_type,session_name,pinned,deleted,create_time,created_by,update_time,updated_by,version FROM ai_chat_session WHERE deleted=0 AND (created_by = ?)
-2026-06-19 21:29:22.245 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] o.a.i.logging.jdbc.BaseJdbcLogger - ==> Parameters: 1(Long)
-2026-06-19 21:29:22.259 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] o.a.i.logging.jdbc.BaseJdbcLogger - <==      Total: 3
