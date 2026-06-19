@@ -7,11 +7,9 @@ import org.arthena.framework.common.enums.IEnum;
 @Getter
 public enum AiKbVersionStatus implements IEnum {
     DRAFT(1, "DRAFT", "草稿"),
-    CONFIRMED(2, "CONFIRMED", "已确认"),
-    PUBLISHING(3, "PUBLISHING", "发布中"),
-    PUBLISHED(4, "PUBLISHED", "已发布"),
-    FAILED(5, "FAILED", "发布失败"),
-    ROLLED_BACK(6, "ROLLED_BACK", "已回滚"),
+    CURRENT(2, "CURRENT", "当前生效"),
+    HISTORY(3, "HISTORY", "历史版本"),
+    DISCARDED(4, "DISCARDED", "已废弃"),
     ;
 
     private final int code;
