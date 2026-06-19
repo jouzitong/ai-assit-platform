@@ -1,0 +1,98 @@
+[
+  {
+    "name": "AI 引擎",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "编译",
+        "command": "mvn -pl app/app-platform-ai-engine -am clean compile -DskipTests"
+      },
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-ai-engine-local.sh",
+        "background": true
+      }
+    ]
+  },
+  {
+    "name": "AI Chat",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "编译",
+        "command": "mvn -pl app/app-platform-ai-chat -am clean compile -DskipTests"
+      },
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-ai-chat-local.sh",
+        "background": true
+      }
+    ]
+  },
+  {
+    "name": "DB Engine",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "编译",
+        "command": "mvn -pl app/app-platform-db-engine -am clean compile -DskipTests"
+      },
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-db-engine-local.sh",
+        "background": true
+      }
+    ]
+  },
+  {
+    "name": "用户服务",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "编译",
+        "command": "mvn -pl app/app-platform-user -am clean compile -DskipTests"
+      },
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-user-local.sh",
+        "background": true
+      }
+    ]
+  },
+  {
+    "name": "网关",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "编译",
+        "command": "mvn -pl app/app-gateway -am clean compile -DskipTests"
+      },
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-gateway-local.sh",
+        "background": true
+      }
+    ]
+  },
+  {
+    "name": "前端",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-ui-local.sh",
+        "background": true
+      },
+      {
+        "name": "编译",
+        "command": "cd ai-assit-ui && npm run build"
+      }
+    ]
+  }
+]

@@ -1,0 +1,485 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>服务管理台</title>
+  <style>
+    :root {
+      --bg: #f4efe6;
+      --panel: #fffdf8;
+      --border: #d8cfc0;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --accent-soft: #d9f0ee;
+      --danger: #b42318;
+      --shadow: 0 14px 30px rgba(31, 41, 55, 0.08);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      font-family: "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.12), transparent 28%),
+        linear-gradient(180deg, #f8f3eb 0%, var(--bg) 100%);
+      min-height: 100vh;
+    }
+
+    .page {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 32px 20px 48px;
+    }
+
+    .header {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .title {
+      margin: 0;
+      font-size: 32px;
+      line-height: 1.1;
+    }
+
+    .subtitle {
+      margin: 8px 0 0;
+      color: var(--muted);
+    }
+
+    .toolbar {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+    }
+
+    button {
+      border: 1px solid var(--border);
+      background: white;
+      color: var(--text);
+      padding: 10px 14px;
+      border-radius: 12px;
+      font-size: 14px;
+      cursor: pointer;
+    }
+
+    button.primary {
+      border-color: var(--accent);
+      background: var(--accent);
+      color: white;
+    }
+
+    button.danger {
+      border-color: #f2c4bf;
+      color: var(--danger);
+    }
+
+    button:disabled {
+      opacity: 0.55;
+      cursor: not-allowed;
+    }
+
+    .list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-bottom: 24px;
+    }
+
+    .list-item {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+      padding: 16px 18px;
+    }
+
+    .item-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      margin-bottom: 12px;
+    }
+
+    .item-head h2 {
+      margin: 0;
+      font-size: 18px;
+    }
+
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .service-row {
+      display: grid;
+      grid-template-columns: minmax(0, 220px) minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: center;
+      padding: 12px 0;
+      border-top: 1px solid #ece5d9;
+    }
+
+    .service-row:first-of-type {
+      border-top: none;
+    }
+
+    .service-name {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 12px;
+      background: #f3f4f6;
+      color: var(--muted);
+    }
+
+    .pill.running {
+      color: var(--accent);
+      background: var(--accent-soft);
+    }
+
+    .service-summary {
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .command-actions {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-end;
+      flex-wrap: wrap;
+    }
+
+    .output-panel {
+      background: #111827;
+      color: #e5e7eb;
+      border-radius: 20px;
+      padding: 18px;
+      box-shadow: var(--shadow);
+    }
+
+    .output-title {
+      margin: 0 0 12px;
+      font-size: 18px;
+    }
+
+    .output-meta {
+      color: #9ca3af;
+      font-size: 13px;
+      margin-bottom: 12px;
+    }
+
+    pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 420px;
+      overflow: auto;
+      font-size: 13px;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 720px) {
+      .header {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .toolbar {
+        justify-content: flex-start;
+      }
+
+      .item-head {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .service-row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .command-actions {
+        justify-content: flex-start;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <div class="header">
+      <div>
+        <h1 class="title">服务管理台</h1>
+        <p class="subtitle">基于 <code>services.json</code> 管理编译与启动命令。</p>
+      </div>
+      <div class="toolbar">
+        <button id="startAllButton">全部启动</button>
+        <button class="danger" id="stopAllButton">全部停止</button>
+        <button class="primary" id="refreshButton">刷新配置</button>
+      </div>
+    </div>
+
+    <div class="list" id="serviceGrid"></div>
+
+    <div class="output-panel">
+      <h3 class="output-title">执行输出</h3>
+      <div class="output-meta" id="outputMeta">等待操作</div>
+      <pre id="outputText">点击上面的“编译”或“启动”按钮后，这里会显示命令输出。</pre>
+    </div>
+  </div>
+
+  <script>
+    const serviceGrid = document.getElementById('serviceGrid');
+    const outputMeta = document.getElementById('outputMeta');
+    const outputText = document.getElementById('outputText');
+    const startAllButton = document.getElementById('startAllButton');
+    const stopAllButton = document.getElementById('stopAllButton');
+    const refreshButton = document.getElementById('refreshButton');
+    let logPollTimer = null;
+
+    function setOutput(title, content) {
+      outputMeta.textContent = title;
+      outputText.textContent = content || '';
+    }
+
+    async function request(url, options = {}) {
+      const response = await fetch(url, {
+        headers: { 'Content-Type': 'application/json' },
+        ...options,
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || 'request failed');
+      }
+      return data;
+    }
+
+    async function loadServices() {
+      const data = await request('/api/services');
+      renderServices(data.services || []);
+    }
+
+    function renderServices(services) {
+      serviceGrid.innerHTML = '';
+      services.forEach((service) => {
+        const card = document.createElement('section');
+        card.className = 'list-item';
+
+        const runningCommands = service.commands.filter((command) => command.running);
+        const summary = runningCommands.length
+          ? `运行中: ${runningCommands.map((command) => command.name).join('、')}`
+          : '未启动';
+        const commandsHtml = service.commands.map((command) => `
+          <button
+            class="${command.background && command.running ? '' : 'primary'}"
+            data-action="run"
+            data-service="${escapeHtml(service.name)}"
+            data-command="${escapeHtml(command.name)}">
+            ${escapeHtml(command.name)}
+          </button>
+          ${command.background ? `
+            <button
+              class="danger"
+              data-action="stop"
+              data-service="${escapeHtml(service.name)}"
+              data-command="${escapeHtml(command.name)}"
+              ${command.running ? '' : 'disabled'}>
+              停止
+            </button>
+          ` : ''}
+        `).join('');
+
+        card.innerHTML = `
+          <div class="service-row">
+            <div class="service-name">
+              <h2>${escapeHtml(service.name)}</h2>
+              <div class="service-summary">${escapeHtml(summary)}</div>
+            </div>
+            <div class="meta">shell: ${escapeHtml(service.shell)} | cwd: ${escapeHtml(service.cwd)}</div>
+            <div class="command-actions">
+              ${commandsHtml}
+            </div>
+          </div>
+        `;
+        serviceGrid.appendChild(card);
+      });
+    }
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#39;');
+    }
+
+    async function runCommand(serviceName, commandName) {
+      clearLogPoll();
+      setOutput(`${serviceName} / ${commandName}`, '执行中...');
+      const data = await request('/api/run', {
+        method: 'POST',
+        body: JSON.stringify({ serviceName, commandName }),
+      });
+
+      if (data.mode === 'sync') {
+        const parts = [
+          `退出码: ${data.returncode}`,
+          `耗时: ${data.durationSeconds}s`,
+          '',
+          '[stdout]',
+          data.stdout || '',
+          '',
+          '[stderr]',
+          data.stderr || '',
+        ];
+        setOutput(`${serviceName} / ${commandName}`, parts.join('\n'));
+      } else {
+        const status = data.status === 'already_running' ? '进程已存在，正在读取日志。' : `后台进程已启动，PID ${data.pid}`;
+        setOutput(`${serviceName} / ${commandName}`, `${status}\n日志文件: ${data.logFile}`);
+        startLogPoll(serviceName, commandName, data.logFile);
+      }
+
+      await loadServices();
+    }
+
+    async function stopCommand(serviceName, commandName) {
+      clearLogPoll();
+      setOutput(`${serviceName} / ${commandName}`, '停止中...');
+      const data = await request('/api/stop', {
+        method: 'POST',
+        body: JSON.stringify({ serviceName, commandName }),
+      });
+      setOutput(`${serviceName} / ${commandName}`, data.message || '已停止');
+      await loadServices();
+    }
+
+    function formatBatchResults(title, results, emptyMessage) {
+      if (!results.length) {
+        setOutput(title, emptyMessage);
+        return;
+      }
+
+      const lines = results.map((item) => {
+        const actionResult = item.status || item.message || '';
+        const pidPart = item.pid ? ` PID ${item.pid}` : '';
+        return `${item.serviceName} / ${item.commandName}: ${actionResult}${pidPart}`;
+      });
+      setOutput(title, lines.join('\n'));
+    }
+
+    async function runAllCommands() {
+      clearLogPoll();
+      setOutput('全部启动', '启动中...');
+      const data = await request('/api/run-all', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      formatBatchResults('全部启动', data.results || [], '没有可启动的后台命令。');
+      await loadServices();
+    }
+
+    async function stopAllCommands() {
+      clearLogPoll();
+      setOutput('全部停止', '停止中...');
+      const data = await request('/api/stop-all', {
+        method: 'POST',
+        body: JSON.stringify({}),
+      });
+      formatBatchResults('全部停止', data.results || [], '当前没有运行中的后台命令。');
+      await loadServices();
+    }
+
+    async function loadLog(logFile, serviceName, commandName) {
+      const data = await request(`/api/log?file=${encodeURIComponent(logFile)}`);
+      setOutput(`${serviceName} / ${commandName}`, data.content || '(日志为空)');
+    }
+
+    function startLogPoll(serviceName, commandName, logFile) {
+      clearLogPoll();
+      const tick = () => loadLog(logFile, serviceName, commandName).catch((error) => {
+        setOutput(`${serviceName} / ${commandName}`, error.message);
+      });
+      tick();
+      logPollTimer = window.setInterval(tick, 3000);
+    }
+
+    function clearLogPoll() {
+      if (logPollTimer) {
+        window.clearInterval(logPollTimer);
+        logPollTimer = null;
+      }
+    }
+
+    serviceGrid.addEventListener('click', async (event) => {
+      const target = event.target.closest('button[data-action]');
+      if (!target) {
+        return;
+      }
+      const action = target.dataset.action;
+      const serviceName = target.dataset.service;
+      const commandName = target.dataset.command;
+
+      target.disabled = true;
+      try {
+        if (action === 'run') {
+          await runCommand(serviceName, commandName);
+        } else if (action === 'stop') {
+          await stopCommand(serviceName, commandName);
+        }
+      } catch (error) {
+        setOutput(`${serviceName} / ${commandName}`, error.message);
+      } finally {
+        target.disabled = false;
+      }
+    });
+
+    refreshButton.addEventListener('click', () => {
+      clearLogPoll();
+      loadServices().catch((error) => setOutput('刷新失败', error.message));
+    });
+
+    startAllButton.addEventListener('click', async () => {
+      startAllButton.disabled = true;
+      try {
+        await runAllCommands();
+      } catch (error) {
+        setOutput('全部启动', error.message);
+      } finally {
+        startAllButton.disabled = false;
+      }
+    });
+
+    stopAllButton.addEventListener('click', async () => {
+      stopAllButton.disabled = true;
+      try {
+        await stopAllCommands();
+      } catch (error) {
+        setOutput('全部停止', error.message);
+      } finally {
+        stopAllButton.disabled = false;
+      }
+    });
+
+    loadServices().catch((error) => setOutput('初始化失败', error.message));
+  </script>
+</body>
+</html>
