@@ -151,7 +151,7 @@ CREATE TABLE IF NOT EXISTS ai_kb_publish_task (
     task_type INT NOT NULL COMMENT '任务类型枚举编码：1=PUBLISH,2=ROLLBACK',
     status INT NOT NULL DEFAULT 1 COMMENT '任务状态枚举编码：1=PENDING,2=RUNNING,3=SUCCESS,4=FAILED,5=CANCELED',
     progress_percent INT NOT NULL DEFAULT 0 COMMENT '当前进度百分比',
-    current_stage VARCHAR(64) DEFAULT NULL COMMENT '当前执行阶段，例如 PREPARE_VERSION',
+    current_stage INT DEFAULT NULL COMMENT '当前执行阶段，例如 PREPARE_VERSION',
     request_json MEDIUMTEXT DEFAULT NULL COMMENT '任务请求参数 JSON',
     result_json MEDIUMTEXT DEFAULT NULL COMMENT '任务执行结果 JSON',
     error_message VARCHAR(2048) DEFAULT NULL COMMENT '失败错误信息',

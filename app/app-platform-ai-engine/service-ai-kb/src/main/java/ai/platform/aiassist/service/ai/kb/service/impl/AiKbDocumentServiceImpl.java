@@ -31,14 +31,6 @@ public class AiKbDocumentServiceImpl
         return convert;
     }
 
-    public AiKbDocumentDTO newDTO() {
-        return new AiKbDocumentDTO();
-    }
-
-    public AiKbDocumentEntity newEntity() {
-        return new AiKbDocumentEntity();
-    }
-
     @Override
     public AiKbDocumentDTO getByKbCodeAndDocumentCode(String kbCode, String documentCode) {
         if (!StringUtils.hasText(kbCode) || !StringUtils.hasText(documentCode)) {
@@ -56,13 +48,7 @@ public class AiKbDocumentServiceImpl
     @Override
     protected <Query extends BaseRequest> QueryWrapper<AiKbDocumentEntity> buildQuery(Query query) {
         QueryWrapper<AiKbDocumentEntity> wrapper = super.buildQuery(query);
-        if (query instanceof AiKbDocumentQueryRequest req) {
-            if (StringUtils.hasText(req.getKbCode())) {
-                wrapper.lambda().eq(AiKbDocumentEntity::getKbCode, req.getKbCode());
-            }
-            if (StringUtils.hasText(req.getDocumentCode())) {
-                wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode());
-            }
+        if (query instanceof AiKbDocumentQueryRequest) {
             wrapper.lambda().orderByDesc(AiKbDocumentEntity::getUpdateTime, AiKbDocumentEntity::getId);
         }
         return wrapper;
