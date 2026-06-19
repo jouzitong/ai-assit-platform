@@ -15,6 +15,7 @@ target/
 idea/
 logs/
 */logs/
+*.log
 
 ### Eclipse ###
 .apt_generated

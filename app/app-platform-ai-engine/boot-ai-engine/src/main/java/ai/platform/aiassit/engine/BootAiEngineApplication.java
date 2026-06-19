@@ -1,12 +1,9 @@
 package ai.platform.aiassit.engine;
 
 import lombok.extern.slf4j.Slf4j;
-import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 import org.mybatis.spring.annotation.MapperScan;
-import org.mybatis.spring.boot.autoconfigure.ConfigurationCustomizer;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
-import org.springframework.context.annotation.Bean;
 
 import java.util.Map;
 
@@ -21,11 +18,4 @@ public class BootAiEngineApplication {
         application.run(args);
     }
 
-    @Bean
-    public ConfigurationCustomizer defaultEnumTypeHandlerCustomizer() {
-        return configuration -> {
-            log.info("load mybatis DefaultEnumTypeHandler");
-            configuration.setDefaultEnumTypeHandler(DefaultEnumTypeHandler.class);
-        };
-    }
 }

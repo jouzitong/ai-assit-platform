@@ -21,6 +21,8 @@ ai:
       workspaceId: 'w05enpcxa4'
       accessKeyId: ${AI_PROVIDER_QWEN_ACCESS_KEY_ID:}
       accessKeySecret: ${AI_PROVIDER_QWEN_ACCESS_KEY_SECRET:}
-
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler
 database:
   name: 'platform_ai_assist_ai_chat'

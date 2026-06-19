@@ -1,0 +1,4 @@
+2026-06-19 21:29:22.103 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] org.mybatis.logging.Logger - Creating a new SqlSession
+2026-06-19 21:29:22.106 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] org.mybatis.logging.Logger - SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1ab08f8c] was not registered for synchronization because synchronization is not active
+2026-06-19 21:29:22.231 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] org.mybatis.logging.Logger - JDBC Connection [HikariProxyConnection@813019020 wrapping com.mysql.cj.jdbc.ConnectionImpl@40742bc4] will not be managed by Spring
+2026-06-19 21:29:22.261 [39mDEBUG[0;39m [http-nio-13102-exec-1] [0ff33049b3184ab48da4c575339d4424] org.mybatis.logging.Logger - Closing non transactional SqlSession [org.apache.ibatis.session.defaults.DefaultSqlSession@1ab08f8c]
