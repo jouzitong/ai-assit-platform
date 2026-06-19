@@ -1,6 +1,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { createDbDataSource, searchDbDataSources, updateDbDataSource } from '../../../../../api/dbEngine'
+import { createDbDataSource, searchDbDataSources, syncDbTableKnowledge, updateDbDataSource } from '../../../../../api/dbEngine'
 import { showPopup } from '../../../../../utils/popup'
 
 export function useDataSourcePage() {
@@ -14,6 +14,7 @@ export function useDataSourcePage() {
   const dialogMode = ref('create')
   const dialogError = ref('')
   const saving = ref(false)
+  const knowledgeSyncSubmitting = ref(false)
   const form = reactive(createEmptyForm())
   const sourceTypeOptions = [
     { label: '数据库', value: 'DATABASE' },
@@ -55,6 +56,10 @@ export function useDataSourcePage() {
     )
   })
 
+  const selectedSource = computed(() =>
+    sourceList.value.find(item => item.key === selectedSourceKey.value) || sourceList.value[0] || null
+  )
+
   onMounted(() => {
     loadDataSources()
   })
@@ -68,8 +73,32 @@ export function useDataSourcePage() {
     return `is-${status}`
   }
 
-  function triggerKnowledgeSync() {
-    showPopup.warning('知识库同步功能建设中')
+  async function triggerKnowledgeSync() {
+    const currentSource = selectedSource.value
+    if (!currentSource?.key) {
+      showPopup.error('当前没有可同步的数据源')
+      return
+    }
+    const confirmMessage = `确认同步当前数据源「${currentSource.name}」下的全部数据表到知识库吗？`
+    if (!window.confirm(confirmMessage)) {
+      return
+    }
+    knowledgeSyncSubmitting.value = true
+    try {
+      const response = await syncDbTableKnowledge({
+        sourceKey: currentSource.key
+      })
+      const payload = unwrapPayload(response) || {}
+      const totalCount = Number(payload.totalCount ?? 0)
+      const createdCount = Number(payload.createdCount ?? 0)
+      const updatedCount = Number(payload.updatedCount ?? 0)
+      const unchangedCount = Number(payload.unchangedCount ?? 0)
+      showPopup.success(`知识库同步完成：共 ${totalCount} 张表，新增 ${createdCount}，更新 ${updatedCount}，未变更 ${unchangedCount}`)
+    } catch (error) {
+      showPopup.error(error.message || '知识库同步失败')
+    } finally {
+      knowledgeSyncSubmitting.value = false
+    }
   }
 
   function openCreateDialog() {
@@ -375,6 +404,7 @@ export function useDataSourcePage() {
     dialogMode,
     dialogError,
     saving,
+    knowledgeSyncSubmitting,
     form,
     sourceTypeOptions,
     syncModeOptions,

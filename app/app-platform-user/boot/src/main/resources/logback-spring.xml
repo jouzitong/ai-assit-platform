@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <configuration scan="true" scanPeriod="60 seconds">
-    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="gateway"/>
+    <springProperty scope="context" name="APP_NAME" source="spring.application.name" defaultValue="user"/>
     <springProperty scope="context" name="LOG_DIR" source="athena.log.dir" defaultValue="./logs"/>
     <springProperty scope="context" name="MAX_FILE_SIZE" source="athena.log.rolling.max-file-size" defaultValue="100MB"/>
     <springProperty scope="context" name="MAX_INDEX" source="athena.log.rolling.max-index" defaultValue="4"/>
@@ -102,6 +102,7 @@
     </appender>
 
     <logger name="ai.platform" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SERVER_FILE"/>
     </logger>
 
@@ -110,10 +111,12 @@
     </logger>
 
     <logger name="org.athena" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SERVER_FILE"/>
     </logger>
 
     <logger name="org.springframework.cloud.openfeign" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="OPENFEIGN_FILE"/>
     </logger>
 
@@ -126,19 +129,21 @@
     </logger>
 
     <logger name="org.mybatis" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="com.baomidou.mybatisplus" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="java.sql" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <root level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ALL_FILE"/>
     </root>
 </configuration>

@@ -1,0 +1,19 @@
+@apiPrefix = /dbEngine
+@resourcePath = /api/v1/meta/table
+@id = 1
+@page = 1
+@size = 10
+@sorts = id:desc
+@queries = id:1:1
+@contentType = application/json;charset=UTF-8
+@acceptJson = application/json
+
+### 1. 新增索引元数据
+POST {{host}}{{apiPrefix}}{{resourcePath}}/knowledge-sync
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+    "sourceKey": "ods_trade_mysql"
+}

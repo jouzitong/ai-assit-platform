@@ -1,0 +1,25 @@
+[2m2026-06-19 19:07:09.655[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mfeign.template.Template[0;39m [2m-[0;39m Explicit slash decoding specified, decoding all slashes in uri
+[2m2026-06-19 19:07:09.695[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.s.c.o.support.SpringEncoder[0;39m [2m-[0;39m Writing [AiKbDocumentUpsertRequest(kbId=w05enpcxa4, documentId=ods_trade_mysql/dict_hr_code, documentName=dict_hr_code - 人力资源字典表, documentType=DB_TABLE, sourceType=null, sourceKey=ods_trade_mysql, content=# dict_hr_code 人力资源字典表
+
+## 表说明
+人力资源字典表
+
+## 字段
+| 字段名 | 中文名 | 类型 | 说明 |
+|---|---|---|---|
+| id | 主键ID | bigint | 主键；非空；维度字段；人力资源字典表主键ID |
+| dict_type_code | 字典类型编码 | varchar | 非空；维度字段；如性别、员工状态、学历等分类编码 |
+| dict_type_name | 字典类型名称 | varchar | 非空；维度字段；字典类型对应的中文名称 |
+| dict_code | 字典项编码 | varchar | 非空；维度字段；字典项业务编码 |
+| dict_name | 字典项名称 | varchar | 非空；维度字段；字典项中文名称 |
+| parent_code | 父级字典编码 | varchar | 维度字段；用于支持层级字典结构 |
+| sort_order | 显示顺序 | int | 非空；维度字段；同一类型下字典项展示排序 |
+| status_code | 状态编码 | varchar | 非空；维度字段；如启用、停用等状态 |
+| created_at | 创建时间 | datetime | 非空；时间字段 |
+| updated_at | 更新时间 | datetime | 非空；时间字段 |
+| deleted | 逻辑删除标识 | tinyint | 非空；维度字段；0表示未删除，1表示已删除 |
+
+## 常见查询
+- 查询人力资源字典表列表
+- 统计人力资源字典表总量
+- 按条件筛选人力资源字典表数据, ext={sourceSystem=dbEngine, sourceKey=ods_trade_mysql, tableName=dict_hr_code, tableComment=人力资源字典表, partitionKey=null})] using [org.springframework.http.converter.json.MappingJackson2HttpMessageConverter@222a7429]

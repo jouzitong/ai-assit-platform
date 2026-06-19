@@ -62,10 +62,15 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
         }
         String sourceKey = request.getSourceKey().trim();
         String tableName = StringUtils.hasText(request.getTableName()) ? request.getTableName().trim() : null;
+        log.info("start db table knowledge sync, sourceKey={}, tableName={}, mode={}",
+                sourceKey, tableName, tableName == null ? "ALL_TABLES" : "SINGLE_TABLE");
         String kbId = resolveKbId();
+        log.info("resolved knowledge base id for db table sync, sourceKey={}, kbId={}", sourceKey, kbId);
 
         List<DbTableMetaDTO> tables = loadTables(sourceKey, tableName);
         Map<String, List<DbTableFieldMetaDTO>> fieldsByTableName = loadFields(sourceKey, tableName);
+        log.info("loaded db metadata for knowledge sync, sourceKey={}, tableName={}, tableCount={}, fieldTableCount={}",
+                sourceKey, tableName, tables.size(), fieldsByTableName.size());
 
         DbTableKnowledgeSyncDTO response = new DbTableKnowledgeSyncDTO();
         response.setKbId(kbId);
@@ -74,15 +79,30 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
         int createdCount = 0;
         int updatedCount = 0;
         int unchangedCount = 0;
+        int total = tables.size();
         List<DbTableKnowledgeSyncItemDTO> items = new ArrayList<>(tables.size());
-        for (DbTableMetaDTO table : tables) {
-            List<DbTableFieldMetaDTO> fields = fieldsByTableName.getOrDefault(table.getTableName(), List.of());
-            DbTableKnowledgePreviewDTO preview = knowledgePreviewService.preview(table, fields);
-            AiKbDocumentUpsertResponse upsertResponse = upsertDocument(kbId, sourceKey, table, preview);
+        for (int i = 0; i < total; i++) {
+            DbTableMetaDTO table = tables.get(i);
+            String currentTableName = table.getTableName();
+            List<DbTableFieldMetaDTO> fields = fieldsByTableName.getOrDefault(currentTableName, List.of());
+            log.info("sync progress {}/{}, sourceKey={}, tableName={}, fieldCount={}",
+                    i + 1, total, sourceKey, currentTableName, fields.size());
+            DbTableKnowledgePreviewDTO preview;
+            AiKbDocumentUpsertResponse upsertResponse;
+            try {
+                preview = knowledgePreviewService.preview(table, fields);
+                log.debug("generated knowledge preview for table sync, sourceKey={}, tableName={}, contentLength={}",
+                        sourceKey, currentTableName, preview.getContent() == null ? 0 : preview.getContent().length());
+                upsertResponse = upsertDocument(kbId, sourceKey, table, preview);
+            } catch (Exception ex) {
+                log.error("db table knowledge sync failed at progress {}/{}, sourceKey={}, tableName={}",
+                        i + 1, total, sourceKey, currentTableName, ex);
+                throw ex;
+            }
 
             DbTableKnowledgeSyncItemDTO item = new DbTableKnowledgeSyncItemDTO();
-            item.setTableName(table.getTableName());
-            item.setDocumentId(buildDocumentId(sourceKey, table.getTableName()));
+            item.setTableName(currentTableName);
+            item.setDocumentId(buildDocumentId(sourceKey, currentTableName));
             item.setCreated(Boolean.TRUE.equals(upsertResponse.getCreated()));
             item.setUpdated(Boolean.TRUE.equals(upsertResponse.getUpdated()));
             item.setDraftVersionNo(upsertResponse.getDraftVersionNo());
@@ -95,6 +115,8 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
             } else {
                 unchangedCount++;
             }
+            log.info("finished table sync {}/{}, sourceKey={}, tableName={}, created={}, updated={}, draftVersionNo={}",
+                    i + 1, total, sourceKey, currentTableName, item.getCreated(), item.getUpdated(), item.getDraftVersionNo());
         }
 
         response.setItems(items);
@@ -110,6 +132,10 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
     private String resolveKbId() {
         R<String> response = systemSettingInternalApi.queryValueByKey(KB_ID_SETTING_KEY);
         if (response == null || response.getCode() != 0 || !StringUtils.hasText(response.getData())) {
+            log.error("failed to resolve knowledge base id, settingKey={}, responseCode={}, hasData={}",
+                    KB_ID_SETTING_KEY,
+                    response == null ? null : response.getCode(),
+                    response != null && StringUtils.hasText(response.getData()));
             throw new IllegalStateException("未配置系统参数 dbEngine.kb.kbId");
         }
         return response.getData().trim();
@@ -126,6 +152,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
                 .sorted(Comparator.comparing(DbTableMetaDTO::getTableName, Comparator.nullsLast(String::compareTo)))
                 .toList();
         if (tables.isEmpty()) {
+            log.warn("no db table metadata found for knowledge sync, sourceKey={}, tableName={}", sourceKey, tableName);
             throw new IllegalArgumentException("未找到可同步的数据表元信息");
         }
         return tables;
@@ -162,8 +189,16 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
         request.setContent(preview.getContent());
         request.setExt(buildExt(sourceKey, table));
 
+        log.debug("upserting knowledge document, kbId={}, sourceKey={}, tableName={}, documentId={}, documentName={}",
+                kbId, sourceKey, table.getTableName(), request.getDocumentId(), request.getDocumentName());
         R<AiKbDocumentUpsertResponse> response = aiKnowledgeBaseManageApi.upsertDocument(request);
         if (response == null || response.getCode() != 0 || response.getData() == null) {
+            log.error("knowledge document upsert failed, kbId={}, sourceKey={}, tableName={}, responseCode={}, hasData={}",
+                    kbId,
+                    sourceKey,
+                    table.getTableName(),
+                    response == null ? null : response.getCode(),
+                    response != null && response.getData() != null);
             throw new IllegalStateException("知识库同步失败: " + table.getTableName());
         }
         return response.getData();

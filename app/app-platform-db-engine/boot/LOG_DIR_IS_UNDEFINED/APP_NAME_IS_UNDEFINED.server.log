@@ -1,0 +1,168 @@
+[2m2026-06-19 19:07:04.878[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-4][0;39m [35m[d853828855e54c67ad39b719279f363a][0;39m [36mo.a.f.s.a.c.f.SecurityContextFilter[0;39m [2m-[0;39m Security context set user id = 1 for uri=/dbEngine/api/v1/meta/data-source/_search
+[2m2026-06-19 19:07:04.886[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-4][0;39m [35m[d853828855e54c67ad39b719279f363a][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==>  Preparing: SELECT id,source_key,source_name,source_type,owner_team,owner_user,status,enabled,sync_mode,config,last_sync_at,last_access_at,summary,remark,create_time,created_by,update_time,updated_by,version FROM db_data_source
+[2m2026-06-19 19:07:04.887[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-4][0;39m [35m[d853828855e54c67ad39b719279f363a][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==> Parameters: 
+[2m2026-06-19 19:07:04.893[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-4][0;39m [35m[d853828855e54c67ad39b719279f363a][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m <==      Total: 1
+[2m2026-06-19 19:07:06.481[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-5][0;39m [35m[c44c0b51a9fd4e34953322c9fbbe580c][0;39m [36mo.a.f.s.a.c.f.SecurityContextFilter[0;39m [2m-[0;39m Security context set user id = 1 for uri=/dbEngine/api/v1/meta/data-source/_search
+[2m2026-06-19 19:07:06.489[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-5][0;39m [35m[c44c0b51a9fd4e34953322c9fbbe580c][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==>  Preparing: SELECT id,source_key,source_name,source_type,owner_team,owner_user,status,enabled,sync_mode,config,last_sync_at,last_access_at,summary,remark,create_time,created_by,update_time,updated_by,version FROM db_data_source
+[2m2026-06-19 19:07:06.489[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-5][0;39m [35m[c44c0b51a9fd4e34953322c9fbbe580c][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==> Parameters: 
+[2m2026-06-19 19:07:06.491[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-5][0;39m [35m[c44c0b51a9fd4e34953322c9fbbe580c][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m <==      Total: 1
+[2m2026-06-19 19:07:07.096[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-6][0;39m [35m[6faa122674034a98869b4acfcae37238][0;39m [36mo.a.f.s.a.c.f.SecurityContextFilter[0;39m [2m-[0;39m Security context set user id = 1 for uri=/dbEngine/api/v1/meta/data-source/_search
+[2m2026-06-19 19:07:07.102[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-6][0;39m [35m[6faa122674034a98869b4acfcae37238][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==>  Preparing: SELECT id,source_key,source_name,source_type,owner_team,owner_user,status,enabled,sync_mode,config,last_sync_at,last_access_at,summary,remark,create_time,created_by,update_time,updated_by,version FROM db_data_source
+[2m2026-06-19 19:07:07.103[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-6][0;39m [35m[6faa122674034a98869b4acfcae37238][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==> Parameters: 
+[2m2026-06-19 19:07:07.105[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-6][0;39m [35m[6faa122674034a98869b4acfcae37238][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m <==      Total: 1
+[2m2026-06-19 19:07:09.652[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.f.s.a.c.f.SecurityContextFilter[0;39m [2m-[0;39m Security context set user id = 1 for uri=/dbEngine/api/v1/meta/table/knowledge-sync
+[2m2026-06-19 19:07:09.655[0;39m [34mINFO [0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m start db table knowledge sync, sourceKey=ods_trade_mysql, tableName=null, mode=ALL_TABLES
+[2m2026-06-19 19:07:09.657[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mfeign.slf4j.Slf4jLogger[0;39m [2m-[0;39m [SystemSettingInternalApi#queryValueByKey] ---> GET http://user/user/internal/v1/system-settings/value?key=dbEngine.kb.kbId HTTP/1.1
+[2m2026-06-19 19:07:09.674[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mfeign.slf4j.Slf4jLogger[0;39m [2m-[0;39m [SystemSettingInternalApi#queryValueByKey] <--- HTTP/1.1 200 (16ms)
+[2m2026-06-19 19:07:09.675[0;39m [34mINFO [0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m resolved knowledge base id for db table sync, sourceKey=ods_trade_mysql, kbId=w05enpcxa4
+[2m2026-06-19 19:07:09.678[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==>  Preparing: SELECT id,source_key,table_name,table_comment,table_type,layer_type,row_count,column_count,partition_key,freshness_seconds,status,enabled,last_scan_at,last_sync_at,remark,create_time,created_by,update_time,updated_by,version FROM db_table_meta WHERE (source_key = ?)
+[2m2026-06-19 19:07:09.678[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==> Parameters: ods_trade_mysql(String)
+[2m2026-06-19 19:07:09.681[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m <==      Total: 10
+[2m2026-06-19 19:07:09.684[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==>  Preparing: SELECT id,source_key,table_name,column_name,column_comment,data_type,column_length,column_precision,column_scale,nullable,primary_key,partition_key,default_value,ordinal_position,field_role,enabled,remark,create_time,created_by,update_time,updated_by,version FROM db_table_field_meta WHERE (source_key = ?)
+[2m2026-06-19 19:07:09.684[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m ==> Parameters: ods_trade_mysql(String)
+[2m2026-06-19 19:07:09.693[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.i.logging.jdbc.BaseJdbcLogger[0;39m [2m-[0;39m <==      Total: 123
+[2m2026-06-19 19:07:09.694[0;39m [34mINFO [0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m loaded db metadata for knowledge sync, sourceKey=ods_trade_mysql, tableName=null, tableCount=10, fieldTableCount=10
+[2m2026-06-19 19:07:09.695[0;39m [34mINFO [0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m sync progress 1/10, sourceKey=ods_trade_mysql, tableName=dict_hr_code, fieldCount=11
+[2m2026-06-19 19:07:09.695[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m generated knowledge preview for table sync, sourceKey=ods_trade_mysql, tableName=dict_hr_code, contentLength=712
+[2m2026-06-19 19:07:09.695[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m upserting knowledge document, kbId=w05enpcxa4, sourceKey=ods_trade_mysql, tableName=dict_hr_code, documentId=ods_trade_mysql/dict_hr_code, documentName=dict_hr_code - 人力资源字典表
+[2m2026-06-19 19:07:09.696[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mfeign.slf4j.Slf4jLogger[0;39m [2m-[0;39m [AiKnowledgeBaseManageApi#upsertDocument] ---> POST http://aiEngine/aiEngine/internal/v1/ai/kb/document/upsert HTTP/1.1
+[2m2026-06-19 19:07:09.972[0;39m [39mDEBUG[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mfeign.slf4j.Slf4jLogger[0;39m [2m-[0;39m [AiKnowledgeBaseManageApi#upsertDocument] <--- HTTP/1.1 200 (276ms)
+[2m2026-06-19 19:07:09.973[0;39m [1;31mERROR[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m knowledge document upsert failed, kbId=w05enpcxa4, sourceKey=ods_trade_mysql, tableName=dict_hr_code, responseCode=1, hasData=false
+[2m2026-06-19 19:07:09.973[0;39m [1;31mERROR[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36ma.p.a.d.e.m.s.i.DbTableKnowledgeSyncServiceImpl[0;39m [2m-[0;39m db table knowledge sync failed at progress 1/10, sourceKey=ods_trade_mysql, tableName=dict_hr_code
+
+java.lang.IllegalStateException: 知识库同步失败: dict_hr_code
+	at ai.platform.aiassit.db.engine.meta.service.impl.DbTableKnowledgeSyncServiceImpl.upsertDocument(DbTableKnowledgeSyncServiceImpl.java:202)
+	at ai.platform.aiassit.db.engine.meta.service.impl.DbTableKnowledgeSyncServiceImpl.sync(DbTableKnowledgeSyncServiceImpl.java:96)
+	at ai.platform.aiassit.db.engine.meta.controller.DbTableMetaController.knowledgeSync(DbTableMetaController.java:53)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:255)
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:188)
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:926)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:831)
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87)
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590)
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:206)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.athena.framework.security.auth.core.filter.SecurityContextFilter.doFilterInternal(SecurityContextFilter.java:121)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.athena.framework.web.filter.TraceIdFilter.doFilterInternal(TraceIdFilter.java:39)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167)
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90)
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482)
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115)
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93)
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74)
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:344)
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391)
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896)
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1736)
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659)
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+
+[2m2026-06-19 19:07:09.975[0;39m [1;31mERROR[0;39m [2m[http-nio-14102-exec-7][0;39m [35m[773c806472ad4c7884551df28aacc63b][0;39m [36mo.a.f.w.advice.BaseControllerAdvice[0;39m [2m-[0;39m 
+
+java.lang.IllegalStateException: 知识库同步失败: dict_hr_code
+	at ai.platform.aiassit.db.engine.meta.service.impl.DbTableKnowledgeSyncServiceImpl.upsertDocument(DbTableKnowledgeSyncServiceImpl.java:202)
+	at ai.platform.aiassit.db.engine.meta.service.impl.DbTableKnowledgeSyncServiceImpl.sync(DbTableKnowledgeSyncServiceImpl.java:96)
+	at ai.platform.aiassit.db.engine.meta.controller.DbTableMetaController.knowledgeSync(DbTableMetaController.java:53)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke0(Native Method)
+	at java.base/jdk.internal.reflect.NativeMethodAccessorImpl.invoke(NativeMethodAccessorImpl.java:77)
+	at java.base/jdk.internal.reflect.DelegatingMethodAccessorImpl.invoke(DelegatingMethodAccessorImpl.java:43)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:568)
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:255)
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:188)
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:926)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.handleInternal(RequestMappingHandlerAdapter.java:831)
+	at org.springframework.web.servlet.mvc.method.AbstractHandlerMethodAdapter.handle(AbstractHandlerMethodAdapter.java:87)
+	at org.springframework.web.servlet.DispatcherServlet.doDispatch(DispatcherServlet.java:1089)
+	at org.springframework.web.servlet.DispatcherServlet.doService(DispatcherServlet.java:979)
+	at org.springframework.web.servlet.FrameworkServlet.processRequest(FrameworkServlet.java:1014)
+	at org.springframework.web.servlet.FrameworkServlet.doPost(FrameworkServlet.java:914)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:590)
+	at org.springframework.web.servlet.FrameworkServlet.service(FrameworkServlet.java:885)
+	at jakarta.servlet.http.HttpServlet.service(HttpServlet.java:658)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:206)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.apache.tomcat.websocket.server.WsFilter.doFilter(WsFilter.java:51)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.RequestContextFilter.doFilterInternal(RequestContextFilter.java:100)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.athena.framework.security.auth.core.filter.SecurityContextFilter.doFilterInternal(SecurityContextFilter.java:121)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.FormContentFilter.doFilterInternal(FormContentFilter.java:93)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.athena.framework.web.filter.TraceIdFilter.doFilterInternal(TraceIdFilter.java:39)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.ServerHttpObservationFilter.doFilterInternal(ServerHttpObservationFilter.java:109)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.springframework.web.filter.CharacterEncodingFilter.doFilterInternal(CharacterEncodingFilter.java:201)
+	at org.springframework.web.filter.OncePerRequestFilter.doFilter(OncePerRequestFilter.java:116)
+	at org.apache.catalina.core.ApplicationFilterChain.internalDoFilter(ApplicationFilterChain.java:175)
+	at org.apache.catalina.core.ApplicationFilterChain.doFilter(ApplicationFilterChain.java:150)
+	at org.apache.catalina.core.StandardWrapperValve.invoke(StandardWrapperValve.java:167)
+	at org.apache.catalina.core.StandardContextValve.invoke(StandardContextValve.java:90)
+	at org.apache.catalina.authenticator.AuthenticatorBase.invoke(AuthenticatorBase.java:482)
+	at org.apache.catalina.core.StandardHostValve.invoke(StandardHostValve.java:115)
+	at org.apache.catalina.valves.ErrorReportValve.invoke(ErrorReportValve.java:93)
+	at org.apache.catalina.core.StandardEngineValve.invoke(StandardEngineValve.java:74)
+	at org.apache.catalina.connector.CoyoteAdapter.service(CoyoteAdapter.java:344)
+	at org.apache.coyote.http11.Http11Processor.service(Http11Processor.java:391)
+	at org.apache.coyote.AbstractProcessorLight.process(AbstractProcessorLight.java:63)
+	at org.apache.coyote.AbstractProtocol$ConnectionHandler.process(AbstractProtocol.java:896)
+	at org.apache.tomcat.util.net.NioEndpoint$SocketProcessor.doRun(NioEndpoint.java:1736)
+	at org.apache.tomcat.util.net.SocketProcessorBase.run(SocketProcessorBase.java:52)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor.runWorker(ThreadPoolExecutor.java:1191)
+	at org.apache.tomcat.util.threads.ThreadPoolExecutor$Worker.run(ThreadPoolExecutor.java:659)
+	at org.apache.tomcat.util.threads.TaskThread$WrappingRunnable.run(TaskThread.java:63)
+	at java.base/java.lang.Thread.run(Thread.java:833)
+

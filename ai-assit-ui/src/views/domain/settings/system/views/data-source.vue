@@ -12,6 +12,7 @@ const {
   dialogMode,
   dialogError,
   saving,
+  knowledgeSyncSubmitting,
   form,
   sourceTypeOptions,
   syncModeOptions,
@@ -49,9 +50,9 @@ const {
         </label>
 
         <div class="toolbar-actions">
-          <button type="button" class="toolbar-secondary-btn" @click="triggerKnowledgeSync">
+          <button type="button" class="toolbar-secondary-btn" :disabled="knowledgeSyncSubmitting || loading || !filteredSources.length" @click="triggerKnowledgeSync">
             <DataBoard :size="16" />
-            知识库同步
+            {{ knowledgeSyncSubmitting ? '同步中...' : '知识库同步' }}
           </button>
           <button type="button" class="toolbar-secondary-btn" @click="loadDataSources">
             <RefreshRight :size="16" />
