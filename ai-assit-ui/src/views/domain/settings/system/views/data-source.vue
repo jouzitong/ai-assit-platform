@@ -16,7 +16,6 @@ const {
   form,
   sourceTypeOptions,
   syncModeOptions,
-  statusOptions,
   authTypeOptions,
   dbTypeOptions,
   filteredSources,
@@ -156,9 +155,9 @@ const {
                 </select>
               </label>
               <label class="field-block">
-                <span>状态</span>
-                <select v-model="form.status" class="field-control">
-                  <option v-for="item in statusOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+                <span>同步模式</span>
+                <select v-model="form.syncMode" class="field-control">
+                  <option v-for="item in syncModeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
                 </select>
               </label>
 
@@ -169,12 +168,6 @@ const {
               <label class="field-block">
                 <span>负责人</span>
                 <input v-model="form.ownerUser" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>同步模式</span>
-                <select v-model="form.syncMode" class="field-control">
-                  <option v-for="item in syncModeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-                </select>
               </label>
               <label class="field-block">
                 <span>统一 Endpoint</span>
@@ -199,8 +192,8 @@ const {
 
           <section class="dialog-section section-panel">
             <header class="section-head">
-              <h4>数据库配置</h4>
-              <p>当前列表页先按 `DATABASE` 作为主要维护场景接通。</p>
+              <h4>连接配置</h4>
+              <p>按 `DbDataSourceConfig` 维护数据库类型、统一地址和网络超时。</p>
             </header>
 
             <div class="form-grid two-column">
@@ -210,34 +203,6 @@ const {
                   <option value="">请选择数据库类型</option>
                   <option v-for="item in dbTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
                 </select>
-              </label>
-              <label class="field-block">
-                <span>主机</span>
-                <input v-model="form.host" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>端口</span>
-                <input v-model="form.port" class="field-control" type="number" min="0" />
-              </label>
-              <label class="field-block">
-                <span>库名</span>
-                <input v-model="form.databaseName" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>Schema</span>
-                <input v-model="form.schemaName" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>JDBC URL</span>
-                <input v-model="form.jdbcUrl" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>用户名</span>
-                <input v-model="form.username" class="field-control" type="text" />
-              </label>
-              <label class="field-block">
-                <span>密码</span>
-                <input v-model="form.password" class="field-control" type="password" />
               </label>
               <label class="field-block">
                 <span>连接超时(ms)</span>
@@ -269,7 +234,27 @@ const {
               </label>
               <label class="field-block">
                 <span>Bearer Token</span>
-                <input v-model="form.token" class="field-control" type="text" />
+                <input v-model="form.tokenCiphertext" class="field-control" type="text" />
+              </label>
+              <label class="field-block">
+                <span>用户名</span>
+                <input v-model="form.username" class="field-control" type="text" />
+              </label>
+              <label class="field-block">
+                <span>密码密文</span>
+                <input v-model="form.passwordCiphertext" class="field-control" type="password" />
+              </label>
+              <label class="field-block">
+                <span>Access Key</span>
+                <input v-model="form.accessKey" class="field-control" type="text" />
+              </label>
+              <label class="field-block">
+                <span>Secret Key 密文</span>
+                <input v-model="form.secretKeyCiphertext" class="field-control" type="password" />
+              </label>
+              <label class="field-block full-span">
+                <span>凭证引用</span>
+                <input v-model="form.credentialRef" class="field-control" type="text" />
               </label>
               <label class="field-block full-span">
                 <span>扩展属性(JSON)</span>

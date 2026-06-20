@@ -307,6 +307,7 @@
 .modal-card {
   width: min(1040px, 100%);
   max-height: min(92vh, 980px);
+  box-sizing: border-box;
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -319,17 +320,24 @@
 
 .modal-large {
   width: min(1120px, 100%);
+  height: min(92vh, 980px);
 }
 
 .modal-body {
+  flex: 1 1 auto;
   min-height: 0;
   display: grid;
+  grid-auto-rows: max-content;
+  align-content: start;
   gap: 14px;
-  padding-right: 6px;
-  overflow: auto;
+  padding-right: 8px;
+  padding-bottom: 6px;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .modal-head {
+  flex: none;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -372,9 +380,11 @@
 .dialog-section {
   display: grid;
   gap: 12px;
+  min-width: 0;
 }
 
 .section-panel {
+  box-sizing: border-box;
   padding: 16px;
   border: 1px solid rgba(226, 232, 240, 0.95);
   border-radius: 18px;
@@ -397,6 +407,7 @@
 .form-grid {
   display: grid;
   gap: 12px;
+  align-items: start;
 }
 
 .form-grid.two-column {
@@ -472,6 +483,16 @@
   border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
 
+.modal-foot {
+  flex: none;
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(226, 232, 240, 0.9);
+  background: #fff;
+}
+
 .action-btn {
   min-height: 40px;
   padding: 0 16px;
@@ -514,7 +535,8 @@
   }
 
   .modal-head,
-  .modal-actions {
+  .modal-actions,
+  .modal-foot {
     flex-direction: column;
     align-items: stretch;
   }

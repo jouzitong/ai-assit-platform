@@ -30,11 +30,6 @@ export function useDataSourcePage() {
     { label: 'T+1', value: 'T_PLUS_1' },
     { label: '手动', value: 'MANUAL' }
   ]
-  const statusOptions = [
-    { label: '运行中', value: 'ACTIVE' },
-    { label: '待校验', value: 'PENDING' },
-    { label: '已停用', value: 'INACTIVE' }
-  ]
   const authTypeOptions = [
     { label: '无认证', value: 'NONE' },
     { label: '用户名/密码', value: 'BASIC' },
@@ -154,9 +149,9 @@ export function useDataSourcePage() {
   }
 
   function mapDataSourceItem(item) {
-    const databaseConfig = item?.config?.database ?? {}
+    const config = item?.config ?? {}
     const host = resolveHost(item)
-    const database = databaseConfig.databaseName || databaseConfig.schemaName || '-'
+    const database = normalizeEnumValue(config.dbType || item?.config?.database?.dbType) || '-'
     const statusMeta = resolveStatusMeta(item)
     return {
       id: item.id,
@@ -176,21 +171,22 @@ export function useDataSourcePage() {
   }
 
   function resolveHost(item) {
-    const databaseConfig = item?.config?.database ?? {}
+    const config = item?.config ?? {}
+    const databaseConfig = config.database ?? {}
+    if (config.endpoint) {
+      return config.endpoint
+    }
     if (databaseConfig.host) {
       return databaseConfig.port ? `${databaseConfig.host}:${databaseConfig.port}` : databaseConfig.host
     }
-    return item?.config?.endpoint || '-'
+    return '-'
   }
 
   function resolveStatusMeta(item) {
     if (item?.enabled === false) {
       return { status: 'offline', label: '已停用' }
     }
-    if (String(item?.status || '').toUpperCase() === 'ACTIVE') {
-      return { status: 'online', label: '运行中' }
-    }
-    return { status: 'warning', label: item?.status || '待校验' }
+    return { status: 'online', label: '运行中' }
   }
 
   function formatOwner(item) {
@@ -220,12 +216,6 @@ export function useDataSourcePage() {
   }
 
   async function submitForm() {
-    const validationError = validateForm()
-    if (validationError) {
-      dialogError.value = validationError
-      return
-    }
-
     dialogError.value = ''
     saving.value = true
     try {
@@ -246,71 +236,34 @@ export function useDataSourcePage() {
     }
   }
 
-  function validateForm() {
-    if (!form.sourceKey.trim()) {
-      return '请输入数据源 Key'
-    }
-    if (!form.sourceName.trim()) {
-      return '请输入数据源名称'
-    }
-    if (!form.sourceType) {
-      return '请选择数据源类型'
-    }
-    if (!form.syncMode) {
-      return '请选择同步模式'
-    }
-    if (!form.status) {
-      return '请选择状态'
-    }
-    if (form.sourceType === 'DATABASE') {
-      if (!form.dbType.trim()) {
-        return '数据库类型不能为空'
-      }
-      if (!form.host.trim()) {
-        return '数据库主机不能为空'
-      }
-      if (!form.databaseName.trim()) {
-        return '数据库名称不能为空'
-      }
-    }
-    return ''
-  }
-
   function buildPayload() {
-    const endpoint = form.endpoint.trim() || form.jdbcUrl.trim() || undefined
     return {
       sourceKey: form.sourceKey.trim(),
       sourceName: form.sourceName.trim(),
       sourceType: form.sourceType,
       ownerTeam: emptyToUndefined(form.ownerTeam),
       ownerUser: emptyToUndefined(form.ownerUser),
-      status: form.status,
       enabled: form.enabled,
       syncMode: form.syncMode,
       summary: emptyToUndefined(form.summary),
       remark: emptyToUndefined(form.remark),
       config: {
         dbType: emptyToUndefined(form.dbType),
-        endpoint,
-        network: {
+        endpoint: emptyToUndefined(form.endpoint),
+        network: compactObject({
           connectTimeoutMs: normalizeNumber(form.connectTimeoutMs),
           readTimeoutMs: normalizeNumber(form.readTimeoutMs),
           writeTimeoutMs: normalizeNumber(form.writeTimeoutMs)
-        },
-        auth: {
+        }),
+        auth: compactObject({
           authType: form.authType,
-          token: emptyToUndefined(form.token)
-        },
-        database: {
-          dbType: emptyToUndefined(form.dbType),
-          host: emptyToUndefined(form.host),
-          port: normalizeNumber(form.port),
-          databaseName: emptyToUndefined(form.databaseName),
-          schemaName: emptyToUndefined(form.schemaName),
-          jdbcUrl: emptyToUndefined(form.jdbcUrl),
           username: emptyToUndefined(form.username),
-          password: emptyToUndefined(form.password)
-        },
+          passwordCiphertext: emptyToUndefined(form.passwordCiphertext),
+          tokenCiphertext: emptyToUndefined(form.tokenCiphertext),
+          accessKey: emptyToUndefined(form.accessKey),
+          secretKeyCiphertext: emptyToUndefined(form.secretKeyCiphertext),
+          credentialRef: emptyToUndefined(form.credentialRef)
+        }),
         attributes: parseAttributesText(form.attributesText)
       }
     }
@@ -323,7 +276,7 @@ export function useDataSourcePage() {
     try {
       return JSON.parse(value)
     } catch {
-      throw new Error('扩展属性必须是合法 JSON')
+      return value.trim()
     }
   }
 
@@ -339,6 +292,10 @@ export function useDataSourcePage() {
     return Number.isFinite(numericValue) ? numericValue : undefined
   }
 
+  function compactObject(value) {
+    return Object.fromEntries(Object.entries(value).filter(([, entryValue]) => entryValue !== undefined))
+  }
+
   function createFormFromItem(item) {
     const raw = item?.raw ?? {}
     const config = raw?.config ?? {}
@@ -351,25 +308,22 @@ export function useDataSourcePage() {
       sourceType: raw.sourceType || 'DATABASE',
       ownerTeam: raw.ownerTeam || '',
       ownerUser: raw.ownerUser || '',
-      status: raw.status || 'ACTIVE',
       enabled: raw.enabled !== false,
       syncMode: raw.syncMode || 'REALTIME',
-      endpoint: config.endpoint || '',
+      endpoint: config.endpoint || databaseConfig.jdbcUrl || '',
       summary: raw.summary || '',
       remark: raw.remark || '',
       dbType: normalizeEnumValue(config.dbType || databaseConfig.dbType),
-      host: databaseConfig.host || '',
-      port: databaseConfig.port ?? '',
-      databaseName: databaseConfig.databaseName || '',
-      schemaName: databaseConfig.schemaName || '',
-      jdbcUrl: databaseConfig.jdbcUrl || '',
-      username: databaseConfig.username || '',
-      password: databaseConfig.password || '',
       connectTimeoutMs: config.network?.connectTimeoutMs ?? '',
       readTimeoutMs: config.network?.readTimeoutMs ?? '',
       writeTimeoutMs: config.network?.writeTimeoutMs ?? '',
       authType: authConfig.authType || 'NONE',
-      token: authConfig.token || '',
+      username: authConfig.username || databaseConfig.username || '',
+      passwordCiphertext: authConfig.passwordCiphertext || databaseConfig.password || '',
+      tokenCiphertext: authConfig.tokenCiphertext || authConfig.token || '',
+      accessKey: authConfig.accessKey || '',
+      secretKeyCiphertext: authConfig.secretKeyCiphertext || '',
+      credentialRef: authConfig.credentialRef || '',
       attributesText: config.attributes ? JSON.stringify(config.attributes, null, 2) : ''
     }
   }
@@ -386,25 +340,22 @@ export function useDataSourcePage() {
       sourceType: 'DATABASE',
       ownerTeam: '',
       ownerUser: '',
-      status: 'ACTIVE',
       enabled: true,
       syncMode: 'REALTIME',
       endpoint: '',
       summary: '',
       remark: '',
       dbType: '',
-      host: '',
-      port: '',
-      databaseName: '',
-      schemaName: '',
-      jdbcUrl: '',
-      username: '',
-      password: '',
       connectTimeoutMs: '',
       readTimeoutMs: '',
       writeTimeoutMs: '',
       authType: 'NONE',
-      token: '',
+      username: '',
+      passwordCiphertext: '',
+      tokenCiphertext: '',
+      accessKey: '',
+      secretKeyCiphertext: '',
+      credentialRef: '',
       attributesText: ''
     }
   }
@@ -422,7 +373,6 @@ export function useDataSourcePage() {
     form,
     sourceTypeOptions,
     syncModeOptions,
-    statusOptions,
     authTypeOptions,
     dbTypeOptions,
     filteredSources,
