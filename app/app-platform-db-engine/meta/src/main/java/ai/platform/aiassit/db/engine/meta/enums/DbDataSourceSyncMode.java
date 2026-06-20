@@ -9,6 +9,7 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum DbDataSourceSyncMode implements IEnum {
+    NONE(0, "NONE", "无需同步"),
     REALTIME(1, "REALTIME", "实时"),
     MINUTE_LEVEL(2, "MINUTE_LEVEL", "分钟级"),
     HOURLY(3, "HOURLY", "小时级"),

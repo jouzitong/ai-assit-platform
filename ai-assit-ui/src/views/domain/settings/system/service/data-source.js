@@ -37,10 +37,18 @@ export function useDataSourcePage() {
   ]
   const authTypeOptions = [
     { label: '无认证', value: 'NONE' },
-    { label: 'Basic', value: 'BASIC' },
+    { label: '用户名/密码', value: 'BASIC' },
     { label: 'Bearer', value: 'BEARER' },
     { label: 'AK/SK', value: 'AK_SK' },
     { label: 'API Key', value: 'API_KEY' }
+  ]
+  const dbTypeOptions = [
+    { label: 'MySQL', value: 'MYSQL' },
+    { label: 'PostgreSQL', value: 'POSTGRESQL' },
+    { label: 'ClickHouse', value: 'CLICKHOUSE' },
+    { label: 'Oracle', value: 'ORACLE' },
+    { label: 'SQL Server', value: 'SQL_SERVER' },
+    { label: 'Hive', value: 'HIVE' }
   ]
 
   const filteredSources = computed(() => {
@@ -282,6 +290,7 @@ export function useDataSourcePage() {
       summary: emptyToUndefined(form.summary),
       remark: emptyToUndefined(form.remark),
       config: {
+        dbType: emptyToUndefined(form.dbType),
         endpoint,
         network: {
           connectTimeoutMs: normalizeNumber(form.connectTimeoutMs),
@@ -332,6 +341,7 @@ export function useDataSourcePage() {
 
   function createFormFromItem(item) {
     const raw = item?.raw ?? {}
+    const config = raw?.config ?? {}
     const databaseConfig = raw?.config?.database ?? {}
     const authConfig = raw?.config?.auth ?? {}
     return {
@@ -344,10 +354,10 @@ export function useDataSourcePage() {
       status: raw.status || 'ACTIVE',
       enabled: raw.enabled !== false,
       syncMode: raw.syncMode || 'REALTIME',
-      endpoint: raw?.config?.endpoint || '',
+      endpoint: config.endpoint || '',
       summary: raw.summary || '',
       remark: raw.remark || '',
-      dbType: databaseConfig.dbType || '',
+      dbType: normalizeEnumValue(config.dbType || databaseConfig.dbType),
       host: databaseConfig.host || '',
       port: databaseConfig.port ?? '',
       databaseName: databaseConfig.databaseName || '',
@@ -355,13 +365,17 @@ export function useDataSourcePage() {
       jdbcUrl: databaseConfig.jdbcUrl || '',
       username: databaseConfig.username || '',
       password: databaseConfig.password || '',
-      connectTimeoutMs: raw?.config?.network?.connectTimeoutMs ?? '',
-      readTimeoutMs: raw?.config?.network?.readTimeoutMs ?? '',
-      writeTimeoutMs: raw?.config?.network?.writeTimeoutMs ?? '',
+      connectTimeoutMs: config.network?.connectTimeoutMs ?? '',
+      readTimeoutMs: config.network?.readTimeoutMs ?? '',
+      writeTimeoutMs: config.network?.writeTimeoutMs ?? '',
       authType: authConfig.authType || 'NONE',
       token: authConfig.token || '',
-      attributesText: raw?.config?.attributes ? JSON.stringify(raw.config.attributes, null, 2) : ''
+      attributesText: config.attributes ? JSON.stringify(config.attributes, null, 2) : ''
     }
+  }
+
+  function normalizeEnumValue(value) {
+    return String(value || '').trim().replace(/-/g, '_').toUpperCase()
   }
 
   function createEmptyForm() {
@@ -410,6 +424,7 @@ export function useDataSourcePage() {
     syncModeOptions,
     statusOptions,
     authTypeOptions,
+    dbTypeOptions,
     filteredSources,
     openSource,
     statusClass,

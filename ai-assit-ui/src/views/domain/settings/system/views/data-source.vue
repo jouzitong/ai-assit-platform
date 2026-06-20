@@ -18,6 +18,7 @@ const {
   syncModeOptions,
   statusOptions,
   authTypeOptions,
+  dbTypeOptions,
   filteredSources,
   openSource,
   statusClass,
@@ -205,7 +206,10 @@ const {
             <div class="form-grid two-column">
               <label class="field-block">
                 <span>数据库类型</span>
-                <input v-model="form.dbType" class="field-control" type="text" placeholder="mysql / postgresql / clickhouse" />
+                <select v-model="form.dbType" class="field-control">
+                  <option value="">请选择数据库类型</option>
+                  <option v-for="item in dbTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
+                </select>
               </label>
               <label class="field-block">
                 <span>主机</span>

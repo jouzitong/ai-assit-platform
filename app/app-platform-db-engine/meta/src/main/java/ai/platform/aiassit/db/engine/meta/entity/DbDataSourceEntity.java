@@ -46,10 +46,6 @@ public class DbDataSourceEntity extends AuditableEntity {
     @TableField("owner_user")
     private String ownerUser;
 
-    /** 状态。 */
-    @TableField("status")
-    private String status;
-
     /** 是否启用。 */
     @TableField("enabled")
     private Boolean enabled;

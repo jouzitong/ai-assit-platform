@@ -5,9 +5,8 @@ CREATE TABLE IF NOT EXISTS db_data_source (
     source_type VARCHAR(32) NOT NULL COMMENT '数据源类型',
     owner_team VARCHAR(64) DEFAULT NULL COMMENT '归属团队',
     owner_user VARCHAR(64) DEFAULT NULL COMMENT '负责人',
-    status VARCHAR(32) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态',
     enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否启用',
-    sync_mode VARCHAR(32) NOT NULL DEFAULT 'MANUAL' COMMENT '同步方式',
+    sync_mode TINYINT NOT NULL DEFAULT 5 COMMENT '同步方式：0无需同步，1实时，2分钟级，3小时级，4T+1，5手动',
     config JSON DEFAULT NULL COMMENT '连接、认证及扩展配置',
     last_sync_at DATETIME DEFAULT NULL COMMENT '最近同步时间',
     last_access_at DATETIME DEFAULT NULL COMMENT '最近访问时间',
@@ -20,7 +19,6 @@ CREATE TABLE IF NOT EXISTS db_data_source (
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_source_key (source_key),
     KEY idx_source_type (source_type),
-    KEY idx_source_status (status),
     KEY idx_source_enabled (enabled),
     KEY idx_source_owner_team (owner_team)
 ) COMMENT='数据接入源表';

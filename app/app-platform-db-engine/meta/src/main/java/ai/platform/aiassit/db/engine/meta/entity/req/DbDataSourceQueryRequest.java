@@ -14,8 +14,6 @@ public class DbDataSourceQueryRequest extends BaseRequest {
 
     private String sourceType;
 
-    private String status;
-
     private String ownerTeam;
 
     private Boolean enabled;

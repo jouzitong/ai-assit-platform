@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.entity.config;
 
+import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceDbType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +16,7 @@ import lombok.NoArgsConstructor;
 public class DbDataSourceDatabaseConfig {
 
     /** 数据库类型，例如 mysql、postgresql、clickhouse。 */
-    private String dbType;
+    private DbDataSourceDbType dbType;
 
     /** 主机地址。 */
     private String host;

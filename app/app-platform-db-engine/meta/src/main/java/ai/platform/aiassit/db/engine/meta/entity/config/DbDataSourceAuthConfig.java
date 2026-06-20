@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.entity.config;
 
+import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceAuthType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -15,7 +16,7 @@ import lombok.NoArgsConstructor;
 public class DbDataSourceAuthConfig {
 
     /** 认证类型，例如 NONE、BASIC、BEARER、AK_SK、API_KEY。 */
-    private String authType;
+    private DbDataSourceAuthType authType;
 
     /** 用户名。 */
     private String username;

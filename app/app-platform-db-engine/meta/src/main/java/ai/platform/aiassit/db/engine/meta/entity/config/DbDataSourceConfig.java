@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.entity.config;
 
+import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceDbType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -16,18 +17,28 @@ import java.util.Map;
 @AllArgsConstructor
 public class DbDataSourceConfig {
 
-    /** 统一访问地址。 */
+    /**
+     * 数据库类型，例如 mysql、postgresql、clickhouse。
+     */
+    private DbDataSourceDbType dbType;
+
+    /**
+     * 统一访问地址。
+     */
     private String endpoint;
 
-    /** 连接与调用网络配置。 */
+    /**
+     * 连接与调用网络配置。
+     */
     private DbDataSourceNetworkConfig network;
 
-    /** 认证配置。 */
+    /**
+     * 认证配置。
+     */
     private DbDataSourceAuthConfig auth;
 
-    /** 数据库类配置。 */
-    private DbDataSourceDatabaseConfig database;
-
-    /** 扩展属性。 */
+    /**
+     * 扩展属性。
+     */
     private Map<String, Object> attributes;
 }

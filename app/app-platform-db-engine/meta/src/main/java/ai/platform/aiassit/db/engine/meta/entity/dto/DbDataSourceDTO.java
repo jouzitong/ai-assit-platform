@@ -23,8 +23,6 @@ public class DbDataSourceDTO extends BaseDTO {
 
     private String ownerUser;
 
-    private String status;
-
     private Boolean enabled;
 
     private DbDataSourceSyncMode syncMode;
