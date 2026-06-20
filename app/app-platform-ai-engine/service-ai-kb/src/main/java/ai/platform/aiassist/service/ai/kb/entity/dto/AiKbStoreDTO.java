@@ -6,7 +6,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
 @Data
@@ -19,25 +18,9 @@ public class AiKbStoreDTO extends BaseDTO {
 
     private AiKbBizType bizType;
 
-    private String bizKey;
-
-    private String providerCode;
-
     private String providerKbId;
-
-    private Long currentVersionId;
-
-    private Integer currentVersionNo;
 
     private AiKbStoreStatus status;
 
-    private Boolean enabled;
-
-    private Map<String, Object> configJson;
-
     private Map<String, Object> extJson;
-
-    private LocalDateTime lastPublishAt;
-
-    private String remark;
 }

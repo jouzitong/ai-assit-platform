@@ -13,7 +13,6 @@ import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 
-import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
@@ -48,36 +47,10 @@ public class AiKbStoreEntity extends AuditableEntity {
     private AiKbBizType bizType;
 
     /**
-     * 业务唯一键，例如 sourceKey。
-     */
-    @TableField("biz_key")
-    private String bizKey;
-
-    /**
-     * Provider 编码，例如 qwen。
-     *
-     * @see AiProviderConfigEntity#getProviderCode
-     */
-    @TableField("provider_code")
-    private String providerCode;
-
-    /**
      * AI 侧真实知识库 ID。
      */
     @TableField("provider_kb_id")
     private String providerKbId;
-
-    /**
-     * 当前生效版本 ID。
-     */
-    @TableField("current_version_id")
-    private Long currentVersionId;
-
-    /**
-     * 当前生效版本号。
-     */
-    @TableField("current_version_no")
-    private Integer currentVersionNo;
 
     /**
      * 状态，例如 INIT、ACTIVE、SYNCING、FAILED、DISABLED。
@@ -86,32 +59,8 @@ public class AiKbStoreEntity extends AuditableEntity {
     private AiKbStoreStatus status;
 
     /**
-     * 是否启用。
-     */
-    @TableField("enabled")
-    private Boolean enabled;
-
-    /**
-     * 知识库级可配置参数。
-     */
-    @TableField(value = "config_json", typeHandler = JacksonTypeHandler.class)
-    private Map<String, Object> configJson;
-
-    /**
      * 扩展信息。
      */
     @TableField(value = "ext_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> extJson;
-
-    /**
-     * 最近一次发布时间。
-     */
-    @TableField("last_publish_at")
-    private LocalDateTime lastPublishAt;
-
-    /**
-     * 备注。
-     */
-    @TableField("remark")
-    private String remark;
 }

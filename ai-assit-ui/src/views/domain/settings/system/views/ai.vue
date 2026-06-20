@@ -254,16 +254,9 @@ const {
             v-model="kbFilters.keyword"
             class="field-control"
             type="text"
-            placeholder="搜索 KB 编码、名称、业务键、Provider KB"
+            placeholder="搜索 KB 编码、名称、Provider KB"
             @keyup.enter="handleSearch"
           />
-
-          <select v-model="kbFilters.providerCode" class="field-control">
-            <option value="">全部 Provider</option>
-            <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
-              {{ item.providerName }} ({{ item.providerCode }})
-            </option>
-          </select>
 
           <select v-model="kbFilters.status" class="field-control">
             <option v-for="item in kbStatusOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
@@ -290,14 +283,9 @@ const {
                     <th>KB 编码</th>
                     <th>KB 名称</th>
                     <th>业务类型</th>
-                    <th>业务键</th>
-                    <th>Provider</th>
                     <th>Provider KB ID</th>
-                    <th>当前版本</th>
                     <th>状态</th>
-                    <th>启用</th>
-                    <th>最近发布</th>
-                    <th>备注</th>
+                    <th>扩展信息</th>
                     <th>操作</th>
                   </tr>
                 </thead>
@@ -306,27 +294,21 @@ const {
                     <td>{{ row.kbCode }}</td>
                     <td>{{ row.kbName }}</td>
                     <td>{{ row.bizType || '-' }}</td>
-                    <td>{{ row.bizKey }}</td>
-                    <td>{{ row.providerCode || '-' }}</td>
                     <td class="ellipsis">{{ row.providerKbId || '-' }}</td>
-                    <td>{{ row.currentVersionNo ?? '-' }}</td>
                     <td>{{ row.status || '-' }}</td>
-                    <td>
-                      <button class="status-btn" :class="row.enabled ? 'is-on' : 'is-off'" type="button" @click="toggleKbStatus(row)">
-                        {{ row.enabled ? '启用' : '停用' }}
-                      </button>
-                    </td>
-                    <td>{{ formatDateTime(row.lastPublishAt) }}</td>
-                    <td class="ellipsis">{{ row.remark || '-' }}</td>
+                    <td class="ellipsis">{{ row.extJson ? JSON.stringify(row.extJson) : '-' }}</td>
                     <td>
                       <div class="row-actions">
+                        <button class="status-btn" :class="row.enabled ? 'is-on' : 'is-off'" type="button" @click="toggleKbStatus(row)">
+                          {{ row.enabled ? '停用' : '启用' }}
+                        </button>
                         <button class="link-btn" type="button" @click="openKbEdit(row)">编辑</button>
                         <button class="link-btn danger" type="button" @click="confirmDeleteKb(row)">删除</button>
                       </div>
                     </td>
                   </tr>
                   <tr v-if="!kbList.length">
-                    <td colspan="12" class="empty-cell">暂无 KB 数据</td>
+                    <td colspan="7" class="empty-cell">暂无 KB 数据</td>
                   </tr>
                 </tbody>
               </table>
@@ -558,41 +540,20 @@ const {
           </label>
 
           <label class="field-block">
-            <span>业务键</span>
-            <input v-model="kbForm.bizKey" class="field-control" type="text" />
-          </label>
-          <label class="field-block">
-            <span>Provider</span>
-            <select v-model="kbForm.providerCode" class="field-control">
-              <option value="">未绑定</option>
-              <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
-                {{ item.providerName }} ({{ item.providerCode }})
-              </option>
-            </select>
-          </label>
-          <label class="field-block">
             <span>Provider KB ID</span>
             <input v-model="kbForm.providerKbId" class="field-control" type="text" />
           </label>
 
-          <label class="field-block">
-            <span>当前版本号</span>
-            <input v-model="kbForm.currentVersionNo" class="field-control" type="number" min="0" />
-          </label>
           <label class="field-block">
             <span>状态</span>
             <select v-model="kbForm.status" class="field-control">
               <option v-for="item in kbStatusOptions.slice(1)" :key="item.value" :value="item.value">{{ item.label }}</option>
             </select>
           </label>
-          <label class="switch-block">
-            <input v-model="kbForm.enabled" type="checkbox" />
-            <span>启用 KB</span>
-          </label>
 
           <label class="field-block full-span">
-            <span>备注</span>
-            <textarea v-model="kbForm.remark" class="field-control textarea-control" rows="4" />
+            <span>扩展信息 JSON</span>
+            <textarea v-model="kbForm.extJson" class="field-control textarea-control" rows="4" placeholder='{"owner":"ai-engine"}' />
           </label>
         </div>
 

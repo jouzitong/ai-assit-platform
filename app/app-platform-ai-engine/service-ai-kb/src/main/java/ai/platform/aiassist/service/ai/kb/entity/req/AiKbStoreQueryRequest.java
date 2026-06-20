@@ -15,14 +15,11 @@ public class AiKbStoreQueryRequest extends BaseRequest {
 
     private String kbName;
 
-    private String bizKey;
-
     private AiKbBizType bizType;
-
-    private String providerCode;
 
     private AiKbStoreStatus status;
 
+    @IgnoredQuery
     private Boolean enabled;
 
     @IgnoredQuery

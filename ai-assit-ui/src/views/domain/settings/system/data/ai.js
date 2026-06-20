@@ -61,12 +61,8 @@ export function createKbForm() {
     kbCode: '',
     kbName: '',
     bizType: 'DB_DATA_SOURCE',
-    bizKey: '',
-    providerCode: '',
     providerKbId: '',
-    currentVersionNo: '',
     status: 'INIT',
-    enabled: true,
-    remark: ''
+    extJson: ''
   }
 }

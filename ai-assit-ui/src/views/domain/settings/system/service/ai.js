@@ -52,7 +52,6 @@ export function useAiPage() {
 
   const kbFilters = reactive({
     keyword: '',
-    providerCode: '',
     status: '',
     enabled: ''
   })
@@ -199,7 +198,6 @@ export function useAiPage() {
       page: kbPagination.page,
       size: kbPagination.size,
       keyword: kbFilters.keyword || undefined,
-      providerCode: kbFilters.providerCode || undefined,
       status: kbFilters.status || undefined,
       enabled: parseBooleanFilter(kbFilters.enabled)
     }
@@ -252,7 +250,7 @@ export function useAiPage() {
     loading.kb = true
     try {
       const payload = unwrapPayload(await searchAiKbStores(buildKbQuery()))
-      kbList.value = payload?.list ?? []
+      kbList.value = (payload?.list ?? []).map(normalizeKbRow)
       kbPagination.total = resolvePageTotal(payload?.pageInfo?.total, kbList.value.length)
     } catch (error) {
       showPopup.error(error.message || 'KB 列表加载失败')
@@ -326,7 +324,7 @@ export function useAiPage() {
     kbDialogMode.value = 'edit'
     kbError.value = ''
     Object.assign(kbForm, createKbForm(), JSON.parse(JSON.stringify(row)), {
-      currentVersionNo: row.currentVersionNo ?? ''
+      extJson: formatJsonField(row.extJson)
     })
     kbDialogVisible.value = true
   }
@@ -388,10 +386,6 @@ export function useAiPage() {
     }
     if (!kbForm.bizType) {
       kbError.value = '请选择业务类型'
-      return false
-    }
-    if (!kbForm.bizKey.trim()) {
-      kbError.value = '请输入业务键'
       return false
     }
     kbError.value = ''
@@ -485,17 +479,14 @@ export function useAiPage() {
 
     loading.kbSaving = true
     try {
+      const extJson = parseJsonField(kbForm.extJson, '扩展信息')
       const payload = {
         kbCode: kbForm.kbCode.trim(),
         kbName: kbForm.kbName.trim(),
         bizType: kbForm.bizType,
-        bizKey: kbForm.bizKey.trim(),
-        providerCode: kbForm.providerCode || null,
         providerKbId: kbForm.providerKbId.trim() || null,
-        currentVersionNo: normalizeNumber(kbForm.currentVersionNo),
         status: kbForm.status,
-        enabled: kbForm.enabled,
-        remark: kbForm.remark.trim()
+        extJson
       }
 
       if (kbDialogMode.value === 'create') {
@@ -538,14 +529,12 @@ export function useAiPage() {
   }
 
   async function toggleKbStatus(row) {
-    const nextValue = !row.enabled
+    const nextStatus = row.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED'
     try {
-      await editAiKbStore(row.id, { enabled: nextValue })
-      row.enabled = nextValue
-      if (!nextValue && row.status !== 'DISABLED') {
-        row.status = 'DISABLED'
-      }
-      showPopup.success(`KB 已${nextValue ? '启用' : '停用'}`)
+      await editAiKbStore(row.id, { status: nextStatus })
+      row.status = nextStatus
+      row.enabled = nextStatus !== 'DISABLED'
+      showPopup.success(`KB 已${row.enabled ? '启用' : '停用'}`)
     } catch (error) {
       showPopup.error(error.message || 'KB 状态更新失败')
     }
@@ -607,7 +596,6 @@ export function useAiPage() {
 
   function resetKbFilters() {
     kbFilters.keyword = ''
-    kbFilters.providerCode = ''
     kbFilters.status = ''
     kbFilters.enabled = ''
     kbPagination.page = 1
@@ -657,6 +645,42 @@ export function useAiPage() {
     }
     const parsed = Number(value)
     return Number.isFinite(parsed) ? parsed : null
+  }
+
+  function normalizeKbRow(row) {
+    const status = row?.status || 'INIT'
+    return {
+      ...row,
+      status,
+      enabled: status !== 'DISABLED'
+    }
+  }
+
+  function formatJsonField(value) {
+    if (!value) {
+      return ''
+    }
+    try {
+      return JSON.stringify(value, null, 2)
+    } catch {
+      return String(value)
+    }
+  }
+
+  function parseJsonField(value, label) {
+    const content = String(value ?? '').trim()
+    if (!content) {
+      return null
+    }
+    try {
+      const parsed = JSON.parse(content)
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        return parsed
+      }
+      throw new Error(`${label}必须是 JSON 对象`)
+    } catch (error) {
+      throw new Error(error.message || `${label}格式不正确`)
+    }
   }
 
   function unwrapPayload(response) {

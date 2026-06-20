@@ -12,6 +12,7 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbReviewStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbVersionStatus;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentContentDTO;
@@ -146,7 +147,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         document.setMetaJson(ext);
         document.setLastGeneratedAt(LocalDateTime.now());
         document.setLastError(null);
-        if (store.getEnabled() != null && !store.getEnabled()) {
+        if (store.getStatus() == AiKbStoreStatus.DISABLED) {
             document.setStatus(AiKbDocumentStatus.DISABLED);
         }
 
@@ -207,10 +208,9 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
             dto.setKbId(store.getKbCode());
             dto.setKbName(store.getKbName());
             dto.setSourceType(bizTypeToSourceType(store.getBizType()));
-            dto.setSourceKey(store.getBizKey());
             dto.setProviderKbId(store.getProviderKbId());
             dto.setStatus(store.getStatus());
-            dto.setEnabled(store.getEnabled());
+            dto.setEnabled(store.getStatus() != AiKbStoreStatus.DISABLED);
             dto.setExt(store.getExtJson() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(store.getExtJson()));
             result.add(dto);
         }
