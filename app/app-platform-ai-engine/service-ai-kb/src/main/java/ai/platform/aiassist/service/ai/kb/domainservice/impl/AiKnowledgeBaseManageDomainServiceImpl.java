@@ -12,20 +12,23 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbReviewStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
+import ai.platform.aiassist.service.ai.api.enums.AiKbVersionStatus;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentContentDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbStoreDTO;
+import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbVersionDTO;
 import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentQueryRequest;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentContentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbStoreService;
+import ai.platform.aiassist.service.ai.kb.service.AiKbVersionService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -43,13 +46,16 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
     private final AiKbStoreService storeService;
     private final AiKbDocumentService documentService;
     private final AiKbDocumentContentService contentService;
+    private final AiKbVersionService versionService;
 
     public AiKnowledgeBaseManageDomainServiceImpl(AiKbStoreService storeService,
                                                   AiKbDocumentService documentService,
-                                                  AiKbDocumentContentService contentService) {
+                                                  AiKbDocumentContentService contentService,
+                                                  AiKbVersionService versionService) {
         this.storeService = storeService;
         this.documentService = documentService;
         this.contentService = contentService;
+        this.versionService = versionService;
     }
 
     /**
@@ -61,9 +67,11 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
      * <p>3. 检查本地知识库主记录是否存在；若不存在，则自动创建一条初始化状态的知识库记录。</p>
      * <p>4. 按 kbId + documentId 查询草稿文档：</p>
      * <p>   - 不存在则新增草稿文档，初始版本号为 1；</p>
-     * <p>   - 已存在则比较 checksum 和元数据，只有发生变化时才递增草稿版本并重置为草稿审核态。</p>
-     * <p>5. 将正文内容写入独立内容表，避免主文档表承载大字段；正文不存在则新增，存在则按需更新。</p>
-     * <p>6. 返回本次 upsert 结果，包括是否新增、是否更新以及最新草稿版本号。</p>
+     * <p>   - 已存在且 canUpdate 未显式传 true 时拒绝覆盖；</p>
+     * <p>   - 已存在且允许更新时才比较 checksum 和元数据，发生变化时递增草稿版本并重置为草稿审核态。</p>
+     * <p>5. 成功写入前检查当前知识库是否有草稿版本；没有则基于最高版本号创建一个新的草稿版本。</p>
+     * <p>6. 将正文内容写入独立内容表，避免主文档表承载大字段；正文不存在则新增，存在则按需更新。</p>
+     * <p>7. 返回本次 upsert 结果，包括是否新增、是否更新以及最新草稿版本号。</p>
      *
      * <p>注意：该方法只维护 ai-engine 本地草稿池，不会直接同步到 AI 侧知识库。</p>
      */
@@ -79,17 +87,25 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         AiKbSourceType sourceType = resolveSourceType(request);
         String checksum = checksum(request.getContent());
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
-        log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, sourceType={}, sourceKey={}",
-                kbId, documentId, request.getDocumentType(), sourceType, sourceKey);
+        boolean canUpdate = Boolean.TRUE.equals(request.getCanUpdate());
+        log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, sourceType={}, sourceKey={}, canUpdate={}",
+                kbId, documentId, request.getDocumentType(), sourceType, sourceKey, canUpdate);
 
-        AiKbStoreDTO store = ensureStore(kbId, sourceType, sourceKey, request.getExt());
         AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
+        if (existing != null && !canUpdate) {
+            log.warn("ai kb document exists and update is denied, kbId={}, documentId={}, existingId={}",
+                    kbId, documentId, existing.getId());
+            throw new IllegalArgumentException("document already exists and canUpdate is false");
+        }
+        AiKbStoreDTO store = ensureStore(kbId, sourceType, sourceKey);
+        AiKbVersionDTO draftVersion = ensureDraftVersion(kbId);
 
         boolean created = existing == null;
         boolean updated = false;
         AiKbDocumentDTO document = created ? new AiKbDocumentDTO() : existing;
         if (created) {
             document.setKbCode(kbId);
+            document.setKbVersionId(draftVersion.getId());
             document.setDocumentCode(documentId);
             document.setDraftVersionNo(1);
             document.setStatus(AiKbDocumentStatus.ACTIVE);
@@ -106,9 +122,10 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
                 || !Objects.equals(document.getBizType(), sourceTypeToBizType(sourceType))
                 || !Objects.equals(document.getBizKey(), sourceKey)
                 || !Objects.equals(document.getSourceSystem(), sourceSystem)
-                || !Objects.equals(document.getMetaJson(), ext);
-        log.info("ai kb upsert document diff, kbId={}, documentId={}, created={}, contentChanged={}, metadataChanged={}",
-                kbId, documentId, created, contentChanged, metadataChanged);
+                || !Objects.equals(document.getMetaJson(), ext)
+                || !Objects.equals(document.getKbVersionId(), draftVersion.getId());
+        log.info("ai kb upsert document diff, kbId={}, documentId={}, draftVersionId={}, created={}, contentChanged={}, metadataChanged={}",
+                kbId, documentId, draftVersion.getId(), created, contentChanged, metadataChanged);
 
         // 只要内容或元数据有变化，就重置为草稿态并递增草稿版本。
         if (!created && (contentChanged || metadataChanged)) {
@@ -117,6 +134,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
             updated = true;
         }
 
+        document.setKbVersionId(draftVersion.getId());
         document.setDocumentName(documentName);
         document.setDocumentType(request.getDocumentType());
         document.setBizType(sourceTypeToBizType(sourceType));
@@ -126,7 +144,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         document.setContentFormat(AiKbContentFormat.MARKDOWN);
         document.setContentSize(contentSize);
         document.setMetaJson(ext);
-        document.setLastGeneratedAt(java.time.LocalDateTime.now());
+        document.setLastGeneratedAt(LocalDateTime.now());
         document.setLastError(null);
         if (store.getEnabled() != null && !store.getEnabled()) {
             document.setStatus(AiKbDocumentStatus.DISABLED);
@@ -252,29 +270,41 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         }
     }
 
-    private AiKbStoreDTO ensureStore(String kbId, AiKbSourceType sourceType, String sourceKey, Map<String, Object> ext) {
-        // 先按 kbId 查已有本地知识库；存在时只校验归属类型是否一致。
+    private AiKbStoreDTO ensureStore(String kbId, AiKbSourceType sourceType, String sourceKey) {
+        // 上游只能向已存在的本地知识库写入草稿文档，知识库创建由本系统管理流程负责。
         AiKbStoreDTO store = storeService.getByKbCode(kbId);
-        if (store != null) {
-            if (store.getBizType() != null && store.getBizType() != sourceTypeToBizType(sourceType)) {
-                log.warn("ai kb store source type mismatch, kbId={}, expectSourceType={}, actualBizType={}",
-                        kbId, sourceType, store.getBizType());
-                throw new IllegalArgumentException("kbId sourceType mismatch with existing kb store");
-            }
-            return store;
+        if (store == null) {
+            log.warn("ai kb store not found, kbId={}, sourceType={}, sourceKey={}", kbId, sourceType, sourceKey);
+            throw new IllegalArgumentException("kb store not found");
         }
-        // 首次写入文档时自动补建本地知识库主记录，降低上游接入成本。
-        AiKbStoreDTO created = new AiKbStoreDTO();
+        if (store.getBizType() != null && store.getBizType() != sourceTypeToBizType(sourceType)) {
+            log.warn("ai kb store source type mismatch, kbId={}, expectSourceType={}, actualBizType={}",
+                    kbId, sourceType, store.getBizType());
+            throw new IllegalArgumentException("kbId sourceType mismatch with existing kb store");
+        }
+        return store;
+    }
+
+    private AiKbVersionDTO ensureDraftVersion(String kbId) {
+        AiKbVersionDTO draftVersion = versionService.getDraftVersion(kbId);
+        if (draftVersion != null) {
+            return draftVersion;
+        }
+        Integer maxVersionNo = versionService.getMaxVersionNo(kbId);
+        int nextVersionNo = maxVersionNo == null ? 1 : maxVersionNo + 1;
+        AiKbVersionDTO created = new AiKbVersionDTO();
         created.setKbCode(kbId);
-        created.setKbName(kbId);
-        created.setBizType(sourceTypeToBizType(sourceType));
-        created.setBizKey(sourceKey);
-        created.setStatus(AiKbStoreStatus.INIT);
-        created.setEnabled(Boolean.TRUE);
-        created.setConfigJson(new LinkedHashMap<>());
-        created.setExtJson(normalizeExt(ext));
-        log.info("ai kb store auto create, kbId={}, sourceType={}, sourceKey={}", kbId, sourceType, sourceKey);
-        return storeService.add(created);
+        created.setVersionNo(nextVersionNo);
+        created.setVersionName(defaultVersionName(nextVersionNo));
+        created.setStatus(AiKbVersionStatus.DRAFT);
+        log.info("ai kb draft version auto create, kbId={}, versionNo={}, versionName={}",
+                kbId, created.getVersionNo(), created.getVersionName());
+        return versionService.add(created);
+    }
+
+    private String defaultVersionName(Integer versionNo) {
+        int major = versionNo == null || versionNo < 1 ? 1 : versionNo;
+        return "V" + major + ".0.0-Default";
     }
 
     private AiKbSourceType resolveSourceType(AiKbDocumentUpsertRequest request) {

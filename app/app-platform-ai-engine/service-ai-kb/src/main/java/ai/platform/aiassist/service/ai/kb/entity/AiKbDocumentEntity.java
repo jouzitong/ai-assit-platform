@@ -33,6 +33,10 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("kb_code")
     private String kbCode;
 
+    /** 所属知识库草稿版本 ID。 */
+    @TableField("kb_version_id")
+    private Long kbVersionId;
+
     /** 文档编码，建议使用 sourceKey/tableName。 */
     @TableField("document_code")
     private String documentCode;

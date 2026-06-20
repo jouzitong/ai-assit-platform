@@ -49,6 +49,13 @@ public class AiKbDocumentUpsertRequest implements Serializable {
     private String content;
 
     /**
+     * 文档已存在时是否允许覆盖更新。
+     *
+     * <p>默认不允许，避免上游重复同步覆盖本系统内人工维护过的草稿内容。</p>
+     */
+    private Boolean canUpdate = Boolean.FALSE;
+
+    /**
      * 扩展参数。
      */
     private Map<String, Object> ext = new LinkedHashMap<>();

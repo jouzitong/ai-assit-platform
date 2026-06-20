@@ -29,7 +29,7 @@ public class QwenProperties {
     private String bailianEndpoint = "bailian.cn-beijing.aliyuncs.com";
 
     /** 默认业务空间 ID */
-    private String workspaceId = "w05enpcxa4";
+    private String workspaceId = "ws-zi3sfdp4xf4wsb6v";
 
     /** 默认知识库类目 ID */
     private String categoryId = "default";

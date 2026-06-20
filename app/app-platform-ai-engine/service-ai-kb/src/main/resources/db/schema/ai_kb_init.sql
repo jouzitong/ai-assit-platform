@@ -47,6 +47,7 @@ CREATE TABLE IF NOT EXISTS ai_kb_version (
 CREATE TABLE IF NOT EXISTS ai_kb_document (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     kb_code VARCHAR(64) NOT NULL COMMENT '所属知识库编码',
+    kb_version_id BIGINT DEFAULT NULL COMMENT '所属知识库草稿版本 ID',
     document_code VARCHAR(128) NOT NULL COMMENT '文档编码，建议使用 sourceKey/tableName',
     document_name VARCHAR(256) NOT NULL COMMENT '文档名称',
     document_type INT NOT NULL COMMENT '文档类型枚举编码：1=DB_TABLE',
@@ -69,6 +70,7 @@ CREATE TABLE IF NOT EXISTS ai_kb_document (
     updated_by BIGINT NOT NULL DEFAULT -1 COMMENT '更新者',
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_kb_document (kb_code, document_code),
+    KEY idx_kb_document_version (kb_version_id),
     KEY idx_kb_document_biz (biz_type, biz_key),
     KEY idx_kb_document_status (kb_code, status, review_status),
     KEY idx_kb_document_update_time (update_time)

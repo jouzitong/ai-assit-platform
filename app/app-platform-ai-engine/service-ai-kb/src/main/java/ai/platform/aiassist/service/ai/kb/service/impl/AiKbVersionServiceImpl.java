@@ -1,13 +1,20 @@
 package ai.platform.aiassist.service.ai.kb.service.impl;
 
+import ai.platform.aiassist.service.ai.api.enums.AiKbVersionStatus;
 import ai.platform.aiassist.service.ai.kb.convert.AiKbVersionConvert;
 import ai.platform.aiassist.service.ai.kb.entity.AiKbVersionEntity;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbVersionDTO;
+import ai.platform.aiassist.service.ai.kb.entity.req.AiKbVersionQueryRequest;
 import ai.platform.aiassist.service.ai.kb.mapper.AiKbVersionMapper;
 import ai.platform.aiassist.service.ai.kb.service.AiKbVersionService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.athena.framework.data.jdbc.convert.IConvert;
+import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.service.BaseMapperService;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 @Service
 public class AiKbVersionServiceImpl
@@ -25,11 +32,51 @@ public class AiKbVersionServiceImpl
         return convert;
     }
 
-    public AiKbVersionDTO newDTO() {
-        return new AiKbVersionDTO();
+    @Override
+    public AiKbVersionDTO getDraftVersion(String kbCode) {
+        if (!StringUtils.hasText(kbCode)) {
+            return null;
+        }
+        AiKbVersionQueryRequest query = new AiKbVersionQueryRequest();
+        query.setKbCode(kbCode.trim());
+        query.setStatus(AiKbVersionStatus.DRAFT);
+        query.setOrderByVersionNoDesc(Boolean.TRUE);
+        query.setPage(1);
+        query.setSize(1);
+        List<AiKbVersionDTO> list = queryAll(query);
+        return list.isEmpty() ? null : list.get(0);
     }
 
-    public AiKbVersionEntity newEntity() {
-        return new AiKbVersionEntity();
+    @Override
+    public Integer getMaxVersionNo(String kbCode) {
+        if (!StringUtils.hasText(kbCode)) {
+            return null;
+        }
+        AiKbVersionQueryRequest query = new AiKbVersionQueryRequest();
+        query.setKbCode(kbCode.trim());
+        query.setOrderByVersionNoDesc(Boolean.TRUE);
+        query.setPage(1);
+        query.setSize(1);
+        List<AiKbVersionDTO> list = queryAll(query);
+        return list.isEmpty() ? null : list.get(0).getVersionNo();
+    }
+
+    @Override
+    protected <Query extends BaseRequest> QueryWrapper<AiKbVersionEntity> buildQuery(Query query) {
+        QueryWrapper<AiKbVersionEntity> wrapper = super.buildQuery(query);
+        if (query instanceof AiKbVersionQueryRequest req) {
+            if (StringUtils.hasText(req.getKbCode())) {
+                wrapper.lambda().eq(AiKbVersionEntity::getKbCode, req.getKbCode().trim());
+            }
+            if (req.getStatus() != null) {
+                wrapper.lambda().eq(AiKbVersionEntity::getStatus, req.getStatus());
+            }
+            if (Boolean.TRUE.equals(req.getOrderByVersionNoDesc())) {
+                wrapper.lambda().orderByDesc(AiKbVersionEntity::getVersionNo, AiKbVersionEntity::getId);
+            } else {
+                wrapper.lambda().orderByDesc(AiKbVersionEntity::getUpdateTime, AiKbVersionEntity::getId);
+            }
+        }
+        return wrapper;
     }
 }

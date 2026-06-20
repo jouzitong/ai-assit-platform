@@ -18,6 +18,8 @@ public class AiKbDocumentDTO extends BaseDTO {
 
     private String kbCode;
 
+    private Long kbVersionId;
+
     private String documentCode;
 
     private String documentName;
