@@ -48,7 +48,7 @@ const actionItems = computed(() => {
       { key: 'rollback', label: '版本回退', type: 'primary', action: 'rollback' }
     ]
   }
-  return []
+  return KNOWLEDGE_ACTION_ITEMS
 })
 
 const headerTab = computed(() => ({
@@ -99,7 +99,19 @@ function handleHeaderTabChange(nextTab) {
 }
 
 function handleToolbarAction(payload) {
+  if (payload?.action === 'create') {
+    openCreateDialog()
+    return
+  }
+  if (payload?.action === 'refresh') {
+    loadDataSources({ showLoadingPopup: true, showSuccessPopup: true })
+    return
+  }
   if (payload?.action === 'publish') {
+    triggerKnowledgeSync()
+    return
+  }
+  if (payload?.action === 'sync') {
     triggerKnowledgeSync()
     return
   }

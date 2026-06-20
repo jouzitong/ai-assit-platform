@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { KNOWLEDGE_DOCUMENTS } from '../data'
+import { listAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
 import { showPopup } from '../../../../utils/popup'
 
 export function useKnowledgePage() {
@@ -36,10 +36,14 @@ export function useKnowledgePage() {
       showPopup.info('知识库文档刷新中...', { title: 'Loading', duration: 1600 })
     }
     try {
-      sourceList.value = KNOWLEDGE_DOCUMENTS.map(mapDocumentItem)
+      const payload = await listAiKnowledgeBaseDocuments({})
+      sourceList.value = normalizeDocumentList(payload).map(mapDocumentItem)
       if (showSuccessPopup) {
         showPopup.success('知识库文档列表已刷新')
       }
+    } catch (error) {
+      errorMessage.value = error.message || '知识库文档列表加载失败'
+      showPopup.error(errorMessage.value)
     } finally {
       loading.value = false
     }
@@ -98,21 +102,36 @@ function mapDocumentItem(item) {
     statusClass: resolveStatusClass(item?.status),
     draftVersionNo: item?.draftVersionNo ?? '-',
     contentFormat: item?.contentFormat || '-',
-    contentSize: item?.contentSize ?? '-',
+    contentSize: formatContentSize(item?.contentSize),
     reviewStatus: formatReviewStatus(item?.reviewStatus),
     lastGeneratedAt: formatDateTime(item?.lastGeneratedAt),
     raw: item
   }
 }
 
+function normalizeDocumentList(payload) {
+  if (Array.isArray(payload)) {
+    return payload
+  }
+  if (Array.isArray(payload?.data)) {
+    return payload.data
+  }
+  if (Array.isArray(payload?.list)) {
+    return payload.list
+  }
+  return []
+}
+
 function matchTab(item, tabKey) {
+  const rawStatus = String(item.raw?.status || '').toUpperCase()
+  const rawReviewStatus = String(item.raw?.reviewStatus || '').toUpperCase()
   if (tabKey === 'draft') {
-    return item.reviewStatus === '草稿'
+    return ['DRAFT', 'READY', 'REJECTED'].includes(rawReviewStatus)
   }
   if (tabKey === 'history') {
-    return item.statusClass === 'offline'
+    return rawStatus === 'DISABLED'
   }
-  return item.statusClass === 'online'
+  return rawReviewStatus === 'PUBLISHED'
 }
 
 function resolveStatusClass(status) {
@@ -146,4 +165,18 @@ function formatDateTime(value) {
     return '-'
   }
   return String(value).replace('T', ' ').slice(0, 19)
+}
+
+function formatContentSize(value) {
+  const size = Number(value)
+  if (!Number.isFinite(size) || size < 0) {
+    return '-'
+  }
+  if (size < 1024) {
+    return `${size} B`
+  }
+  if (size < 1024 * 1024) {
+    return `${(size / 1024).toFixed(1)} KB`
+  }
+  return `${(size / 1024 / 1024).toFixed(1)} MB`
 }

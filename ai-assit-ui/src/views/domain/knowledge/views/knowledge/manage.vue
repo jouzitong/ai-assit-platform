@@ -51,8 +51,20 @@ const {
           </div>
           <div class="summary-panel__body">
             <div class="summary-item">
-              <span>编号</span>
-              <strong>{{ summaryInfo.code }}</strong>
+              <span>KB</span>
+              <strong>{{ summaryInfo.kbCode }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>文档编码</span>
+              <strong>{{ summaryInfo.documentCode }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>类型</span>
+              <strong>{{ summaryInfo.documentType }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>业务键</span>
+              <strong>{{ summaryInfo.bizKey }}</strong>
             </div>
             <div class="summary-item">
               <span>来源</span>
@@ -61,6 +73,18 @@ const {
             <div class="summary-item">
               <span>状态</span>
               <strong>{{ summaryInfo.status }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>审核</span>
+              <strong>{{ summaryInfo.reviewStatus }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>内容大小</span>
+              <strong>{{ summaryInfo.contentSize }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>最近生成</span>
+              <strong>{{ summaryInfo.lastGeneratedAt }}</strong>
             </div>
           </div>
         </section>
@@ -163,11 +187,9 @@ const {
 }
 
 .summary-panel {
-  padding: 8px 12px;
+  padding: 10px 12px;
   display: grid;
-  gap: 4px;
-  max-height: 80px;
-  overflow: hidden;
+  gap: 8px;
 }
 
 .summary-panel__head {
@@ -178,15 +200,15 @@ const {
 
 .summary-panel__body {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, max-content));
-  gap: 18px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 14px;
   align-items: center;
 }
 
 .summary-item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
+  min-width: 0;
+  display: grid;
+  gap: 2px;
 }
 
 .summary-item span {
@@ -197,6 +219,10 @@ const {
 .summary-item strong,
 .summary-panel__head strong {
   line-height: 1.2;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .content-card {
