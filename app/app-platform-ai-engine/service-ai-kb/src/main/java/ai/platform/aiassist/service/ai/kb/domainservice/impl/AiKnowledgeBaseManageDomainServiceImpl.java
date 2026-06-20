@@ -7,6 +7,7 @@ import ai.platform.aiassist.service.ai.api.dto.KbDocument;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;

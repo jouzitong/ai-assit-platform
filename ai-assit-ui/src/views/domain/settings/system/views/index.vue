@@ -50,7 +50,7 @@ const {
 
 <style scoped>
 .system-page {
-  min-height: 0;
+  //min-height: 0;
   height: 100%;
   width: 100%;
   display: grid;
