@@ -1,10 +1,10 @@
 package ai.platform.aiassist.service.ai.api;
 
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
 import org.athena.framework.web.annotation.IgnoredResultWrapper;

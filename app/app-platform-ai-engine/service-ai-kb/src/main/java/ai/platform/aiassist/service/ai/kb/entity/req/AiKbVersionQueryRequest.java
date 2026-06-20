@@ -10,7 +10,11 @@ import org.athena.framework.data.mybatis.annotations.IgnoredQuery;
 @EqualsAndHashCode(callSuper = true)
 public class AiKbVersionQueryRequest extends BaseRequest {
 
+    private Long id;
+
     private String kbCode;
+
+    private Integer versionNo;
 
     private AiKbVersionStatus status;
 

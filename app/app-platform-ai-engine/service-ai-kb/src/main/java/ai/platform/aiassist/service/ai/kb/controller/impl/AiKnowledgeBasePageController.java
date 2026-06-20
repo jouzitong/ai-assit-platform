@@ -8,6 +8,8 @@ import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
+import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
+import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseQueryDomainService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -20,28 +22,42 @@ import java.util.List;
 @RestController
 public class AiKnowledgeBasePageController implements ai.platform.aiassist.service.ai.kb.controller.AiKnowledgeBasePageController {
 
+    private final AiKnowledgeBaseManageDomainService domainService;
+    private final AiKnowledgeBaseQueryDomainService queryDomainService;
+
+    public AiKnowledgeBasePageController(AiKnowledgeBaseManageDomainService domainService,
+                                         AiKnowledgeBaseQueryDomainService queryDomainService) {
+        this.domainService = domainService;
+        this.queryDomainService = queryDomainService;
+    }
+
     @Override
     public List<AiKbInfoDTO> kbList() {
-        throw new UnsupportedOperationException("TODO: implement kbList");
+        return queryDomainService.kbList(null);
     }
 
     @Override
     public List<AiKbDocumentListItemDTO> listDocuments(AiKbPageDocumentListRequest request) {
-        throw new UnsupportedOperationException("TODO: implement listDocuments");
+        ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest payload =
+                new ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest();
+        if (request != null) {
+            payload.setKbCode(request.getKbCode());
+        }
+        return queryDomainService.listDocuments(payload);
     }
 
     @Override
     public AiKbDocumentDetailDTO getDocumentDetail(String kbCode, String documentCode) {
-        throw new UnsupportedOperationException("TODO: implement getDocumentDetail");
+        return queryDomainService.getDocumentDetail(kbCode, documentCode);
     }
 
     @Override
     public R<AiKbDocumentUpsertResponse> upsertDocument(AiKbDocumentUpsertRequest request) {
-        throw new UnsupportedOperationException("TODO: implement upsertDocument");
+        return R.ok(domainService.upsertDocument(request));
     }
 
     @Override
     public R<AiKbSyncResponse> syncDocument(AiKbSyncRequest request) {
-        throw new UnsupportedOperationException("TODO: implement syncDocument");
+        return R.ok(domainService.syncDocument(request));
     }
 }

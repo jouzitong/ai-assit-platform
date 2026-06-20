@@ -216,14 +216,14 @@ export function deleteAiKbStore(id) {
 }
 
 export function listAiKnowledgeBases(payload) {
-  return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/list`, {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/list`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
 }
 
 export function listAiKnowledgeBaseDocuments(payload) {
-  return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/document/list`, {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/list`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })
@@ -234,8 +234,15 @@ export function getAiKnowledgeBaseDocumentDetail(kbCode, documentCode) {
     kbCode,
     documentCode
   })
-  return request(`${AI_ENGINE_INTERNAL_PREFIX}/internal/v1/ai/kb/document/detail?${query.toString()}`, {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/detail?${query.toString()}`, {
     method: 'GET'
+  })
+}
+
+export function syncAiKnowledgeBaseDocuments(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
   })
 }
 

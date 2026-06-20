@@ -46,9 +46,32 @@ public class AiKbDocumentServiceImpl
     }
 
     @Override
+    public List<AiKbDocumentDTO> listByQuery(AiKbDocumentQueryRequest query) {
+        AiKbDocumentQueryRequest payload = query == null ? new AiKbDocumentQueryRequest() : query;
+        payload.setPage(payload.getPage() == null ? 1 : payload.getPage());
+        payload.setSize(payload.getSize() == null ? Integer.MAX_VALUE : payload.getSize());
+        return queryAll(payload);
+    }
+
+    @Override
     protected <Query extends BaseRequest> QueryWrapper<AiKbDocumentEntity> buildQuery(Query query) {
         QueryWrapper<AiKbDocumentEntity> wrapper = super.buildQuery(query);
-        if (query instanceof AiKbDocumentQueryRequest) {
+        if (query instanceof AiKbDocumentQueryRequest req) {
+            if (StringUtils.hasText(req.getKbCode())) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getKbCode, req.getKbCode().trim());
+            }
+            if (StringUtils.hasText(req.getDocumentCode())) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode().trim());
+            }
+            if (req.getKbVersionId() != null) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getKbVersionId, req.getKbVersionId());
+            }
+            if (req.getStatus() != null) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getStatus, req.getStatus());
+            }
+            if (req.getReviewStatus() != null) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getReviewStatus, req.getReviewStatus());
+            }
             wrapper.lambda().orderByDesc(AiKbDocumentEntity::getUpdateTime, AiKbDocumentEntity::getId);
         }
         return wrapper;

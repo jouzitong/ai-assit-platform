@@ -1,27 +1,35 @@
 package ai.platform.aiassist.service.ai.kb.domainservice.impl;
 
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListItemDTO;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
-import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
-import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
-import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassist.service.ai.api.dto.KbDeleteRequest;
+import ai.platform.aiassist.service.ai.api.dto.KbDocument;
+import ai.platform.aiassist.service.ai.api.dto.KbUpsertRequest;
+import ai.platform.aiassist.service.ai.api.dto.KbUpsertResponse;
+import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassist.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbReviewStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbVersionStatus;
+import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
+import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentContentDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentDTO;
+import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionContentDTO;
+import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbStoreDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbVersionDTO;
 import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentQueryRequest;
+import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionQueryRequest;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentContentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentService;
+import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionContentService;
+import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbStoreService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbVersionService;
 import lombok.extern.slf4j.Slf4j;
@@ -48,15 +56,24 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
     private final AiKbDocumentService documentService;
     private final AiKbDocumentContentService contentService;
     private final AiKbVersionService versionService;
+    private final AiKbDocumentVersionService documentVersionService;
+    private final AiKbDocumentVersionContentService documentVersionContentService;
+    private final AiExecutionDomainService aiExecutionDomainService;
 
     public AiKnowledgeBaseManageDomainServiceImpl(AiKbStoreService storeService,
                                                   AiKbDocumentService documentService,
                                                   AiKbDocumentContentService contentService,
-                                                  AiKbVersionService versionService) {
+                                                  AiKbVersionService versionService,
+                                                  AiKbDocumentVersionService documentVersionService,
+                                                  AiKbDocumentVersionContentService documentVersionContentService,
+                                                  AiExecutionDomainService aiExecutionDomainService) {
         this.storeService = storeService;
         this.documentService = documentService;
         this.contentService = contentService;
         this.versionService = versionService;
+        this.documentVersionService = documentVersionService;
+        this.documentVersionContentService = documentVersionContentService;
+        this.aiExecutionDomainService = aiExecutionDomainService;
     }
 
     /**
@@ -199,54 +216,240 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
     }
 
     @Override
-    public List<AiKbInfoDTO> kbList(AiKbListRequest request) {
-        // 这里仅返回本地知识库主表信息，不下钻文档和版本明细。
-        List<AiKbStoreDTO> stores = storeService.list(request);
-        List<AiKbInfoDTO> result = new ArrayList<>(stores.size());
-        for (AiKbStoreDTO store : stores) {
-            AiKbInfoDTO dto = new AiKbInfoDTO();
-            dto.setKbId(store.getKbCode());
-            dto.setKbName(store.getKbName());
-            dto.setSourceType(bizTypeToSourceType(store.getBizType()));
-            dto.setProviderKbId(store.getProviderKbId());
-            dto.setStatus(store.getStatus());
-            dto.setEnabled(store.getStatus() != AiKbStoreStatus.DISABLED);
-            dto.setExt(store.getExtJson() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(store.getExtJson()));
-            result.add(dto);
+    @Transactional(rollbackFor = Exception.class)
+    public AiKbSyncResponse syncDocument(AiKbSyncRequest request) {
+        List<AiKbVersionDTO> versions = resolvePublishVersions(request);
+        if (versions.isEmpty()) {
+            throw new IllegalArgumentException("draft version not found");
         }
-        log.info("ai kb list finish, sourceType={}, sourceKey={}, enabled={}, resultSize={}",
-                request == null ? null : request.getSourceType(),
-                request == null ? null : request.getSourceKey(),
-                request == null ? null : request.getEnabled(),
-                result.size());
-        return result;
+        AiKbSyncResponse response = new AiKbSyncResponse();
+        response.setAcceptedCount(0);
+        for (AiKbVersionDTO version : versions) {
+            PublishResult result = publishDraftVersion(version);
+            response.setAcceptedCount(response.getAcceptedCount() + result.acceptedCount());
+            response.getSkippedDocumentCodes().addAll(result.skippedDocumentCodes());
+        }
+        return response;
     }
 
-    @Override
-    public List<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request) {
-        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
-        if (request != null) {
-            query.setKbCode(trimToNull(request.getKbCode()));
-            query.setDocumentCode(trimToNull(request.getDocumentCode()));
+    private List<AiKbVersionDTO> resolvePublishVersions(AiKbSyncRequest request) {
+        if (request == null || (!StringUtils.hasText(request.getKbCode())
+                && request.getKbVersionId() == null
+                && request.getVersionNo() == null)) {
+            return versionService.listDraftVersions();
         }
+        AiKbVersionDTO version;
+        if (request.getKbVersionId() != null) {
+            version = versionService.getVersion(request.getKbVersionId());
+        } else if (StringUtils.hasText(request.getKbCode()) && request.getVersionNo() != null) {
+            version = versionService.getVersion(request.getKbCode(), request.getVersionNo());
+        } else if (StringUtils.hasText(request.getKbCode())) {
+            version = versionService.getDraftVersion(request.getKbCode());
+        } else {
+            throw new IllegalArgumentException("kbCode is required when versionNo is specified");
+        }
+        if (version == null) {
+            return List.of();
+        }
+        if (version.getStatus() != AiKbVersionStatus.DRAFT) {
+            throw new IllegalArgumentException("only DRAFT version can be published");
+        }
+        return List.of(version);
+    }
+
+    private PublishResult publishDraftVersion(AiKbVersionDTO draftVersion) {
+        String kbCode = draftVersion.getKbCode();
+        AiKbStoreDTO store = storeService.getByKbCode(kbCode);
+        if (store == null) {
+            throw new IllegalArgumentException("kb store not found: " + kbCode);
+        }
+        Map<String, Object> storeExt = copyMap(store.getExtJson());
+        requireExtText(storeExt, "workspaceId");
+        requireExtText(storeExt, "kbEndpoint");
+
+        List<AiKbDocumentDTO> draftDocuments = loadDraftDocuments(kbCode, draftVersion.getId());
+        if (draftDocuments.isEmpty()) {
+            throw new IllegalArgumentException("draft documents not found: " + kbCode);
+        }
+
+        List<KbDocument> aiDocuments = new ArrayList<>(draftDocuments.size());
+        List<AiKbDocumentContentDTO> contents = new ArrayList<>(draftDocuments.size());
+        List<String> skipped = new ArrayList<>();
+        for (AiKbDocumentDTO document : draftDocuments) {
+            AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
+            String renderedContent = content == null ? null : content.getRenderedContent();
+            if (!StringUtils.hasText(renderedContent)) {
+                skipped.add(document.getDocumentCode());
+                continue;
+            }
+            aiDocuments.add(toKbDocument(document, content, renderedContent));
+            contents.add(content);
+        }
+        if (!skipped.isEmpty()) {
+            throw new IllegalArgumentException("draft documents content missing: " + String.join(",", skipped));
+        }
+
+        AiKbVersionDTO currentVersion = versionService.getCurrentVersion(kbCode);
+        List<AiKbDocumentVersionDTO> currentSnapshots = loadSnapshots(kbCode, currentVersion);
+        deleteCurrentAiDocuments(store, storeExt, currentSnapshots);
+
+        KbUpsertRequest upsertRequest = new KbUpsertRequest();
+        upsertRequest.setKbId(trimToNull(store.getProviderKbId()));
+        upsertRequest.setDocuments(aiDocuments);
+        upsertRequest.setMeta(buildPublishMeta(store, storeExt));
+        KbUpsertResponse upsertResponse = aiExecutionDomainService.kbUpsert(upsertRequest);
+        if (upsertResponse == null || upsertResponse.getAccepted() == null || upsertResponse.getAccepted() < aiDocuments.size()) {
+            throw new IllegalStateException("AI kb upsert did not accept all draft documents");
+        }
+
+        String providerKbId = trimToNull(upsertResponse.getKbId());
+        if (providerKbId != null && !Objects.equals(providerKbId, store.getProviderKbId())) {
+            store.setProviderKbId(providerKbId);
+        }
+        store.setStatus(AiKbStoreStatus.ACTIVE);
+        storeService.update(store.getId(), store);
+
+        LocalDateTime publishedAt = LocalDateTime.now();
+        if (currentVersion != null) {
+            currentVersion.setStatus(AiKbVersionStatus.HISTORY);
+            versionService.update(currentVersion.getId(), currentVersion);
+        }
+        draftVersion.setStatus(AiKbVersionStatus.CURRENT);
+        draftVersion.setPublishedAt(publishedAt);
+        draftVersion.setPublishedBy(-1L);
+        versionService.update(draftVersion.getId(), draftVersion);
+
+        for (int i = 0; i < draftDocuments.size(); i++) {
+            AiKbDocumentDTO document = draftDocuments.get(i);
+            AiKbDocumentContentDTO content = contents.get(i);
+            document.setReviewStatus(AiKbReviewStatus.PUBLISHED);
+            document.setStatus(AiKbDocumentStatus.ACTIVE);
+            document.setLastError(null);
+            documentService.update(document.getId(), document);
+            saveDocumentSnapshot(document, content, draftVersion, currentSnapshots, publishedAt);
+        }
+        return new PublishResult(aiDocuments.size(), skipped);
+    }
+
+    private List<AiKbDocumentDTO> loadDraftDocuments(String kbCode, Long draftVersionId) {
+        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        query.setKbCode(kbCode);
+        query.setKbVersionId(draftVersionId);
+        query.setStatus(AiKbDocumentStatus.ACTIVE);
         query.setPage(1);
         query.setSize(Integer.MAX_VALUE);
-        return documentService.queryAll(query).stream()
-                .map(this::toDocumentListItem)
-                .toList();
+        return documentService.listByQuery(query);
     }
 
-    @Override
-    public AiKbDocumentDetailDTO getDocumentDetail(String kbCode, String documentCode) {
-        if (!StringUtils.hasText(kbCode) || !StringUtils.hasText(documentCode)) {
-            throw new IllegalArgumentException("kbCode and documentCode must not be blank");
+    private List<AiKbDocumentVersionDTO> loadSnapshots(String kbCode, AiKbVersionDTO version) {
+        if (version == null || version.getId() == null) {
+            return List.of();
         }
-        AiKbDocumentDTO document = documentService.getByKbCodeAndDocumentCode(kbCode.trim(), documentCode.trim());
-        if (document == null) {
-            throw new IllegalArgumentException("document not found");
+        AiKbDocumentVersionQueryRequest query = new AiKbDocumentVersionQueryRequest();
+        query.setKbCode(kbCode);
+        query.setKbVersionId(version.getId());
+        query.setPage(1);
+        query.setSize(Integer.MAX_VALUE);
+        return documentVersionService.listByQuery(query);
+    }
+
+    private void deleteCurrentAiDocuments(AiKbStoreDTO store, Map<String, Object> storeExt, List<AiKbDocumentVersionDTO> currentSnapshots) {
+        String providerKbId = trimToNull(store.getProviderKbId());
+        if (providerKbId == null || currentSnapshots == null || currentSnapshots.isEmpty()) {
+            return;
         }
-        AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
-        return toDocumentDetail(document, content);
+        List<String> documentIds = currentSnapshots.stream()
+                .map(AiKbDocumentVersionDTO::getDocumentCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
+        if (documentIds.isEmpty()) {
+            return;
+        }
+        KbDeleteRequest deleteRequest = new KbDeleteRequest();
+        deleteRequest.setKbId(providerKbId);
+        deleteRequest.setDocumentIds(documentIds);
+        deleteRequest.setMeta(buildPublishMeta(store, storeExt));
+        aiExecutionDomainService.kbDelete(deleteRequest);
+    }
+
+    private KbDocument toKbDocument(AiKbDocumentDTO document, AiKbDocumentContentDTO content, String renderedContent) {
+        KbDocument target = new KbDocument();
+        target.setDocumentId(document.getDocumentCode());
+        target.setContent(renderedContent);
+        target.setSource(StringUtils.hasText(document.getSourceSystem()) ? document.getSourceSystem() : document.getKbCode());
+        Map<String, Object> metadata = new LinkedHashMap<>();
+        metadata.put("kbCode", document.getKbCode());
+        metadata.put("documentCode", document.getDocumentCode());
+        metadata.put("documentName", document.getDocumentName());
+        metadata.put("documentType", enumName(document.getDocumentType()));
+        metadata.put("bizType", enumName(document.getBizType()));
+        metadata.put("bizKey", document.getBizKey());
+        metadata.put("contentChecksum", document.getContentChecksum());
+        metadata.put("contentFormat", enumName(document.getContentFormat()));
+        metadata.put("contentSize", document.getContentSize());
+        metadata.putAll(copyMap(document.getMetaJson()));
+        metadata.putAll(copyMap(content == null ? null : content.getExtJson()));
+        target.setMetadata(metadata);
+        return target;
+    }
+
+    private RequestMeta buildPublishMeta(AiKbStoreDTO store, Map<String, Object> storeExt) {
+        RequestMeta meta = new RequestMeta();
+        meta.setScene("AI_KB_PUBLISH");
+        Map<String, Object> ext = new LinkedHashMap<>(storeExt);
+        ext.putIfAbsent("kbName", store.getKbName());
+        ext.put("localKbCode", store.getKbCode());
+        ext.put("providerKbId", store.getProviderKbId());
+        meta.setExt(ext);
+        return meta;
+    }
+
+    private void saveDocumentSnapshot(AiKbDocumentDTO document,
+                                      AiKbDocumentContentDTO content,
+                                      AiKbVersionDTO version,
+                                      List<AiKbDocumentVersionDTO> previousSnapshots,
+                                      LocalDateTime publishedAt) {
+        AiKbDocumentVersionDTO snapshot = new AiKbDocumentVersionDTO();
+        snapshot.setKbCode(document.getKbCode());
+        snapshot.setDocumentCode(document.getDocumentCode());
+        snapshot.setKbVersionId(version.getId());
+        snapshot.setVersionNo(version.getVersionNo());
+        snapshot.setDocumentVersionNo(document.getDraftVersionNo());
+        snapshot.setChangeType(hasSnapshot(previousSnapshots, document.getDocumentCode()) ? AiKbChangeType.UPDATE : AiKbChangeType.CREATE);
+        snapshot.setContentChecksum(document.getContentChecksum());
+        snapshot.setContentFormat(document.getContentFormat());
+        snapshot.setContentSize(document.getContentSize());
+        snapshot.setMetaJson(copyMap(document.getMetaJson()));
+        snapshot.setSourceSystem(document.getSourceSystem());
+        snapshot.setPublishedAt(publishedAt);
+        snapshot.setPublishedBy("-1");
+        snapshot.setRemark(document.getRemark());
+        snapshot = documentVersionService.add(snapshot);
+
+        AiKbDocumentVersionContentDTO versionContent = new AiKbDocumentVersionContentDTO();
+        versionContent.setDocumentVersionId(snapshot.getId());
+        versionContent.setContentFormat(content.getContentFormat());
+        versionContent.setContentSize(content.getContentSize());
+        versionContent.setContentJson(copyMap(content.getContentJson()));
+        versionContent.setRenderedContent(content.getRenderedContent());
+        versionContent.setExtJson(copyMap(content.getExtJson()));
+        documentVersionContentService.add(versionContent);
+    }
+
+    private boolean hasSnapshot(List<AiKbDocumentVersionDTO> snapshots, String documentCode) {
+        if (snapshots == null || !StringUtils.hasText(documentCode)) {
+            return false;
+        }
+        return snapshots.stream().anyMatch(item -> Objects.equals(item.getDocumentCode(), documentCode));
+    }
+
+    private String requireExtText(Map<String, Object> ext, String key) {
+        Object value = ext.get(key);
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return text.trim();
+        }
+        throw new IllegalArgumentException("AiKbStoreEntity.extJson." + key + " must be configured");
     }
 
     private void validateUpsertRequest(AiKbDocumentUpsertRequest request) {
@@ -329,52 +532,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private AiKbDocumentListItemDTO toDocumentListItem(AiKbDocumentDTO source) {
-        AiKbDocumentListItemDTO target = new AiKbDocumentListItemDTO();
-        target.setId(source.getId());
-        target.setKbCode(source.getKbCode());
-        target.setDocumentCode(source.getDocumentCode());
-        target.setDocumentName(source.getDocumentName());
-        target.setDocumentType(enumName(source.getDocumentType()));
-        target.setBizType(enumName(source.getBizType()));
-        target.setBizKey(source.getBizKey());
-        target.setSourceSystem(source.getSourceSystem());
-        target.setStatus(enumName(source.getStatus()));
-        target.setDraftVersionNo(source.getDraftVersionNo());
-        target.setContentFormat(enumName(source.getContentFormat()));
-        target.setContentSize(source.getContentSize());
-        target.setReviewStatus(enumName(source.getReviewStatus()));
-        target.setLastGeneratedAt(source.getLastGeneratedAt());
-        return target;
-    }
-
-    private AiKbDocumentDetailDTO toDocumentDetail(AiKbDocumentDTO document, AiKbDocumentContentDTO content) {
-        AiKbDocumentDetailDTO target = new AiKbDocumentDetailDTO();
-        AiKbDocumentListItemDTO summary = toDocumentListItem(document);
-        target.setId(summary.getId());
-        target.setKbCode(summary.getKbCode());
-        target.setDocumentCode(summary.getDocumentCode());
-        target.setDocumentName(summary.getDocumentName());
-        target.setDocumentType(summary.getDocumentType());
-        target.setBizType(summary.getBizType());
-        target.setBizKey(summary.getBizKey());
-        target.setSourceSystem(summary.getSourceSystem());
-        target.setStatus(summary.getStatus());
-        target.setDraftVersionNo(summary.getDraftVersionNo());
-        target.setContentFormat(summary.getContentFormat());
-        target.setContentSize(summary.getContentSize());
-        target.setReviewStatus(summary.getReviewStatus());
-        target.setLastGeneratedAt(summary.getLastGeneratedAt());
-        target.setContentChecksum(document.getContentChecksum());
-        target.setMetaJson(copyMap(document.getMetaJson()));
-        target.setLastError(document.getLastError());
-        target.setRemark(document.getRemark());
-        target.setContentJson(copyMap(content == null ? null : content.getContentJson()));
-        target.setRenderedContent(content == null ? null : content.getRenderedContent());
-        target.setExtJson(copyMap(content == null ? null : content.getExtJson()));
-        return target;
-    }
-
     private Map<String, Object> copyMap(Map<String, Object> source) {
         return source == null ? new LinkedHashMap<>() : new LinkedHashMap<>(source);
     }
@@ -395,10 +552,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         return sourceType == null ? null : AiKbBizType.valueOf(sourceType.name());
     }
 
-    private AiKbSourceType bizTypeToSourceType(AiKbBizType bizType) {
-        return bizType == null ? null : AiKbSourceType.valueOf(bizType.name());
-    }
-
     private String checksum(String content) {
         try {
             // 使用正文摘要判断文档是否真的发生变化，避免重复刷版本。
@@ -408,5 +561,8 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeBaseMa
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 algorithm not available", e);
         }
+    }
+
+    private record PublishResult(Integer acceptedCount, List<String> skippedDocumentCodes) {
     }
 }

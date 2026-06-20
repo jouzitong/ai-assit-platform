@@ -19,6 +19,7 @@ import com.aliyun.bailian20231229.models.SubmitIndexAddDocumentsJobRequest;
 import com.aliyun.bailian20231229.models.SubmitIndexAddDocumentsJobResponse;
 import com.aliyun.bailian20231229.models.SubmitIndexJobRequest;
 import com.aliyun.bailian20231229.models.SubmitIndexJobResponse;
+import com.aliyun.teaopenapi.models.Config;
 import com.aliyun.teautil.models.RuntimeOptions;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.utils.JacksonJsonUtils;
@@ -98,6 +99,7 @@ public class QwenKnowledgeBaseClient {
     public UpsertResult upsert(String workspaceId, String kbId, List<KbDocument> documents, RequestMeta meta) throws Exception {
         log.debug("qwen kb upsert start, workspaceId={}, kbId={}, documentCount={}",
                 workspaceId, kbId, documents == null ? 0 : documents.size());
+        Client client = resolveBailianClient(meta);
         // targetKbId 用于保存最终操作的知识库 ID；如果入参 kbId 为空，后续会在创建索引后赋值。
         String targetKbId = kbId;
         // accepted 统计成功提交并完成索引任务的文档数量。
@@ -112,14 +114,14 @@ public class QwenKnowledgeBaseClient {
             }
             String documentId = resolveDocumentId(document, i);
             // 先把业务文档写入临时文件，再通过百炼文件上传流程得到 fileId。
-            UploadedDocument uploaded = uploadDocument(workspaceId, document, i);
+            UploadedDocument uploaded = uploadDocument(client, workspaceId, document, i);
             // 如果当前没有知识库 ID，则说明需要基于首个有效文件创建新的知识库索引。
             if (!StringUtils.hasText(targetKbId)) {
                 // 创建索引后会返回新的知识库 ID，后续文档会继续追加到该知识库中。
-                targetKbId = createIndex(workspaceId, uploaded.fileId(), document, meta);
+                targetKbId = createIndex(client, workspaceId, uploaded.fileId(), document, meta);
             } else {
                 // 已存在知识库时，直接提交追加文档任务。
-                submitAddDocumentsJob(workspaceId, targetKbId, uploaded.fileId());
+                submitAddDocumentsJob(client, workspaceId, targetKbId, uploaded.fileId());
             }
             log.debug("qwen kb upsert document finished, workspaceId={}, kbId={}, docId={}, acceptedIndex={}",
                     workspaceId, targetKbId, documentId, accepted + 1);
@@ -144,15 +146,16 @@ public class QwenKnowledgeBaseClient {
      * @return 删除请求中包含的文档数量
      * @throws Exception 调用百炼删除接口失败时抛出
      */
-    public int delete(String workspaceId, String kbId, List<String> documentIds) throws Exception {
+    public int delete(String workspaceId, String kbId, List<String> documentIds, RequestMeta meta) throws Exception {
         log.debug("qwen kb delete start, workspaceId={}, kbId={}, documentCount={}",
                 workspaceId, kbId, documentIds == null ? 0 : documentIds.size());
+        Client client = resolveBailianClient(meta);
         // 构造删除索引文档请求，指定知识库 ID 和待删除的文档 ID 集合。
         DeleteIndexDocumentRequest request = new DeleteIndexDocumentRequest();
         request.setIndexId(kbId);
         request.setDocumentIds(documentIds);
         // 调用百炼接口删除索引中的文档记录。
-        bailianClient.deleteIndexDocumentWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
+        client.deleteIndexDocumentWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
         log.debug("qwen kb delete finished, workspaceId={}, kbId={}, deleted={}",
                 workspaceId, kbId, documentIds.size());
         return documentIds.size();
@@ -171,16 +174,17 @@ public class QwenKnowledgeBaseClient {
      * @return 知识库召回结果列表
      * @throws Exception 调用百炼检索接口失败时抛出
      */
-    public List<KbSearchItem> search(String workspaceId, String kbId, String query, Integer topK) throws Exception {
+    public List<KbSearchItem> search(String workspaceId, String kbId, String query, Integer topK, RequestMeta meta) throws Exception {
         log.debug("qwen kb search start, workspaceId={}, kbId={}, topK={}, query={}",
                 workspaceId, kbId, topK, query);
+        Client client = resolveBailianClient(meta);
         // 构造知识库检索请求，指定知识库 ID 和用户查询内容。
         RetrieveRequest request = new RetrieveRequest();
         request.setIndexId(kbId);
         request.setQuery(query);
         // 调用百炼检索接口获取原始召回结果。
         RetrieveResponse response =
-                bailianClient.retrieveWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
+                client.retrieveWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
         // 从 SDK 返回对象中提取 Nodes 列表，兼容 Map 和 Java Bean 两种数据结构。
         List<?> nodes = extractNodes(response);
         // topK 未指定时默认返回全部召回节点。
@@ -220,6 +224,57 @@ public class QwenKnowledgeBaseClient {
     }
 
     /**
+     * 解析百炼接入点。
+     *
+     * <p>请求级 kbEndpoint 优先，允许单个本地知识库使用独立的 AI 侧服务地址；
+     * 没有请求级配置时才回退到系统默认配置。</p>
+     */
+    public String resolveKbEndpoint(RequestMeta meta) {
+        Object kbEndpoint = metaExt(meta, "kbEndpoint");
+        if (kbEndpoint instanceof String value && StringUtils.hasText(value)) {
+            return value.trim();
+        }
+        if (StringUtils.hasText(properties.getBailianEndpoint())) {
+            return properties.getBailianEndpoint();
+        }
+        throw new IllegalStateException("qwen bailian kbEndpoint is required");
+    }
+
+    private Client resolveBailianClient(RequestMeta meta) throws Exception {
+        String endpoint = resolveKbEndpoint(meta);
+        if (Objects.equals(endpoint, properties.getBailianEndpoint())) {
+            return bailianClient;
+        }
+        Config config = new Config()
+                .setAccessKeyId(resolveAccessKeyId())
+                .setAccessKeySecret(resolveAccessKeySecret());
+        config.endpoint = endpoint;
+        return new Client(config);
+    }
+
+    private String resolveAccessKeyId() {
+        if (StringUtils.hasText(properties.getAccessKeyId())) {
+            return properties.getAccessKeyId();
+        }
+        String value = System.getenv("ALIBABA_CLOUD_ACCESS_KEY_ID");
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        throw new IllegalStateException("ALIBABA_CLOUD_ACCESS_KEY_ID must not be empty");
+    }
+
+    private String resolveAccessKeySecret() {
+        if (StringUtils.hasText(properties.getAccessKeySecret())) {
+            return properties.getAccessKeySecret();
+        }
+        String value = System.getenv("ALIBABA_CLOUD_ACCESS_KEY_SECRET");
+        if (StringUtils.hasText(value)) {
+            return value;
+        }
+        throw new IllegalStateException("ALIBABA_CLOUD_ACCESS_KEY_SECRET must not be empty");
+    }
+
+    /**
      * 上传业务文档到百炼文件空间。
      *
      * <p>百炼文件上传流程分为三步：</p>
@@ -235,7 +290,7 @@ public class QwenKnowledgeBaseClient {
      * @return 上传后的文件信息，主要包含百炼 fileId
      * @throws Exception 文件创建、租约申请、文件上传或 addFile 失败时抛出
      */
-    private UploadedDocument uploadDocument(String workspaceId, KbDocument document, int index) throws Exception {
+    private UploadedDocument uploadDocument(Client client, String workspaceId, KbDocument document, int index) throws Exception {
         String documentId = resolveDocumentId(document, index);
         log.debug("qwen kb upload document start, workspaceId={}, documentId={}", workspaceId, documentId);
         // 将业务文档内容落到临时 txt 文件，方便按百炼文件上传协议处理。
@@ -244,7 +299,7 @@ public class QwenKnowledgeBaseClient {
             // categoryId 表示百炼文件类目，优先从文档元数据获取，未指定时使用默认配置。
             String categoryId = resolveCategoryId(document);
             // 申请上传租约，百炼会返回实际文件上传地址和所需请求头。
-            ApplyFileUploadLeaseResponse leaseResponse = applyLease(workspaceId, categoryId, tempFile);
+            ApplyFileUploadLeaseResponse leaseResponse = applyLease(client, workspaceId, categoryId, tempFile);
             log.debug("qwen kb apply lease response, workspaceId={}, documentId={}, categoryId={}, response={}",
                     workspaceId, documentId, categoryId, JacksonJsonUtils.toStr(leaseResponse));
             String leaseId = Objects.toString(leaseResponse.getBody().getData().getFileUploadLeaseId(), null);
@@ -259,7 +314,7 @@ public class QwenKnowledgeBaseClient {
             addFileRequest.setParser(resolveParser(document));
             addFileRequest.setCategoryId(categoryId);
             String fileId = Objects.toString(
-                    bailianClient.addFileWithOptions(workspaceId, addFileRequest, new HashMap<>(), new RuntimeOptions())
+                    client.addFileWithOptions(workspaceId, addFileRequest, new HashMap<>(), new RuntimeOptions())
                             .getBody().getData().getFileId(),
                     null
             );
@@ -287,7 +342,7 @@ public class QwenKnowledgeBaseClient {
      * @return 上传租约响应
      * @throws Exception 计算文件信息或申请租约失败时抛出
      */
-    private ApplyFileUploadLeaseResponse applyLease(String workspaceId, String categoryId, Path file) throws Exception {
+    private ApplyFileUploadLeaseResponse applyLease(Client client, String workspaceId, String categoryId, Path file) throws Exception {
         log.debug("qwen kb apply lease start, workspaceId={}, categoryId={}, fileName={}, sizeInBytes={}",
                 workspaceId, categoryId, file.getFileName(), Files.size(file));
         // 申请租约时需要提供文件名、MD5 和文件大小，百炼会据此生成上传凭证。
@@ -295,7 +350,7 @@ public class QwenKnowledgeBaseClient {
         request.setFileName(file.getFileName().toString());
         request.setMd5(calculateMd5(file));
         request.setSizeInBytes(String.valueOf(Files.size(file)));
-        return bailianClient.applyFileUploadLeaseWithOptions(categoryId, workspaceId, request, new HashMap<>(), new RuntimeOptions());
+        return client.applyFileUploadLeaseWithOptions(categoryId, workspaceId, request, new HashMap<>(), new RuntimeOptions());
     }
 
     /**
@@ -353,7 +408,7 @@ public class QwenKnowledgeBaseClient {
      * @return 新创建的知识库 ID，即百炼 IndexId
      * @throws Exception 创建索引、提交任务或等待任务失败时抛出
      */
-    private String createIndex(String workspaceId, String fileId, KbDocument document, RequestMeta meta) throws Exception {
+    private String createIndex(Client client, String workspaceId, String fileId, KbDocument document, RequestMeta meta) throws Exception {
         String indexName = resolveIndexName(document, meta);
         log.debug("qwen kb create index start, workspaceId={}, fileId={}, indexName={}",
                 workspaceId, fileId, indexName);
@@ -366,7 +421,7 @@ public class QwenKnowledgeBaseClient {
         request.setDocumentIds(Collections.singletonList(fileId));
         // 调用百炼创建知识库索引接口。
         CreateIndexResponse response =
-                bailianClient.createIndexWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
+                client.createIndexWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
         String kbId = Objects.toString(response.getBody().getData().getId(), null);
         // 创建成功后必须返回 IndexId，否则无法继续提交构建任务。
         if (!StringUtils.hasText(kbId)) {
@@ -378,11 +433,11 @@ public class QwenKnowledgeBaseClient {
         SubmitIndexJobRequest submitRequest = new SubmitIndexJobRequest();
         submitRequest.setIndexId(kbId);
         SubmitIndexJobResponse submitResponse =
-                bailianClient.submitIndexJobWithOptions(workspaceId, submitRequest, new HashMap<>(), new RuntimeOptions());
+                client.submitIndexJobWithOptions(workspaceId, submitRequest, new HashMap<>(), new RuntimeOptions());
         String jobId = Objects.toString(submitResponse.getBody().getData().getId(), null);
         log.debug("qwen kb create index submit job, workspaceId={}, kbId={}, jobId={}", workspaceId, kbId, jobId);
         // 同步等待索引构建完成，避免调用方马上检索时查不到刚导入的内容。
-        waitForIndexJob(workspaceId, kbId, jobId);
+        waitForIndexJob(client, workspaceId, kbId, jobId);
         return kbId;
     }
 
@@ -394,7 +449,7 @@ public class QwenKnowledgeBaseClient {
      * @param fileId      已上传到百炼文件空间的文件 ID
      * @throws Exception 提交追加任务或等待任务失败时抛出
      */
-    private void submitAddDocumentsJob(String workspaceId, String kbId, String fileId) throws Exception {
+    private void submitAddDocumentsJob(Client client, String workspaceId, String kbId, String fileId) throws Exception {
         log.debug("qwen kb add documents job start, workspaceId={}, kbId={}, fileId={}", workspaceId, kbId, fileId);
         // 构造追加文档任务，请求中需要指定目标知识库和待追加文件 ID。
         SubmitIndexAddDocumentsJobRequest request = new SubmitIndexAddDocumentsJobRequest();
@@ -403,11 +458,11 @@ public class QwenKnowledgeBaseClient {
         request.setSourceType(properties.getSourceType());
         // 提交追加文档任务后，百炼会异步构建新增文档索引。
         SubmitIndexAddDocumentsJobResponse response =
-                bailianClient.submitIndexAddDocumentsJobWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
+                client.submitIndexAddDocumentsJobWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
         String jobId = Objects.toString(response.getBody().getData().getId(), null);
         log.debug("qwen kb add documents job submitted, workspaceId={}, kbId={}, jobId={}", workspaceId, kbId, jobId);
         // 等待追加索引任务完成，确保新增文档真正进入知识库。
-        waitForIndexJob(workspaceId, kbId, jobId);
+        waitForIndexJob(client, workspaceId, kbId, jobId);
     }
 
     /**
@@ -421,7 +476,7 @@ public class QwenKnowledgeBaseClient {
      * @param jobId       百炼索引任务 ID
      * @throws Exception 查询任务状态失败、任务失败或等待超时时抛出
      */
-    private void waitForIndexJob(String workspaceId, String kbId, String jobId) throws Exception {
+    private void waitForIndexJob(Client client, String workspaceId, String kbId, String jobId) throws Exception {
         // 没有 jobId 就无法查询异步任务状态，直接视为异常。
         if (!StringUtils.hasText(jobId)) {
             throw new IllegalStateException("bailian index job id must not be empty");
@@ -434,7 +489,7 @@ public class QwenKnowledgeBaseClient {
             request.setIndexId(kbId);
             request.setJobId(jobId);
             GetIndexJobStatusResponse response =
-                    bailianClient.getIndexJobStatusWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
+                    client.getIndexJobStatusWithOptions(workspaceId, request, new HashMap<>(), new RuntimeOptions());
             // SDK 返回的数据结构可能存在差异，这里统一提取状态字段。
             String status = extractStatus(response.getBody().getData());
             log.debug("qwen kb index job status, workspaceId={}, kbId={}, jobId={}, status={}",

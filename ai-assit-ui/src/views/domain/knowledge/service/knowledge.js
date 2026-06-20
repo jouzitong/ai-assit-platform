@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { listAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
+import { listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
 import { showPopup } from '../../../../utils/popup'
 
 export function useKnowledgePage() {
@@ -65,12 +65,38 @@ export function useKnowledgePage() {
     })
   }
 
-  function triggerKnowledgeSync() {
-    showPopup.warning('知识库同步功能建设中')
+  async function triggerKnowledgeSync() {
+    const publishRows = filteredSources.value.filter(item => matchTab(item, 'draft'))
+    if (!publishRows.length) {
+      showPopup.warning('当前没有可发布的草稿文档')
+      return
+    }
+
+    loading.value = true
+    errorMessage.value = ''
+    showPopup.info('知识库草稿发布中...', { title: 'Publishing', duration: 1600 })
+    try {
+      const response = await syncAiKnowledgeBaseDocuments({})
+      const acceptedCount = Number(response?.acceptedCount ?? 0)
+      const skippedCount = Array.isArray(response?.skippedDocumentCodes)
+        ? response.skippedDocumentCodes.length
+        : 0
+      showPopup.success(`知识库草稿发布完成，已同步 ${acceptedCount} 个文档${skippedCount ? `，跳过 ${skippedCount} 个` : ''}`)
+      await loadDataSources()
+    } catch (error) {
+      errorMessage.value = error.message || '知识库草稿发布失败'
+      showPopup.error(errorMessage.value)
+    } finally {
+      loading.value = false
+    }
   }
 
   function openCreateDialog() {
     showPopup.warning('新建知识库文档功能建设中')
+  }
+
+  function showPendingAction(label = '当前操作') {
+    showPopup.warning(`${label}功能建设中`)
   }
 
   return {
@@ -83,7 +109,8 @@ export function useKnowledgePage() {
     openSource,
     triggerKnowledgeSync,
     loadDataSources,
-    openCreateDialog
+    openCreateDialog,
+    showPendingAction
   }
 }
 

@@ -141,7 +141,7 @@ public class QwenProvider implements AiProvider {
         }
         try {
             String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
-            int deleted = knowledgeBaseClient.delete(workspaceId, request.getKbId(), documentIds);
+            int deleted = knowledgeBaseClient.delete(workspaceId, request.getKbId(), documentIds, request.getMeta());
             KbDeleteResponse response = new KbDeleteResponse();
             response.setKbId(request.getKbId());
             response.setDeleted(deleted);
@@ -163,7 +163,7 @@ public class QwenProvider implements AiProvider {
             String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
             KbSearchResponse response = new KbSearchResponse();
             response.setKbId(request.getKbId());
-            response.setItems(knowledgeBaseClient.search(workspaceId, request.getKbId(), request.getQuery(), request.getTopK()));
+            response.setItems(knowledgeBaseClient.search(workspaceId, request.getKbId(), request.getQuery(), request.getTopK(), request.getMeta()));
             return response;
         } catch (Exception ex) {
             throw new IllegalStateException("Qwen knowledge base search failed", ex);

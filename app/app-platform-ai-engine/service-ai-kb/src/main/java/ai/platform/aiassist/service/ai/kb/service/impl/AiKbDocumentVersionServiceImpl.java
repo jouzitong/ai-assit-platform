@@ -3,11 +3,17 @@ package ai.platform.aiassist.service.ai.kb.service.impl;
 import ai.platform.aiassist.service.ai.kb.convert.AiKbDocumentVersionConvert;
 import ai.platform.aiassist.service.ai.kb.entity.AiKbDocumentVersionEntity;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionDTO;
+import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionQueryRequest;
 import ai.platform.aiassist.service.ai.kb.mapper.AiKbDocumentVersionMapper;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionService;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.athena.framework.data.jdbc.convert.IConvert;
+import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.service.BaseMapperService;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
+
+import java.util.List;
 
 @Service
 public class AiKbDocumentVersionServiceImpl
@@ -31,5 +37,31 @@ public class AiKbDocumentVersionServiceImpl
 
     public AiKbDocumentVersionEntity newEntity() {
         return new AiKbDocumentVersionEntity();
+    }
+
+    @Override
+    public List<AiKbDocumentVersionDTO> listByQuery(AiKbDocumentVersionQueryRequest query) {
+        AiKbDocumentVersionQueryRequest payload = query == null ? new AiKbDocumentVersionQueryRequest() : query;
+        payload.setPage(payload.getPage() == null ? 1 : payload.getPage());
+        payload.setSize(payload.getSize() == null ? Integer.MAX_VALUE : payload.getSize());
+        return queryAll(payload);
+    }
+
+    @Override
+    protected <Query extends BaseRequest> QueryWrapper<AiKbDocumentVersionEntity> buildQuery(Query query) {
+        QueryWrapper<AiKbDocumentVersionEntity> wrapper = super.buildQuery(query);
+        if (query instanceof AiKbDocumentVersionQueryRequest req) {
+            if (StringUtils.hasText(req.getKbCode())) {
+                wrapper.lambda().eq(AiKbDocumentVersionEntity::getKbCode, req.getKbCode().trim());
+            }
+            if (StringUtils.hasText(req.getDocumentCode())) {
+                wrapper.lambda().eq(AiKbDocumentVersionEntity::getDocumentCode, req.getDocumentCode().trim());
+            }
+            if (req.getKbVersionId() != null) {
+                wrapper.lambda().eq(AiKbDocumentVersionEntity::getKbVersionId, req.getKbVersionId());
+            }
+            wrapper.lambda().orderByDesc(AiKbDocumentVersionEntity::getUpdateTime, AiKbDocumentVersionEntity::getId);
+        }
+        return wrapper;
     }
 }

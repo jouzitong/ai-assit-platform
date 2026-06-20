@@ -29,7 +29,8 @@ const {
   openSource,
   triggerKnowledgeSync,
   loadDataSources,
-  openCreateDialog
+  openCreateDialog,
+  showPendingAction
 } = useKnowledgePage()
 
 const filterSchema = ref(KNOWLEDGE_FILTER_SCHEMA.map(item => ({ ...item })))
@@ -116,11 +117,11 @@ function handleToolbarAction(payload) {
     return
   }
   if (payload?.action === 'select') {
-    triggerKnowledgeSync()
+    showPendingAction('历史版本选择')
     return
   }
   if (payload?.action === 'rollback') {
-    triggerKnowledgeSync()
+    showPendingAction('版本回退')
     return
   }
 }

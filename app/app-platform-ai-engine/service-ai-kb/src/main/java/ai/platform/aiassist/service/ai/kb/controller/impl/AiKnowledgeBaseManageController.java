@@ -9,6 +9,7 @@ import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
+import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseQueryDomainService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -24,9 +25,12 @@ import java.util.List;
 public class AiKnowledgeBaseManageController implements AiKnowledgeBaseManageApi {
 
     private final AiKnowledgeBaseManageDomainService domainService;
+    private final AiKnowledgeBaseQueryDomainService queryDomainService;
 
-    public AiKnowledgeBaseManageController(AiKnowledgeBaseManageDomainService domainService) {
+    public AiKnowledgeBaseManageController(AiKnowledgeBaseManageDomainService domainService,
+                                           AiKnowledgeBaseQueryDomainService queryDomainService) {
         this.domainService = domainService;
+        this.queryDomainService = queryDomainService;
     }
 
     @Override
@@ -38,19 +42,19 @@ public class AiKnowledgeBaseManageController implements AiKnowledgeBaseManageApi
     @Override
     @PostMapping("/internal/v1/ai/kb/list")
     public List<AiKbInfoDTO> kbList(@RequestBody(required = false) AiKbListRequest request) {
-        return domainService.kbList(request);
+        return queryDomainService.kbList(request);
     }
 
     @Override
     @PostMapping("/internal/v1/ai/kb/document/list")
     public List<AiKbDocumentListItemDTO> listDocuments(@RequestBody(required = false) AiKbDocumentListRequest request) {
-        return domainService.listDocuments(request);
+        return queryDomainService.listDocuments(request);
     }
 
     @Override
     @GetMapping("/internal/v1/ai/kb/document/detail")
     public AiKbDocumentDetailDTO getDocumentDetail(@RequestParam("kbCode") String kbCode,
                                                    @RequestParam("documentCode") String documentCode) {
-        return domainService.getDocumentDetail(kbCode, documentCode);
+        return queryDomainService.getDocumentDetail(kbCode, documentCode);
     }
 }

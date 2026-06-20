@@ -16,6 +16,7 @@ idea/
 logs/
 */logs/
 *.log
+*.log.*
 
 tools/service-manager/runtime/process-state.json
 

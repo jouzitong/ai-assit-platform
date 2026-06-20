@@ -1,34 +1,30 @@
 package ai.platform.aiassist.service.ai.kb.controller.req;
 
 import lombok.Data;
-import org.athena.framework.data.mybatis.annotations.IgnoredQuery;
 
 import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.List;
 
 @Data
 public class AiKbSyncRequest implements Serializable {
 
     /**
-     * 可选：指定需要同步的知识库编码列表；为空时表示按查询条件批量同步。
+     * 可选：指定发布某个知识库的草稿版本。
+     *
+     * <p>为空时由服务端查询所有 DRAFT 版本并发布。</p>
      */
-    private List<String> kbCodes = new ArrayList<>();
+    private String kbCode;
 
     /**
-     * 可选：指定需要同步的文档编码列表。
+     * 可选：指定发布版本 ID。
+     *
+     * <p>优先级高于 kbCode/versionNo；为空时按 kbCode 查询当前 DRAFT 版本。</p>
      */
-    private List<String> documentCodes = new ArrayList<>();
+    private Long kbVersionId;
 
     /**
-     * 可选：页面当前页签，用于按状态范围同步。
+     * 可选：指定发布版本号。
+     *
+     * <p>需要与 kbCode 一起使用；为空时按 kbCode 查询当前 DRAFT 版本。</p>
      */
-    @IgnoredQuery
-    private String tab;
-
-    /**
-     * 可选：页面搜索关键字。
-     */
-    @IgnoredQuery
-    private String keyword;
+    private Integer versionNo;
 }

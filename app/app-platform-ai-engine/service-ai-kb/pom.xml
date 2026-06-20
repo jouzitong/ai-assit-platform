@@ -33,6 +33,10 @@
             <artifactId>service-ai-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>service-ai-core</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
