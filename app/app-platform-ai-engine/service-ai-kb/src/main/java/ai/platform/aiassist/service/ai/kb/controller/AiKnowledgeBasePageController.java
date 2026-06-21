@@ -1,9 +1,11 @@
 package ai.platform.aiassist.service.ai.kb.controller;
 
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassist.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
@@ -36,6 +38,15 @@ public interface AiKnowledgeBasePageController {
      */
     @PostMapping(value = "/api/v1/ai/kb/list", produces = MediaType.APPLICATION_JSON_VALUE)
     List<AiKbInfoDTO> kbList();
+
+    /**
+     * 创建知识库主记录。
+     *
+     * @param request 知识库创建请求
+     * @return 创建后的知识库信息
+     */
+    @PostMapping(value = "/api/v1/ai/kb/create", produces = MediaType.APPLICATION_JSON_VALUE)
+    R<AiKbInfoDTO> createKnowledgeBase(@RequestBody AiKbCreateRequest request);
 
     /**
      * 查询知识库文档列表。
@@ -72,6 +83,15 @@ public interface AiKnowledgeBasePageController {
      */
     @PostMapping("/api/v1/ai/kb/document/upsert")
     R<AiKbDocumentUpsertResponse> upsertDocument(@RequestBody AiKbDocumentUpsertRequest request);
+
+    /**
+     * 根据本地文档 ID 更新知识库文档正文。
+     *
+     * @param request 文档正文更新请求参数
+     * @return 文档更新结果
+     */
+    @PostMapping("/api/v1/ai/kb/document/content/update")
+    R<AiKbDocumentUpsertResponse> updateDocumentContent(@RequestBody AiKbDocumentContentUpdateRequest request);
 
     /**
      * 同步知识库文档。

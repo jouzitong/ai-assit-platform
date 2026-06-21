@@ -10,7 +10,7 @@ public class AiKbDocumentVersionQueryRequest extends BaseRequest {
 
     private String kbCode;
 
-    private Long kbVersionId;
-
     private String documentCode;
+
+    private Integer documentVersionNo;
 }

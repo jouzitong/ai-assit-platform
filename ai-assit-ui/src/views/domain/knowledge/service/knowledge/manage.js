@@ -1,6 +1,10 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { getAiKnowledgeBaseDocumentDetail, listAiKnowledgeBaseDocuments } from '../../../../../api/aiChat'
+import {
+  getAiKnowledgeBaseDocumentDetail,
+  listAiKnowledgeBaseDocuments,
+  updateAiKnowledgeBaseDocumentContent
+} from '../../../../../api/aiChat'
 import { showPopup } from '../../../../../utils/popup'
 
 export function useKnowledgeManagePage() {
@@ -9,7 +13,10 @@ export function useKnowledgeManagePage() {
   const detail = ref(null)
   const documents = ref([])
   const loading = ref(false)
+  const saving = ref(false)
   const errorMessage = ref('')
+  const isEditing = ref(false)
+  const editingContent = ref('')
 
   const kbCode = computed(() => String(route.query.kbCode ?? ''))
   const documentCode = computed(() => String(route.params.sourceKey ?? ''))
@@ -31,7 +38,9 @@ export function useKnowledgeManagePage() {
     bizKey: detail.value?.bizKey || '-',
     source: detail.value?.sourceSystem || '-',
     status: detail.value?.status || '-',
-    reviewStatus: detail.value?.reviewStatus || '-',
+    providerDocumentId: detail.value?.providerDocumentId || '-',
+    providerSyncStatus: detail.value?.providerSyncStatus || '-',
+    currentVersionNo: detail.value?.currentVersionNo ?? '-',
     contentSize: formatContentSize(detail.value?.contentSize),
     lastGeneratedAt: formatDateTime(detail.value?.lastGeneratedAt)
   }))
@@ -59,6 +68,8 @@ export function useKnowledgeManagePage() {
     try {
       await loadDocumentList()
       detail.value = await getAiKnowledgeBaseDocumentDetail(kbCode.value, documentCode.value)
+      isEditing.value = false
+      editingContent.value = contentText.value
       if (!detail.value) {
         showPopup.warning('未找到对应的本地文档内容')
       } else if (showPopupNotice) {
@@ -99,15 +110,60 @@ export function useKnowledgeManagePage() {
     })
   }
 
+  function startEditContent() {
+    if (!detail.value?.id) {
+      showPopup.warning('当前文档缺少本地 ID，无法编辑')
+      return
+    }
+    editingContent.value = contentText.value
+    isEditing.value = true
+  }
+
+  function cancelEditContent() {
+    editingContent.value = contentText.value
+    isEditing.value = false
+  }
+
+  async function saveEditContent() {
+    if (!detail.value?.id) {
+      showPopup.warning('当前文档缺少本地 ID，无法保存')
+      return
+    }
+    if (!String(editingContent.value || '').trim()) {
+      showPopup.warning('正文内容不能为空')
+      return
+    }
+    saving.value = true
+    try {
+      await updateAiKnowledgeBaseDocumentContent({
+        documentId: detail.value.id,
+        content: editingContent.value,
+        ext: detail.value.extJson || {}
+      })
+      showPopup.success('文档内容已保存，待同步')
+      await loadDetail()
+    } catch (error) {
+      showPopup.error(error.message || '文档内容保存失败')
+    } finally {
+      saving.value = false
+    }
+  }
+
   return {
     detail,
     documentList,
     currentDocumentKey,
     contentText,
+    editingContent,
     summaryInfo,
     loading,
+    saving,
+    isEditing,
     errorMessage,
-    selectDocument
+    selectDocument,
+    startEditContent,
+    cancelEditContent,
+    saveEditContent
   }
 }
 

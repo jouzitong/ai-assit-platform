@@ -57,20 +57,17 @@ public class AiKbDocumentServiceImpl
     protected <Query extends BaseRequest> QueryWrapper<AiKbDocumentEntity> buildQuery(Query query) {
         QueryWrapper<AiKbDocumentEntity> wrapper = super.buildQuery(query);
         if (query instanceof AiKbDocumentQueryRequest req) {
+            if (req.getId() != null) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getId, req.getId());
+            }
             if (StringUtils.hasText(req.getKbCode())) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getKbCode, req.getKbCode().trim());
             }
             if (StringUtils.hasText(req.getDocumentCode())) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode().trim());
             }
-            if (req.getKbVersionId() != null) {
-                wrapper.lambda().eq(AiKbDocumentEntity::getKbVersionId, req.getKbVersionId());
-            }
             if (req.getStatus() != null) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getStatus, req.getStatus());
-            }
-            if (req.getReviewStatus() != null) {
-                wrapper.lambda().eq(AiKbDocumentEntity::getReviewStatus, req.getReviewStatus());
             }
             wrapper.lambda().orderByDesc(AiKbDocumentEntity::getUpdateTime, AiKbDocumentEntity::getId);
         }

@@ -2,6 +2,7 @@ package ai.platform.aiassist.service.ai.api;
 
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbDeleteResponse;
@@ -36,6 +37,15 @@ public interface AiKnowledgeApi {
      */
     @PostMapping("/internal/v1/ai/kb/document/upsert")
     R<AiKbDocumentUpsertResponse> upsertDocument(@RequestBody AiKbDocumentUpsertRequest request);
+
+    /**
+     * 根据本地文档 ID 更新知识库文档正文。
+     *
+     * @param request 文档正文更新请求参数
+     * @return 文档更新结果
+     */
+    @PostMapping("/internal/v1/ai/kb/document/content/update")
+    R<AiKbDocumentUpsertResponse> updateDocumentContent(@RequestBody AiKbDocumentContentUpdateRequest request);
 
     /**
      * 根据知识库条件获取本地知识库标识。

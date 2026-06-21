@@ -105,7 +105,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
             item.setDocumentId(buildDocumentId(sourceKey, currentTableName));
             item.setCreated(Boolean.TRUE.equals(upsertResponse.getCreated()));
             item.setUpdated(Boolean.TRUE.equals(upsertResponse.getUpdated()));
-            item.setDraftVersionNo(upsertResponse.getDraftVersionNo());
+            item.setCurrentVersionNo(upsertResponse.getCurrentVersionNo());
             items.add(item);
 
             if (Boolean.TRUE.equals(upsertResponse.getCreated())) {
@@ -115,8 +115,8 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
             } else {
                 unchangedCount++;
             }
-            log.info("finished table sync {}/{}, sourceKey={}, tableName={}, created={}, updated={}, draftVersionNo={}",
-                    i + 1, total, sourceKey, currentTableName, item.getCreated(), item.getUpdated(), item.getDraftVersionNo());
+            log.info("finished table sync {}/{}, sourceKey={}, tableName={}, created={}, updated={}, currentVersionNo={}",
+                    i + 1, total, sourceKey, currentTableName, item.getCreated(), item.getUpdated(), item.getCurrentVersionNo());
         }
 
         response.setItems(items);

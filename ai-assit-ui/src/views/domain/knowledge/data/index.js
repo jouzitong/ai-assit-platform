@@ -29,10 +29,11 @@ export const KNOWLEDGE_TABLE_COLUMNS = [
     width: 10,
     class: row => `knowledge-status ${row.statusClass || ''}`
   },
-  { key: 'draftVersionNo', label: '草稿版本号', width: 10 },
+  { key: 'providerSyncStatus', label: '同步状态', width: 10 },
+  { key: 'providerDocumentId', label: '远端文档ID', width: 14 },
+  { key: 'currentVersionNo', label: '当前版本号', width: 10 },
   { key: 'contentFormat', label: '内容格式', width: 12 },
   { key: 'contentSize', label: '内容大小', width: 10 },
-  { key: 'reviewStatus', label: '审核状态', width: 12 },
   { key: 'lastGeneratedAt', label: '最近生成时间', width: 14 }
 ]
 
@@ -43,7 +44,7 @@ export const KNOWLEDGE_LIST_CONFIG = {
   ],
   sorts_config: {
     header_enable: true,
-    sorts: ['kbCode', 'documentCode', 'documentName', 'documentType', 'bizType', 'status', 'draftVersionNo', 'reviewStatus', 'lastGeneratedAt']
+    sorts: ['kbCode', 'documentCode', 'documentName', 'documentType', 'bizType', 'status', 'providerSyncStatus', 'currentVersionNo', 'lastGeneratedAt']
   }
 }
 
@@ -54,9 +55,8 @@ export const KNOWLEDGE_ACTION_ITEMS = [
 ]
 
 export const KNOWLEDGE_HEADER_TABS = [
-  { key: 'current', label: '生效' },
-  { key: 'draft', label: '草稿' },
-  { key: 'history', label: '历史' }
+  { key: 'current', label: '当前文档' },
+  { key: 'history', label: '历史版本' }
 ]
 
 export { KNOWLEDGE_DOCUMENTS, getKnowledgeDocumentByCode } from './documents'

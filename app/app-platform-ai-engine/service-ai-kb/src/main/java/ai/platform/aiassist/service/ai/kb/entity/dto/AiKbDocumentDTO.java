@@ -4,7 +4,7 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbReviewStatus;
+import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
@@ -17,8 +17,6 @@ import java.util.Map;
 public class AiKbDocumentDTO extends BaseDTO {
 
     private String kbCode;
-
-    private Long kbVersionId;
 
     private String documentCode;
 
@@ -34,7 +32,11 @@ public class AiKbDocumentDTO extends BaseDTO {
 
     private AiKbDocumentStatus status;
 
-    private Integer draftVersionNo;
+    private String providerDocumentId;
+
+    private AiKbProviderSyncStatus providerSyncStatus;
+
+    private Integer documentVersionNo;
 
     private String contentChecksum;
 
@@ -43,8 +45,6 @@ public class AiKbDocumentDTO extends BaseDTO {
     private Long contentSize;
 
     private Map<String, Object> metaJson;
-
-    private AiKbReviewStatus reviewStatus;
 
     private LocalDateTime lastGeneratedAt;
 

@@ -2,6 +2,8 @@ package ai.platform.aiassist.service.ai.kb.entity.dto;
 
 import ai.platform.aiassist.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
@@ -17,9 +19,13 @@ public class AiKbDocumentVersionDTO extends BaseDTO {
 
     private String documentCode;
 
-    private Long kbVersionId;
+    private String documentName;
 
-    private Integer versionNo;
+    private AiKbDocumentType documentType;
+
+    private AiKbBizType bizType;
+
+    private String bizKey;
 
     private Integer documentVersionNo;
 
@@ -35,9 +41,9 @@ public class AiKbDocumentVersionDTO extends BaseDTO {
 
     private String sourceSystem;
 
-    private LocalDateTime publishedAt;
+    private LocalDateTime snapshotAt;
 
-    private String publishedBy;
+    private String snapshotBy;
 
     private String remark;
 }

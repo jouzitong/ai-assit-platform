@@ -6,10 +6,16 @@ const {
   documentList,
   currentDocumentKey,
   contentText,
+  editingContent,
   summaryInfo,
   loading,
+  saving,
+  isEditing,
   errorMessage,
-  selectDocument
+  selectDocument,
+  startEditContent,
+  cancelEditContent,
+  saveEditContent
 } = useKnowledgeManagePage()
 </script>
 
@@ -75,8 +81,16 @@ const {
               <strong>{{ summaryInfo.status }}</strong>
             </div>
             <div class="summary-item">
-              <span>审核</span>
-              <strong>{{ summaryInfo.reviewStatus }}</strong>
+              <span>同步</span>
+              <strong>{{ summaryInfo.providerSyncStatus }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>版本</span>
+              <strong>{{ summaryInfo.currentVersionNo }}</strong>
+            </div>
+            <div class="summary-item">
+              <span>远端ID</span>
+              <strong>{{ summaryInfo.providerDocumentId }}</strong>
             </div>
             <div class="summary-item">
               <span>内容大小</span>
@@ -91,10 +105,32 @@ const {
 
         <section class="content-card">
           <div class="content-card__head">
-            <p class="eyebrow">正文</p>
-            <span>{{ detail?.contentFormat || '-' }}</span>
+            <div class="content-card__title">
+              <p class="eyebrow">正文</p>
+              <span>{{ detail?.contentFormat || '-' }}</span>
+            </div>
+            <div class="content-card__actions">
+              <template v-if="isEditing">
+                <button type="button" class="content-action" :disabled="saving" @click="saveEditContent">
+                  {{ saving ? '保存中...' : '保存' }}
+                </button>
+                <button type="button" class="content-action is-ghost" :disabled="saving" @click="cancelEditContent">
+                  放弃
+                </button>
+              </template>
+              <button v-else type="button" class="content-action" @click="startEditContent">
+                编辑
+              </button>
+            </div>
           </div>
-          <pre class="content-body">{{ contentText }}</pre>
+          <textarea
+            v-if="isEditing"
+            v-model="editingContent"
+            class="content-editor"
+            :disabled="saving"
+            spellcheck="false"
+          />
+          <pre v-else class="content-body">{{ contentText }}</pre>
         </section>
       </section>
     </section>
@@ -238,9 +274,51 @@ const {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
-.content-body {
+.content-card__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.content-card__title span {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.content-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+}
+
+.content-action {
+  border: 1px solid rgba(37, 99, 235, 0.22);
+  border-radius: 8px;
+  background: #2563eb;
+  color: #fff;
+  padding: 6px 12px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.content-action.is-ghost {
+  background: #fff;
+  color: var(--text);
+  border-color: var(--stroke);
+}
+
+.content-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+.content-body,
+.content-editor {
   margin: 0;
   padding: 18px 16px;
   min-height: 0;
@@ -252,6 +330,13 @@ const {
   line-height: 1.6;
   background: #f8fafc;
   overflow: auto;
+}
+
+.content-editor {
+  resize: none;
+  border: 0;
+  outline: none;
+  color: var(--text);
 }
 
 .page-state {

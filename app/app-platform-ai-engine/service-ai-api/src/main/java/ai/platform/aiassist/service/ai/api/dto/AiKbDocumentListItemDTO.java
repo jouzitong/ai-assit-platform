@@ -26,13 +26,15 @@ public class AiKbDocumentListItemDTO implements Serializable {
 
     private String status;
 
-    private Integer draftVersionNo;
+    private String providerDocumentId;
+
+    private String providerSyncStatus;
+
+    private Integer currentVersionNo;
 
     private String contentFormat;
 
     private Long contentSize;
-
-    private String reviewStatus;
 
     private LocalDateTime lastGeneratedAt;
 }

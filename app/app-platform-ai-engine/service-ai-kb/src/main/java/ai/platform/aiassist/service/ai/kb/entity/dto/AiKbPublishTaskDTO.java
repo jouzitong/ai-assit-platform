@@ -18,8 +18,6 @@ public class AiKbPublishTaskDTO extends BaseDTO {
 
     private String kbCode;
 
-    private Long kbVersionId;
-
     private AiKbTaskType taskType;
 
     private AiKbTaskStatus status;

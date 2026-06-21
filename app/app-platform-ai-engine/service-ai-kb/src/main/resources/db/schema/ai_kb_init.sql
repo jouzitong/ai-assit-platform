@@ -16,29 +16,9 @@ CREATE TABLE IF NOT EXISTS ai_kb_store (
     KEY idx_kb_update_time (update_time)
 ) COMMENT='AI知识库主表';
 
-CREATE TABLE IF NOT EXISTS ai_kb_version (
-    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    kb_code VARCHAR(64) NOT NULL COMMENT '所属知识库编码',
-    version_no INT NOT NULL COMMENT '知识库版本号',
-    version_name VARCHAR(128) NOT NULL COMMENT '版本名称',
-    status INT NOT NULL DEFAULT 1 COMMENT '版本状态枚举编码：1=DRAFT,2=CURRENT,3=HISTORY,4=DISCARDED',
-    published_at DATETIME DEFAULT NULL COMMENT '发布时间',
-    published_by BIGINT DEFAULT NULL COMMENT '发布人 ID',
-    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
-    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    created_by BIGINT NOT NULL DEFAULT -1 COMMENT '创建者',
-    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    updated_by BIGINT NOT NULL DEFAULT -1 COMMENT '更新者',
-    version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
-    UNIQUE KEY uk_kb_version (kb_code, version_no),
-    KEY idx_kb_version_status (kb_code, status),
-    KEY idx_kb_version_publish_time (published_at)
-) COMMENT='AI知识库版本表';
-
 CREATE TABLE IF NOT EXISTS ai_kb_document (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     kb_code VARCHAR(64) NOT NULL COMMENT '所属知识库编码',
-    kb_version_id BIGINT DEFAULT NULL COMMENT '所属知识库草稿版本 ID',
     document_code VARCHAR(128) NOT NULL COMMENT '文档编码，建议使用 sourceKey/tableName',
     document_name VARCHAR(256) NOT NULL COMMENT '文档名称',
     document_type INT NOT NULL COMMENT '文档类型枚举编码：1=DB_TABLE',
@@ -46,12 +26,13 @@ CREATE TABLE IF NOT EXISTS ai_kb_document (
     biz_key VARCHAR(128) NOT NULL COMMENT '业务唯一键',
     source_system VARCHAR(64) DEFAULT NULL COMMENT '来源系统，例如 db-engine',
     status INT NOT NULL DEFAULT 1 COMMENT '文档状态枚举编码：1=ACTIVE,2=DISABLED',
-    draft_version_no INT NOT NULL DEFAULT 1 COMMENT '当前草稿版本号',
+    provider_document_id VARCHAR(128) DEFAULT NULL COMMENT 'AI 侧远端文档 ID',
+    provider_sync_status INT NOT NULL DEFAULT 1 COMMENT 'AI 侧同步状态枚举编码：1=PENDING,2=RUNNING,3=SUCCESS,4=FAILED',
+    document_version_no INT NOT NULL DEFAULT 1 COMMENT '当前文档版本号',
     content_checksum CHAR(64) DEFAULT NULL COMMENT '文档内容校验摘要，SHA-256',
     content_format INT NOT NULL DEFAULT 1 COMMENT '内容格式枚举编码：1=MARKDOWN,2=TEXT,3=JSON',
     content_size BIGINT NOT NULL DEFAULT 0 COMMENT '文档内容大小，单位字节',
     meta_json MEDIUMTEXT DEFAULT NULL COMMENT '文档扩展元数据 JSON',
-    review_status INT NOT NULL DEFAULT 1 COMMENT '审核状态枚举编码：1=DRAFT,2=READY,3=REJECTED,4=PUBLISHED',
     last_generated_at DATETIME DEFAULT NULL COMMENT '最近一次生成时间',
     last_error VARCHAR(1024) DEFAULT NULL COMMENT '最近一次错误信息',
     remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
@@ -61,15 +42,15 @@ CREATE TABLE IF NOT EXISTS ai_kb_document (
     updated_by BIGINT NOT NULL DEFAULT -1 COMMENT '更新者',
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_kb_document (kb_code, document_code),
-    KEY idx_kb_document_version (kb_version_id),
     KEY idx_kb_document_biz (biz_type, biz_key),
-    KEY idx_kb_document_status (kb_code, status, review_status),
+    KEY idx_kb_document_status (kb_code, status),
+    KEY idx_kb_document_provider_sync (kb_code, provider_sync_status),
     KEY idx_kb_document_update_time (update_time)
-) COMMENT='AI知识库草稿文档表';
+) COMMENT='AI知识库当前文档表';
 
 CREATE TABLE IF NOT EXISTS ai_kb_document_content (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    document_id BIGINT NOT NULL COMMENT '所属草稿文档 ID',
+    document_id BIGINT NOT NULL COMMENT '所属当前文档 ID',
     content_format INT NOT NULL DEFAULT 1 COMMENT '内容格式枚举编码：1=MARKDOWN,2=TEXT,3=JSON',
     content_size BIGINT NOT NULL DEFAULT 0 COMMENT '内容大小，单位字节',
     content_json MEDIUMTEXT DEFAULT NULL COMMENT '结构化内容 JSON',
@@ -82,14 +63,16 @@ CREATE TABLE IF NOT EXISTS ai_kb_document_content (
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_document_content_document_id (document_id),
     KEY idx_document_content_update_time (update_time)
-) COMMENT='AI知识库草稿文档正文表';
+) COMMENT='AI知识库当前文档正文表';
 
 CREATE TABLE IF NOT EXISTS ai_kb_document_version (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     kb_code VARCHAR(64) NOT NULL COMMENT '所属知识库编码',
     document_code VARCHAR(128) NOT NULL COMMENT '文档编码',
-    kb_version_id BIGINT NOT NULL COMMENT '所属知识库版本 ID',
-    version_no INT NOT NULL COMMENT '知识库版本号',
+    document_name VARCHAR(256) NOT NULL COMMENT '文档名称',
+    document_type INT NOT NULL COMMENT '文档类型枚举编码：1=DB_TABLE',
+    biz_type INT NOT NULL COMMENT '业务类型枚举编码：1=DB_DATA_SOURCE',
+    biz_key VARCHAR(128) NOT NULL COMMENT '业务唯一键',
     document_version_no INT NOT NULL COMMENT '文档自身版本号',
     change_type INT NOT NULL COMMENT '变更类型枚举编码：1=CREATE,2=UPDATE,3=DELETE',
     content_checksum CHAR(64) DEFAULT NULL COMMENT '文档内容校验摘要，SHA-256',
@@ -97,19 +80,19 @@ CREATE TABLE IF NOT EXISTS ai_kb_document_version (
     content_size BIGINT NOT NULL DEFAULT 0 COMMENT '发布时文档内容大小，单位字节',
     meta_json MEDIUMTEXT DEFAULT NULL COMMENT '发布时扩展元数据快照 JSON',
     source_system VARCHAR(64) DEFAULT NULL COMMENT '来源系统',
-    published_at DATETIME DEFAULT NULL COMMENT '发布时间',
-    published_by VARCHAR(64) DEFAULT NULL COMMENT '发布人',
+    snapshot_at DATETIME DEFAULT NULL COMMENT '快照时间',
+    snapshot_by VARCHAR(64) DEFAULT NULL COMMENT '快照创建人',
     remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     created_by BIGINT NOT NULL DEFAULT -1 COMMENT '创建者',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     updated_by BIGINT NOT NULL DEFAULT -1 COMMENT '更新者',
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
-    UNIQUE KEY uk_kb_document_version (kb_version_id, document_code),
-    KEY idx_document_version_kb (kb_code, version_no),
+    UNIQUE KEY uk_kb_document_version (kb_code, document_code, document_version_no),
+    KEY idx_document_version_kb (kb_code, document_code),
     KEY idx_document_version_document (document_code),
-    KEY idx_document_version_publish_time (published_at)
-) COMMENT='AI知识库文档发布快照表';
+    KEY idx_document_version_snapshot_time (snapshot_at)
+) COMMENT='AI知识库文档历史版本快照表';
 
 CREATE TABLE IF NOT EXISTS ai_kb_document_version_content (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
@@ -132,7 +115,6 @@ CREATE TABLE IF NOT EXISTS ai_kb_publish_task (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     task_code VARCHAR(64) NOT NULL COMMENT '任务编码',
     kb_code VARCHAR(64) NOT NULL COMMENT '所属知识库编码',
-    kb_version_id BIGINT NOT NULL COMMENT '所属知识库版本 ID',
     task_type INT NOT NULL COMMENT '任务类型枚举编码：1=PUBLISH,2=ROLLBACK',
     status INT NOT NULL DEFAULT 1 COMMENT '任务状态枚举编码：1=PENDING,2=RUNNING,3=SUCCESS,4=FAILED,5=CANCELED',
     progress_percent INT NOT NULL DEFAULT 0 COMMENT '当前进度百分比',
@@ -149,6 +131,5 @@ CREATE TABLE IF NOT EXISTS ai_kb_publish_task (
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_task_code (task_code),
     KEY idx_publish_task_kb (kb_code, status),
-    KEY idx_publish_task_version (kb_version_id),
     KEY idx_publish_task_time (started_at, finished_at)
 ) COMMENT='AI知识库发布任务表';

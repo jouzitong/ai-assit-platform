@@ -4,7 +4,7 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbReviewStatus;
+import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -19,7 +19,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 知识库文档草稿实体。
+ * 知识库当前文档实体。
  */
 @Data
 @Builder
@@ -32,10 +32,6 @@ public class AiKbDocumentEntity extends AuditableEntity {
     /** 所属知识库编码。 */
     @TableField("kb_code")
     private String kbCode;
-
-    /** 所属知识库草稿版本 ID。 */
-    @TableField("kb_version_id")
-    private Long kbVersionId;
 
     /** 文档编码，建议使用 sourceKey/tableName。 */
     @TableField("document_code")
@@ -65,9 +61,17 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("status")
     private AiKbDocumentStatus status;
 
-    /** 当前草稿版本号。 */
-    @TableField("draft_version_no")
-    private Integer draftVersionNo;
+    /** AI 侧远端文档 ID。 */
+    @TableField("provider_document_id")
+    private String providerDocumentId;
+
+    /** AI 侧同步状态。 */
+    @TableField("provider_sync_status")
+    private AiKbProviderSyncStatus providerSyncStatus;
+
+    /** 当前文档版本号。 */
+    @TableField("document_version_no")
+    private Integer documentVersionNo;
 
     /** 文档内容校验摘要。 */
     @TableField("content_checksum")
@@ -84,10 +88,6 @@ public class AiKbDocumentEntity extends AuditableEntity {
     /** 文档扩展元数据。 */
     @TableField(value = "meta_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metaJson;
-
-    /** 审核状态，例如 DRAFT、READY、REJECTED、PUBLISHED。 */
-    @TableField("review_status")
-    private AiKbReviewStatus reviewStatus;
 
     /** 最近一次生成时间。 */
     @TableField("last_generated_at")

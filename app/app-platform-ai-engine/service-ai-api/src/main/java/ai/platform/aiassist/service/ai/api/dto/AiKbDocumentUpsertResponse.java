@@ -19,6 +19,18 @@ public class AiKbDocumentUpsertResponse implements Serializable {
     /** 是否发生更新。 */
     private Boolean updated;
 
-    /** 当前草稿版本号。 */
-    private Integer draftVersionNo;
+    /** 文档是否已存在。 */
+    private Boolean exists;
+
+    /** 内容和元数据是否无变化。 */
+    private Boolean unchanged;
+
+    /** 当前文档版本号。 */
+    private Integer currentVersionNo;
+
+    /** 覆盖更新前的文档版本号。 */
+    private Integer previousVersionNo;
+
+    /** 状态说明。 */
+    private String message;
 }

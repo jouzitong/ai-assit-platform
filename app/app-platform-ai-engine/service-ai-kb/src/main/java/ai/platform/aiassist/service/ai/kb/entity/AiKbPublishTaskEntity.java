@@ -35,10 +35,6 @@ public class AiKbPublishTaskEntity extends AuditableEntity {
     @TableField("kb_code")
     private String kbCode;
 
-    /** 所属知识库版本 ID。 */
-    @TableField("kb_version_id")
-    private Long kbVersionId;
-
     /** 任务类型，例如 PUBLISH、ROLLBACK。 */
     @TableField("task_type")
     private AiKbTaskType taskType;

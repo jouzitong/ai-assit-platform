@@ -222,6 +222,13 @@ export function listAiKnowledgeBases(payload) {
   })
 }
 
+export function createAiKnowledgeBase(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/create`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
 export function listAiKnowledgeBaseDocuments(payload) {
   return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/list`, {
     method: 'POST',
@@ -236,6 +243,13 @@ export function getAiKnowledgeBaseDocumentDetail(kbCode, documentCode) {
   })
   return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/detail?${query.toString()}`, {
     method: 'GET'
+  })
+}
+
+export function updateAiKnowledgeBaseDocumentContent(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/content/update`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
   })
 }
 

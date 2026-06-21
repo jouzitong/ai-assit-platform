@@ -1,6 +1,7 @@
 package ai.platform.aiassist.service.ai.kb.controller.impl;
 
 import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
@@ -33,6 +34,12 @@ public class AiKnowledgeController implements AiKnowledgeApi {
     @PostMapping("/internal/v1/ai/kb/document/upsert")
     public R<AiKbDocumentUpsertResponse> upsertDocument(@RequestBody AiKbDocumentUpsertRequest request) {
         return R.ok(domainService.upsertDocument(request));
+    }
+
+    @Override
+    @PostMapping("/internal/v1/ai/kb/document/content/update")
+    public R<AiKbDocumentUpsertResponse> updateDocumentContent(@RequestBody AiKbDocumentContentUpdateRequest request) {
+        return R.ok(domainService.updateDocumentContent(request));
     }
 
     @Override

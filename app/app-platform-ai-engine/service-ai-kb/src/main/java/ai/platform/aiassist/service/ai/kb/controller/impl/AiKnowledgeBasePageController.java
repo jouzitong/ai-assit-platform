@@ -1,9 +1,11 @@
 package ai.platform.aiassist.service.ai.kb.controller.impl;
 
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassist.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
@@ -33,6 +35,11 @@ public class AiKnowledgeBasePageController implements ai.platform.aiassist.servi
     }
 
     @Override
+    public R<AiKbInfoDTO> createKnowledgeBase(AiKbCreateRequest request) {
+        return R.ok(domainService.createKnowledgeBase(request));
+    }
+
+    @Override
     public List<AiKbDocumentListItemDTO> listDocuments(AiKbPageDocumentListRequest request) {
         ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest payload =
                 new ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest();
@@ -50,6 +57,11 @@ public class AiKnowledgeBasePageController implements ai.platform.aiassist.servi
     @Override
     public R<AiKbDocumentUpsertResponse> upsertDocument(AiKbDocumentUpsertRequest request) {
         return R.ok(domainService.upsertDocument(request));
+    }
+
+    @Override
+    public R<AiKbDocumentUpsertResponse> updateDocumentContent(AiKbDocumentContentUpdateRequest request) {
+        return R.ok(domainService.updateDocumentContent(request));
     }
 
     @Override

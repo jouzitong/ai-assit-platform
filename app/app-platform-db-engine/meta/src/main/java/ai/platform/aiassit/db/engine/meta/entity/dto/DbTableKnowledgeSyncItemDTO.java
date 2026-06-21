@@ -13,5 +13,5 @@ public class DbTableKnowledgeSyncItemDTO {
 
     private Boolean updated;
 
-    private Integer draftVersionNo;
+    private Integer currentVersionNo;
 }

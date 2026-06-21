@@ -1,6 +1,6 @@
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
+import { createAiKnowledgeBase, listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
 import { showPopup } from '../../../../utils/popup'
 
 export function useKnowledgePage() {
@@ -10,6 +10,10 @@ export function useKnowledgePage() {
   const sourceList = ref([])
   const loading = ref(false)
   const errorMessage = ref('')
+  const createDialogVisible = ref(false)
+  const createSubmitting = ref(false)
+  const createError = ref('')
+  const createForm = reactive(createEmptyKbForm())
 
   const filteredSources = computed(() => {
     const normalized = keyword.value.trim().toLowerCase()
@@ -66,25 +70,27 @@ export function useKnowledgePage() {
   }
 
   async function triggerKnowledgeSync() {
-    const publishRows = filteredSources.value.filter(item => matchTab(item, 'draft'))
-    if (!publishRows.length) {
-      showPopup.warning('当前没有可发布的草稿文档')
+    const syncRows = filteredSources.value.filter(shouldSyncDocument)
+    if (!syncRows.length) {
+      showPopup.warning('当前没有待同步或同步失败的文档')
       return
     }
 
     loading.value = true
     errorMessage.value = ''
-    showPopup.info('知识库草稿发布中...', { title: 'Publishing', duration: 1600 })
+    showPopup.info(`知识库文档同步中，共 ${syncRows.length} 个文档...`, { title: 'Syncing', duration: 1600 })
     try {
-      const response = await syncAiKnowledgeBaseDocuments({})
+      const response = await syncAiKnowledgeBaseDocuments({
+        documentCodes: syncRows.map(item => item.documentCode).filter(Boolean)
+      })
       const acceptedCount = Number(response?.acceptedCount ?? 0)
       const skippedCount = Array.isArray(response?.skippedDocumentCodes)
         ? response.skippedDocumentCodes.length
         : 0
-      showPopup.success(`知识库草稿发布完成，已同步 ${acceptedCount} 个文档${skippedCount ? `，跳过 ${skippedCount} 个` : ''}`)
+      showPopup.success(`知识库文档同步完成，已同步 ${acceptedCount} 个文档${skippedCount ? `，跳过 ${skippedCount} 个` : ''}`)
       await loadDataSources()
     } catch (error) {
-      errorMessage.value = error.message || '知识库草稿发布失败'
+      errorMessage.value = error.message || '知识库文档同步失败'
       showPopup.error(errorMessage.value)
     } finally {
       loading.value = false
@@ -92,7 +98,54 @@ export function useKnowledgePage() {
   }
 
   function openCreateDialog() {
-    showPopup.warning('新建知识库文档功能建设中')
+    Object.assign(createForm, createEmptyKbForm())
+    createError.value = ''
+    createDialogVisible.value = true
+  }
+
+  function closeCreateDialog() {
+    if (createSubmitting.value) {
+      return
+    }
+    createDialogVisible.value = false
+    createError.value = ''
+  }
+
+  async function submitCreateDialog() {
+    createError.value = ''
+    const validationError = validateCreateForm(createForm)
+    if (validationError) {
+      createError.value = validationError
+      return
+    }
+
+    createSubmitting.value = true
+    try {
+      const ext = parseExtJson(createForm.extJson)
+      if (createForm.workspaceId.trim()) {
+        ext.workspaceId = createForm.workspaceId.trim()
+      }
+      if (createForm.kbEndpoint.trim()) {
+        ext.kbEndpoint = createForm.kbEndpoint.trim()
+      }
+
+      await createAiKnowledgeBase({
+        kbCode: createForm.kbCode.trim(),
+        kbName: createForm.kbName.trim(),
+        sourceType: createForm.sourceType,
+        sourceKey: createForm.sourceKey.trim(),
+        providerKbId: createForm.providerKbId.trim() || null,
+        status: createForm.status,
+        ext
+      })
+      createDialogVisible.value = false
+      showPopup.success('知识库已新建，当前列表会在写入文档后展示对应文档')
+      await loadDataSources()
+    } catch (error) {
+      createError.value = error.message || '知识库新建失败'
+    } finally {
+      createSubmitting.value = false
+    }
   }
 
   function showPendingAction(label = '当前操作') {
@@ -105,12 +158,66 @@ export function useKnowledgePage() {
     sourceList,
     loading,
     errorMessage,
+    createDialogVisible,
+    createSubmitting,
+    createError,
+    createForm,
     filteredSources,
     openSource,
     triggerKnowledgeSync,
     loadDataSources,
     openCreateDialog,
+    closeCreateDialog,
+    submitCreateDialog,
     showPendingAction
+  }
+}
+
+function createEmptyKbForm() {
+  return {
+    kbCode: '',
+    kbName: '',
+    sourceType: 'DB_DATA_SOURCE',
+    sourceKey: '',
+    providerKbId: '',
+    status: 'INIT',
+    workspaceId: '',
+    kbEndpoint: '',
+    extJson: ''
+  }
+}
+
+function validateCreateForm(form) {
+  if (!form.kbCode.trim()) {
+    return '请输入知识库编码'
+  }
+  if (!form.kbName.trim()) {
+    return '请输入知识库名称'
+  }
+  if (!form.sourceKey.trim()) {
+    return '请输入业务唯一键'
+  }
+  try {
+    parseExtJson(form.extJson)
+  } catch (error) {
+    return error.message
+  }
+  return ''
+}
+
+function parseExtJson(value) {
+  const text = String(value || '').trim()
+  if (!text) {
+    return {}
+  }
+  try {
+    const parsed = JSON.parse(text)
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      throw new Error('扩展信息 JSON 必须是对象')
+    }
+    return { ...parsed }
+  } catch (error) {
+    throw new Error(error.message || '扩展信息 JSON 格式错误')
   }
 }
 
@@ -127,10 +234,11 @@ function mapDocumentItem(item) {
     sourceSystem: item?.sourceSystem || '-',
     status: formatStatus(item?.status),
     statusClass: resolveStatusClass(item?.status),
-    draftVersionNo: item?.draftVersionNo ?? '-',
+    providerDocumentId: item?.providerDocumentId || '-',
+    providerSyncStatus: formatProviderSyncStatus(item?.providerSyncStatus),
+    currentVersionNo: item?.currentVersionNo ?? '-',
     contentFormat: item?.contentFormat || '-',
     contentSize: formatContentSize(item?.contentSize),
-    reviewStatus: formatReviewStatus(item?.reviewStatus),
     lastGeneratedAt: formatDateTime(item?.lastGeneratedAt),
     raw: item
   }
@@ -151,14 +259,15 @@ function normalizeDocumentList(payload) {
 
 function matchTab(item, tabKey) {
   const rawStatus = String(item.raw?.status || '').toUpperCase()
-  const rawReviewStatus = String(item.raw?.reviewStatus || '').toUpperCase()
-  if (tabKey === 'draft') {
-    return ['DRAFT', 'READY', 'REJECTED'].includes(rawReviewStatus)
-  }
   if (tabKey === 'history') {
     return rawStatus === 'DISABLED'
   }
-  return rawReviewStatus === 'PUBLISHED'
+  return rawStatus !== 'DISABLED'
+}
+
+function shouldSyncDocument(item) {
+  const syncStatus = String(item.raw?.providerSyncStatus || '').toUpperCase()
+  return !syncStatus || syncStatus === 'PENDING' || syncStatus === 'FAILED'
 }
 
 function resolveStatusClass(status) {
@@ -177,14 +286,14 @@ function formatStatus(status) {
   return statusLabelMap[status] || status || '-'
 }
 
-function formatReviewStatus(status) {
-  const reviewLabelMap = {
-    DRAFT: '草稿',
-    READY: '待审核',
-    REJECTED: '已驳回',
-    PUBLISHED: '已发布'
+function formatProviderSyncStatus(status) {
+  const statusLabelMap = {
+    PENDING: '待同步',
+    RUNNING: '同步中',
+    SUCCESS: '同步成功',
+    FAILED: '同步失败'
   }
-  return reviewLabelMap[status] || status || '-'
+  return statusLabelMap[status] || status || '-'
 }
 
 function formatDateTime(value) {

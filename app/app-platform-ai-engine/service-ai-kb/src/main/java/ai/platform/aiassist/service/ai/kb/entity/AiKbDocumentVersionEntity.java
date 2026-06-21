@@ -2,6 +2,8 @@ package ai.platform.aiassist.service.ai.kb.entity;
 
 import ai.platform.aiassist.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -16,7 +18,7 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 知识库文档发布快照实体。
+ * 知识库文档历史版本快照实体。
  */
 @Data
 @Builder
@@ -34,13 +36,21 @@ public class AiKbDocumentVersionEntity extends AuditableEntity {
     @TableField("document_code")
     private String documentCode;
 
-    /** 所属知识库版本 ID。 */
-    @TableField("kb_version_id")
-    private Long kbVersionId;
+    /** 文档名称。 */
+    @TableField("document_name")
+    private String documentName;
 
-    /** 知识库版本号。 */
-    @TableField("version_no")
-    private Integer versionNo;
+    /** 文档类型。 */
+    @TableField("document_type")
+    private AiKbDocumentType documentType;
+
+    /** 业务类型。 */
+    @TableField("biz_type")
+    private AiKbBizType bizType;
+
+    /** 业务唯一键。 */
+    @TableField("biz_key")
+    private String bizKey;
 
     /** 文档自身版本号。 */
     @TableField("document_version_no")
@@ -70,13 +80,13 @@ public class AiKbDocumentVersionEntity extends AuditableEntity {
     @TableField("source_system")
     private String sourceSystem;
 
-    /** 发布时间。 */
-    @TableField("published_at")
-    private LocalDateTime publishedAt;
+    /** 快照时间。 */
+    @TableField("snapshot_at")
+    private LocalDateTime snapshotAt;
 
-    /** 发布人。 */
-    @TableField("published_by")
-    private String publishedBy;
+    /** 快照创建人。 */
+    @TableField("snapshot_by")
+    private String snapshotBy;
 
     /** 备注。 */
     @TableField("remark")

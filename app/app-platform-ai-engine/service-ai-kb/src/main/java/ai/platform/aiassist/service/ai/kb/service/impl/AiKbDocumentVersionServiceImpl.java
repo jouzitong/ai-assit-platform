@@ -57,8 +57,8 @@ public class AiKbDocumentVersionServiceImpl
             if (StringUtils.hasText(req.getDocumentCode())) {
                 wrapper.lambda().eq(AiKbDocumentVersionEntity::getDocumentCode, req.getDocumentCode().trim());
             }
-            if (req.getKbVersionId() != null) {
-                wrapper.lambda().eq(AiKbDocumentVersionEntity::getKbVersionId, req.getKbVersionId());
+            if (req.getDocumentVersionNo() != null) {
+                wrapper.lambda().eq(AiKbDocumentVersionEntity::getDocumentVersionNo, req.getDocumentVersionNo());
             }
             wrapper.lambda().orderByDesc(AiKbDocumentVersionEntity::getUpdateTime, AiKbDocumentVersionEntity::getId);
         }
