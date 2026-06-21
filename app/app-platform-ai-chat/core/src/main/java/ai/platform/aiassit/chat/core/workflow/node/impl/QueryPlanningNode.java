@@ -46,12 +46,6 @@ import java.util.StringJoiner;
 import java.util.UUID;
 
 /**
- * 查询规划节点，负责抽取当前问题的执行意图并创建本轮执行上下文。
- *
- * @author zhouzhitong
- * @since 2026/6/8
- */
-/**
  * 查询规划节点。
  *
  * <p>功能：</p>
