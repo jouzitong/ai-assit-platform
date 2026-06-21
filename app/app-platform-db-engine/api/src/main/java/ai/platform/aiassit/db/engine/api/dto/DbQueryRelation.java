@@ -13,4 +13,11 @@ public class DbQueryRelation {
     private String type;
 
     private Map<String, String> on = new LinkedHashMap<>();
+
+    /**
+     * 关联模型过滤条件。
+     *
+     * <p>用于限制关联模型自身的数据范围，例如只关联有效状态、指定类型、指定时间范围内的数据。</p>
+     */
+    private Map<String, Object> filter = new LinkedHashMap<>();
 }
