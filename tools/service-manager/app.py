@@ -19,7 +19,7 @@ CONFIG_PATH = BASE_DIR / "services.json"
 HTML_PATH = BASE_DIR / "index.html"
 RUNTIME_DIR = BASE_DIR / "runtime"
 RUNTIME_DIR.mkdir(exist_ok=True)
-STATE_PATH = RUNTIME_DIR / "process-state.json"
+STATE_PATH = BASE_DIR / "process-state.json"
 
 PROCESS_LOCK = threading.RLock()
 RUNNING_PROCESSES: Dict[str, Dict] = {}

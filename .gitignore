@@ -18,7 +18,7 @@ logs/
 *.log
 *.log.*
 
-tools/service-manager/runtime/process-state.json
+tools/service-manager/process-state.json
 
 ### Eclipse ###
 .apt_generated
