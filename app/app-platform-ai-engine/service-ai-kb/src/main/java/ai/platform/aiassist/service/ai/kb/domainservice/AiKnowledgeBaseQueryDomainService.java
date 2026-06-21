@@ -12,6 +12,8 @@ public interface AiKnowledgeBaseQueryDomainService {
 
     List<AiKbInfoDTO> kbList(AiKbListRequest request);
 
+    String getKbId(AiKbListRequest request);
+
     List<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request);
 
     AiKbDocumentDetailDTO getDocumentDetail(String kbCode, String documentCode);

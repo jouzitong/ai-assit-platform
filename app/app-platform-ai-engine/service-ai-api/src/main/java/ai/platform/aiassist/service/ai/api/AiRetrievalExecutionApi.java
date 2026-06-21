@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.RequestBody;
         name = "aiEngine",
         contextId = "platformAiRetrievalEngineClient",
         path = "/aiEngine")
+@Deprecated // AiKnowledgeApi
 public interface AiRetrievalExecutionApi {
 
     @PostMapping("/api/v1/ai/execution/retrieval/hybrid-search")

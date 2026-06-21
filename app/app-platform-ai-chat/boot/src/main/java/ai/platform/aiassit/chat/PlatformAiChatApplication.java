@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat;
 
 import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
-import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseExecutionApi;
+import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
 import ai.platform.aiassist.service.ai.api.AiVectorExecutionApi;
 import org.springframework.cloud.openfeign.EnableFeignClients;
@@ -15,7 +15,7 @@ import java.util.Map;
         AiChatExecutionApi.class,
         AiMetaQueryApi.class,
         AiVectorExecutionApi.class,
-        AiKnowledgeBaseExecutionApi.class
+        AiKnowledgeApi.class
 })
 public class PlatformAiChatApplication {
 

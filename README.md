@@ -80,7 +80,7 @@ ai-assit-platform/
 - 定义外部可见的 AI 能力接口：
   - `AiChatExecutionApi`
   - `AiVectorExecutionApi`
-  - `AiKnowledgeBaseExecutionApi`
+  - `AiKnowledgeApi`
 - 定义通用数据模型：`ChatRequest/Response`、`EmbedRequest/Response`、`Kb*` DTO、`ProviderType` 等。
 
 边界：
@@ -91,7 +91,10 @@ ai-assit-platform/
 职责：
 - 控制器接入层：
   - 路由前缀 `/api/v1/ai/execution`
-  - 能力入口：`/chat`、`/chat/stream`、`/vector/embed`、`/vector/rerank`、`/kb/upsert`、`/kb/delete`、`/kb/search`
+  - 能力入口：`/chat`、`/chat/stream`、`/vector/embed`、`/vector/rerank`、`/kb/delete`、`/kb/search`
+- 本地知识库写入入口由 `service-ai-kb` 提供：
+  - `/internal/v1/ai/kb/document/upsert`
+  - 写入时先保存本地知识库文档与版本，再同步到 Provider 知识库。
 - 领域服务 `DefaultAiExecutionDomainService`：
   - 请求校验（`AiRequestValidator`）
   - Provider 选择与路由（基于 `ProviderType` + `AiCoreProperties`）

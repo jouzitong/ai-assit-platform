@@ -71,23 +71,11 @@ public class AiKbStoreServiceImpl
 
     @Override
     protected <Query extends BaseRequest> QueryWrapper<AiKbStoreEntity> buildQuery(Query query) {
-        QueryWrapper<AiKbStoreEntity> wrapper = new QueryWrapper<>();
+        QueryWrapper<AiKbStoreEntity> wrapper = super.buildQuery(query);
         if (query instanceof AiKbStoreQueryRequest req) {
-            if (StringUtils.hasText(req.getKbCode())) {
-                wrapper.lambda().eq(AiKbStoreEntity::getKbCode, req.getKbCode().trim());
-            }
-            if (StringUtils.hasText(req.getKbName())) {
-                wrapper.lambda().like(AiKbStoreEntity::getKbName, req.getKbName().trim());
-            }
-            if (req.getBizType() != null) {
-                wrapper.lambda().eq(AiKbStoreEntity::getBizType, req.getBizType());
-            }
-            if (req.getStatus() != null) {
-                wrapper.lambda().eq(AiKbStoreEntity::getStatus, req.getStatus());
-            }
             if (req.getEnabled() != null) {
-                if (Boolean.TRUE.equals(req.getEnabled())) {
-                    wrapper.lambda().ne(AiKbStoreEntity::getStatus, AiKbStoreStatus.DISABLED);
+                if (req.getEnabled()) {
+                    wrapper.lambda().ne(AiKbStoreEntity::getStatus, AiKbStoreStatus.ACTIVE);
                 } else {
                     wrapper.lambda().eq(AiKbStoreEntity::getStatus, AiKbStoreStatus.DISABLED);
                 }

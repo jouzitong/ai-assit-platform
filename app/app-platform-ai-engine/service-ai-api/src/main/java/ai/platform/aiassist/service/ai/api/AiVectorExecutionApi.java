@@ -4,6 +4,7 @@ import ai.platform.aiassist.service.ai.api.dto.EmbedRequest;
 import ai.platform.aiassist.service.ai.api.dto.EmbedResponse;
 import ai.platform.aiassist.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassist.service.ai.api.dto.RerankResponse;
+import org.athena.framework.web.annotation.IgnoredResultWrapper;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -32,6 +33,7 @@ public interface AiVectorExecutionApi {
      * @return 向量化响应结果，包含文本对应的向量数据及相关执行信息
      */
     @PostMapping("/api/v1/ai/execution/vector/embed")
+    @IgnoredResultWrapper
     EmbedResponse embed(@RequestBody EmbedRequest request);
 
     /**
@@ -44,5 +46,6 @@ public interface AiVectorExecutionApi {
      * @return 重排响应结果，包含排序后的候选结果及相关评分信息
      */
     @PostMapping("/api/v1/ai/execution/vector/rerank")
+    @IgnoredResultWrapper
     RerankResponse rerank(@RequestBody RerankRequest request);
 }

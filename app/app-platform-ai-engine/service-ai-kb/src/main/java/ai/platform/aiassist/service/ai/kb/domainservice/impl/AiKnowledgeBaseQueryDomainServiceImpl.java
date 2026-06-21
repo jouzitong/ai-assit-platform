@@ -24,6 +24,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 @Service
 @Slf4j
@@ -54,6 +55,11 @@ public class AiKnowledgeBaseQueryDomainServiceImpl implements AiKnowledgeBaseQue
             dto.setStatus(store.getStatus());
             dto.setEnabled(store.getStatus() != AiKbStoreStatus.DISABLED);
             dto.setExt(store.getExtJson() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(store.getExtJson()));
+            dto.setSourceKey(extText(dto.getExt(), "sourceKey"));
+            if (request != null && StringUtils.hasText(request.getSourceKey())
+                    && !Objects.equals(request.getSourceKey().trim(), dto.getSourceKey())) {
+                continue;
+            }
             result.add(dto);
         }
         log.info("ai kb list finish, sourceType={}, sourceKey={}, enabled={}, resultSize={}",
@@ -62,6 +68,12 @@ public class AiKnowledgeBaseQueryDomainServiceImpl implements AiKnowledgeBaseQue
                 request == null ? null : request.getEnabled(),
                 result.size());
         return result;
+    }
+
+    @Override
+    public String getKbId(AiKbListRequest request) {
+        List<AiKbInfoDTO> list = kbList(request);
+        return list.isEmpty() ? null : list.get(0).getKbId();
     }
 
     @Override
@@ -93,6 +105,17 @@ public class AiKnowledgeBaseQueryDomainServiceImpl implements AiKnowledgeBaseQue
 
     private String trimToNull(String value) {
         return StringUtils.hasText(value) ? value.trim() : null;
+    }
+
+    private String extText(Map<String, Object> ext, String key) {
+        if (ext == null || !StringUtils.hasText(key)) {
+            return null;
+        }
+        Object value = ext.get(key);
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            return text.trim();
+        }
+        return null;
     }
 
     private AiKbDocumentListItemDTO toDocumentListItem(AiKbDocumentDTO source) {

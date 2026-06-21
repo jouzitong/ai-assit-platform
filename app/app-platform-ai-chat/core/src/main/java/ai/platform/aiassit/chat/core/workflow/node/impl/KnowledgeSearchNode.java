@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.core.workflow.node.impl;
 
-import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseExecutionApi;
+import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
 import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
@@ -51,14 +51,14 @@ import java.util.Map;
 @Slf4j
 public class KnowledgeSearchNode extends BaseWorkflowNode {
 
-    private final AiKnowledgeBaseExecutionApi knowledgeBaseExecutionApi;
+    private final AiKnowledgeApi knowledgeApi;
     private final AiMetaQueryApi aiMetaQueryApi;
     private final WorkflowHistoryRecorder historyRecorder;
 
-    public KnowledgeSearchNode(AiKnowledgeBaseExecutionApi knowledgeBaseExecutionApi,
+    public KnowledgeSearchNode(AiKnowledgeApi knowledgeApi,
                                AiMetaQueryApi aiMetaQueryApi,
                                WorkflowHistoryRecorder historyRecorder) {
-        this.knowledgeBaseExecutionApi = knowledgeBaseExecutionApi;
+        this.knowledgeApi = knowledgeApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.historyRecorder = historyRecorder;
     }
@@ -132,7 +132,7 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
         meta.setTraceId(command.getTraceId());
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : "ai-chat-knowledge-search");
         request.setMeta(meta);
-        return knowledgeBaseExecutionApi.kbSearch(request);
+        return knowledgeApi.kbSearch(request);
     }
 
     private String buildKnowledgeQuery(AiChatQueryCommand command, WorkflowContext context) {

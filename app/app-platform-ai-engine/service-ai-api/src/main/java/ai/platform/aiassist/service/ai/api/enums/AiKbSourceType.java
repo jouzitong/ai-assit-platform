@@ -7,6 +7,7 @@ import org.arthena.framework.common.enums.IEnum;
 @Getter
 public enum AiKbSourceType implements IEnum {
     DB_DATA_SOURCE(1, "DB_DATA_SOURCE", "数据库数据源"),
+
     ;
 
     private final int code;

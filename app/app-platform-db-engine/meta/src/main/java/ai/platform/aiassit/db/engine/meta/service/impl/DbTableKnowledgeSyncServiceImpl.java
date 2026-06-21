@@ -12,7 +12,7 @@ import ai.platform.aiassit.db.engine.meta.service.DbTableFieldMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableKnowledgePreviewService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableKnowledgeSyncService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
-import ai.platform.aiassist.service.ai.api.AiKnowledgeBaseManageApi;
+import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
@@ -40,18 +40,18 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
     private final DbTableMetaService tableMetaService;
     private final DbTableFieldMetaService fieldMetaService;
     private final DbTableKnowledgePreviewService knowledgePreviewService;
-    private final AiKnowledgeBaseManageApi aiKnowledgeBaseManageApi;
+    private final AiKnowledgeApi aiKnowledgeApi;
     private final SystemSettingInternalApi systemSettingInternalApi;
 
     public DbTableKnowledgeSyncServiceImpl(DbTableMetaService tableMetaService,
                                            DbTableFieldMetaService fieldMetaService,
                                            DbTableKnowledgePreviewService knowledgePreviewService,
-                                           AiKnowledgeBaseManageApi aiKnowledgeBaseManageApi,
+                                           AiKnowledgeApi aiKnowledgeApi,
                                            SystemSettingInternalApi systemSettingInternalApi) {
         this.tableMetaService = tableMetaService;
         this.fieldMetaService = fieldMetaService;
         this.knowledgePreviewService = knowledgePreviewService;
-        this.aiKnowledgeBaseManageApi = aiKnowledgeBaseManageApi;
+        this.aiKnowledgeApi = aiKnowledgeApi;
         this.systemSettingInternalApi = systemSettingInternalApi;
     }
 
@@ -191,7 +191,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
 
         log.debug("upserting knowledge document, kbId={}, sourceKey={}, tableName={}, documentId={}, documentName={}",
                 kbId, sourceKey, table.getTableName(), request.getDocumentId(), request.getDocumentName());
-        R<AiKbDocumentUpsertResponse> response = aiKnowledgeBaseManageApi.upsertDocument(request);
+        R<AiKbDocumentUpsertResponse> response = aiKnowledgeApi.upsertDocument(request);
         if (response == null || response.getCode() != 0 || response.getData() == null) {
             log.error("knowledge document upsert failed, kbId={}, sourceKey={}, tableName={}, responseCode={}, hasData={}",
                     kbId,

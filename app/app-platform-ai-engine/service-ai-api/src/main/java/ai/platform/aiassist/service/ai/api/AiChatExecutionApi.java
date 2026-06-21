@@ -34,5 +34,6 @@ public interface AiChatExecutionApi {
     R<ChatResponse> chat(@RequestBody ChatRequest request);
 
     @PostMapping(value = "/api/v1/ai/execution/chat/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    @IgnoredResultWrapper
     SseEmitter chatStream(@RequestBody ChatRequest request);
 }
