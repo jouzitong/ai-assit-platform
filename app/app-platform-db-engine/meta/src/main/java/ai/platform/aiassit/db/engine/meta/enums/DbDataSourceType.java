@@ -9,23 +9,20 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum DbDataSourceType implements IEnum {
-    DATABASE(1, "DATABASE", "数据库"),
-    HTTP_API(2, "HTTP_API", "HTTP API"),
-    SERVICE_API(3, "SERVICE_API", "服务接口"),
-    FILE(4, "FILE", "文件"),
-    STREAM(5, "STREAM", "流式数据"),
+    DATABASE(1, "数据库"),
+    HTTP_API(2, "HTTP API"),
+    SERVICE_API(3, "服务接口"),
+    FILE(4, "文件"),
+    STREAM(5, "流式数据"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    DbDataSourceType(int code, String name, String desc) {
+    DbDataSourceType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

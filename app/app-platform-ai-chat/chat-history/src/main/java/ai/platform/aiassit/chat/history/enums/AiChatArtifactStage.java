@@ -10,27 +10,24 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum AiChatArtifactStage implements IEnum {
-    UNDERSTAND(1, "UNDERSTAND","理解阶段"),
-    CLARIFY(2, "CLARIFY","澄清阶段"),
-    PLAN(3, "PLAN","计划阶段"),
-    KNOWLEDGE(4, "KNOWLEDGE","知识阶段"),
-    SKILL(5, "SKILL","技能阶段"),
-    SQL_GEN(6, "SQL_GEN","SQL生成阶段"),
-    SQL_VALIDATE(7, "SQL_VALIDATE","SQL验证阶段"),
-    SQL_EXEC(8, "SQL_EXEC","SQL执行阶段"),
-    RENDER(9, "RENDER","渲染阶段");
-
-    private final int code;
+    UNDERSTAND(1, "理解阶段"),
+    CLARIFY(2, "澄清阶段"),
+    PLAN(3, "计划阶段"),
+    KNOWLEDGE(4, "知识阶段"),
+    SKILL(5, "技能阶段"),
+    SQL_GEN(6, "SQL生成阶段"),
+    SQL_VALIDATE(7, "SQL验证阶段"),
+    SQL_EXEC(8, "SQL执行阶段"),
+    RENDER(9, "渲染阶段"),
+    ;
 
     @JsonValue
+    private final int code;
+
     private final String name;
 
-    private final String desc;
-
-    AiChatArtifactStage(int code, String name, String desc) {
+    AiChatArtifactStage(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
-
 }

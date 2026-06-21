@@ -9,24 +9,21 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum DbDataSourceSyncMode implements IEnum {
-    NONE(0, "NONE", "无需同步"),
-    REALTIME(1, "REALTIME", "实时"),
-    MINUTE_LEVEL(2, "MINUTE_LEVEL", "分钟级"),
-    HOURLY(3, "HOURLY", "小时级"),
-    T_PLUS_1(4, "T_PLUS_1", "T+1"),
-    MANUAL(5, "MANUAL", "手动"),
+    NONE(0, "无需同步"),
+    REALTIME(1, "实时"),
+    MINUTE_LEVEL(2, "分钟级"),
+    HOURLY(3, "小时级"),
+    T_PLUS_1(4, "T+1"),
+    MANUAL(5, "手动"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    DbDataSourceSyncMode(int code, String name, String desc) {
+    DbDataSourceSyncMode(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

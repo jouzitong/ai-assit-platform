@@ -10,24 +10,21 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum DbDataSourceAuthType implements IEnum {
-    NONE(0, "NONE", "无认证"),
-    BASIC(1, "BASIC", "用户名/密码"),
-    BEARER(2, "BEARER", "Bearer"),
-    AK_SK(3, "AK_SK", "AK/SK"),
-    API_KEY(4, "API_KEY", "API Key"),
+    NONE(0, "无认证"),
+    BASIC(1, "用户名/密码"),
+    BEARER(2, "Bearer"),
+    AK_SK(3, "AK/SK"),
+    API_KEY(4, "API Key"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    DbDataSourceAuthType(int code, String name, String desc) {
+    DbDataSourceAuthType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 
     @JsonCreator

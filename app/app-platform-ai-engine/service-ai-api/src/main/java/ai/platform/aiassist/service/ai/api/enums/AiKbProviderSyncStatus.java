@@ -6,22 +6,19 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbProviderSyncStatus implements IEnum {
-    PENDING(1, "PENDING", "待同步"),
-    RUNNING(2, "RUNNING", "同步中"),
-    SUCCESS(3, "SUCCESS", "同步成功"),
-    FAILED(4, "FAILED", "同步失败"),
+    PENDING(1, "待同步"),
+    RUNNING(2, "同步中"),
+    SUCCESS(3, "同步成功"),
+    FAILED(4, "同步失败"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    AiKbProviderSyncStatus(int code, String name, String desc) {
+    AiKbProviderSyncStatus(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

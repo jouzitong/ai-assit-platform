@@ -10,25 +10,22 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum DbDataSourceDbType implements IEnum {
-    MYSQL(1, "MYSQL", "MySQL"),
-    POSTGRESQL(2, "POSTGRESQL", "PostgreSQL"),
-    CLICKHOUSE(3, "CLICKHOUSE", "ClickHouse"),
-    ORACLE(4, "ORACLE", "Oracle"),
-    SQL_SERVER(5, "SQL_SERVER", "SQL Server"),
-    HIVE(6, "HIVE", "Hive"),
+    MYSQL(1, "MySQL"),
+    POSTGRESQL(2, "PostgreSQL"),
+    CLICKHOUSE(3, "ClickHouse"),
+    ORACLE(4, "Oracle"),
+    SQL_SERVER(5, "SQL Server"),
+    HIVE(6, "Hive"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    DbDataSourceDbType(int code, String name, String desc) {
+    DbDataSourceDbType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 
     @JsonCreator
@@ -42,7 +39,7 @@ public enum DbDataSourceDbType implements IEnum {
         }
         String normalized = text.replace('-', '_');
         for (DbDataSourceDbType item : values()) {
-            if (String.valueOf(item.code).equals(text) || item.name.equalsIgnoreCase(normalized) || item.name().equalsIgnoreCase(normalized)) {
+            if (String.valueOf(item.code).equals(text) || item.name.equalsIgnoreCase(text) || item.name().equalsIgnoreCase(normalized)) {
                 return item;
             }
         }

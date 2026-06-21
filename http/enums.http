@@ -1,0 +1,4 @@
+@servicePre = /aiEngine
+
+### 1. 获取全局枚举
+GET {{host}}{{servicePre}}/common/v1/system/enums

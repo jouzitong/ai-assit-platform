@@ -13,21 +13,18 @@ import org.arthena.framework.common.enums.IEnum;
 @Getter
 public enum WorkflowNodeSkillPhase implements IEnum {
 
-    BEFORE_EXECUTE(1, "BEFORE_EXECUTE", "执行前"),
-    AFTER_EXECUTE(2, "AFTER_EXECUTE", "执行后"),
-    REVIEW_OUTPUT(3, "REVIEW_OUTPUT", "结果审查"),
+    BEFORE_EXECUTE(1, "执行前"),
+    AFTER_EXECUTE(2, "执行后"),
+    REVIEW_OUTPUT(3, "结果审查"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    WorkflowNodeSkillPhase(int code, String name, String desc) {
+    WorkflowNodeSkillPhase(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

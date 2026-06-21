@@ -6,15 +6,16 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum ProviderType implements IEnum {
-    OPENAI(1, "open-ai"),
-    DASHSCOPE(2, "千问"),
-    DEEPSEEK(3, "Deepseek"),
-    OLLAMA(4, ""),
+    OPENAI(1, "OpenAI"),
+    DASHSCOPE(2, "通义千问"),
+    DEEPSEEK(3, "DeepSeek"),
+    OLLAMA(4, "Ollama"),
     CUSTOM(5, "其他"),
     ;
 
     @JsonValue
     private final int code;
+
     private final String name;
 
     ProviderType(int code, String name) {

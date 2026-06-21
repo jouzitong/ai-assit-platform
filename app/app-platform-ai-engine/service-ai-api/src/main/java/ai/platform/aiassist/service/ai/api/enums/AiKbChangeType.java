@@ -6,21 +6,18 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbChangeType implements IEnum {
-    CREATE(1, "CREATE", "新增"),
-    UPDATE(2, "UPDATE", "更新"),
-    DELETE(3, "DELETE", "删除"),
+    CREATE(1, "新增"),
+    UPDATE(2, "更新"),
+    DELETE(3, "删除"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    AiKbChangeType(int code, String name, String desc) {
+    AiKbChangeType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

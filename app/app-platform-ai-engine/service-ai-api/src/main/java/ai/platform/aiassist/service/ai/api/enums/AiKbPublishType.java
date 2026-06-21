@@ -6,20 +6,17 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbPublishType implements IEnum {
-    MANUAL(1, "MANUAL", "人工发布"),
-    ROLLBACK(2, "ROLLBACK", "版本回滚"),
+    MANUAL(1, "人工发布"),
+    ROLLBACK(2, "版本回滚"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    AiKbPublishType(int code, String name, String desc) {
+    AiKbPublishType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

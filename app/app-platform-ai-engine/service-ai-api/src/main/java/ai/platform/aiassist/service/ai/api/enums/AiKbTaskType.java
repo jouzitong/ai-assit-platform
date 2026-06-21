@@ -6,20 +6,17 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbTaskType implements IEnum {
-    PUBLISH(1, "PUBLISH", "发布"),
-    ROLLBACK(2, "ROLLBACK", "回滚"),
+    PUBLISH(1, "发布"),
+    ROLLBACK(2, "回滚"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    AiKbTaskType(int code, String name, String desc) {
+    AiKbTaskType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

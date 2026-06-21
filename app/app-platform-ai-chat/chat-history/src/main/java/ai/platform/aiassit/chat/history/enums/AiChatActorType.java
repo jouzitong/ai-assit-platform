@@ -9,22 +9,19 @@ import org.arthena.framework.common.enums.IEnum;
  */
 @Getter
 public enum AiChatActorType implements IEnum {
-    HUMAN(1, "Human", "用户"),
-    AI(2, "AI", "AI"),
-    SYSTEM(3, "System", "系统"),
-    SKILL(4, "Skill", "技能"),
+    HUMAN(1, "用户"),
+    AI(2, "AI"),
+    SYSTEM(3, "系统"),
+    SKILL(4, "技能"),
     ;
 
-    private final int code;
     @JsonValue
-    private final String name;
-    private final String desc;
+    private final int code;
 
-    AiChatActorType(int code, String name, String desc) {
+    private final String name;
+
+    AiChatActorType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
-
-
 }

@@ -6,23 +6,20 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbTaskStatus implements IEnum {
-    PENDING(1, "PENDING", "待执行"),
-    RUNNING(2, "RUNNING", "执行中"),
-    SUCCESS(3, "SUCCESS", "执行成功"),
-    FAILED(4, "FAILED", "执行失败"),
-    CANCELED(5, "CANCELED", "已取消"),
+    PENDING(1, "待执行"),
+    RUNNING(2, "执行中"),
+    SUCCESS(3, "执行成功"),
+    FAILED(4, "执行失败"),
+    CANCELED(5, "已取消"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    AiKbTaskStatus(int code, String name, String desc) {
+    AiKbTaskStatus(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
 }

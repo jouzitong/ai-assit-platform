@@ -6,21 +6,17 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiChatBusinessType implements IEnum {
-    GENERAL(1, "General", "系统聊天"),
-    CUSTOM(2, "Custom", "用户聊天"),
+    GENERAL(1, "系统聊天"),
+    CUSTOM(2, "用户聊天"),
     ;
 
+    @JsonValue
     private final int code;
 
-    @JsonValue
     private final String name;
 
-    private final String desc;
-
-    AiChatBusinessType(int code, String name, String desc) {
+    AiChatBusinessType(int code, String name) {
         this.code = code;
         this.name = name;
-        this.desc = desc;
     }
-
 }
