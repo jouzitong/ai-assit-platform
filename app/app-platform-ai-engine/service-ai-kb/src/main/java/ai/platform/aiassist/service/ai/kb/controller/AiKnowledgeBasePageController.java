@@ -9,7 +9,6 @@ import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListReq
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import org.athena.framework.web.vo.R;
-import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -26,11 +25,6 @@ import java.util.List;
  *
  * <p>当前接口通过 Feign 调用 aiEngine 服务，统一以 /aiEngine 作为服务访问前缀。</p>
  */
-@FeignClient(
-        name = "aiEngine",
-        contextId = "platformAiKnowledgeBasePageClient",
-        path = "/aiEngine"
-)
 public interface AiKnowledgeBasePageController {
 
     /**

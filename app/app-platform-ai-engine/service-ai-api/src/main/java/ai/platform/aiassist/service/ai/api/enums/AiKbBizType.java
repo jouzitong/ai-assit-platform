@@ -8,6 +8,7 @@ import org.arthena.framework.common.enums.IEnum;
 @Getter
 public enum AiKbBizType implements IEnum {
     DB_DATA_SOURCE(1, "DB_DATA_SOURCE", "数据库数据源"),
+    BUSINESS_ANALYSIS_SCENE(2, "BUSINESS_ANALYSIS_SCENE", "业务分析场景"),
     ;
 
     @EnumValue

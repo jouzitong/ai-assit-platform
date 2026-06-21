@@ -8,8 +8,7 @@ import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
-import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
-import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseQueryDomainService;
+import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -22,18 +21,15 @@ import java.util.List;
 @RestController
 public class AiKnowledgeBasePageController implements ai.platform.aiassist.service.ai.kb.controller.AiKnowledgeBasePageController {
 
-    private final AiKnowledgeBaseManageDomainService domainService;
-    private final AiKnowledgeBaseQueryDomainService queryDomainService;
+    private final AiKnowledgeDomainService domainService;
 
-    public AiKnowledgeBasePageController(AiKnowledgeBaseManageDomainService domainService,
-                                         AiKnowledgeBaseQueryDomainService queryDomainService) {
+    public AiKnowledgeBasePageController(AiKnowledgeDomainService domainService) {
         this.domainService = domainService;
-        this.queryDomainService = queryDomainService;
     }
 
     @Override
     public List<AiKbInfoDTO> kbList() {
-        return queryDomainService.kbList(null);
+        return domainService.kbList(null);
     }
 
     @Override
@@ -43,12 +39,12 @@ public class AiKnowledgeBasePageController implements ai.platform.aiassist.servi
         if (request != null) {
             payload.setKbCode(request.getKbCode());
         }
-        return queryDomainService.listDocuments(payload);
+        return domainService.listDocuments(payload);
     }
 
     @Override
     public AiKbDocumentDetailDTO getDocumentDetail(String kbCode, String documentCode) {
-        return queryDomainService.getDocumentDetail(kbCode, documentCode);
+        return domainService.getDocumentDetail(kbCode, documentCode);
     }
 
     @Override

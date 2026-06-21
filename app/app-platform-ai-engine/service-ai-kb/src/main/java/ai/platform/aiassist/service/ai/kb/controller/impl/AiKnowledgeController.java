@@ -9,8 +9,7 @@ import ai.platform.aiassist.service.ai.api.dto.KbDeleteResponse;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
-import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseManageDomainService;
-import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeBaseQueryDomainService;
+import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,15 +20,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping
 public class AiKnowledgeController implements AiKnowledgeApi {
 
-    private final AiKnowledgeBaseManageDomainService domainService;
-    private final AiKnowledgeBaseQueryDomainService queryDomainService;
+    private final AiKnowledgeDomainService domainService;
     private final AiExecutionDomainService aiExecutionDomainService;
 
-    public AiKnowledgeController(AiKnowledgeBaseManageDomainService domainService,
-                                 AiKnowledgeBaseQueryDomainService queryDomainService,
+    public AiKnowledgeController(AiKnowledgeDomainService domainService,
                                  AiExecutionDomainService aiExecutionDomainService) {
         this.domainService = domainService;
-        this.queryDomainService = queryDomainService;
         this.aiExecutionDomainService = aiExecutionDomainService;
     }
 
@@ -42,7 +38,7 @@ public class AiKnowledgeController implements AiKnowledgeApi {
     @Override
     @PostMapping("/internal/v1/ai/kb/id")
     public R<String> getKbId(@RequestBody(required = false) AiKbListRequest request) {
-        return R.ok(queryDomainService.getKbId(request));
+        return R.ok(domainService.getKbId(request));
     }
 
     @Override
