@@ -1,17 +1,15 @@
 {
+  "id": "qwerty12345678aeswrtyui3234",
   "title": "测试列表页面",
   "tab": {
-    "type": "tab",
-    "active_tab": "all",
+    "activeTab": "all",
     "tabs": [
       {
-        "value": "all",
-        "name": "all",
+        "key": "all",
         "label": "全部"
       },
       {
-        "value": "mine",
-        "name": "mine",
+        "key": "key",
         "label": "我的"
       }
     ]
@@ -28,32 +26,70 @@
   },
   "filters": [
     {
-      "name": "title",
+      "key": "title",
       "label": "标题",
       "type": "text"
     }
   ],
   "fields": [
     {
+      "key": "id",
       "name": "id",
-      "label": "ID"
+      "label": "ID",
+      "options": {
+        "styles": {
+          "text-align": "center",
+          "width": 8
+        },
+        "className": "text-center"
+      }
     }
   ],
   "actions": [
     {
-      "name": "add",
-      "label": "添加",
-      "type": "add"
+      "key": "add",
+      "name": "添加",
+      "action": "ADD",
+      "type": "primary"
     }
   ],
   "list_config": {
+    "itemType": "card|item",
+    "cardItem": {
+    },
     "item_operate": {
     },
+    "actionColumns": [
+      {
+        "key": "edit",
+        "name": "编辑",
+        "action": "EDIT",
+        "type": "primary"
+      },
+      {
+        "key": "delete",
+        "name": "删除",
+        "action": "DELETE",
+        "type": "danger"
+      }
+    ],
+    "pagination": {
+      "enabled": true,
+      "pageSize": 10,
+      "pageSizeOptions": [
+        10,
+        20,
+        30,
+        40,
+        50
+      ]
+    },
+    "className": "card-list",
     "events": [
     ]
   },
-  "life_cycle": {
-    "before_load": "=function(){}",
-    "after_load": "=function(){}"
+  "hooks": {
+    "beforeLoad": "=function(){}",
+    "afterLoad": "=function(){}"
   }
 }
