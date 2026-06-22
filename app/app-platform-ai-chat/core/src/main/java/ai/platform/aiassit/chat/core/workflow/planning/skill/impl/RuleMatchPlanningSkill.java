@@ -132,13 +132,15 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
     }
 
     private List<ChatMessage> buildHistory(WorkflowContext context) {
-        if (CollectionUtils.isEmpty(context.getSessionMessages())) {
+        List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
+        AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
+        if (CollectionUtils.isEmpty(sessionMessages)) {
             return List.of();
         }
-        return context.getSessionMessages().stream()
+        return sessionMessages.stream()
                 .filter(Objects::nonNull)
-                .filter(message -> context.getCurrentUserMessage() == null
-                        || !Objects.equals(message.getMessageCode(), context.getCurrentUserMessage().getMessageCode()))
+                .filter(message -> currentMessage == null
+                        || !Objects.equals(message.getMessageCode(), currentMessage.getMessageCode()))
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .map(this::toChatMessage)
                 .filter(Objects::nonNull)
@@ -167,7 +169,12 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
     }
 
     private String buildRetrievalContext(WorkflowContext context) {
+        context.refreshUserMessageContext();
         List<String> parts = new ArrayList<>();
+        String userMessageSummary = context.getOrCreateUserMessageContext().getSummary();
+        if (StringUtils.hasText(userMessageSummary)) {
+            parts.add("用户消息上下文汇总：\n" + userMessageSummary);
+        }
         Object keywordSummary = context.get("keywordHybridSearchSummary");
         if (keywordSummary instanceof String value && StringUtils.hasText(value)) {
             parts.add("关键词检索摘要：" + value);

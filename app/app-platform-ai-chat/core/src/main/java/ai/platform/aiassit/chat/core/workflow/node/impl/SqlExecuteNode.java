@@ -3,6 +3,7 @@ package ai.platform.aiassit.chat.core.workflow.node.impl;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
@@ -64,6 +65,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
         if (providedResult != null) {
             context.setSqlExecutionStatus("SUCCESS");
             context.setSqlExecutionResult(providedResult);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), type()).setStatus("SUCCESS");
             context.put("sqlExecutionResult", providedResult);
             historyRecorder.saveArtifact(
                     context,
@@ -74,7 +76,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
                     AiChatContentFormat.JSON.name(),
                     true,
                     "SUCCESS",
-                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     validatedSql
             );
             return NodeResult.success(null);
@@ -89,6 +91,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
 
         context.setSqlExecutionStatus("SKIPPED");
         context.setSqlExecutionResult(degradedResult);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), type()).setStatus("SKIPPED");
         context.put("sqlExecutionResult", degradedResult);
         historyRecorder.saveArtifact(
                 context,
@@ -99,7 +102,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
                 AiChatContentFormat.JSON.name(),
                 true,
                 "SKIPPED",
-                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                 validatedSql
         );
         return NodeResult.success(null);
@@ -107,7 +110,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
 
     @Override
     public String type() {
-        return "Sql-Execute";
+        return WorkflowNodeCodes.SQL_EXECUTE.getNodeType();
     }
 
     @Override

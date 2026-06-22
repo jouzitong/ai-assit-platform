@@ -1,7 +1,5 @@
 package ai.platform.aiassit.chat.core.workflow.context;
 
-import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
-import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
@@ -16,9 +14,11 @@ import java.io.IOException;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * 工作流上下文。
@@ -56,79 +56,19 @@ public class WorkflowContext implements Serializable {
     private AiChatSessionDTO session;
 
     /**
-     * 当前会话下的历史消息列表。
-     */
-    private List<AiChatMessageDTO> sessionMessages = new ArrayList<>();
-
-    /**
      * 当前会话下的历史产物列表，例如生成的 SQL、报表、图表或其他结构化结果。
      */
     private List<AiChatArtifactDTO> sessionArtifacts = new ArrayList<>();
 
     /**
-     * 当前轮次的用户消息。
+     * 用户消息上下文，统一管理当前输入、历史用户输入及其汇总说明。
      */
-    private AiChatMessageDTO currentUserMessage;
+    private UserMessageContext userMessageContext = new UserMessageContext();
 
     /**
-     * 当前对话轮次信息。
+     * 工作流结果上下文，统一承载动态节点结果。
      */
-    private AiChatRoundDTO round;
-
-    /**
-     * 发送给 AI 引擎的请求参数。
-     */
-    private ChatRequest engineRequest;
-
-    /**
-     * AI 引擎返回的响应结果。
-     */
-    private ChatResponse engineResponse;
-
-    /**
-     * 用户问题的意图分析结果。
-     */
-    private String analysisResult;
-
-    /**
-     * 当前查询使用的知识库 ID。
-     */
-    private String knowledgeBaseId;
-
-    /**
-     * 知识库检索结果，用于辅助后续 SQL 生成或答案生成。
-     */
-    private String knowledgeResult;
-
-    /**
-     * AI 生成的原始 SQL。
-     */
-    private String generatedSql;
-
-    /**
-     * 校验通过后可执行的 SQL。
-     */
-    private String validatedSql;
-
-    /**
-     * SQL 校验失败时的错误信息。
-     */
-    private String sqlValidationError;
-
-    /**
-     * SQL 执行状态。
-     */
-    private String sqlExecutionStatus;
-
-    /**
-     * SQL 执行结果。
-     */
-    private Object sqlExecutionResult;
-
-    /**
-     * 最终渲染给用户的答案内容。
-     */
-    private String renderedAnswer;
+    private WorkflowResultContext resultContext = new WorkflowResultContext();
 
     /**
      * SSE 推送对象，用于向前端实时推送工作流执行过程事件。
@@ -162,6 +102,212 @@ public class WorkflowContext implements Serializable {
     }
 
     /**
+     * 获取或初始化用户消息上下文。
+     *
+     * @return 用户消息上下文
+     */
+    public UserMessageContext getOrCreateUserMessageContext() {
+        if (userMessageContext == null) {
+            userMessageContext = new UserMessageContext();
+        }
+        return userMessageContext;
+    }
+
+    /**
+     * 获取或初始化结果上下文。
+     *
+     * @return 结果上下文
+     */
+    public WorkflowResultContext getOrCreateResultContext() {
+        if (resultContext == null) {
+            resultContext = new WorkflowResultContext();
+        }
+        return resultContext;
+    }
+
+    /**
+     * 获取或初始化指定节点的结果上下文。
+     *
+     * @param nodeCode 节点编码
+     * @param nodeType 节点类型
+     * @return 节点结果上下文
+     */
+    public WorkflowNodeResult getOrCreateNodeResult(String nodeCode, String nodeType) {
+        WorkflowResultContext context = getOrCreateResultContext();
+        WorkflowNodeResult nodeResult = context.getNodeResults().computeIfAbsent(nodeCode, key -> {
+            WorkflowNodeResult result = new WorkflowNodeResult();
+            result.setNodeCode(nodeCode);
+            result.setNodeType(nodeType);
+            return result;
+        });
+        if (nodeResult.getNodeType() == null) {
+            nodeResult.setNodeType(nodeType);
+        }
+        return nodeResult;
+    }
+
+    public void putNodeOutput(String nodeCode, String nodeType, String key, Object value) {
+        getOrCreateNodeResult(nodeCode, nodeType).getOutputs().put(key, value);
+    }
+
+    @SuppressWarnings("unchecked")
+    public <T> T getNodeOutput(String nodeCode, String key) {
+        WorkflowNodeResult nodeResult = getOrCreateResultContext().getNodeResults().get(nodeCode);
+        if (nodeResult == null || nodeResult.getOutputs() == null) {
+            return null;
+        }
+        return (T) nodeResult.getOutputs().get(key);
+    }
+
+    public void putNodeMetadata(String nodeCode, String nodeType, String key, Object value) {
+        getOrCreateNodeResult(nodeCode, nodeType).getMetadata().put(key, value);
+    }
+
+    /**
+     * 根据当前会话消息和当前用户输入刷新用户消息上下文。
+     */
+    public void refreshUserMessageContext() {
+        UserMessageContext messageContext = getOrCreateUserMessageContext();
+        List<AiChatMessageDTO> sessionMessages = messageContext.getSessionMessages() == null
+                ? List.of()
+                : messageContext.getSessionMessages();
+        messageContext.setSessionMessages(new ArrayList<>(sessionMessages));
+        messageContext.setSummary(buildUserMessageSummary(messageContext.getCurrentMessage(), buildHistoricalUserMessages()));
+    }
+
+    /**
+     * 获取当前用户输入之前的历史用户消息。
+     *
+     * @return 历史用户消息列表
+     */
+    public List<AiChatMessageDTO> resolveHistoricalUserMessages() {
+        UserMessageContext messageContext = getOrCreateUserMessageContext();
+        return new ArrayList<>(buildHistoricalUserMessages());
+    }
+
+    private List<AiChatMessageDTO> buildHistoricalUserMessages() {
+        UserMessageContext messageContext = getOrCreateUserMessageContext();
+        List<AiChatMessageDTO> sessionMessages = messageContext.getSessionMessages();
+        if (sessionMessages == null || sessionMessages.isEmpty()) {
+            return List.of();
+        }
+        return sessionMessages.stream()
+                .filter(Objects::nonNull)
+                .filter(message -> messageContext.getCurrentMessage() == null
+                        || !Objects.equals(message.getMessageCode(), messageContext.getCurrentMessage().getMessageCode()))
+                .filter(message -> "USER".equalsIgnoreCase(message.getRole()))
+                .filter(message -> hasText(message.getContent()))
+                .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                .toList();
+    }
+
+    private String buildUserMessageSummary(AiChatMessageDTO currentMessage, List<AiChatMessageDTO> historyMessages) {
+        StringBuilder builder = new StringBuilder();
+        if (hasText(currentMessage == null ? null : currentMessage.getContent())) {
+            builder.append("当前用户输入：").append(currentMessage.getContent().trim());
+        }
+        if (historyMessages != null && !historyMessages.isEmpty()) {
+            if (builder.length() > 0) {
+                builder.append('\n');
+            }
+            builder.append("历史用户输入：");
+            for (int i = 0; i < historyMessages.size(); i++) {
+                AiChatMessageDTO message = historyMessages.get(i);
+                if (!hasText(message == null ? null : message.getContent())) {
+                    continue;
+                }
+                builder.append('\n').append(i + 1).append(". ").append(message.getContent().trim());
+            }
+        }
+        return builder.toString().trim();
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
+    }
+
+    public AiChatRoundDTO getRound() {
+        return getOrCreateResultContext().getRound();
+    }
+
+    public void setRound(AiChatRoundDTO round) {
+        getOrCreateResultContext().setRound(round);
+        putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.CHAT_MESSAGE.getNodeType(), "round", round);
+    }
+
+    public String getAnalysisResult() {
+        return getNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), "analysisResult");
+    }
+
+    public void setAnalysisResult(String analysisResult) {
+        putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.QUERY_PLANNING.getNodeType(), "analysisResult", analysisResult);
+    }
+
+    public String getKnowledgeBaseId() {
+        return getNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), "knowledgeBaseId");
+    }
+
+    public void setKnowledgeBaseId(String knowledgeBaseId) {
+        putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType(), "knowledgeBaseId", knowledgeBaseId);
+    }
+
+    public String getKnowledgeResult() {
+        return getNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), "knowledgeResult");
+    }
+
+    public void setKnowledgeResult(String knowledgeResult) {
+        putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType(), "knowledgeResult", knowledgeResult);
+    }
+
+    public String getGeneratedSql() {
+        return getNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "generatedSql");
+    }
+
+    public void setGeneratedSql(String generatedSql) {
+        putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), WorkflowNodeCodes.SQL_GENERATE.getNodeType(), "generatedSql", generatedSql);
+    }
+
+    public String getValidatedSql() {
+        return getNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "validatedSql");
+    }
+
+    public void setValidatedSql(String validatedSql) {
+        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeType(), "validatedSql", validatedSql);
+    }
+
+    public String getSqlValidationError() {
+        return getNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "sqlValidationError");
+    }
+
+    public void setSqlValidationError(String sqlValidationError) {
+        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeType(), "sqlValidationError", sqlValidationError);
+    }
+
+    public String getSqlExecutionStatus() {
+        return getNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionStatus");
+    }
+
+    public void setSqlExecutionStatus(String sqlExecutionStatus) {
+        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.SQL_EXECUTE.getNodeType(), "sqlExecutionStatus", sqlExecutionStatus);
+    }
+
+    public Object getSqlExecutionResult() {
+        return getNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionResult");
+    }
+
+    public void setSqlExecutionResult(Object sqlExecutionResult) {
+        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.SQL_EXECUTE.getNodeType(), "sqlExecutionResult", sqlExecutionResult);
+    }
+
+    public String getRenderedAnswer() {
+        return getNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer");
+    }
+
+    public void setRenderedAnswer(String renderedAnswer) {
+        putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeType(), "renderedAnswer", renderedAnswer);
+    }
+
+    /**
      * 推送默认运行中状态的工作流事件。
      *
      * @param eventType 事件类型
@@ -190,7 +336,7 @@ public class WorkflowContext implements Serializable {
         event.setEventType(eventType);
         event.setRequestId(command == null ? null : command.getTraceId());
         event.setSessionCode(session == null ? null : session.getSessionCode());
-        event.setRoundCode(round == null ? null : round.getRoundCode());
+        event.setRoundCode(getRound() == null ? null : getRound().getRoundCode());
         event.setMessage(message);
         event.setAnswer(answer);
         event.setDelta(delta);

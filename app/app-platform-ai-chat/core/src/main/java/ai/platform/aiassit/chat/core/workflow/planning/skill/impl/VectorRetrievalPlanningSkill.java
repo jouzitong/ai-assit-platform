@@ -58,7 +58,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         if (!StringUtils.hasText(kbId)) {
             return null;
         }
-        HybridSearchResponse response = fetchVectorHits(command, kbId);
+        HybridSearchResponse response = fetchVectorHits(command, context, kbId);
         context.put("vectorHybridSearchResponse", response);
         context.put("vectorHybridSearchSummary", summarizeHits(response));
 
@@ -107,11 +107,11 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return message;
     }
 
-    private HybridSearchResponse fetchVectorHits(AiChatQueryCommand command, String kbId) {
+    private HybridSearchResponse fetchVectorHits(AiChatQueryCommand command, WorkflowContext context, String kbId) {
         HybridSearchRequest request = new HybridSearchRequest();
         request.setProvider(null);
         request.setKbId(kbId);
-        request.setQuery(command.getMessage());
+        request.setQuery(buildRetrievalQuery(command, context));
         request.setKeywordEnabled(Boolean.FALSE);
         request.setVectorEnabled(Boolean.TRUE);
         request.setRerankEnabled(Boolean.FALSE);
@@ -119,6 +119,28 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         request.setVectorTopK(resolveTopK(command, "vectorTopK", 5));
         request.setMeta(buildMeta(command, "ai-chat-query-planning-vector"));
         return aiRetrievalExecutionApi.hybridSearch(request);
+    }
+
+    private String buildRetrievalQuery(AiChatQueryCommand command, WorkflowContext context) {
+        if (context != null) {
+            context.refreshUserMessageContext();
+        }
+        String currentMessage = command == null ? null : command.getMessage();
+        String messageSummary = context == null ? null : context.getOrCreateUserMessageContext().getSummary();
+        if (!StringUtils.hasText(messageSummary)) {
+            return currentMessage;
+        }
+        return """
+                当前问题：
+                %s
+
+                用户消息上下文汇总：
+                %s
+                """.formatted(defaultText(currentMessage), messageSummary).trim();
+    }
+
+    private String defaultText(String value) {
+        return value == null ? "" : value;
     }
 
     private List<String> resolveSemanticContext(HybridSearchResponse response) {

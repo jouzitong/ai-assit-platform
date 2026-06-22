@@ -9,6 +9,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeSkillConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
 import lombok.extern.slf4j.Slf4j;
 import org.athena.framework.security.api.model.UserContext;
@@ -91,17 +92,17 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
 
     private WorkflowDefinition buildWorkflowDefinition() {
         Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
-        nodes.put("chat-message", new WorkflowNodeConfig("chat-message", "Chat-Message", "query-planning", java.util.List.of()));
-        nodes.put("query-planning", new WorkflowNodeConfig("query-planning", "Query-Planning", "knowledge-search", java.util.List.of()));
-        nodes.put("knowledge-search", new WorkflowNodeConfig("knowledge-search", "Knowledge-Search", "sql-generate", java.util.List.of()));
-        nodes.put("sql-generate", new WorkflowNodeConfig("sql-generate", "Sql-Generate", "sql-validate", java.util.List.of(
+        nodes.put(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.CHAT_MESSAGE.getNodeType(), WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), java.util.List.of()));
+        nodes.put(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.QUERY_PLANNING.getNodeType(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), java.util.List.of()));
+        nodes.put(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType(), WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), java.util.List.of()));
+        nodes.put(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), WorkflowNodeCodes.SQL_GENERATE.getNodeType(), WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), java.util.List.of(
                 new WorkflowNodeSkillConfig("sql_generation_policy", WorkflowSkillPhase.BEFORE_EXECUTE),
                 new WorkflowNodeSkillConfig("user_preference_resolve", WorkflowSkillPhase.BEFORE_EXECUTE)
         )));
-        nodes.put("sql-validate", new WorkflowNodeConfig("sql-validate", "Sql-Validate", "sql-execute", java.util.List.of()));
-        nodes.put("sql-execute", new WorkflowNodeConfig("sql-execute", "Sql-Execute", "render", java.util.List.of()));
-        nodes.put("render", new WorkflowNodeConfig("render", "Render", null, java.util.List.of()));
-        return new WorkflowDefinition("ai-chat-query-workflow", nodes, "chat-message");
+        nodes.put(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeType(), WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), java.util.List.of()));
+        nodes.put(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.SQL_EXECUTE.getNodeType(), WorkflowNodeCodes.RENDER.getNodeCode(), java.util.List.of()));
+        nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeType(), null, java.util.List.of()));
+        return new WorkflowDefinition("ai-chat-query-workflow", nodes, WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode());
     }
 
     private void sendInitEvent(SseEmitter emitter, WorkflowContext workflowContext) throws IOException {

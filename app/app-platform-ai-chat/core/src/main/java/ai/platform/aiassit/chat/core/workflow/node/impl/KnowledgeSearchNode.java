@@ -12,6 +12,7 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
@@ -72,6 +73,7 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
 
         String kbId = resolveKnowledgeBaseId(command);
         context.setKnowledgeBaseId(kbId);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), type()).setStatus("RUNNING");
 
         List<String> knowledgeParts = new ArrayList<>();
         if (StringUtils.hasText(kbId)) {
@@ -96,7 +98,9 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
                 .orElse("未检索到可用知识上下文。");
 
         context.setKnowledgeResult(knowledgeResult);
+        context.putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), type(), "knowledgeSearchResponse", context.get("knowledgeSearchResponse"));
         context.put("knowledgeResult", knowledgeResult);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), type()).setStatus("SUCCESS");
         historyRecorder.saveArtifact(
                 context,
                 AiChatArtifactType.KNOWLEDGE_RESULT.name(),
@@ -106,7 +110,7 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
                 AiChatContentFormat.MARKDOWN.name(),
                 true,
                 "SUCCESS",
-                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                 context.get("knowledgeSearchResponse")
         );
         return NodeResult.success(null);
@@ -114,7 +118,7 @@ public class KnowledgeSearchNode extends BaseWorkflowNode {
 
     @Override
     public String type() {
-        return "Knowledge-Search";
+        return WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType();
     }
 
     @Override

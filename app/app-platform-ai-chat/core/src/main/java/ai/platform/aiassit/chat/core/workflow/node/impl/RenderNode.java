@@ -15,6 +15,7 @@ import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
@@ -109,6 +110,7 @@ public class RenderNode extends BaseWorkflowNode {
             }
 
             context.setRenderedAnswer(answer);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setStatus(STATUS_SUCCESS);
             context.put("renderedAnswer", answer);
             context.publishEvent("answer-ready", "final answer rendered", answer, null, STATUS_SUCCESS);
             persistAssistantMessage(context, answer);
@@ -121,13 +123,14 @@ public class RenderNode extends BaseWorkflowNode {
                     AiChatContentFormat.MARKDOWN.name(),
                     true,
                     STATUS_SUCCESS,
-                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     null
             );
             finishRound(context.getRound(), STATUS_SUCCESS, resolveActualModel(command.getApiModel()));
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("render node failed, roundCode={}", context.getRound().getRoundCode(), ex);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setStatus(STATUS_FAILED);
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.WORKFLOW_ERROR.name(),
@@ -137,7 +140,7 @@ public class RenderNode extends BaseWorkflowNode {
                     AiChatContentFormat.PLAIN_TEXT.name(),
                     true,
                     STATUS_FAILED,
-                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     null
             );
             finishRound(context.getRound(), STATUS_FAILED, resolveActualModel(command.getApiModel()));
@@ -147,7 +150,7 @@ public class RenderNode extends BaseWorkflowNode {
 
     @Override
     public String type() {
-        return "Render";
+        return WorkflowNodeCodes.RENDER.getNodeType();
     }
 
     @Override
@@ -179,9 +182,10 @@ public class RenderNode extends BaseWorkflowNode {
         meta.setTraceId(command.getTraceId());
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
         request.setMeta(meta);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setRequest(request);
 
         ChatResponse response = aiChatExecutionApi.chat(request).getData();
-        context.setEngineResponse(response);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setResponse(response);
         return extractAnswer(response);
     }
 
@@ -223,8 +227,8 @@ public class RenderNode extends BaseWorkflowNode {
                 AiChatContentFormat.MARKDOWN.name(),
                 AiChatDisplayLevel.VISIBLE.name(),
                 STATUS_SUCCESS,
-                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
-                context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
+                context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                 null
         );
     }

@@ -3,6 +3,7 @@ package ai.platform.aiassit.chat.core.workflow.node.impl;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
@@ -40,7 +41,7 @@ import java.util.UUID;
  *     <li>按 sessionCode 加载已有会话，或创建新会话。</li>
  *     <li>加载当前会话历史消息与历史产物。</li>
  *     <li>创建当前轮次 round，并落库当前用户消息。</li>
- *     <li>将 session、round、history、currentUserMessage 写入 {@link WorkflowContext}。</li>
+ *     <li>将 session、round、用户消息上下文写入 {@link WorkflowContext}。</li>
  * </ul>
  *
  * <p>边界描述：</p>
@@ -110,8 +111,8 @@ public class ChatMessageNode extends BaseWorkflowNode {
         }
 
         context.setSession(session);
-        context.setSessionMessages(sessionMessages);
         context.setSessionArtifacts(sessionArtifacts);
+        context.getOrCreateUserMessageContext().setSessionMessages(sessionMessages);
         AiChatRoundDTO round = createRound(session, sessionMessages, command, userId);
         context.setRound(round);
 
@@ -130,7 +131,11 @@ public class ChatMessageNode extends BaseWorkflowNode {
                 lastMessage == null ? null : lastMessage.getMessageCode(),
                 null
         );
-        context.setCurrentUserMessage(userMessage);
+        context.getOrCreateUserMessageContext().setCurrentMessage(userMessage);
+        context.refreshUserMessageContext();
+        context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), type()).setStatus(STATUS_SUCCESS);
+        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), type(), "session", session);
+        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), type(), "currentMessage", userMessage);
         context.publishEvent("chat-message-ready",
                 "session and user message prepared");
 
@@ -139,7 +144,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
 
     @Override
     public String type() {
-        return "Chat-Message";
+        return WorkflowNodeCodes.CHAT_MESSAGE.getNodeType();
     }
 
     private AiChatSessionDTO createSession(AiChatQueryCommand command, Long userId) {

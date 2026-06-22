@@ -58,7 +58,7 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
         if (!StringUtils.hasText(kbId)) {
             return null;
         }
-        HybridSearchResponse response = fetchKeywordHits(command, kbId);
+        HybridSearchResponse response = fetchKeywordHits(command, context, kbId);
         context.put("keywordHybridSearchResponse", response);
         context.put("keywordHybridSearchSummary", summarizeHits(response));
 
@@ -193,11 +193,11 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
         return requiredContext;
     }
 
-    private HybridSearchResponse fetchKeywordHits(AiChatQueryCommand command, String kbId) {
+    private HybridSearchResponse fetchKeywordHits(AiChatQueryCommand command, WorkflowContext context, String kbId) {
         HybridSearchRequest request = new HybridSearchRequest();
         request.setProvider(null);
         request.setKbId(kbId);
-        request.setQuery(command.getMessage());
+        request.setQuery(buildRetrievalQuery(command, context));
         request.setKeywordEnabled(Boolean.TRUE);
         request.setVectorEnabled(Boolean.FALSE);
         request.setRerankEnabled(Boolean.FALSE);
@@ -205,6 +205,28 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
         request.setKeywordTopK(resolveTopK(command, "keywordTopK", 5));
         request.setMeta(buildMeta(command, "ai-chat-query-planning-keyword"));
         return aiRetrievalExecutionApi.hybridSearch(request);
+    }
+
+    private String buildRetrievalQuery(AiChatQueryCommand command, WorkflowContext context) {
+        if (context != null) {
+            context.refreshUserMessageContext();
+        }
+        String currentMessage = command == null ? null : command.getMessage();
+        String messageSummary = context == null ? null : context.getOrCreateUserMessageContext().getSummary();
+        if (!StringUtils.hasText(messageSummary)) {
+            return currentMessage;
+        }
+        return """
+                当前问题：
+                %s
+
+                用户消息上下文汇总：
+                %s
+                """.formatted(defaultText(currentMessage), messageSummary).trim();
+    }
+
+    private String defaultText(String value) {
+        return value == null ? "" : value;
     }
 
     private RequestMeta buildMeta(AiChatQueryCommand command, String defaultScene) {

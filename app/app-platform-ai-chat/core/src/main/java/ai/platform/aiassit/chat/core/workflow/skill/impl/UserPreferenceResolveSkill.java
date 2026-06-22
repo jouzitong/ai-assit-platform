@@ -112,8 +112,9 @@ public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
 
     private Map<String, Object> inferPreferences(WorkflowContext context) {
         List<String> corpus = new ArrayList<>();
-        if (!CollectionUtils.isEmpty(context.getSessionMessages())) {
-            for (AiChatMessageDTO message : context.getSessionMessages()) {
+        List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
+        if (!CollectionUtils.isEmpty(sessionMessages)) {
+            for (AiChatMessageDTO message : sessionMessages) {
                 if (message != null && StringUtils.hasText(message.getContent())) {
                     corpus.add(message.getContent());
                 }

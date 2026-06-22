@@ -16,6 +16,7 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.config.WorkflowProperties;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
@@ -214,7 +215,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (context.getRound() == null) {
             return NodeResult.fail("round is required");
         }
-        if (context.getCurrentUserMessage() == null) {
+        if (context.getOrCreateUserMessageContext().getCurrentMessage() == null) {
             return NodeResult.fail("currentUserMessage is required");
         }
         if (!StringUtils.hasText(command.getMessage())) {
@@ -224,15 +225,17 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         log.info("query planning node start, sessionCode={}, roundCode={}, messageCode={}, apiModel={}, scene={}",
                 context.getSession().getSessionCode(),
                 context.getRound().getRoundCode(),
-                context.getCurrentUserMessage().getMessageCode(),
+                context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                 command.getApiModel(),
                 command.getScene());
 
         try {
-            List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getSessionMessages());
+            context.refreshUserMessageContext();
+            AiChatMessageDTO currentUserMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
+            List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getOrCreateUserMessageContext().getSessionMessages());
             historyMessages = historyMessages.stream()
-                    .filter(message -> context.getCurrentUserMessage() == null
-                            || !Objects.equals(message.getMessageCode(), context.getCurrentUserMessage().getMessageCode()))
+                    .filter(message -> currentUserMessage == null
+                            || !Objects.equals(message.getMessageCode(), currentUserMessage.getMessageCode()))
                     .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                     .toList();
 
@@ -282,8 +285,12 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             }
             String analysisResult = buildAnalysisSummary(planningResult);
 
-            context.setEngineRequest(planningRequest);
-            context.setEngineResponse(planningResponse);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setRequest(planningRequest);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setResponse(planningResponse);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setStatus(STATUS_SUCCESS);
+            context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type(), "planningResult", planningResult);
+            context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type(), "planningRequestId",
+                    planningResponse == null ? null : planningResponse.getRequestId());
             context.setAnalysisResult(analysisResult);
             context.put("queryPlan", analysisResult);
             context.put("queryPlanResult", planningResult);
@@ -299,7 +306,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     AiChatContentFormat.JSON.name(),
                     true,
                     STATUS_SUCCESS,
-                    context.getCurrentUserMessage().getMessageCode(),
+                    context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     planningResponse == null ? null : planningResponse.getRequestId()
             );
             log.info("query planning node success, sessionCode={}, roundCode={}, requestId={}",
@@ -319,17 +326,21 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     AiChatContentFormat.PLAIN_TEXT.name(),
                     true,
                     STATUS_FAILED,
-                    context.getCurrentUserMessage() == null ? null : context.getCurrentUserMessage().getMessageCode(),
+                    context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     null
             );
-            finishRound(context.getRound(), context.getEngineRequest(), null, STATUS_FAILED);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setStatus(STATUS_FAILED);
+            finishRound(context.getRound(),
+                    context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).getRequest(),
+                    null,
+                    STATUS_FAILED);
             return NodeResult.fail(ex.getMessage());
         }
     }
 
     @Override
     public String type() {
-        return "Query-Planning";
+        return WorkflowNodeCodes.QUERY_PLANNING.getNodeType();
     }
 
     @Override
@@ -366,7 +377,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
         ChatMessage currentUserMessage = new ChatMessage();
         currentUserMessage.setRole(MessageRole.USER);
-        currentUserMessage.setContent(context.getCurrentUserMessage().getContent());
+        currentUserMessage.setContent(context.getOrCreateUserMessageContext().getCurrentMessage().getContent());
         messages.add(currentUserMessage);
         request.setMessages(messages);
 
@@ -384,9 +395,14 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String buildPlanningContext(WorkflowContext context) {
         StringBuilder builder = new StringBuilder();
+        AiChatMessageDTO currentUserMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         builder.append("是否新会话首轮：")
-                .append(context.getCurrentUserMessage() != null && Integer.valueOf(1).equals(context.getCurrentUserMessage().getSortNo()))
+                .append(currentUserMessage != null && Integer.valueOf(1).equals(currentUserMessage.getSortNo()))
                 .append('\n');
+        String userMessageSummary = context.getOrCreateUserMessageContext().getSummary();
+        if (StringUtils.hasText(userMessageSummary)) {
+            builder.append("用户消息上下文汇总：").append('\n').append(userMessageSummary).append('\n');
+        }
         List<String> resolvedTerms = context.get("resolvedBusinessTerms");
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("业务术语补充：").append(resolvedTerms).append('\n');

@@ -61,9 +61,10 @@ public class WorkflowHistoryRecorder {
         message.setExtJson(toJson(ext));
         AiChatMessageDTO created = messageService.add(message);
 
-        List<AiChatMessageDTO> messages = new ArrayList<>(context.getSessionMessages());
+        List<AiChatMessageDTO> messages = new ArrayList<>(context.getOrCreateUserMessageContext().getSessionMessages());
         messages.add(created);
-        context.setSessionMessages(messages);
+        context.getOrCreateUserMessageContext().setSessionMessages(messages);
+        context.refreshUserMessageContext();
         return created;
     }
 
@@ -114,7 +115,8 @@ public class WorkflowHistoryRecorder {
     }
 
     private int nextMessageSortNo(WorkflowContext context) {
-        return CollectionUtils.isEmpty(context.getSessionMessages()) ? 1 : context.getSessionMessages().size() + 1;
+        List<AiChatMessageDTO> messages = context.getOrCreateUserMessageContext().getSessionMessages();
+        return CollectionUtils.isEmpty(messages) ? 1 : messages.size() + 1;
     }
 
     private int nextArtifactSeqNo(WorkflowContext context) {
