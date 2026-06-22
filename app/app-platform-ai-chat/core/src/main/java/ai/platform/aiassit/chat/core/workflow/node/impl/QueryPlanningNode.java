@@ -19,6 +19,7 @@ import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningExtKeys;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningResult;
 import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkillExecutor;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -39,8 +40,10 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.StringJoiner;
 import java.util.UUID;
@@ -76,29 +79,99 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private static final String DEFAULT_SCENE = "ai-chat-query-planning";
     private static final String PLANNING_TOPIC_PROMPT = """
             你是一个智能问数工作流的查询规划节点。
-            你需要根据用户当前问题和已有对话历史，提炼本轮查询的用户目标、分析重点、所需上下文、SQL 关注点和潜在风险。
+            你需要根据用户当前问题和已有对话历史，提炼本轮查询的主体、条件、意图、展示方式、歧义点、置信度和扩展信息。
             你的输出会直接作为后续知识检索、SQL 生成和结果渲染节点的输入，因此内容必须准确、简洁、可执行。
             """;
     private static final String PLANNING_STRUCTURE_PROMPT = """
             你必须只输出严格合法的 JSON，不允许输出 markdown、解释、代码块。
+            这是语义规划阶段，不是物理建模阶段。不要猜表名、字段名、join 路径、接口参数，也不要为了凑结构而编造不存在的信息。
             输出结构固定如下：
             {
-              "sessionTitle": "新会话标题，只有新会话首轮时必填，其他情况可返回空字符串",
-              "userGoal": "用户核心目标",
-              "analysisSummary": "给后续节点使用的简明分析摘要",
-              "analysisDimensions": ["关键分析维度1", "关键分析维度2"],
-              "requiredContext": ["需要的知识上下文或数据口径1"],
-              "sqlFocus": ["SQL 生成重点1"],
-              "risks": ["风险点1"],
-              "needClarification": false
+              "title": "规划标题，建议返回简洁标题",
+              "subject": {
+                "name": "主体名称，表示可能需要的核心表信息说明，如人员、个人信息、员工档案",
+                "value": "主体识别值，如张三、某部门、某项目",
+                "aliases": ["主体近似词、别名、同义词，用于知识库召回"],
+                "score": 0.93,
+                "relations": [
+                  {
+                    "name": "关联信息名称，表示主体所处 scope 或关联范围说明，如公司信息、组织信息、部门信息",
+                    "values": ["关联值1", "关联值2"],
+                    "aliases": ["关联近似词、别名、同义词"],
+                    "score": 0.86
+                  }
+                ]
+              },
+              "filters": [
+                {
+                  "key": "条件 key，描述过滤条件核心语义，如 company、person_name、time_range",
+                  "value": "条件值",
+                  "model": "可能的模型说明，如公司信息、人员信息、组织信息",
+                  "source": "判断依据来源，如 user_input、history、rule、retrieval",
+                  "score": 0.92
+                }
+              ],
+              "intent": {
+                "type": "意图类型，支持多个值，多个值之间使用英文逗号分隔，如 detail,list 或 statistics,profile",
+                "name": "意图中文名称",
+                "action": "可执行动作描述，支持多个值，多个值之间使用英文逗号分隔，如 count,query_detail,query_list",
+                "score": 0.96
+              },
+              "render": {
+                "type": "展示类型，支持多个值，多个值之间使用英文逗号分隔，如 table,detail 或 profile,dashboard",
+                "name": "展示中文名称",
+                "score": 0.88
+              },
+              "ambiguity": {
+                "hasAmbiguity": false,
+                "items": [
+                  {
+                    "type": "歧义类型，如 duplicate_name、missing_time_range、unclear_caliber",
+                    "question": "建议澄清问题",
+                    "importance": 3,
+                    "suggestion": "建议补充内容说明"
+                  }
+                ]
+              },
+              "ext": {
+                "metrics": ["可能涉及的指标"],
+                "dimensions": ["可能涉及的维度"],
+                "sort": ["排序建议，或排序字段加方向"],
+                "topN": 10,
+                "statisticalCaliber": ["统计口径说明"],
+                "semanticTerms": ["语义词及其归一化说明"],
+                "其他扩展字段": "允许继续补充，但 key 需要语义清晰"
+              }
             }
             
+            语义说明：
+            1. subject 表示本轮主要查询对象，即后续最可能围绕谁、哪类信息展开查询。
+            2. subject.relations 表示主体的 scope 或关联范围，不是物理关联表说明，而是语义上的范围限定、归属信息、上下文边界。
+               例如“查询上海公司的张三个人画像”中，主体可以是“人员/张三”，而“上海公司”更适合作为 subject.relations 中的 scope 信息。
+            3. filters 表示显式过滤条件；如果某个范围信息既像 scope 又像过滤条件，优先按对主体的限定关系判断：
+               - 更像主体归属或范围边界的，放 subject.relations
+               - 更像直接筛选条件的，放 filters
+            4. score 不是随意填写的装饰字段，必须根据当前问题、历史上下文、技能证据、语义明确程度给出经验判断。
+               - 识别非常明确、几乎无歧义时，分数应更高
+               - 只有弱线索、存在明显歧义或只是推测时，分数应降低
+               - 如果缺少依据，不要给高分
+            5. 严禁胡编乱造。如果用户没有提供、上下文没有支持、技能证据没有覆盖，就宁可留空、降分、或在 ambiguity 中提出澄清问题，也不要编造主体、scope、条件或扩展信息。
+
             字段要求：
-            1. userGoal、analysisSummary 必须为非空中文字符串
-            2. analysisDimensions、requiredContext、sqlFocus、risks 必须为 JSON 数组，可为空数组
-            3. needClarification 必须为布尔值
-            4. 如果是新会话首轮，sessionTitle 必须给出 6 到 20 个字的简洁标题；否则返回空字符串
-            5. 不要输出任何额外字段
+            1. title、subject、filters、intent、render、ambiguity、ext 必须全部返回
+            2. subject.name、subject.value 必须为非空字符串
+            3. subject.aliases、subject.relations、subject.relations[*].values、subject.relations[*].aliases、ambiguity.items 必须为 JSON 数组，可为空数组
+            4. intent.type、intent.name、render.type、render.name 必须为非空字符串
+            5. ambiguity.hasAmbiguity 必须为布尔值；当其为 true 时，items 至少返回一项
+            6. 如果是新会话首轮，title 必须给出 6 到 20 个字的简洁标题
+            7. aliases 重点补充可用于知识库关键词匹配的近似词、简称、别名、业务叫法
+            8. subject.score、subject.relations[*].score、filters[*].score、intent.score、render.score 都使用 0 到 1 之间的小数，并且必须体现真实判断把握，不允许机械统一打高分
+            9. ext 是动态扩展区，优先使用这些 key：metrics、dimensions、sort、topN、statisticalCaliber、semanticTerms
+            10. ext 中如果补充其他字段，必须保证 key 语义清晰、value 为合法 JSON 值
+            11. 不要输出任何额外字段到 ext 之外
+            12. intent.type 和 intent.action 如果有多个值，必须使用英文逗号分隔，不要返回 JSON 数组
+            13. render.type 如果有多个值，必须使用英文逗号分隔，不要返回 JSON 数组
+            14. 无法确认时，优先降低 score、减少编造、补充 ambiguity，而不是强行补全
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
@@ -200,8 +273,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             log.info("query planning result parsed, sessionCode={}, roundCode={}, sessionTitle={}, needClarification={}",
                     context.getSession().getSessionCode(),
                     context.getRound().getRoundCode(),
-                    planningResult.getSessionTitle(),
-                    planningResult.getNeedClarification());
+                    planningResult.getTitle(),
+                    planningResult.getAmbiguity() != null && Boolean.TRUE.equals(planningResult.getAmbiguity().getHasAmbiguity()));
             if (historyMessages.isEmpty()) {
                 refreshSessionName(context, planningResult);
             }
@@ -419,8 +492,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                 额外要求：
                 - 只返回 JSON
                 - 不允许代码块
-                - sessionTitle%s
-                """.formatted(validationError, requireSessionTitle ? "必须非空" : "可为空字符串")));
+                - title%s
+                """.formatted(validationError, requireSessionTitle ? "必须非空" : "建议非空")));
         retryRequest.setMessages(messages);
 
         ChatOptions options = new ChatOptions();
@@ -444,40 +517,77 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (result == null) {
             throw new IllegalArgumentException("result is null");
         }
-        if (!StringUtils.hasText(result.getUserGoal())) {
-            throw new IllegalArgumentException("userGoal is required");
+        if (!StringUtils.hasText(result.getTitle()) && requireSessionTitle) {
+            throw new IllegalArgumentException("title is required for new conversation");
         }
-        if (!StringUtils.hasText(result.getAnalysisSummary())) {
-            throw new IllegalArgumentException("analysisSummary is required");
+        if (result.getSubject() == null) {
+            throw new IllegalArgumentException("subject is required");
         }
-        if (result.getAnalysisDimensions() == null) {
-            throw new IllegalArgumentException("analysisDimensions is required");
+        if (!StringUtils.hasText(result.getSubject().getName())) {
+            throw new IllegalArgumentException("subject.name is required");
         }
-        if (result.getRequiredContext() == null) {
-            throw new IllegalArgumentException("requiredContext is required");
+        if (!StringUtils.hasText(result.getSubject().getValue())) {
+            throw new IllegalArgumentException("subject.value is required");
         }
-        if (result.getSqlFocus() == null) {
-            throw new IllegalArgumentException("sqlFocus is required");
+        if (result.getSubject().getScore() == null) {
+            throw new IllegalArgumentException("subject.score is required");
         }
-        if (result.getRisks() == null) {
-            throw new IllegalArgumentException("risks is required");
+        if (result.getFilters() == null) {
+            throw new IllegalArgumentException("filters is required");
         }
-        if (result.getNeedClarification() == null) {
-            throw new IllegalArgumentException("needClarification is required");
+        if (result.getIntent() == null) {
+            throw new IllegalArgumentException("intent is required");
         }
-        if (requireSessionTitle && !StringUtils.hasText(result.getSessionTitle())) {
-            throw new IllegalArgumentException("sessionTitle is required for new conversation");
+        if (!StringUtils.hasText(result.getIntent().getType())) {
+            throw new IllegalArgumentException("intent.type is required");
+        }
+        if (!StringUtils.hasText(result.getIntent().getName())) {
+            throw new IllegalArgumentException("intent.name is required");
+        }
+        if (result.getRender() == null) {
+            throw new IllegalArgumentException("render is required");
+        }
+        if (!StringUtils.hasText(result.getRender().getType())) {
+            throw new IllegalArgumentException("render.type is required");
+        }
+        if (!StringUtils.hasText(result.getRender().getName())) {
+            throw new IllegalArgumentException("render.name is required");
+        }
+        if (result.getAmbiguity() == null) {
+            throw new IllegalArgumentException("ambiguity is required");
+        }
+        if (result.getAmbiguity().getHasAmbiguity() == null) {
+            throw new IllegalArgumentException("ambiguity.hasAmbiguity is required");
+        }
+        if (result.getAmbiguity().getItems() == null) {
+            throw new IllegalArgumentException("ambiguity.items is required");
+        }
+        if (Boolean.TRUE.equals(result.getAmbiguity().getHasAmbiguity()) && result.getAmbiguity().getItems().isEmpty()) {
+            throw new IllegalArgumentException("ambiguity.items must not be empty when ambiguity.hasAmbiguity is true");
+        }
+        if (result.getExt() == null) {
+            throw new IllegalArgumentException("ext is required");
         }
     }
 
     private PlanningResult normalizePlanningResult(PlanningResult result) {
-        result.setSessionTitle(trimToNull(result.getSessionTitle()));
-        result.setUserGoal(result.getUserGoal().trim());
-        result.setAnalysisSummary(result.getAnalysisSummary().trim());
-        result.setAnalysisDimensions(normalizeList(result.getAnalysisDimensions()));
-        result.setRequiredContext(normalizeList(result.getRequiredContext()));
-        result.setSqlFocus(normalizeList(result.getSqlFocus()));
-        result.setRisks(normalizeList(result.getRisks()));
+        result.setTitle(trimToNull(result.getTitle()));
+        result.setSubject(defaultIfNull(result.getSubject(), new PlanningResult.Subject()));
+        result.getSubject().setName(trimToNull(result.getSubject().getName()));
+        result.getSubject().setValue(trimToNull(result.getSubject().getValue()));
+        result.getSubject().setAliases(normalizeList(result.getSubject().getAliases()));
+        result.getSubject().setRelations(normalizeRelations(result.getSubject().getRelations()));
+        result.setFilters(normalizeFilters(result.getFilters()));
+        result.setIntent(defaultIfNull(result.getIntent(), new PlanningResult.Intent()));
+        result.getIntent().setType(trimToNull(result.getIntent().getType()));
+        result.getIntent().setName(trimToNull(result.getIntent().getName()));
+        result.getIntent().setAction(trimToNull(result.getIntent().getAction()));
+        result.setRender(defaultIfNull(result.getRender(), new PlanningResult.Render()));
+        result.getRender().setType(trimToNull(result.getRender().getType()));
+        result.getRender().setName(trimToNull(result.getRender().getName()));
+        result.setAmbiguity(defaultIfNull(result.getAmbiguity(), new PlanningResult.Ambiguity()));
+        result.getAmbiguity().setItems(normalizeAmbiguityItems(result.getAmbiguity().getItems()));
+        result.setExt(normalizeExt(result.getExt()));
         return result;
     }
 
@@ -493,21 +603,25 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String buildAnalysisSummary(PlanningResult result) {
         StringJoiner joiner = new StringJoiner("\n");
-        joiner.add("用户目标：" + result.getUserGoal());
-        joiner.add("分析摘要：" + result.getAnalysisSummary());
-        if (!CollectionUtils.isEmpty(result.getAnalysisDimensions())) {
-            joiner.add("关键维度：" + String.join("；", result.getAnalysisDimensions()));
+        if (StringUtils.hasText(result.getTitle())) {
+            joiner.add("规划标题：" + result.getTitle());
         }
-        if (!CollectionUtils.isEmpty(result.getRequiredContext())) {
-            joiner.add("所需上下文：" + String.join("；", result.getRequiredContext()));
+        joiner.add("查询主体：" + buildSubjectSummary(result.getSubject()));
+        if (!CollectionUtils.isEmpty(result.getFilters())) {
+            joiner.add("查询条件：" + buildFilterSummary(result.getFilters()));
         }
-        if (!CollectionUtils.isEmpty(result.getSqlFocus())) {
-            joiner.add("SQL 重点：" + String.join("；", result.getSqlFocus()));
+        joiner.add("查询意图：" + buildIntentSummary(result.getIntent()));
+        joiner.add("展示建议：" + buildRenderSummary(result.getRender()));
+        if (result.getAmbiguity() != null) {
+            joiner.add("是否有歧义：" + Boolean.TRUE.equals(result.getAmbiguity().getHasAmbiguity()));
+            if (!CollectionUtils.isEmpty(result.getAmbiguity().getItems())) {
+                joiner.add("待确认项：" + buildAmbiguitySummary(result.getAmbiguity().getItems()));
+            }
         }
-        if (!CollectionUtils.isEmpty(result.getRisks())) {
-            joiner.add("风险点：" + String.join("；", result.getRisks()));
+        String extSummary = buildExtSummary(result.getExt());
+        if (StringUtils.hasText(extSummary)) {
+            joiner.add("扩展信息：" + extSummary);
         }
-        joiner.add("是否需要澄清：" + Boolean.TRUE.equals(result.getNeedClarification()));
         return joiner.toString();
     }
 
@@ -575,24 +689,269 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     private void refreshSessionName(WorkflowContext context, PlanningResult result) {
-        if (context.getSession() == null || context.getSession().getId() == null || !StringUtils.hasText(result.getSessionTitle())) {
+        if (context.getSession() == null || context.getSession().getId() == null || !StringUtils.hasText(result.getTitle())) {
             log.debug("skip refresh session name, sessionExists={}, sessionId={}, sessionTitle={}",
                     context.getSession() != null,
                     context.getSession() == null ? null : context.getSession().getId(),
-                    result == null ? null : result.getSessionTitle());
+                    result == null ? null : result.getTitle());
             return;
         }
         AiChatSessionDTO update = new AiChatSessionDTO();
-        update.setSessionName(result.getSessionTitle().trim());
+        update.setSessionName(result.getTitle().trim());
         AiChatSessionDTO updated = sessionService.edit(context.getSession().getId(), update);
         if (updated != null) {
             context.setSession(updated);
         } else {
-            context.getSession().setSessionName(result.getSessionTitle().trim());
+            context.getSession().setSessionName(result.getTitle().trim());
         }
         log.info("refresh session name finished, sessionCode={}, sessionName={}",
                 context.getSession().getSessionCode(),
                 context.getSession().getSessionName());
+    }
+
+    private <T> T defaultIfNull(T value, T fallback) {
+        return value == null ? fallback : value;
+    }
+
+    private List<PlanningResult.RelationItem> normalizeRelations(List<PlanningResult.RelationItem> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .peek(item -> {
+                    item.setName(trimToNull(item.getName()));
+                    item.setValues(normalizeList(item.getValues()));
+                    item.setAliases(normalizeList(item.getAliases()));
+                })
+                .filter(item -> StringUtils.hasText(item.getName())
+                        || !CollectionUtils.isEmpty(item.getValues())
+                        || !CollectionUtils.isEmpty(item.getAliases()))
+                .toList();
+    }
+
+    private List<PlanningResult.FilterItem> normalizeFilters(List<PlanningResult.FilterItem> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .peek(item -> {
+                    item.setKey(trimToNull(item.getKey()));
+                    item.setValue(trimToNull(item.getValue()));
+                    item.setModel(trimToNull(item.getModel()));
+                    item.setSource(trimToNull(item.getSource()));
+                })
+                .filter(item -> StringUtils.hasText(item.getKey())
+                        || StringUtils.hasText(item.getValue())
+                        || StringUtils.hasText(item.getModel()))
+                .toList();
+    }
+
+    private List<PlanningResult.AmbiguityItem> normalizeAmbiguityItems(List<PlanningResult.AmbiguityItem> values) {
+        if (values == null) {
+            return List.of();
+        }
+        return values.stream()
+                .filter(Objects::nonNull)
+                .peek(item -> {
+                    item.setType(trimToNull(item.getType()));
+                    item.setQuestion(trimToNull(item.getQuestion()));
+                    item.setSuggestion(trimToNull(item.getSuggestion()));
+                })
+                .filter(item -> StringUtils.hasText(item.getType())
+                        || StringUtils.hasText(item.getQuestion())
+                        || StringUtils.hasText(item.getSuggestion()))
+                .toList();
+    }
+
+    private Map<String, Object> normalizeExt(Map<String, Object> ext) {
+        Map<String, Object> normalized = new LinkedHashMap<>();
+        if (ext == null) {
+            normalized.put(PlanningExtKeys.METRICS, List.of());
+            normalized.put(PlanningExtKeys.DIMENSIONS, List.of());
+            normalized.put(PlanningExtKeys.SORT, List.of());
+            normalized.put(PlanningExtKeys.STATISTICAL_CALIBER, List.of());
+            normalized.put(PlanningExtKeys.SEMANTIC_TERMS, List.of());
+            return normalized;
+        }
+        normalized.putAll(ext);
+        normalizeExtList(normalized, PlanningExtKeys.METRICS);
+        normalizeExtList(normalized, PlanningExtKeys.DIMENSIONS);
+        normalizeExtList(normalized, PlanningExtKeys.SORT);
+        normalizeExtList(normalized, PlanningExtKeys.STATISTICAL_CALIBER);
+        normalizeExtList(normalized, PlanningExtKeys.SEMANTIC_TERMS);
+        return normalized;
+    }
+
+    private void normalizeExtList(Map<String, Object> ext, String key) {
+        Object value = ext.get(key);
+        if (value == null) {
+            ext.put(key, List.of());
+            return;
+        }
+        if (value instanceof List<?> list) {
+            List<Object> normalized = list.stream()
+                    .filter(Objects::nonNull)
+                    .map(item -> item instanceof String str ? str.trim() : item)
+                    .filter(item -> !(item instanceof String str) || StringUtils.hasText(str))
+                    .toList();
+            ext.put(key, normalized);
+            return;
+        }
+        if (value instanceof String str) {
+            String trimmed = str.trim();
+            ext.put(key, StringUtils.hasText(trimmed) ? List.of(trimmed) : List.of());
+        }
+    }
+
+    private String buildSubjectSummary(PlanningResult.Subject subject) {
+        if (subject == null) {
+            return "";
+        }
+        StringJoiner joiner = new StringJoiner(" / ");
+        if (StringUtils.hasText(subject.getName())) {
+            joiner.add(subject.getName());
+        }
+        if (StringUtils.hasText(subject.getValue())) {
+            joiner.add(subject.getValue());
+        }
+        if (!CollectionUtils.isEmpty(subject.getAliases())) {
+            joiner.add("aliases=" + subject.getAliases());
+        }
+        if (subject.getScore() != null) {
+            joiner.add("score=" + subject.getScore());
+        }
+        if (!CollectionUtils.isEmpty(subject.getRelations())) {
+            List<String> relationParts = subject.getRelations().stream()
+                    .filter(Objects::nonNull)
+                    .map(this::buildRelationSummary)
+                    .filter(StringUtils::hasText)
+                    .toList();
+            if (!relationParts.isEmpty()) {
+                joiner.add("relations=" + relationParts);
+            }
+        }
+        return joiner.toString();
+    }
+
+    private String buildRelationSummary(PlanningResult.RelationItem relation) {
+        StringJoiner joiner = new StringJoiner(" / ");
+        if (StringUtils.hasText(relation.getName())) {
+            joiner.add(relation.getName());
+        }
+        if (!CollectionUtils.isEmpty(relation.getValues())) {
+            joiner.add("values=" + relation.getValues());
+        }
+        if (!CollectionUtils.isEmpty(relation.getAliases())) {
+            joiner.add("aliases=" + relation.getAliases());
+        }
+        if (relation.getScore() != null) {
+            joiner.add("score=" + relation.getScore());
+        }
+        return joiner.toString();
+    }
+
+    private String buildFilterSummary(List<PlanningResult.FilterItem> filters) {
+        List<String> parts = new ArrayList<>();
+        for (PlanningResult.FilterItem item : filters) {
+            if (item == null) {
+                continue;
+            }
+            StringJoiner joiner = new StringJoiner(" ");
+            if (StringUtils.hasText(item.getKey())) {
+                joiner.add(item.getKey());
+            }
+            if (StringUtils.hasText(item.getValue())) {
+                joiner.add(item.getValue());
+            }
+            if (StringUtils.hasText(item.getModel())) {
+                joiner.add("model=" + item.getModel());
+            }
+            if (StringUtils.hasText(item.getSource())) {
+                joiner.add("source=" + item.getSource());
+            }
+            if (item.getScore() != null) {
+                joiner.add("score=" + item.getScore());
+            }
+            String text = joiner.toString().trim();
+            if (StringUtils.hasText(text)) {
+                parts.add(text);
+            }
+        }
+        return String.join("；", parts);
+    }
+
+    private String buildIntentSummary(PlanningResult.Intent intent) {
+        if (intent == null) {
+            return "";
+        }
+        StringJoiner joiner = new StringJoiner(" / ");
+        if (StringUtils.hasText(intent.getType())) {
+            joiner.add(intent.getType());
+        }
+        if (StringUtils.hasText(intent.getName())) {
+            joiner.add(intent.getName());
+        }
+        if (StringUtils.hasText(intent.getAction())) {
+            joiner.add(intent.getAction());
+        }
+        return joiner.toString();
+    }
+
+    private String buildRenderSummary(PlanningResult.Render render) {
+        if (render == null) {
+            return "";
+        }
+        StringJoiner joiner = new StringJoiner(" / ");
+        if (StringUtils.hasText(render.getType())) {
+            joiner.add(render.getType());
+        }
+        if (StringUtils.hasText(render.getName())) {
+            joiner.add(render.getName());
+        }
+        return joiner.toString();
+    }
+
+    private String buildAmbiguitySummary(List<PlanningResult.AmbiguityItem> items) {
+        List<String> parts = new ArrayList<>();
+        for (PlanningResult.AmbiguityItem item : items) {
+            if (item == null) {
+                continue;
+            }
+            StringJoiner joiner = new StringJoiner(" / ");
+            if (StringUtils.hasText(item.getType())) {
+                joiner.add(item.getType());
+            }
+            if (StringUtils.hasText(item.getQuestion())) {
+                joiner.add(item.getQuestion());
+            }
+            if (item.getImportance() != null) {
+                joiner.add("importance=" + item.getImportance());
+            }
+            if (StringUtils.hasText(item.getSuggestion())) {
+                joiner.add("suggestion=" + item.getSuggestion());
+            }
+            String text = joiner.toString().trim();
+            if (StringUtils.hasText(text)) {
+                parts.add(text);
+            }
+        }
+        return String.join("；", parts);
+    }
+
+    private String buildExtSummary(Map<String, Object> ext) {
+        if (ext == null || ext.isEmpty()) {
+            return "";
+        }
+        List<String> parts = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : ext.entrySet()) {
+            if (!StringUtils.hasText(entry.getKey()) || entry.getValue() == null) {
+                continue;
+            }
+            parts.add(entry.getKey() + "=" + entry.getValue());
+        }
+        return String.join("；", parts);
     }
 
     private ChatMessage buildMessage(MessageRole role, String content) {
