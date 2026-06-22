@@ -1,54 +1,28 @@
 <script setup>
 import {
   ArrowRight,
-  Coin,
   Collection,
   DataLine,
   Grid,
-  Location,
   Monitor,
-  Notification,
-  Opportunity,
   Setting,
-  Reading,
-  Tickets,
   TrendCharts
 } from '@element-plus/icons-vue'
 
-const notices = [
-  {
-    date: '2026.06.15',
-    title: '新增 AI流程配置 入口',
-    desc: '系统设置侧边栏新增流程配置页，统一承载节点编排、技能挂载和 SQL 生成策略。'
-  },
-  {
-    date: '2026.06.04',
-    title: '配置中心首页升级为门户化布局',
-    desc: '把常用入口、推荐能力、教程和案例统一收口到总览页。'
-  },
-  {
-    date: '2026.06.01',
-    title: '系统参数支持更细粒度的分组展示',
-    desc: '参数、组件和 AI 接入入口继续保持独立，首页只负责分发和导览。'
-  },
-  {
-    date: '2026.05.28',
-    title: 'AI 接入页完成基础台账结构',
-    desc: 'provider、model、credential 三层结构已可独立维护。'
-  },
-  {
-    date: '2026.05.22',
-    title: '常用组件页补齐模板骨架',
-    desc: '后续可沉淀表单片段、表格列定义和页面区块。'
-  }
+const statusCards = [
+  { label: '配置域', value: '6', note: '当前已接入主入口', tone: 'neutral' },
+  { label: 'AI 流程', value: '12', note: '节点策略已启用', tone: 'primary' },
+  { label: '待处理提醒', value: '3', note: '需要本周完成', tone: 'warning' },
+  { label: '最近变更', value: '18', note: '7 天内更新', tone: 'success' }
 ]
 
 const quickEntries = [
   {
     key: 'data-source',
     label: '数据源配置',
-    summary: '连接管理、健康状态与表数据入口',
+    summary: '连接、健康状态、表数据入口',
     icon: DataLine,
+    meta: '12 个数据源',
     to: '/settings/system/data-source'
   },
   {
@@ -56,958 +30,579 @@ const quickEntries = [
     label: '系统参数',
     summary: '全局开关、默认值、运行阈值',
     icon: Grid,
+    meta: '38 项参数',
     to: '/settings/system/params'
   },
   {
     key: 'components',
     label: '常用组件',
-    summary: '页面片段、模板和复用组件',
+    summary: '模板片段、复用区块、页面骨架',
     icon: Collection,
+    meta: '18 个组件',
     to: '/settings/system/components'
   },
   {
     key: 'ai',
     label: 'AI 接入',
-    summary: 'provider、model、credential',
+    summary: 'provider、model、credential 管理',
     icon: Monitor,
+    meta: '6 个模型组',
     to: '/settings/system/ai'
   },
   {
     key: 'ai-flow',
     label: 'AI流程配置',
-    summary: '工作流节点、skill 和 SQL 规范策略',
+    summary: '工作流、节点、skill、SQL 规范',
     icon: Setting,
+    meta: '4 条主流程',
     to: '/settings/system/ai-flow'
   },
   {
     key: 'overview',
     label: '系统总览',
-    summary: '配置域分布和当前状态',
+    summary: '聚合入口、变更和治理状态',
     icon: TrendCharts,
+    meta: '当前页',
     to: '/settings/system/overview'
   }
 ]
 
-const savingsPlans = [
+const changeFeed = [
   {
-    title: '基础接入包',
-    tag: '入门',
-    price: '免费',
-    term: '长期有效',
-    desc: '适合单人试用、快速联调和基础验证。'
+    date: '06-22',
+    title: 'AI流程配置入口已合并到系统设置',
+    desc: '统一承载节点编排、技能挂载和 SQL 生成策略，避免多个入口分散维护。'
   },
   {
-    title: '团队协作包',
-    tag: '推荐',
-    price: '按需',
-    term: '灵活开通',
-    desc: '适合多角色协同、统一参数和共享模板。'
+    date: '06-18',
+    title: '数据源管理新增表数据工作台',
+    desc: '可直接在数据源配置页进入表级管理与字段维护。'
   },
   {
-    title: '企业治理包',
-    tag: '高阶',
-    price: '定制',
-    term: '按组织规模',
-    desc: '适合有审计、权限和统一治理诉求的团队。'
+    date: '06-15',
+    title: 'AI 接入页补齐模型与凭证台账',
+    desc: 'provider、model、credential 三层结构已可独立维护。'
   },
   {
-    title: 'AI 扩展包',
-    tag: '热门',
-    price: '可选',
-    term: '与 AI 接入联动',
-    desc: '适合继续扩展 provider、model 和能力模板。'
+    date: '06-12',
+    title: '系统参数分组视图完成第一轮收口',
+    desc: '便于后续继续拆分开关、默认值和运行阈值。'
   }
 ]
 
-const models = [
-  {
-    name: 'Qwen 文本接入',
-    category: '文本生成',
-    price: '按调用计费',
-    desc: '用于对话、总结、结构化抽取和通用文本处理。'
-  },
-  {
-    name: 'DeepSeek 推理接入',
-    category: '推理增强',
-    price: '按调用计费',
-    desc: '用于复杂推理、代码生成和长链路任务。'
-  },
-  {
-    name: '多模态能力包',
-    category: '图像 / 音视频',
-    price: '按资源计费',
-    desc: '用于图像理解、音视频识别和跨模态交互。'
-  },
-  {
-    name: '组件模板库',
-    category: '页面片段',
-    price: '即开即用',
-    desc: '用于沉淀常用表单、列表、详情和配置模板。'
-  },
-  {
-    name: '配置治理包',
-    category: '系统治理',
-    price: '可追踪',
-    desc: '用于参数审计、变更记录和访问范围控制。'
-  }
+const todos = [
+  '复核 AI 流程页的节点模板字段映射',
+  '整理系统参数中的默认值与灰度开关分组',
+  '确认数据源连接健康状态的批量刷新策略',
+  '补充常用组件页的模板分类与负责人信息'
 ]
 
-const appHighlights = [
-  {
-    title: '系统总览',
-    desc: '配置域分布与入口分发',
-    tag: '导航',
-    to: '/settings/system/overview'
-  },
-  {
-    title: '系统参数',
-    desc: '管理全局开关和默认值',
-    tag: '参数',
-    to: '/settings/system/params'
-  },
-  {
-    title: '常用组件',
-    desc: '沉淀表单片段和模板块',
-    tag: '组件',
-    to: '/settings/system/components'
-  },
-  {
-    title: 'AI 接入',
-    desc: '维护 provider、model 和 credential',
-    tag: 'AI',
-    to: '/settings/system/ai'
-  },
-  {
-    title: 'AI流程配置',
-    desc: '统一配置节点、skill 和 SQL 生成规则',
-    tag: '流程',
-    to: '/settings/system/ai-flow'
-  }
-]
-
-const tutorials = [
-  {
-    title: '新手通识课：快速理解配置中心分层',
-    category: '快速入门',
-    date: '更新时间 2026.06.03'
-  },
-  {
-    title: '如何把系统参数拆成可维护的分组',
-    category: '参数治理',
-    date: '更新时间 2026.05.30'
-  },
-  {
-    title: '如何构建可复用的常用组件模板',
-    category: '组件复用',
-    date: '更新时间 2026.05.27'
-  },
-  {
-    title: 'AI 接入台账的最佳实践',
-    category: 'AI 接入',
-    date: '更新时间 2026.05.24'
-  }
-]
-
-const cases = [
-  {
-    title: '研发平台统一配置',
-    desc: '将分散在多个页面的开关和默认值收拢到系统参数。'
-  },
-  {
-    title: '多团队组件复用',
-    desc: '通过常用组件页沉淀公共表单和页面区块。'
-  },
-  {
-    title: 'AI 接入治理',
-    desc: '用 provider、model、credential 三层结构做统一接入管理。'
-  },
-  {
-    title: '配置变更审计',
-    desc: '在系统治理过程中保留关键变更轨迹和责任边界。'
-  }
+const tips = [
+  { label: '推荐先看', value: 'AI 接入 / AI流程配置' },
+  { label: '最近最活跃', value: '数据源配置' },
+  { label: '治理关注点', value: '参数分组与变更审计' }
 ]
 </script>
 
 <template>
-  <div class="console-home">
-    <section class="hero-grid">
-      <article class="hero-banner">
-        <p class="eyebrow">系统配置中心</p>
-        <h2>像百炼控制台一样组织配置入口</h2>
+  <div class="overview-page">
+    <section class="overview-hero">
+      <div class="hero-copy">
+        <p class="eyebrow">System Overview</p>
+        <h2>系统配置工作台</h2>
         <p class="hero-desc">
-          这页按门户首页的方式排布信息：上方看通知，中间找常用能力，下面看推荐能力、教程和案例。
-          侧边栏保持当前六个入口分域管理，当前已补入 AI流程配置入口，用于继续收口工作流编排和生成策略。
+          这里不做门户化堆料，只保留配置台真正高频的信息：入口、状态、最近变更和待办。
         </p>
+      </div>
 
-        <div class="hero-actions">
-          <RouterLink to="/settings/system/ai" class="btn primary">
-            进入 AI 接入
-            <ArrowRight :size="16" />
-          </RouterLink>
-          <RouterLink to="/settings/system/ai-flow" class="btn secondary">
-            查看 AI流程配置
-          </RouterLink>
-          <RouterLink to="/settings/system/params" class="btn secondary">
-            查看系统参数
-          </RouterLink>
-        </div>
+      <div class="hero-actions">
+        <RouterLink to="/settings/system/ai" class="hero-btn primary">
+          进入 AI 接入
+        </RouterLink>
+        <RouterLink to="/settings/system/ai-flow" class="hero-btn secondary">
+          打开 AI流程配置
+        </RouterLink>
+      </div>
+    </section>
 
-        <div class="hero-stats">
-          <div class="stat-pill">
-            <strong>6</strong>
-            <span>侧边栏入口</span>
-          </div>
-          <div class="stat-pill">
-            <strong>3</strong>
-            <span>核心配置域</span>
-          </div>
-          <div class="stat-pill">
-            <strong>1</strong>
-            <span>门户首页</span>
-          </div>
-        </div>
+    <section class="status-strip">
+      <article v-for="item in statusCards" :key="item.label" class="status-card" :data-tone="item.tone">
+        <span>{{ item.label }}</span>
+        <strong>{{ item.value }}</strong>
+        <p>{{ item.note }}</p>
       </article>
-
-      <div class="hero-stack">
-        <article class="promo-card promo-card-accent">
-          <div class="promo-top">
-            <span class="promo-badge">推荐</span>
-            <Notification :size="18" />
-          </div>
-          <h3>最新通知</h3>
-          <p>把配置变更、功能上线和治理动作放在最显眼的位置。</p>
-        </article>
-
-        <article class="promo-card promo-card-soft">
-          <div class="promo-top">
-            <span class="promo-badge muted">快捷</span>
-            <TrendCharts :size="18" />
-          </div>
-          <h3>常用功能</h3>
-          <p>系统参数、常用组件和 AI 接入都能直接跳转。</p>
-        </article>
-      </div>
     </section>
 
-    <section class="section-block">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">最新通知</p>
-          <h3>通知中心</h3>
-        </div>
-        <RouterLink to="/settings/system/overview" class="section-link">
-          查看全部
-          <ArrowRight :size="14" />
-        </RouterLink>
-      </div>
-
-      <div class="notice-list">
-        <article v-for="notice in notices" :key="notice.title" class="notice-card">
-          <span class="notice-date">{{ notice.date }}</span>
-          <strong>{{ notice.title }}</strong>
-          <p>{{ notice.desc }}</p>
-        </article>
-      </div>
-    </section>
-
-    <section class="section-block">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">常用功能</p>
-          <h3>快速入口</h3>
-        </div>
-        <span class="section-meta">保留你现在的侧边栏 item 结构</span>
-      </div>
-
-      <div class="quick-grid">
-        <RouterLink
-          v-for="entry in quickEntries"
-          :key="entry.key"
-          :to="entry.to"
-          class="quick-card"
-        >
-          <span class="quick-icon">
-            <component :is="entry.icon" :size="18" />
-          </span>
-          <div>
-            <strong>{{ entry.label }}</strong>
-            <p>{{ entry.summary }}</p>
-          </div>
-        </RouterLink>
-      </div>
-    </section>
-
-    <section class="section-block">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">省钱计划</p>
-          <h3>能力方案</h3>
-        </div>
-        <span class="section-meta">视觉上借用百炼首页的套餐区块</span>
-      </div>
-
-      <div class="plan-grid">
-        <article v-for="plan in savingsPlans" :key="plan.title" class="plan-card">
-          <div class="plan-head">
-            <span class="plan-tag">{{ plan.tag }}</span>
-            <strong>{{ plan.title }}</strong>
-          </div>
-          <p>{{ plan.desc }}</p>
-          <div class="plan-footer">
+    <section class="overview-main">
+      <div class="main-left">
+        <section class="panel">
+          <div class="section-head">
             <div>
-              <span class="plan-label">适用方式</span>
-              <strong>{{ plan.term }}</strong>
+              <p class="eyebrow">Quick Access</p>
+              <h3>配置入口</h3>
             </div>
-            <div class="plan-price">{{ plan.price }}</div>
+            <span class="section-meta">紧凑模式</span>
           </div>
-          <button class="plan-action" type="button">查看详情</button>
-        </article>
-      </div>
-    </section>
 
-    <section class="section-block">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">推荐模型</p>
-          <h3>能力广场</h3>
-        </div>
-        <span class="section-meta">这里用你的配置域替代百炼的模型商品卡</span>
-      </div>
-
-      <div class="model-grid">
-        <article v-for="model in models" :key="model.name" class="model-card">
-          <div class="model-top">
-            <span class="model-icon">
-              <Coin :size="18" />
-            </span>
-            <span class="model-category">{{ model.category }}</span>
+          <div class="entry-grid">
+            <RouterLink v-for="entry in quickEntries" :key="entry.key" :to="entry.to" class="entry-card">
+              <span class="entry-icon">
+                <component :is="entry.icon" :size="16" />
+              </span>
+              <div class="entry-copy">
+                <strong>{{ entry.label }}</strong>
+                <p>{{ entry.summary }}</p>
+              </div>
+              <span class="entry-meta">{{ entry.meta }}</span>
+            </RouterLink>
           </div>
-          <strong>{{ model.name }}</strong>
-          <p>{{ model.desc }}</p>
-          <div class="model-price">{{ model.price }}</div>
-        </article>
-      </div>
-    </section>
+        </section>
 
-    <section class="section-block">
-      <div class="section-head">
-        <div>
-          <p class="eyebrow">推荐应用</p>
-          <h3>应用广场</h3>
-        </div>
-        <span class="section-meta">用路由入口模拟应用市场卡片</span>
-      </div>
-
-      <div class="app-layout">
-        <article class="feature-panel">
-          <div class="feature-panel-copy">
-            <span class="feature-tag">专题</span>
-            <h4>配置中心首页专题区</h4>
-            <p>
-              用统一的视觉层级承载系统总览、参数、组件和 AI 接入。
-              这块保留更大的横向留白，做成类似首页主推荐位。
-            </p>
-          </div>
-          <div class="feature-rail">
-            <div class="feature-chip">
-              <Location :size="16" />
-              本地可用
+        <section class="dual-grid">
+          <article class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Change Feed</p>
+                <h3>最近变更</h3>
+              </div>
             </div>
-            <div class="feature-chip">
-              <DataLine :size="16" />
-              信息密度高
+
+            <div class="feed-list">
+              <article v-for="item in changeFeed" :key="item.title" class="feed-item">
+                <span class="feed-date">{{ item.date }}</span>
+                <div class="feed-copy">
+                  <strong>{{ item.title }}</strong>
+                  <p>{{ item.desc }}</p>
+                </div>
+              </article>
             </div>
-            <div class="feature-chip">
-              <Opportunity :size="16" />
-              按需扩展
-            </div>
-          </div>
-        </article>
-
-        <div class="app-grid">
-          <RouterLink v-for="app in appHighlights" :key="app.title" :to="app.to" class="app-card">
-            <span class="app-tag">{{ app.tag }}</span>
-            <strong>{{ app.title }}</strong>
-            <p>{{ app.desc }}</p>
-          </RouterLink>
-        </div>
-      </div>
-    </section>
-
-    <section class="dual-block">
-      <article class="section-block">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">新手教程</p>
-            <h3>快速上手</h3>
-          </div>
-        </div>
-
-        <div class="tutorial-list">
-          <article v-for="tutorial in tutorials" :key="tutorial.title" class="tutorial-card">
-            <span class="tutorial-type">{{ tutorial.category }}</span>
-            <strong>{{ tutorial.title }}</strong>
-            <p>{{ tutorial.date }}</p>
           </article>
-        </div>
-      </article>
 
-      <article class="section-block">
-        <div class="section-head">
-          <div>
-            <p class="eyebrow">客户案例</p>
-            <h3>实践参考</h3>
-          </div>
-        </div>
+          <article class="panel">
+            <div class="section-head">
+              <div>
+                <p class="eyebrow">Todo</p>
+                <h3>待处理事项</h3>
+              </div>
+            </div>
 
-        <div class="case-list">
-          <article v-for="item in cases" :key="item.title" class="case-card">
-            <span class="case-mark">案例</span>
-            <strong>{{ item.title }}</strong>
-            <p>{{ item.desc }}</p>
+            <ul class="todo-list">
+              <li v-for="item in todos" :key="item">{{ item }}</li>
+            </ul>
           </article>
-        </div>
-      </article>
+        </section>
+      </div>
+
+      <aside class="main-right">
+        <section class="panel side-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Focus</p>
+              <h3>当前提示</h3>
+            </div>
+          </div>
+
+          <div class="tip-list">
+            <article v-for="item in tips" :key="item.label" class="tip-card">
+              <span>{{ item.label }}</span>
+              <strong>{{ item.value }}</strong>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel side-panel">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">Flow</p>
+              <h3>推荐路径</h3>
+            </div>
+          </div>
+
+          <div class="flow-list">
+            <RouterLink to="/settings/system/data-source" class="flow-item">
+              <strong>1. 先看数据源配置</strong>
+              <span>核对连接状态与表数据入口</span>
+              <ArrowRight :size="14" />
+            </RouterLink>
+            <RouterLink to="/settings/system/ai" class="flow-item">
+              <strong>2. 再看 AI 接入</strong>
+              <span>统一 provider / model / credential</span>
+              <ArrowRight :size="14" />
+            </RouterLink>
+            <RouterLink to="/settings/system/ai-flow" class="flow-item">
+              <strong>3. 最后看 AI流程配置</strong>
+              <span>处理节点与工作流编排策略</span>
+              <ArrowRight :size="14" />
+            </RouterLink>
+          </div>
+        </section>
+      </aside>
     </section>
   </div>
 </template>
 
 <style scoped>
-.console-home {
+.overview-page {
   display: grid;
-  gap: 18px;
-  padding: 2px 2px 2px 0;
+  gap: 14px;
+  min-height: 0;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-y: visible;
 }
 
-.hero-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 1.6fr) minmax(280px, 0.8fr);
-  gap: 16px;
+.overview-hero,
+.panel,
+.status-card {
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
-.hero-banner,
-.promo-card,
-.section-block,
-.notice-card,
-.quick-card,
-.plan-card,
-.model-card,
-.app-card,
-.tutorial-card,
-.case-card {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 22px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-  backdrop-filter: blur(10px);
-}
-
-.hero-banner {
-  padding: 24px;
-  background:
-    radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.12), transparent 34%),
-    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.08), transparent 22%),
-    rgba(255, 255, 255, 0.92);
-}
-
-.hero-banner h2,
-.section-head h3,
-.feature-panel h4 {
-  margin: 0;
-  color: #0f172a;
-  letter-spacing: -0.02em;
-}
-
-.hero-banner h2 {
-  font-size: 34px;
-  line-height: 1.08;
-  max-width: 12ch;
+.overview-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 18px 20px;
+  border-radius: 18px;
 }
 
 .eyebrow {
-  margin: 0 0 12px;
+  margin: 0 0 6px;
   color: #2563eb;
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.22em;
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
 }
 
+.hero-copy h2,
+.section-head h3 {
+  margin: 0;
+  color: #0f172a;
+  letter-spacing: -0.03em;
+}
+
+.hero-copy h2 {
+  font-size: 28px;
+  line-height: 1.05;
+}
+
 .hero-desc {
-  margin: 14px 0 0;
-  color: #475569;
-  line-height: 1.75;
-  max-width: 58ch;
+  margin: 8px 0 0;
+  max-width: 720px;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 .hero-actions {
   display: flex;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  margin-top: 20px;
+  align-self: center;
 }
 
-.btn {
+.hero-btn {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  border-radius: 14px;
-  padding: 11px 16px;
+  justify-content: center;
+  min-height: 34px;
+  padding: 0 13px;
+  border-radius: 12px;
   text-decoration: none;
-  font-weight: 600;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
+  font-size: 12px;
+  font-weight: 700;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
-.btn.primary {
-  color: #eff6ff;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-  box-shadow: 0 10px 22px rgba(37, 99, 235, 0.18);
-}
-
-.btn.secondary {
-  color: #0f172a;
-  background: rgba(241, 245, 249, 0.96);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-}
-
-.btn:hover {
+.hero-btn:hover {
   transform: translateY(-1px);
 }
 
-.hero-stats {
-  display: flex;
+.hero-btn.primary {
+  color: #eff6ff;
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  box-shadow: 0 12px 20px rgba(37, 99, 235, 0.2);
+}
+
+.hero-btn.secondary {
+  color: #0f172a;
+  background: #f8fafc;
+}
+
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 12px;
-  flex-wrap: wrap;
-  margin-top: 22px;
 }
 
-.stat-pill {
-  min-width: 102px;
-  padding: 14px 16px;
-  border-radius: 18px;
-  background: linear-gradient(180deg, rgba(239, 246, 255, 0.96), rgba(248, 250, 252, 0.96));
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  display: grid;
-  gap: 4px;
+.status-card {
+  padding: 14px;
+  border-radius: 14px;
 }
 
-.stat-pill strong {
-  font-size: 22px;
-  color: #0f172a;
-}
-
-.stat-pill span {
+.status-card span {
+  display: block;
+  margin-bottom: 8px;
   color: #64748b;
-  font-size: 13px;
-}
-
-.hero-stack {
-  display: grid;
-  gap: 16px;
-}
-
-.promo-card {
-  padding: 18px;
-  min-height: 164px;
-  display: grid;
-  align-content: space-between;
-}
-
-.promo-card-accent {
-  background:
-    radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.14), transparent 36%),
-    rgba(255, 255, 255, 0.92);
-}
-
-.promo-card-soft {
-  background:
-    radial-gradient(circle at 100% 0%, rgba(14, 165, 233, 0.12), transparent 34%),
-    rgba(255, 255, 255, 0.92);
-}
-
-.promo-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  color: #2563eb;
-}
-
-.promo-badge,
-.plan-tag,
-.feature-tag,
-.app-tag,
-.tutorial-type,
-.case-mark {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 6px 10px;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 700;
+}
+
+.status-card strong {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 26px;
   line-height: 1;
+  letter-spacing: -0.04em;
 }
 
-.promo-badge {
-  color: #2563eb;
-  background: rgba(239, 246, 255, 0.96);
+.status-card p {
+  margin: 0;
+  color: #475569;
+  font-size: 12px;
 }
 
-.promo-badge.muted {
-  color: #0f766e;
-  background: rgba(236, 253, 245, 0.96);
+.status-card[data-tone='primary'] {
+  border-color: rgba(59, 130, 246, 0.18);
 }
 
-.promo-card h3 {
-  margin: 14px 0 0;
-  font-size: 18px;
-  color: #0f172a;
+.status-card[data-tone='warning'] {
+  border-color: rgba(217, 119, 6, 0.16);
 }
 
-.promo-card p {
-  margin: 8px 0 0;
-  color: #64748b;
-  line-height: 1.7;
+.status-card[data-tone='success'] {
+  border-color: rgba(22, 163, 74, 0.16);
 }
 
-.section-block {
-  padding: 18px;
+.overview-main {
+  display: grid;
+  grid-template-columns: minmax(0, 1.45fr) minmax(280px, 0.72fr);
+  gap: 14px;
+  min-height: 0;
+}
+
+.main-left,
+.main-right {
+  display: grid;
+  gap: 14px;
+  min-height: 0;
+}
+
+.panel {
+  border-radius: 18px;
+  padding: 15px;
 }
 
 .section-head {
   display: flex;
-  align-items: flex-end;
+  align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: 12px;
+  margin-bottom: 14px;
 }
 
-.section-head h3 {
-  font-size: 24px;
-  line-height: 1.1;
-}
-
-.section-link,
 .section-meta {
-  color: #64748b;
-  font-size: 13px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
 }
 
-.section-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.notice-list {
+.entry-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
-.notice-card {
-  padding: 16px;
+.entry-card {
   display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
   gap: 10px;
-}
-
-.notice-date {
-  font-size: 12px;
-  color: #2563eb;
-  letter-spacing: 0.04em;
-}
-
-.notice-card strong {
-  color: #0f172a;
-  font-size: 15px;
-  line-height: 1.4;
-}
-
-.notice-card p {
-  margin: 0;
-  color: #64748b;
-  line-height: 1.65;
-  font-size: 13px;
-}
-
-.quick-grid {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 12px;
-}
-
-.quick-card {
-  display: grid;
-  grid-template-columns: 44px 1fr;
-  gap: 12px;
-  align-items: center;
-  padding: 16px;
+  align-items: start;
+  min-height: 84px;
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
   text-decoration: none;
   color: inherit;
+  background: #fbfdff;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
-.quick-card:hover,
-.plan-card:hover,
-.model-card:hover,
-.app-card:hover,
-.tutorial-card:hover,
-.case-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 18px 36px rgba(15, 23, 42, 0.08);
+.entry-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(59, 130, 246, 0.18);
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.08);
 }
 
-.quick-icon,
-.model-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 14px;
+.entry-icon {
+  width: 34px;
+  height: 34px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.14), rgba(59, 130, 246, 0.08));
-  color: #1d4ed8;
-}
-
-.quick-card strong,
-.plan-head strong,
-.model-card strong,
-.app-card strong,
-.tutorial-card strong,
-.case-card strong {
-  color: #0f172a;
-}
-
-.quick-card p,
-.plan-card p,
-.model-card p,
-.app-card p,
-.tutorial-card p,
-.case-card p {
-  margin: 4px 0 0;
-  color: #64748b;
-  line-height: 1.65;
-  font-size: 13px;
-}
-
-.plan-grid,
-.model-grid {
-  display: grid;
-  gap: 12px;
-}
-
-.plan-grid {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-}
-
-.plan-card,
-.model-card {
-  padding: 16px;
-  display: grid;
-  gap: 12px;
-}
-
-.plan-head {
-  display: grid;
-  gap: 10px;
-}
-
-.plan-tag {
-  width: fit-content;
-  color: #1d4ed8;
-  background: rgba(239, 246, 255, 0.96);
-}
-
-.plan-footer {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.plan-label {
-  display: block;
-  color: #64748b;
-  font-size: 12px;
-  margin-bottom: 4px;
-}
-
-.plan-price {
-  font-size: 18px;
-  font-weight: 700;
-  color: #0f172a;
-}
-
-.plan-action {
-  border: 0;
-  border-radius: 14px;
-  padding: 10px 14px;
-  font: inherit;
-  cursor: pointer;
-  color: #eff6ff;
-  background: linear-gradient(135deg, #2563eb, #1d4ed8);
-}
-
-.model-grid {
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-}
-
-.model-top {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.model-category {
-  color: #64748b;
-  font-size: 12px;
-}
-
-.model-price {
+  border-radius: 12px;
+  background: rgba(59, 130, 246, 0.1);
   color: #2563eb;
-  font-weight: 700;
 }
 
-.app-layout {
-  display: grid;
-  grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
-  gap: 12px;
+.entry-copy strong,
+.feed-copy strong,
+.tip-card strong,
+.flow-item strong {
+  display: block;
+  color: #0f172a;
 }
 
-.feature-panel {
-  padding: 20px;
-  border-radius: 22px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  background:
-    radial-gradient(circle at 0% 0%, rgba(37, 99, 235, 0.12), transparent 34%),
-    rgba(255, 255, 255, 0.92);
-  box-shadow: 0 14px 30px rgba(15, 23, 42, 0.05);
-  display: grid;
-  gap: 18px;
-}
-
-.feature-panel h4 {
-  font-size: 20px;
-}
-
-.feature-panel p {
-  margin: 10px 0 0;
-  color: #64748b;
-  line-height: 1.75;
-}
-
-.feature-rail {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-
-.feature-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  padding: 10px 12px;
-  border-radius: 999px;
-  background: rgba(241, 245, 249, 0.95);
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  color: #334155;
+.entry-copy strong {
+  margin-bottom: 4px;
   font-size: 13px;
 }
 
-.app-grid {
+.entry-copy p,
+.feed-copy p,
+.flow-item span,
+.todo-list li {
+  color: #64748b;
+}
+
+.entry-copy p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.entry-meta {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.dual-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.feed-list,
+.tip-list,
+.flow-list {
+  display: grid;
+  gap: 10px;
+}
+
+.feed-item {
+  display: grid;
+  grid-template-columns: 54px 1fr;
+  gap: 12px;
+  padding: 9px 0;
+  border-bottom: 1px solid rgba(226, 232, 240, 0.82);
+}
+
+.feed-item:last-child {
+  border-bottom: 0;
+  padding-bottom: 0;
+}
+
+.feed-date {
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.feed-copy strong {
+  margin-bottom: 4px;
+  font-size: 13px;
+}
+
+.feed-copy p {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.todo-list {
+  margin: 0;
+  padding-left: 18px;
+  display: grid;
   gap: 12px;
 }
 
-.app-card {
-  padding: 18px;
+.todo-list li {
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.side-panel {
+  padding: 14px;
+}
+
+.tip-card,
+.flow-item {
+  padding: 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: #fbfdff;
+}
+
+.tip-card span {
+  display: block;
+  margin-bottom: 6px;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.tip-card strong {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.flow-item {
   display: grid;
-  gap: 10px;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+  align-items: center;
   text-decoration: none;
 }
 
-.app-tag {
-  width: fit-content;
-  color: #0f766e;
-  background: rgba(236, 253, 245, 0.96);
+.flow-item strong {
+  margin-bottom: 4px;
+  font-size: 13px;
 }
 
-.dual-block {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
+.flow-item span {
+  font-size: 12px;
+  line-height: 1.5;
 }
 
-.tutorial-list,
-.case-list {
-  display: grid;
-  gap: 12px;
-}
-
-.tutorial-card,
-.case-card {
-  padding: 16px;
-}
-
-.tutorial-type,
-.case-mark {
-  width: fit-content;
-  color: #2563eb;
-  background: rgba(239, 246, 255, 0.96);
-}
-
-.case-card {
-  display: grid;
-  gap: 10px;
-}
-
-@media (max-width: 1400px) {
-  .model-grid {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .plan-grid,
-  .notice-list,
-  .quick-grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
+.flow-item :deep(svg) {
+  color: #94a3b8;
 }
 
 @media (max-width: 1180px) {
-  .hero-grid,
-  .app-layout,
-  .dual-block {
-    grid-template-columns: 1fr;
-  }
-
-  .notice-list,
-  .quick-grid,
-  .plan-grid,
-  .model-grid,
-  .app-grid {
+  .status-strip,
+  .overview-main,
+  .dual-grid {
     grid-template-columns: 1fr;
   }
 }
 
 @media (max-width: 760px) {
-  .hero-banner {
-    padding: 20px;
+  .overview-page {
+    gap: 10px;
+    padding-top: 0;
   }
 
-  .hero-banner h2 {
-    font-size: 28px;
-  }
-
-  .section-block {
-    padding: 16px;
-  }
-
-  .section-head {
-    align-items: flex-start;
+  .overview-hero {
     flex-direction: column;
+  }
+
+  .entry-grid {
+    grid-template-columns: 1fr;
   }
 }
 </style>

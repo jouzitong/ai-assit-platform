@@ -1,10 +1,10 @@
 import { ref } from 'vue'
 import { sections } from '../data'
 
-const MIN_SIDEBAR_WIDTH = 50
-const DEFAULT_SIDEBAR_WIDTH = 198
-const MAX_SIDEBAR_WIDTH = 420
-const COLLAPSE_THRESHOLD = 120
+const MIN_SIDEBAR_WIDTH = 42
+const DEFAULT_SIDEBAR_WIDTH = 184
+const MAX_SIDEBAR_WIDTH = 320
+const COLLAPSE_THRESHOLD = 112
 
 export function useSystemPage() {
   const sidebarCollapsed = ref(false)

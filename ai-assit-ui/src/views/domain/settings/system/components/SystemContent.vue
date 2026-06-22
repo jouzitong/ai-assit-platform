@@ -9,6 +9,13 @@
 
 <style>
 .system-content {
+  --sys-shell-padding: 0px;
+  --sys-surface: #ffffff;
+  --sys-surface-soft: #fbfdff;
+  --sys-border: rgba(226, 232, 240, 0.9);
+  --sys-shadow-soft: 0 8px 20px rgba(15, 23, 42, 0.04);
+  --sys-radius-lg: 18px;
+  --sys-radius-md: 14px;
   min-width: 0;
   flex: 1;
   min-height: 0;
@@ -17,40 +24,67 @@
   box-sizing: border-box;
   display: grid;
   grid-template-rows: minmax(0, 1fr);
-  gap: 18px;
-  padding: 18px;
-  background: #fff;
-  overflow: hidden;
+  gap: 0;
+  padding: var(--sys-shell-padding);
+  border: 1px solid rgba(226, 232, 240, 0.78);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(250, 251, 253, 0.98));
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.03);
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-gutter: stable;
 }
 
 .system-content > * {
   min-width: 0;
   min-height: 0;
-  height: 100%;
+}
+
+.content-head,
+.workspace-card,
+.table-panel,
+.placeholder-panel,
+.overview-card,
+.editor-card {
+  border-radius: var(--sys-radius-lg);
+  border: 1px solid var(--sys-border);
+  background: var(--sys-surface);
+  box-shadow: var(--sys-shadow-soft);
 }
 
 .content-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: 14px;
   align-items: end;
+  padding: 18px 20px;
+}
+
+.content-head h1,
+.content-head h2 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.content-head h1 {
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
 }
 
 .content-head h2 {
-  margin: 0;
   font-size: 24px;
   line-height: 1.15;
   letter-spacing: -0.02em;
-  color: #0f172a;
 }
 
 .eyebrow {
   margin: 0 0 8px;
   color: #2563eb;
   text-transform: uppercase;
-  letter-spacing: 0.18em;
-  font-size: 12px;
-  font-weight: 700;
+  letter-spacing: 0.16em;
+  font-size: 11px;
+  font-weight: 800;
 }
 
 .section-desc {
@@ -65,6 +99,12 @@
   align-items: center;
 }
 
+.workspace-card,
+.table-panel,
+.editor-card {
+  padding: 16px;
+}
+
 .hero-stats {
   display: flex;
   gap: 12px;
@@ -74,9 +114,9 @@
 .hero-stat {
   min-width: 104px;
   padding: 14px 16px;
-  border-radius: 18px;
-  background: #fff;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: var(--sys-radius-lg);
+  background: var(--sys-surface);
+  border: 1px solid var(--sys-border);
   display: grid;
   gap: 4px;
 }
@@ -102,15 +142,15 @@
 .placeholder-panel,
 .table-card,
 .editor-card {
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 22px;
-  background: #fff;
-  box-shadow: none;
+  border: 1px solid var(--sys-border);
+  border-radius: var(--sys-radius-lg);
+  background: var(--sys-surface);
+  box-shadow: var(--sys-shadow-soft);
   backdrop-filter: none;
 }
 
 .overview-card {
-  padding: 18px;
+  padding: 16px;
   display: grid;
   gap: 10px;
   color: #0f172a;
@@ -120,6 +160,7 @@
   padding: 20px;
   color: #334155;
   line-height: 1.6;
+  background: var(--sys-surface-soft);
 }
 
 .ai-layout {
@@ -196,9 +237,9 @@
   align-items: center;
   gap: 10px;
   padding: 11px 14px;
-  border-radius: 14px;
-  background: #fff;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: var(--sys-radius-md);
+  background: var(--sys-surface);
+  border: 1px solid var(--sys-border);
 }
 
 .search-box input {
@@ -228,14 +269,14 @@
 }
 
 .btn.secondary {
-  background: #fff;
+  background: var(--sys-surface);
   color: #0f172a;
-  border: 1px solid rgba(226, 232, 240, 0.95);
+  border: 1px solid var(--sys-border);
 }
 
 .table-card,
 .editor-card {
-  padding: 18px;
+  padding: 16px;
 }
 
 .config-table {
@@ -246,7 +287,7 @@
 .config-table th,
 .config-table td {
   padding: 12px;
-  border-bottom: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--sys-border);
   text-align: left;
   vertical-align: top;
 }
@@ -360,6 +401,7 @@
   .system-content {
     overflow: visible;
     padding-right: 0;
+    --sys-shell-padding: 0px;
   }
 }
 
@@ -374,6 +416,14 @@
   .search-box {
     min-width: 0;
     width: 100%;
+  }
+
+  .content-head {
+    padding: 16px;
+  }
+
+  .content-head h1 {
+    font-size: 26px;
   }
 }
 </style>

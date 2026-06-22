@@ -50,28 +50,30 @@ const {
 
 <style scoped>
 .system-page {
-  /* min-height: 0; */
   height: 100%;
   width: 100%;
   display: grid;
-  padding: 0;
+  padding: 8px 0 0;
   overflow: hidden;
-  background: #fff;
+  background:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.05), transparent 22%),
+    linear-gradient(180deg, #f6f9fd 0%, #f2f6fb 100%);
 }
 
 .system-shell {
   min-height: 0;
   display: grid;
-  grid-template-columns: var(--sidebar-width) 12px minmax(0, 1fr);
+  grid-template-columns: var(--sidebar-width) 10px minmax(0, 1fr);
   grid-template-rows: minmax(0, 1fr);
   align-items: stretch;
   gap: 0;
   width: 100%;
   height: 100%;
   box-sizing: border-box;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 0;
-  background: #fff;
+  border: 1px solid rgba(226, 232, 240, 0.86);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.04);
   overflow: hidden;
 }
 
@@ -85,12 +87,13 @@ const {
 .system-sidebar-panel {
   width: 100%;
   display: flex;
-  overflow: auto;
+  overflow: hidden;
   overscroll-behavior: contain;
   scrollbar-gutter: stable;
-  background: #fff;
+  padding: 4px 0 4px 4px;
+  background: linear-gradient(180deg, #f8fbff 0%, #f5f9ff 100%);
   height: 100%;
-  border-right: 1px solid rgba(226, 232, 240, 0.95);
+  border-right: 0;
 }
 
 .system-divider {
@@ -102,14 +105,14 @@ const {
   height: 100%;
   cursor: col-resize;
   touch-action: none;
-  background: #fff;
-  border-left: 1px solid rgba(226, 232, 240, 0.95);
-  border-right: 1px solid rgba(226, 232, 240, 0.95);
+  background: rgba(203, 213, 225, 0.88);
+  border-left: 0;
+  border-right: 0;
   transition: background-color 0.2s ease;
 }
 
 .system-divider:hover {
-  background: rgba(248, 250, 252, 0.95);
+  background: rgba(148, 163, 184, 0.92);
 }
 
 .divider-track {
@@ -122,11 +125,11 @@ const {
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 2px;
-  height: 28px;
+  width: 1px;
+  height: calc(100% - 28px);
   transform: translate(-50%, -50%);
   border-radius: 999px;
-  background: rgba(148, 163, 184, 0.9);
+  background: rgba(71, 85, 105, 0.42);
 }
 
 .system-shell.is-resizing .system-sidebar,
@@ -138,7 +141,8 @@ const {
   width: 100%;
   display: flex;
   overflow: hidden;
-  background: #fff;
+  padding: 0;
+  background: linear-gradient(180deg, #f8fbff 0%, #f4f7fb 100%);
   border-left: 0;
 }
 
@@ -155,6 +159,7 @@ const {
   }
 
   .system-sidebar-panel {
+    padding: 4px 4px 0;
     border-bottom: 1px solid rgba(226, 232, 240, 0.95);
   }
 

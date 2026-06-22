@@ -31,8 +31,8 @@ const settingsMenus = [
 const themeLabel = computed(() => (isDarkTheme.value ? '切换浅色主题' : '切换深色主题'))
 const currentMenu = computed(() => menus.find((item) => isActivePath(item.path)) || menus[0])
 const utilityBadges = computed(() => ([
-  { key: 'theme', label: isDarkTheme.value ? 'Dark' : 'Light' },
-  { key: 'mode', label: developerModeEnabled.value ? 'Dev On' : 'Dev Off' }
+  { key: 'todo', label: '待办' },
+  { key: 'robot', label: '机器人' }
 ]))
 
 function isActivePath(targetPath) {
