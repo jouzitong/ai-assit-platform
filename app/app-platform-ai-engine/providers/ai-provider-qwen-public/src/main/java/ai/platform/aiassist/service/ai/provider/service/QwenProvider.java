@@ -124,6 +124,7 @@ public class QwenProvider implements AiProvider {
             response.setAccepted(result.accepted());
             response.setFailed(result.failedDocumentIds().size());
             response.setFailedDocumentIds(result.failedDocumentIds());
+            response.setDocumentIdMappings(result.documentIdMappings());
             return response;
         } catch (Exception ex) {
             throw new IllegalStateException("Qwen knowledge base upsert failed", ex);

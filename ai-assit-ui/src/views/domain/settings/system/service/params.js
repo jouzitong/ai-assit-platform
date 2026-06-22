@@ -16,7 +16,6 @@ export function useSystemParamsPage() {
   const dialogError = ref('')
   const dialogVisible = ref(false)
   const dialogMode = ref('create')
-  const selectedSettingId = ref(null)
   const keyword = ref('')
   const settingList = ref([])
   const filters = reactive({
@@ -29,24 +28,6 @@ export function useSystemParamsPage() {
     total: 0
   })
   const form = reactive(createSystemSettingForm())
-
-  const stats = computed(() => {
-    const list = settingList.value
-    const enabledCount = list.filter(item => item.enabled).length
-    return [
-      { label: '当前页配置', value: list.length },
-      { label: '已启用', value: enabledCount },
-      { label: '已停用', value: Math.max(list.length - enabledCount, 0) },
-      { label: '总记录', value: pagination.total }
-    ]
-  })
-
-  const selectedSetting = computed(() => {
-    if (!settingList.value.length) {
-      return null
-    }
-    return settingList.value.find(item => item.id === selectedSettingId.value) ?? settingList.value[0]
-  })
 
   const pageSummary = computed(() => {
     if (!pagination.total) {
@@ -79,14 +60,9 @@ export function useSystemParamsPage() {
       const nextList = (payload?.list ?? []).map(mapSettingItem)
       settingList.value = nextList
       pagination.total = resolvePageTotal(payload?.pageInfo?.total, nextList.length)
-      if (nextList.some(item => item.id === selectedSettingId.value)) {
-        return
-      }
-      selectedSettingId.value = nextList[0]?.id ?? null
     } catch (error) {
       errorMessage.value = error.message || '系统配置列表加载失败'
       settingList.value = []
-      selectedSettingId.value = null
     } finally {
       loading.value = false
     }
@@ -109,10 +85,6 @@ export function useSystemParamsPage() {
     }
   }
 
-  function selectSetting(id) {
-    selectedSettingId.value = id
-  }
-
   function openCreateDialog() {
     dialogMode.value = 'create'
     dialogError.value = ''
@@ -120,7 +92,7 @@ export function useSystemParamsPage() {
     dialogVisible.value = true
   }
 
-  function openEditDialog(item = selectedSetting.value) {
+  function openEditDialog(item) {
     if (!item) {
       showPopup.warning('当前没有可编辑的系统配置')
       return
@@ -175,7 +147,7 @@ export function useSystemParamsPage() {
     }
   }
 
-  async function toggleSettingStatus(item = selectedSetting.value) {
+  async function toggleSettingStatus(item) {
     if (!item) {
       showPopup.warning('当前没有可切换状态的配置')
       return
@@ -194,7 +166,7 @@ export function useSystemParamsPage() {
     }
   }
 
-  async function confirmDelete(item = selectedSetting.value) {
+  async function confirmDelete(item) {
     if (!item) {
       showPopup.warning('当前没有可删除的配置')
       return
@@ -318,16 +290,13 @@ export function useSystemParamsPage() {
     keyword,
     filters,
     form,
-    stats,
     settingList,
-    selectedSetting,
     valueTypeOptions,
     enabledOptions,
     pageSizeOptions,
     pagination,
     pageSummary,
     totalPages,
-    selectSetting,
     openCreateDialog,
     openEditDialog,
     closeDialog,

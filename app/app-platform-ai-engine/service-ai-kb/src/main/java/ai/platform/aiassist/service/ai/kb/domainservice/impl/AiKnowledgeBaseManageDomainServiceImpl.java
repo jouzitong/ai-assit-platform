@@ -447,8 +447,12 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         store.setStatus(AiKbStoreStatus.ACTIVE);
         storeService.update(store.getId(), store);
 
+        Map<String, String> providerDocumentIds = upsertResponse.getDocumentIdMappings() == null
+                ? Map.of()
+                : upsertResponse.getDocumentIdMappings();
         for (AiKbDocumentDTO document : acceptedDocuments) {
-            document.setProviderDocumentId(document.getDocumentCode());
+            String providerDocumentId = trimToNull(providerDocumentIds.get(document.getDocumentCode()));
+            document.setProviderDocumentId(providerDocumentId == null ? document.getProviderDocumentId() : providerDocumentId);
             document.setProviderSyncStatus(AiKbProviderSyncStatus.SUCCESS);
             document.setLastError(null);
             documentService.update(document.getId(), document);

@@ -1,5 +1,5 @@
 <script setup>
-import { CircleCheckFilled, EditPen, Plus, RefreshRight, RemoveFilled, Search, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { EditPen, Plus, RefreshRight, RemoveFilled, Search, SwitchButton } from '@element-plus/icons-vue'
 import '../styles/params.scss'
 import { useSystemParamsPage } from '../service/params'
 
@@ -13,16 +13,13 @@ const {
   keyword,
   filters,
   form,
-  stats,
   settingList,
-  selectedSetting,
   valueTypeOptions,
   enabledOptions,
   pageSizeOptions,
   pagination,
   pageSummary,
   totalPages,
-  selectSetting,
   openCreateDialog,
   openEditDialog,
   closeDialog,
@@ -42,23 +39,13 @@ const {
   <div class="params-page">
     <header class="content-head">
       <div class="head-copy">
-        <p class="crumb">系统设置 / 系统参数</p>
         <h1>系统配置工作台</h1>
-        <p class="desc">集中维护全局配置项，覆盖 Key、值类型、运行值和启停状态，适合作为系统级参数面板的第一版 CRUD 页面。</p>
       </div>
 
-      <button class="create-pill" type="button" @click="openCreateDialog">
-        <Plus :size="16" />
-        新增配置
+      <button class="create-pill" type="button" aria-label="新增" @click="openCreateDialog">
+        <Plus :size="26" />
       </button>
     </header>
-
-    <section class="stats-row">
-      <article v-for="item in stats" :key="item.label" class="stat-card">
-        <strong>{{ item.value }}</strong>
-        <span>{{ item.label }}</span>
-      </article>
-    </section>
 
     <section class="workspace-card">
       <div class="toolbar-grid">
@@ -85,154 +72,77 @@ const {
         </div>
       </div>
 
-      <div class="workspace-grid">
-        <section class="list-panel">
-          <div class="panel-head">
-            <div>
-              <p class="panel-eyebrow">配置清单</p>
-              <h3>当前页 {{ settingList.length }} 条</h3>
-            </div>
-          </div>
+      <section class="table-panel">
+        <div v-if="loading" class="placeholder-panel">
+          <p>正在加载 `/user/api/v1/system-settings/_search` 的配置列表...</p>
+        </div>
 
-          <div v-if="loading" class="placeholder-panel">
-            <p>正在加载 `/user/api/v1/system-settings/_search` 的配置列表...</p>
-          </div>
+        <div v-else-if="errorMessage" class="placeholder-panel is-error">
+          <p>{{ errorMessage }}</p>
+        </div>
 
-          <div v-else-if="errorMessage" class="placeholder-panel is-error">
-            <p>{{ errorMessage }}</p>
-          </div>
+        <div v-else-if="!settingList.length" class="placeholder-panel">
+          <p>当前没有匹配到系统配置，可以先新增一条全局参数。</p>
+        </div>
 
-          <div v-else-if="!settingList.length" class="placeholder-panel">
-            <p>当前没有匹配到系统配置，可以先新增一条全局参数。</p>
-          </div>
-
-          <div v-else class="setting-list">
-            <article
-              v-for="item in settingList"
-              :key="item.id"
-              class="setting-card"
-              :class="{ active: selectedSetting?.id === item.id }"
-              role="button"
-              tabindex="0"
-              @click="selectSetting(item.id)"
-              @keydown.enter.prevent="selectSetting(item.id)"
-              @keydown.space.prevent="selectSetting(item.id)"
-            >
-              <div class="setting-card-head">
-                <div class="title-group">
-                  <strong>{{ item.settingKey }}</strong>
-                  <span class="type-badge">{{ item.valueTypeLabel }}</span>
-                </div>
-                <span class="state-chip" :class="item.enabled ? 'is-on' : 'is-off'">
-                  {{ item.statusLabel }}
-                </span>
-              </div>
-
-              <p class="setting-desc">{{ item.description }}</p>
-
-              <div class="value-preview">
-                <span class="preview-label">当前值</span>
-                <code>{{ item.previewValue }}</code>
-              </div>
-
-              <div class="meta-row">
-                <span>{{ formatDateTime(item.updateTime) }}</span>
-                <span>{{ item.lastModifiedBy }}</span>
-              </div>
-            </article>
-          </div>
-        </section>
-
-        <section class="detail-panel">
-          <div v-if="selectedSetting" class="detail-stack">
-            <header class="detail-hero">
-              <div class="detail-copy">
-                <p class="panel-eyebrow">配置详情</p>
-                <h3>{{ selectedSetting.settingKey }}</h3>
-                <p>{{ selectedSetting.description }}</p>
-              </div>
-
-              <div class="detail-actions">
-                <button class="action-btn" type="button" @click="toggleSettingStatus(selectedSetting)">
-                  <SwitchButton :size="15" />
-                  {{ selectedSetting.enabled ? '停用' : '启用' }}
-                </button>
-                <button class="action-btn" type="button" @click="openEditDialog(selectedSetting)">
-                  <EditPen :size="15" />
-                  编辑
-                </button>
-                <button class="action-btn danger" type="button" @click="confirmDelete(selectedSetting)">
-                  <RemoveFilled :size="15" />
-                  删除
-                </button>
-              </div>
-            </header>
-
-            <section class="detail-card emphasis">
-              <div class="detail-card-head">
-                <span class="card-dot"><Setting :size="16" /></span>
-                <div>
-                  <h4>配置值</h4>
-                  <p>当前系统实际生效的参数内容。</p>
-                </div>
-              </div>
-              <pre class="detail-value">{{ selectedSetting.raw?.settingValue || '未配置' }}</pre>
-            </section>
-
-            <section class="detail-meta-grid">
-              <article class="detail-card">
-                <div class="detail-card-head">
-                  <span class="card-dot success"><CircleCheckFilled :size="16" /></span>
-                  <div>
-                    <h4>基础属性</h4>
-                    <p>识别字段和启用状态。</p>
+        <div v-else class="table-wrap">
+          <table class="settings-table">
+            <colgroup>
+              <col class="key-column" />
+              <col class="desc-column" />
+              <col class="type-column" />
+              <col class="value-column" />
+              <col class="status-column" />
+              <col class="time-column" />
+              <col class="user-column" />
+              <col class="action-column" />
+            </colgroup>
+            <thead>
+              <tr>
+                <th>配置 Key</th>
+                <th>说明</th>
+                <th>值类型</th>
+                <th>配置值</th>
+                <th>状态</th>
+                <th>更新时间</th>
+                <th>修改人</th>
+                <th class="action-column">操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr v-for="item in settingList" :key="item.id">
+                <td class="key-cell">{{ item.settingKey }}</td>
+                <td>{{ item.description }}</td>
+                <td><span class="type-badge">{{ item.valueTypeLabel }}</span></td>
+                <td><code class="value-code">{{ item.previewValue }}</code></td>
+                <td>
+                  <span class="state-chip" :class="item.enabled ? 'is-on' : 'is-off'">
+                    {{ item.statusLabel }}
+                  </span>
+                </td>
+                <td>{{ formatDateTime(item.updateTime) }}</td>
+                <td>{{ item.lastModifiedBy }}</td>
+                <td>
+                  <div class="row-actions">
+                    <button class="row-action" type="button" @click="toggleSettingStatus(item)">
+                      <SwitchButton :size="15" />
+                      {{ item.enabled ? '停用' : '启用' }}
+                    </button>
+                    <button class="row-action" type="button" @click="openEditDialog(item)">
+                      <EditPen :size="15" />
+                      编辑
+                    </button>
+                    <button class="row-action danger" type="button" @click="confirmDelete(item)">
+                      <RemoveFilled :size="15" />
+                      删除
+                    </button>
                   </div>
-                </div>
-
-                <dl class="detail-list">
-                  <div>
-                    <dt>值类型</dt>
-                    <dd>{{ selectedSetting.valueTypeLabel }}</dd>
-                  </div>
-                  <div>
-                    <dt>当前状态</dt>
-                    <dd>{{ selectedSetting.statusLabel }}</dd>
-                  </div>
-                  <div>
-                    <dt>配置 ID</dt>
-                    <dd>#{{ selectedSetting.id }}</dd>
-                  </div>
-                </dl>
-              </article>
-
-              <article class="detail-card">
-                <div class="detail-card-head">
-                  <span class="card-dot muted"><RefreshRight :size="16" /></span>
-                  <div>
-                    <h4>变更信息</h4>
-                    <p>用于确认最近维护轨迹。</p>
-                  </div>
-                </div>
-
-                <dl class="detail-list">
-                  <div>
-                    <dt>更新时间</dt>
-                    <dd>{{ formatDateTime(selectedSetting.updateTime) }}</dd>
-                  </div>
-                  <div>
-                    <dt>最后修改人</dt>
-                    <dd>{{ selectedSetting.lastModifiedBy }}</dd>
-                  </div>
-                </dl>
-              </article>
-            </section>
-          </div>
-
-          <div v-else class="placeholder-panel subtle">
-            <p>从左侧选择一条系统配置后，在这里查看详情和执行操作。</p>
-          </div>
-        </section>
-      </div>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <footer class="pagination-bar">
         <span class="page-summary">{{ pageSummary }}</span>

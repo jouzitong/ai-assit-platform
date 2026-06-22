@@ -13,6 +13,7 @@ import com.aliyun.bailian20231229.models.CreateIndexResponse;
 import com.aliyun.bailian20231229.models.DeleteIndexDocumentRequest;
 import com.aliyun.bailian20231229.models.GetIndexJobStatusRequest;
 import com.aliyun.bailian20231229.models.GetIndexJobStatusResponse;
+import com.aliyun.bailian20231229.models.GetIndexJobStatusResponseBody;
 import com.aliyun.bailian20231229.models.RetrieveRequest;
 import com.aliyun.bailian20231229.models.RetrieveResponse;
 import com.aliyun.bailian20231229.models.SubmitIndexAddDocumentsJobRequest;
@@ -104,6 +105,7 @@ public class QwenKnowledgeBaseClient {
         String targetKbId = kbId;
         // accepted 统计成功提交并完成索引任务的文档数量。
         int accepted = 0;
+        Map<String, String> documentIdMappings = new LinkedHashMap<>();
         for (int i = 0; i < documents.size(); i++) {
             // 逐条处理文档，单个文档失败不会影响后续文档继续导入。
             KbDocument document = documents.get(i);
@@ -118,13 +120,16 @@ public class QwenKnowledgeBaseClient {
             // 如果当前没有知识库 ID，则说明需要基于首个有效文件创建新的知识库索引。
             if (!StringUtils.hasText(targetKbId)) {
                 // 创建索引后会返回新的知识库 ID，后续文档会继续追加到该知识库中。
-                targetKbId = createIndex(client, workspaceId, uploaded.fileId(), document, meta);
+                CreateIndexResult result = createIndex(client, workspaceId, uploaded.fileId(), document, meta);
+                targetKbId = result.kbId();
+                putIfText(documentIdMappings, documentId, result.providerDocumentId());
             } else {
                 // 已存在知识库时，直接提交追加文档任务。
-                submitAddDocumentsJob(client, workspaceId, targetKbId, uploaded.fileId());
+                String providerDocumentId = submitAddDocumentsJob(client, workspaceId, targetKbId, uploaded.fileId());
+                putIfText(documentIdMappings, documentId, providerDocumentId);
             }
-            log.debug("qwen kb upsert document finished, workspaceId={}, kbId={}, docId={}, acceptedIndex={}",
-                    workspaceId, targetKbId, documentId, accepted + 1);
+            log.debug("qwen kb upsert document finished, workspaceId={}, kbId={}, docId={}, providerDocId={}, acceptedIndex={}",
+                    workspaceId, targetKbId, documentId, documentIdMappings.get(documentId), accepted + 1);
             // 能执行到这里表示上传和索引任务均已完成，计入成功数量。
             accepted++;
         }
@@ -134,7 +139,7 @@ public class QwenKnowledgeBaseClient {
         }
         log.debug("qwen kb upsert finished, workspaceId={}, kbId={}, accepted={}, failed={}",
                 workspaceId, targetKbId, accepted, 0);
-        return new UpsertResult(targetKbId, accepted, Collections.emptyList());
+        return new UpsertResult(targetKbId, accepted, Collections.emptyList(), documentIdMappings);
     }
 
     /**
@@ -408,7 +413,7 @@ public class QwenKnowledgeBaseClient {
      * @return 新创建的知识库 ID，即百炼 IndexId
      * @throws Exception 创建索引、提交任务或等待任务失败时抛出
      */
-    private String createIndex(Client client, String workspaceId, String fileId, KbDocument document, RequestMeta meta) throws Exception {
+    private CreateIndexResult createIndex(Client client, String workspaceId, String fileId, KbDocument document, RequestMeta meta) throws Exception {
         String indexName = resolveIndexName(document, meta);
         log.debug("qwen kb create index start, workspaceId={}, fileId={}, indexName={}",
                 workspaceId, fileId, indexName);
@@ -437,8 +442,8 @@ public class QwenKnowledgeBaseClient {
         String jobId = Objects.toString(submitResponse.getBody().getData().getId(), null);
         log.debug("qwen kb create index submit job, workspaceId={}, kbId={}, jobId={}", workspaceId, kbId, jobId);
         // 同步等待索引构建完成，避免调用方马上检索时查不到刚导入的内容。
-        waitForIndexJob(client, workspaceId, kbId, jobId);
-        return kbId;
+        List<IndexedDocument> indexedDocuments = waitForIndexJob(client, workspaceId, kbId, jobId);
+        return new CreateIndexResult(kbId, firstProviderDocumentId(indexedDocuments));
     }
 
     /**
@@ -449,7 +454,7 @@ public class QwenKnowledgeBaseClient {
      * @param fileId      已上传到百炼文件空间的文件 ID
      * @throws Exception 提交追加任务或等待任务失败时抛出
      */
-    private void submitAddDocumentsJob(Client client, String workspaceId, String kbId, String fileId) throws Exception {
+    private String submitAddDocumentsJob(Client client, String workspaceId, String kbId, String fileId) throws Exception {
         log.debug("qwen kb add documents job start, workspaceId={}, kbId={}, fileId={}", workspaceId, kbId, fileId);
         // 构造追加文档任务，请求中需要指定目标知识库和待追加文件 ID。
         SubmitIndexAddDocumentsJobRequest request = new SubmitIndexAddDocumentsJobRequest();
@@ -462,7 +467,8 @@ public class QwenKnowledgeBaseClient {
         String jobId = Objects.toString(response.getBody().getData().getId(), null);
         log.debug("qwen kb add documents job submitted, workspaceId={}, kbId={}, jobId={}", workspaceId, kbId, jobId);
         // 等待追加索引任务完成，确保新增文档真正进入知识库。
-        waitForIndexJob(client, workspaceId, kbId, jobId);
+        List<IndexedDocument> indexedDocuments = waitForIndexJob(client, workspaceId, kbId, jobId);
+        return firstProviderDocumentId(indexedDocuments);
     }
 
     /**
@@ -476,7 +482,7 @@ public class QwenKnowledgeBaseClient {
      * @param jobId       百炼索引任务 ID
      * @throws Exception 查询任务状态失败、任务失败或等待超时时抛出
      */
-    private void waitForIndexJob(Client client, String workspaceId, String kbId, String jobId) throws Exception {
+    private List<IndexedDocument> waitForIndexJob(Client client, String workspaceId, String kbId, String jobId) throws Exception {
         // 没有 jobId 就无法查询异步任务状态，直接视为异常。
         if (!StringUtils.hasText(jobId)) {
             throw new IllegalStateException("bailian index job id must not be empty");
@@ -496,7 +502,7 @@ public class QwenKnowledgeBaseClient {
                     workspaceId, kbId, jobId, status);
             // 兼容不同状态命名：COMPLETED 和 FINISH 都视为成功完成。
             if ("COMPLETED".equalsIgnoreCase(status) || "FINISH".equalsIgnoreCase(status)) {
-                return;
+                return extractIndexedDocuments(response.getBody().getData());
             }
             // 明确失败状态直接抛出异常，不再继续等待。
             if ("FAILED".equalsIgnoreCase(status) || "ERROR".equalsIgnoreCase(status)) {
@@ -507,6 +513,50 @@ public class QwenKnowledgeBaseClient {
         }
         // 超过最大等待时间仍未完成，认为任务超时。
         throw new IllegalStateException("bailian index job timeout, jobId=" + jobId);
+    }
+
+    private List<IndexedDocument> extractIndexedDocuments(Object data) {
+        if (data == null) {
+            return Collections.emptyList();
+        }
+        List<?> documents = Collections.emptyList();
+        if (data instanceof GetIndexJobStatusResponseBody.GetIndexJobStatusResponseBodyData responseData) {
+            documents = responseData.getDocuments();
+        } else if (data instanceof Map<?, ?> map) {
+            Object value = map.get("Documents");
+            documents = value instanceof List<?> list ? list : Collections.emptyList();
+        } else {
+            try {
+                Object value = data.getClass().getMethod("getDocuments").invoke(data);
+                documents = value instanceof List<?> list ? list : Collections.emptyList();
+            } catch (Exception ignore) {
+                return Collections.emptyList();
+            }
+        }
+
+        List<IndexedDocument> result = new ArrayList<>();
+        for (Object item : documents) {
+            Map<String, Object> map = toObjectMap(item);
+            String providerDocumentId = Objects.toString(readField(item, map, "docId", "DocId"), null);
+            String documentName = Objects.toString(readField(item, map, "docName", "DocName"), null);
+            if (!StringUtils.hasText(providerDocumentId)) {
+                providerDocumentId = Objects.toString(readField(item, map, "id", "Id"), null);
+            }
+            if (StringUtils.hasText(providerDocumentId)) {
+                result.add(new IndexedDocument(providerDocumentId, documentName));
+            }
+        }
+        return result;
+    }
+
+    private String firstProviderDocumentId(List<IndexedDocument> indexedDocuments) {
+        return indexedDocuments == null || indexedDocuments.isEmpty() ? null : indexedDocuments.get(0).providerDocumentId();
+    }
+
+    private void putIfText(Map<String, String> target, String key, String value) {
+        if (StringUtils.hasText(key) && StringUtils.hasText(value)) {
+            target.put(key, value);
+        }
     }
 
     /**
@@ -889,6 +939,12 @@ public class QwenKnowledgeBaseClient {
     private record UploadedDocument(String fileId) {
     }
 
+    private record CreateIndexResult(String kbId, String providerDocumentId) {
+    }
+
+    private record IndexedDocument(String providerDocumentId, String documentName) {
+    }
+
     /**
      * 知识库文档导入结果。
      *
@@ -896,6 +952,6 @@ public class QwenKnowledgeBaseClient {
      * @param accepted          成功导入的文档数量
      * @param failedDocumentIds 导入失败或被跳过的文档 ID 列表
      */
-    public record UpsertResult(String kbId, int accepted, List<String> failedDocumentIds) {
+    public record UpsertResult(String kbId, int accepted, List<String> failedDocumentIds, Map<String, String> documentIdMappings) {
     }
 }
