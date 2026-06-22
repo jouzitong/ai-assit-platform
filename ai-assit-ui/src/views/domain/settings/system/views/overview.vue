@@ -108,11 +108,7 @@ const tips = [
   <div class="overview-page">
     <section class="overview-hero">
       <div class="hero-copy">
-        <p class="eyebrow">System Overview</p>
         <h2>系统配置工作台</h2>
-        <p class="hero-desc">
-          这里不做门户化堆料，只保留配置台真正高频的信息：入口、状态、最近变更和待办。
-        </p>
       </div>
 
       <div class="hero-actions">

@@ -22,7 +22,6 @@ const route = useRoute()
   <aside class="system-sidebar" :class="{ collapsed }">
     <div class="sidebar-toolbar" :class="{ collapsed }">
       <div v-if="!collapsed" class="sidebar-title">
-        <p>System Settings</p>
         <strong>配置导航</strong>
       </div>
 

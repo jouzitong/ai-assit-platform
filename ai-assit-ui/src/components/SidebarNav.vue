@@ -18,9 +18,9 @@ const menus = [
   { path: '/home', label: 'AI 首页', short: '首页', hint: '平台入口' },
   { path: '/query', label: '智能问数', short: '问数', hint: '分析链路' },
   { path: '/knowledge', label: '知识库', short: '知识', hint: '知识资产' },
-  { path: '/emp/attendance', label: '考勤看板', short: '考勤', hint: '出勤趋势' },
-  { path: '/emp/performance', label: '绩效洞察', short: '绩效', hint: '组织表现' },
-  { path: '/emp/cost', label: '人力成本分析', short: '成本', hint: '预算偏差' }
+  // { path: '/emp/attendance', label: '考勤看板', short: '考勤', hint: '出勤趋势' },
+  // { path: '/emp/performance', label: '绩效洞察', short: '绩效', hint: '组织表现' },
+  // { path: '/emp/cost', label: '人力成本分析', short: '成本', hint: '预算偏差' }
 ]
 
 const settingsMenus = [
@@ -115,13 +115,13 @@ watch(
         <span class="brand-mark">AI</span>
         <div class="brand-copy">
           <h2>AI Assist Platform</h2>
-          <span class="brand-badge">Workspace Console</span>
+<!--          <span class="brand-badge">Workspace Console</span>-->
         </div>
       </RouterLink>
-      <div class="brand-context">
-        <strong>{{ currentMenu.label }}</strong>
-        <span>{{ currentMenu.hint }}</span>
-      </div>
+<!--      <div class="brand-context">-->
+<!--        <strong>{{ currentMenu.label }}</strong>-->
+<!--        <span>{{ currentMenu.hint }}</span>-->
+<!--      </div>-->
     </div>
 
     <nav class="menu-group" aria-label="主导航">
