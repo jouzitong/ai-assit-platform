@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Compact List Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f4f6fa;
+      --panel: #ffffff;
+      --panel-soft: #f8fafc;
+      --line: rgba(15, 23, 42, 0.08);
+      --line-strong: rgba(15, 23, 42, 0.12);
+      --text: #0f172a;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent-soft: rgba(37, 99, 235, 0.1);
+      --success: #16a34a;
+      --warning: #d97706;
+      --shadow-lg: 0 18px 48px rgba(15, 23, 42, 0.06);
+      --shadow-sm: 0 8px 22px rgba(15, 23, 42, 0.04);
+      --radius-xl: 24px;
+      --radius-lg: 18px;
+      --radius-md: 14px;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top right, rgba(191, 219, 254, 0.34), transparent 24%),
+        linear-gradient(180deg, #fbfcfe 0%, #f4f6fa 100%);
+    }
+
+    .shell {
+      width: min(1220px, calc(100% - 24px));
+      margin: 12px auto 28px;
+    }
+
+    .hero {
+      position: relative;
+      overflow: hidden;
+      padding: 18px 20px;
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.92);
+      border: 1px solid rgba(255, 255, 255, 0.95);
+      box-shadow: var(--shadow-lg);
+      animation: riseIn 520ms ease both;
+    }
+
+    .hero::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: linear-gradient(120deg, rgba(255, 255, 255, 0) 24%, rgba(255, 255, 255, 0.5) 50%, rgba(255, 255, 255, 0) 74%);
+      transform: translateX(-110%);
+      animation: sweep 900ms 120ms ease-out both;
+      pointer-events: none;
+    }
+
+    .hero-grid {
+      position: relative;
+      z-index: 1;
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 16px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 10px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      margin: 10px 0 8px;
+      font-size: clamp(24px, 3vw, 38px);
+      line-height: 1.05;
+      letter-spacing: -0.05em;
+    }
+
+    .lead {
+      max-width: 760px;
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .hero-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(110px, 1fr));
+      gap: 10px;
+    }
+
+    .metric-card {
+      padding: 12px 14px;
+      border-radius: var(--radius-lg);
+      background: linear-gradient(180deg, #ffffff, #f9fbff);
+      border: 1px solid var(--line);
+      box-shadow: var(--shadow-sm);
+    }
+
+    .metric-card span {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+    }
+
+    .metric-card strong {
+      font-size: 24px;
+      letter-spacing: -0.04em;
+    }
+
+    .board {
+      margin-top: 14px;
+      padding: 14px;
+      border-radius: var(--radius-xl);
+      background: rgba(255, 255, 255, 0.88);
+      border: 1px solid rgba(255, 255, 255, 0.96);
+      box-shadow: var(--shadow-lg);
+      animation: riseIn 620ms 120ms ease both;
+    }
+
+    .toolbar {
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto auto;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }
+
+    .search,
+    .toolbar-button,
+    .chip {
+      min-height: 40px;
+      border-radius: 14px;
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: var(--shadow-sm);
+      font: inherit;
+    }
+
+    .search {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 0 12px;
+    }
+
+    .search input {
+      width: 100%;
+      border: 0;
+      outline: none;
+      background: transparent;
+      color: var(--text);
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .toolbar-actions,
+    .toolbar-filters {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .toolbar-button,
+    .chip {
+      padding: 0 12px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 700;
+      cursor: pointer;
+      transition: all 180ms ease;
+    }
+
+    .toolbar-button:hover,
+    .chip:hover,
+    .chip.active {
+      color: var(--accent);
+      border-color: rgba(37, 99, 235, 0.18);
+      background: #f8fbff;
+    }
+
+    .table {
+      overflow: hidden;
+      border-radius: 18px;
+      border: 1px solid var(--line);
+      background: rgba(255, 255, 255, 0.86);
+    }
+
+    .table-head,
+    .row {
+      display: grid;
+      grid-template-columns: 2.2fr 1fr 1fr 0.9fr 0.9fr 1.1fr;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .table-head {
+      padding: 12px 14px;
+      background: linear-gradient(180deg, #fbfcff, #f4f7fb);
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .row {
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.84);
+      border-bottom: 1px solid rgba(15, 23, 42, 0.05);
+      opacity: 0;
+      transform: translateY(16px);
+      transition: background 180ms ease;
+    }
+
+    .row:last-child {
+      border-bottom: 0;
+    }
+
+    .row.is-visible {
+      animation: rowIn 520ms ease both;
+      animation-delay: var(--delay, 0ms);
+    }
+
+    .row:hover {
+      background: #fbfdff;
+    }
+
+    .name-cell {
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .avatar {
+      width: 34px;
+      height: 34px;
+      display: grid;
+      place-items: center;
+      border-radius: 12px;
+      background: linear-gradient(135deg, rgba(37, 99, 235, 0.16), rgba(37, 99, 235, 0.04));
+      color: var(--accent);
+      font-size: 12px;
+      font-weight: 800;
+      flex: 0 0 auto;
+    }
+
+    .name-box {
+      min-width: 0;
+    }
+
+    .name-box strong {
+      display: block;
+      margin-bottom: 4px;
+      font-size: 14px;
+      letter-spacing: -0.02em;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .name-box p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .status {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 800;
+      width: fit-content;
+    }
+
+    .status.live {
+      color: var(--success);
+      background: rgba(22, 163, 74, 0.1);
+    }
+
+    .status.review {
+      color: var(--warning);
+      background: rgba(217, 119, 6, 0.1);
+    }
+
+    .meta,
+    .score,
+    .time {
+      font-size: 12px;
+      color: #334155;
+      font-weight: 600;
+    }
+
+    .progress-wrap {
+      display: grid;
+      gap: 6px;
+    }
+
+    .progress-label {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .progress {
+      height: 7px;
+      background: #e8edf5;
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress i {
+      display: block;
+      width: var(--progress, 50%);
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #2563eb, #60a5fa);
+      transform-origin: left center;
+      transform: scaleX(0.4);
+      animation: fillBar 760ms calc(var(--delay, 0ms) + 240ms) ease forwards;
+    }
+
+    .note {
+      display: flex;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 10px 4px 0;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    @keyframes riseIn {
+      from {
+        opacity: 0;
+        transform: translateY(18px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes sweep {
+      from { transform: translateX(-110%); }
+      to { transform: translateX(120%); }
+    }
+
+    @keyframes rowIn {
+      from {
+        opacity: 0;
+        transform: translateY(16px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    @keyframes fillBar {
+      from { transform: scaleX(0.4); }
+      to { transform: scaleX(1); }
+    }
+
+    @media (max-width: 1100px) {
+      .hero-grid,
+      .toolbar {
+        grid-template-columns: 1fr;
+      }
+
+      .toolbar-actions,
+      .toolbar-filters {
+        justify-content: flex-start;
+      }
+
+      .table-head,
+      .row {
+        grid-template-columns: 2fr 1fr 1fr 1fr;
+      }
+
+      .hide-md {
+        display: none;
+      }
+    }
+
+    @media (max-width: 720px) {
+      .shell {
+        width: min(100% - 16px, 1220px);
+      }
+
+      .hero,
+      .board {
+        padding: 12px;
+      }
+
+      .hero-metrics {
+        grid-template-columns: 1fr;
+      }
+
+      .table-head {
+        display: none;
+      }
+
+      .row {
+        grid-template-columns: 1fr;
+        gap: 10px;
+      }
+
+      .hide-sm {
+        display: none;
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      *,
+      *::before,
+      *::after {
+        animation: none !important;
+        transition: none !important;
+      }
+
+      .row {
+        opacity: 1;
+        transform: none;
+      }
+
+      .progress i {
+        transform: scaleX(1);
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <section class="hero">
+      <div class="hero-grid">
+        <div>
+          <div class="eyebrow">Compact White Mode</div>
+          <h1>更紧凑，更像日常高频使用的工作台列表。</h1>
+          <p class="lead">
+            这一版收紧了顶部高度、工具栏间距和列表行高，把信息密度提起来，同时保留白色主题的层次和刷新时的轻量入场效果。
+          </p>
+        </div>
+        <div class="hero-metrics">
+          <div class="metric-card">
+            <span>Items</span>
+            <strong>128</strong>
+          </div>
+          <div class="metric-card">
+            <span>Active</span>
+            <strong>32</strong>
+          </div>
+          <div class="metric-card">
+            <span>Risk</span>
+            <strong>06</strong>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="board">
+      <div class="toolbar">
+        <label class="search">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+            <path d="M21 21L16.65 16.65M18 10.5C18 14.6421 14.6421 18 10.5 18C6.35786 18 3 14.6421 3 10.5C3 6.35786 6.35786 3 10.5 3C14.6421 3 18 6.35786 18 10.5Z" stroke="#64748B" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <input type="text" placeholder="搜索名称 / Owner / 模块">
+        </label>
+        <div class="toolbar-actions">
+          <button class="toolbar-button">批量操作</button>
+          <button class="toolbar-button">导出视图</button>
+        </div>
+        <div class="toolbar-filters">
+          <button class="chip active">全部</button>
+          <button class="chip">运行中</button>
+          <button class="chip">待复核</button>
+          <button class="chip">高优先级</button>
+        </div>
+      </div>
+
+      <section class="table">
+        <div class="table-head">
+          <div>名称</div>
+          <div>状态</div>
+          <div class="hide-sm">Owner</div>
+          <div class="hide-md">模块</div>
+          <div>分数</div>
+          <div>进度</div>
+        </div>
+        <div id="rows"></div>
+      </section>
+
+      <div class="note">
+        <span>这版更适合后台、配置中心、审批流、数据列表。</span>
+        <span>层次来自浅色背景差、边框和低幅度阴影，不靠大块留白。</span>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const data = [
+      { name: "知识库配置中心", desc: "统一知识源和同步策略", status: "live", owner: "Ava", module: "AI Engine", score: "92", progress: "92%", updated: "2 min ago" },
+      { name: "模型调用审计", desc: "失败原因与成本波动追踪", status: "review", owner: "Liam", module: "Gateway", score: "68", progress: "68%", updated: "12 min ago" },
+      { name: "工作流执行记录", desc: "轮次视图与重试链路", status: "live", owner: "Nora", module: "Workflow", score: "84", progress: "84%", updated: "18 min ago" },
+      { name: "Prompt 模板市场", desc: "模板版本与标签浏览", status: "live", owner: "Milo", module: "Template", score: "77", progress: "77%", updated: "25 min ago" },
+      { name: "数据权限申请单", desc: "审批流和权限生效记录", status: "review", owner: "Iris", module: "Security", score: "51", progress: "51%", updated: "41 min ago" },
+      { name: "资源发布看板", desc: "资源状态与发布时间线", status: "live", owner: "Owen", module: "Release", score: "96", progress: "96%", updated: "1 h ago" },
+      { name: "接口限流规则", desc: "规则粒度与命中分析", status: "review", owner: "Elin", module: "Gateway", score: "63", progress: "63%", updated: "1 h ago" },
+      { name: "系统公告编排", desc: "发布批次和阅读范围", status: "live", owner: "Mira", module: "Content", score: "88", progress: "88%", updated: "2 h ago" }
+    ];
+
+    const rows = document.getElementById("rows");
+    rows.innerHTML = data.map((item, index) => `
+      <article class="row" style="--delay:${index * 55}ms">
+        <div class="name-cell">
+          <div class="avatar">${item.owner.slice(0, 1)}</div>
+          <div class="name-box">
+            <strong>${item.name}</strong>
+            <p>${item.desc} · ${item.updated}</p>
+          </div>
+        </div>
+        <div><span class="status ${item.status}">${item.status === "live" ? "运行中" : "待复核"}</span></div>
+        <div class="meta hide-sm">${item.owner}</div>
+        <div class="meta hide-md">${item.module}</div>
+        <div class="score">${item.score}</div>
+        <div class="progress-wrap">
+          <div class="progress-label">
+            <span>完成度</span>
+            <span>${item.progress}</span>
+          </div>
+          <div class="progress">
+            <i style="--progress:${item.progress}"></i>
+          </div>
+        </div>
+      </article>
+    `).join("");
+
+    requestAnimationFrame(() => {
+      document.querySelectorAll(".row").forEach((row) => row.classList.add("is-visible"));
+    });
+  </script>
+</body>
+</html>
