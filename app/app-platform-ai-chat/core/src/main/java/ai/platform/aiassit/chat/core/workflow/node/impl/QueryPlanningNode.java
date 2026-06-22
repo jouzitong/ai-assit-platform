@@ -19,6 +19,7 @@ import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningExtKeys;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningResult;
 import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkillExecutor;
@@ -243,6 +244,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             IntentAnalysisBundle intentAnalysisBundle = queryPlanningSkillExecutor.analyze(context);
             context.put("intentAnalysisBundle", intentAnalysisBundle);
             context.put("queryPlanningEvidences", intentAnalysisBundle.getEvidences());
+            context.put("queryPlanningContextMessages", intentAnalysisBundle.getContextMessages());
             context.publishEvent("intent-analysis-ready", "intent analysis bundle prepared");
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
@@ -344,6 +346,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
         List<ChatMessage> messages = new ArrayList<>();
         appendPlanningSystemMessages(messages);
+        appendPlanningSkillMessages(messages, context);
         String planningContext = buildPlanningContext(context);
         if (StringUtils.hasText(planningContext)) {
             ChatMessage contextMessage = new ChatMessage();
@@ -384,10 +387,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         builder.append("是否新会话首轮：")
                 .append(context.getCurrentUserMessage() != null && Integer.valueOf(1).equals(context.getCurrentUserMessage().getSortNo()))
                 .append('\n');
-        IntentAnalysisBundle intentAnalysisBundle = context.get("intentAnalysisBundle");
-        if (intentAnalysisBundle != null) {
-            appendIntentAnalysisContext(builder, intentAnalysisBundle);
-        }
         List<String> resolvedTerms = context.get("resolvedBusinessTerms");
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("业务术语补充：").append(resolvedTerms).append('\n');
@@ -396,6 +395,35 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (normalizedTimeRange != null) {
             builder.append("时间范围补充：").append(normalizedTimeRange).append('\n');
         }
+        return builder.toString().trim();
+    }
+
+    @SuppressWarnings("unchecked")
+    private void appendPlanningSkillMessages(List<ChatMessage> messages, WorkflowContext context) {
+        List<PlanningContextMessage> contextMessages = context.get("queryPlanningContextMessages");
+        if (CollectionUtils.isEmpty(contextMessages)) {
+            return;
+        }
+        for (PlanningContextMessage item : contextMessages) {
+            if (item == null || !StringUtils.hasText(item.getContent())) {
+                continue;
+            }
+            ChatMessage message = new ChatMessage();
+            message.setRole(item.getRole() == null ? MessageRole.SYSTEM : item.getRole());
+            message.setContent(renderPlanningSkillMessage(item));
+            messages.add(message);
+        }
+    }
+
+    private String renderPlanningSkillMessage(PlanningContextMessage message) {
+        StringBuilder builder = new StringBuilder();
+        if (StringUtils.hasText(message.getSection())) {
+            builder.append("【").append(message.getSection()).append("】").append('\n');
+        }
+        if (StringUtils.hasText(message.getSource())) {
+            builder.append("来源：").append(message.getSource()).append('\n');
+        }
+        builder.append(message.getContent().trim());
         return builder.toString().trim();
     }
 

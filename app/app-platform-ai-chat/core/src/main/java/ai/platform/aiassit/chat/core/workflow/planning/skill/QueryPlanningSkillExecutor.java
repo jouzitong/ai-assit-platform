@@ -4,6 +4,8 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -37,15 +39,29 @@ public class QueryPlanningSkillExecutor {
         bundle.setOriginalQuery(command == null ? null : command.getMessage());
 
         List<IntentEvidence> evidences = new ArrayList<>();
+        List<PlanningContextMessage> contextMessages = new ArrayList<>();
         for (QueryPlanningSkill skill : skills) {
-            IntentEvidence evidence = skill.analyze(context);
+            QueryPlanningSkillResult skillResult = skill.analyze(context);
+            if (skillResult == null) {
+                continue;
+            }
+            IntentEvidence evidence = skillResult.getEvidence();
             if (evidence == null) {
+                if (skillResult.getMessages() != null && !skillResult.getMessages().isEmpty()) {
+                    contextMessages.addAll(skillResult.getMessages());
+                }
                 continue;
             }
             evidences.add(evidence);
             merge(bundle, evidence);
+            if (skillResult.getMessages() != null && !skillResult.getMessages().isEmpty()) {
+                contextMessages.addAll(skillResult.getMessages());
+            }
         }
         bundle.setEvidences(evidences);
+        bundle.setContextMessages(contextMessages.stream()
+                .sorted(Comparator.comparing(msg -> msg.getPriority() == null ? Integer.MAX_VALUE : msg.getPriority()))
+                .toList());
         if (!StringUtils.hasText(bundle.getRewrittenQuery())) {
             bundle.setRewrittenQuery(bundle.getOriginalQuery());
         }

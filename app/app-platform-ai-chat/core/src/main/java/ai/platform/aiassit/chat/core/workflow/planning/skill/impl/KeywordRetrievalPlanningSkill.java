@@ -5,10 +5,13 @@ import ai.platform.aiassist.service.ai.api.dto.HybridSearchHit;
 import ai.platform.aiassist.service.ai.api.dto.HybridSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.HybridSearchResponse;
 import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
 import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkill;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -45,7 +48,7 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
     }
 
     @Override
-    public IntentEvidence analyze(WorkflowContext context) {
+    public QueryPlanningSkillResult analyze(WorkflowContext context) {
         AiChatQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
@@ -68,7 +71,44 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
         evidence.setRequiredContext(resolveRequiredContext(response));
         evidence.getAttributes().put("kbId", kbId);
         evidence.getAttributes().put("retrievalMode", response == null ? null : response.getRetrievalMode());
-        return evidence;
+        QueryPlanningSkillResult result = new QueryPlanningSkillResult();
+        result.setEvidence(evidence);
+        result.getMessages().add(buildPlanningMessage(response, evidence));
+        return result;
+    }
+
+    private PlanningContextMessage buildPlanningMessage(HybridSearchResponse response, IntentEvidence evidence) {
+        PlanningContextMessage message = new PlanningContextMessage();
+        message.setSource(code());
+        message.setSection("关键词知识说明");
+        message.setRole(MessageRole.SYSTEM);
+        message.setPriority(200);
+        StringBuilder builder = new StringBuilder();
+        builder.append("请优先利用关键词检索命中的知识点补充 PlanningResult 中的 subject.aliases、subject.relations、filters.model、ext.metrics、ext.dimensions、ext.statisticalCaliber、ext.semanticTerms。").append('\n');
+        builder.append("填写规则：").append('\n');
+        builder.append("1. 只有检索命中或明显可归纳出的知识点才能写入结构，不要编造未命中的业务术语。").append('\n');
+        builder.append("2. aliases 重点补充知识库里可命中的标准叫法、别名、简称。").append('\n');
+        builder.append("3. filters.model 只描述可能的模型说明，不要猜具体物理表名。").append('\n');
+        if (evidence != null) {
+            if (!CollectionUtils.isEmpty(evidence.getTerms())) {
+                builder.append("关键词候选：").append(evidence.getTerms()).append('\n');
+            }
+            if (!CollectionUtils.isEmpty(evidence.getCandidateDatasets())) {
+                builder.append("候选数据集/主题域：").append(evidence.getCandidateDatasets()).append('\n');
+            }
+            if (!CollectionUtils.isEmpty(evidence.getRequiredContext())) {
+                builder.append("建议优先补充的知识点：").append(evidence.getRequiredContext()).append('\n');
+            }
+            if (evidence.getScore() != null) {
+                builder.append("本技能建议置信度：").append(evidence.getScore()).append('\n');
+            }
+        }
+        String summary = summarizeHits(response);
+        if (StringUtils.hasText(summary)) {
+            builder.append("关键词命中摘要：").append(summary).append('\n');
+        }
+        message.setContent(builder.toString().trim());
+        return message;
     }
 
     @SuppressWarnings("unchecked")

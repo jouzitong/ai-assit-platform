@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat.core.workflow.planning.skill;
 
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
-import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
 
 /**
  * 查询规划专用技能接口。
@@ -15,5 +15,5 @@ public interface QueryPlanningSkill {
 
     int order();
 
-    IntentEvidence analyze(WorkflowContext context);
+    QueryPlanningSkillResult analyze(WorkflowContext context);
 }

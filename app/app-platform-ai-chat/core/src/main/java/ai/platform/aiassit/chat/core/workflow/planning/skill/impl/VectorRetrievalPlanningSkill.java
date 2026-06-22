@@ -5,10 +5,13 @@ import ai.platform.aiassist.service.ai.api.dto.HybridSearchHit;
 import ai.platform.aiassist.service.ai.api.dto.HybridSearchRequest;
 import ai.platform.aiassist.service.ai.api.dto.HybridSearchResponse;
 import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
 import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkill;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -45,7 +48,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
     }
 
     @Override
-    public IntentEvidence analyze(WorkflowContext context) {
+    public QueryPlanningSkillResult analyze(WorkflowContext context) {
         AiChatQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
@@ -67,7 +70,41 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         evidence.setRisks(resolveSemanticRisks(response));
         evidence.getAttributes().put("kbId", kbId);
         evidence.getAttributes().put("retrievalMode", response == null ? null : response.getRetrievalMode());
-        return evidence;
+        QueryPlanningSkillResult result = new QueryPlanningSkillResult();
+        result.setEvidence(evidence);
+        result.getMessages().add(buildPlanningMessage(response, evidence));
+        return result;
+    }
+
+    private PlanningContextMessage buildPlanningMessage(HybridSearchResponse response, IntentEvidence evidence) {
+        PlanningContextMessage message = new PlanningContextMessage();
+        message.setSource(code());
+        message.setSection("语义召回说明");
+        message.setRole(MessageRole.SYSTEM);
+        message.setPriority(300);
+        StringBuilder builder = new StringBuilder();
+        builder.append("请把语义召回结果当作补充性知识，不要当成绝对事实。它更适合补充相似问题经验、潜在 scope、风险提示和 ambiguity。").append('\n');
+        builder.append("填写规则：").append('\n');
+        builder.append("1. 语义召回可帮助补充 ext、ambiguity、render、intent 的候选方向。").append('\n');
+        builder.append("2. 如果语义召回与用户原话冲突，优先以用户原话和高置信规则识别为准。").append('\n');
+        builder.append("3. 不要因为语义相似就编造主体、条件或统计口径。").append('\n');
+        if (evidence != null) {
+            if (!CollectionUtils.isEmpty(evidence.getRequiredContext())) {
+                builder.append("语义补充上下文：").append(evidence.getRequiredContext()).append('\n');
+            }
+            if (!CollectionUtils.isEmpty(evidence.getRisks())) {
+                builder.append("语义召回风险：").append(evidence.getRisks()).append('\n');
+            }
+            if (evidence.getScore() != null) {
+                builder.append("本技能建议置信度：").append(evidence.getScore()).append('\n');
+            }
+        }
+        String summary = summarizeHits(response);
+        if (StringUtils.hasText(summary)) {
+            builder.append("语义命中摘要：").append(summary).append('\n');
+        }
+        message.setContent(builder.toString().trim());
+        return message;
     }
 
     private HybridSearchResponse fetchVectorHits(AiChatQueryCommand command, String kbId) {

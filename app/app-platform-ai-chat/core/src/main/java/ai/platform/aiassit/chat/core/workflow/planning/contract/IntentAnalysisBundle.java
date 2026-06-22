@@ -44,5 +44,7 @@ public class IntentAnalysisBundle {
 
     private List<IntentEvidence> evidences = new ArrayList<>();
 
+    private List<PlanningContextMessage> contextMessages = new ArrayList<>();
+
     private Double confidence;
 }

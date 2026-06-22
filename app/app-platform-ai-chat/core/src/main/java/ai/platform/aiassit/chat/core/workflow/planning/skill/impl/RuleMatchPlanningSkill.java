@@ -9,6 +9,8 @@ import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
 import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkill;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import org.springframework.stereotype.Component;
@@ -47,7 +49,7 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
     }
 
     @Override
-    public IntentEvidence analyze(WorkflowContext context) {
+    public QueryPlanningSkillResult analyze(WorkflowContext context) {
         AiChatQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
@@ -73,7 +75,44 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
         evidence.setTimeRange(response.getTimeRange() == null ? Map.of() : response.getTimeRange());
         evidence.getAttributes().put("requestId", response.getRequestId());
         evidence.getAttributes().put("model", response.getModel());
-        return evidence;
+        QueryPlanningSkillResult result = new QueryPlanningSkillResult();
+        result.setEvidence(evidence);
+        result.getMessages().add(buildPlanningMessage(response, evidence));
+        return result;
+    }
+
+    private PlanningContextMessage buildPlanningMessage(IntentAnalyzeResponse response, IntentEvidence evidence) {
+        PlanningContextMessage message = new PlanningContextMessage();
+        message.setSource(code());
+        message.setSection("意图识别说明");
+        message.setRole(MessageRole.SYSTEM);
+        message.setPriority(100);
+        StringBuilder builder = new StringBuilder();
+        builder.append("请优先依据本技能的结论补充 PlanningResult 中的 intent、subject、filters、ambiguity 字段。").append('\n');
+        builder.append("意图填写规则：").append('\n');
+        builder.append("1. intent.type 用英文标识，可多个值，用英文逗号分隔。").append('\n');
+        builder.append("2. intent.name 用中文概括用户真正想完成的业务动作。").append('\n');
+        builder.append("3. intent.action 用可执行动作描述，可多个值，用英文逗号分隔。").append('\n');
+        builder.append("4. 如果识别结果存在明显歧义，不要强行定高分，应在 ambiguity 中补充问题。").append('\n');
+        if (response != null) {
+            if (StringUtils.hasText(response.getIntentType())) {
+                builder.append("识别意图类型：").append(response.getIntentType()).append('\n');
+            }
+            if (!CollectionUtils.isEmpty(response.getIntentLabels())) {
+                builder.append("识别意图标签：").append(response.getIntentLabels()).append('\n');
+            }
+            if (StringUtils.hasText(response.getRewrittenQuery())) {
+                builder.append("推荐改写问题：").append(response.getRewrittenQuery()).append('\n');
+            }
+            if (!CollectionUtils.isEmpty(response.getClarificationQuestions())) {
+                builder.append("建议澄清问题：").append(response.getClarificationQuestions()).append('\n');
+            }
+        }
+        if (evidence != null && evidence.getScore() != null) {
+            builder.append("本技能建议置信度：").append(evidence.getScore()).append('\n');
+        }
+        message.setContent(builder.toString().trim());
+        return message;
     }
 
     private IntentAnalyzeRequest buildRequest(WorkflowContext context) {
