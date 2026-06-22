@@ -1,9 +1,12 @@
-import { alertList, metricCards, todoList } from '../data'
+import { activityFeed, calendarItems, focusPanels, heroSummary, promptSuggestions, quickEntries } from '../data'
 
 export function useHomeOverview() {
   return {
-    metricCards,
-    todoList,
-    alertList
+    heroSummary,
+    promptSuggestions,
+    quickEntries,
+    focusPanels,
+    activityFeed,
+    calendarItems
   }
 }

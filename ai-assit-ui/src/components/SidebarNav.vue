@@ -1,5 +1,5 @@
 <script setup>
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { clearSession, getToken } from '../utils/session'
 import { logoutAuth } from '../api/auth'
@@ -8,18 +8,19 @@ import { showPopup } from '../utils/popup'
 
 const route = useRoute()
 const router = useRouter()
+const navRoot = ref(null)
 const settingsOpen = ref(false)
 const isDarkTheme = ref(false)
 const developerModeEnabled = ref(false)
 const DEVELOPER_MODE_KEY = 'emp-console:developer-mode'
 
 const menus = [
-  { path: '/home', label: 'AI 首页', short: '首页' },
-  { path: '/query', label: '智能问数', short: '问数' },
-  { path: '/knowledge', label: '知识库', short: '知识库' },
-  { path: '/emp/attendance', label: '考勤看板', short: '考勤' },
-  { path: '/emp/performance', label: '绩效洞察', short: '绩效' },
-  { path: '/emp/cost', label: '人力成本分析', short: '成本' }
+  { path: '/home', label: 'AI 首页', short: '首页', hint: '平台入口' },
+  { path: '/query', label: '智能问数', short: '问数', hint: '分析链路' },
+  { path: '/knowledge', label: '知识库', short: '知识', hint: '知识资产' },
+  { path: '/emp/attendance', label: '考勤看板', short: '考勤', hint: '出勤趋势' },
+  { path: '/emp/performance', label: '绩效洞察', short: '绩效', hint: '组织表现' },
+  { path: '/emp/cost', label: '人力成本分析', short: '成本', hint: '预算偏差' }
 ]
 
 const settingsMenus = [
@@ -28,6 +29,11 @@ const settingsMenus = [
 ]
 
 const themeLabel = computed(() => (isDarkTheme.value ? '切换浅色主题' : '切换深色主题'))
+const currentMenu = computed(() => menus.find((item) => isActivePath(item.path)) || menus[0])
+const utilityBadges = computed(() => ([
+  { key: 'theme', label: isDarkTheme.value ? 'Dark' : 'Light' },
+  { key: 'mode', label: developerModeEnabled.value ? 'Dev On' : 'Dev Off' }
+]))
 
 function isActivePath(targetPath) {
   return route.path === targetPath || route.path.startsWith(`${targetPath}/`)
@@ -54,6 +60,20 @@ function toggleDeveloperMode() {
   settingsOpen.value = false
 }
 
+function closeSettings() {
+  settingsOpen.value = false
+}
+
+function handleDocumentClick(event) {
+  if (!settingsOpen.value) {
+    return
+  }
+
+  if (!navRoot.value?.contains(event.target)) {
+    closeSettings()
+  }
+}
+
 async function handleLogout() {
   settingsOpen.value = false
   const token = getToken()
@@ -73,17 +93,38 @@ async function handleLogout() {
 onMounted(() => {
   applyTheme(getSavedTheme() === 'dark')
   syncDeveloperMode()
+  document.addEventListener('click', handleDocumentClick)
 })
+
+onBeforeUnmount(() => {
+  document.removeEventListener('click', handleDocumentClick)
+})
+
+watch(
+  () => route.path,
+  () => {
+    closeSettings()
+  }
+)
 </script>
 
 <template>
-  <header class="topbar">
-    <div class="brand-row">
-      <h2>EMP Console</h2>
-      <span class="brand-badge">AI 助手平台</span>
+  <header ref="navRoot" class="topbar">
+    <div class="brand-panel">
+      <RouterLink to="/home" class="brand-row">
+        <span class="brand-mark">AI</span>
+        <div class="brand-copy">
+          <h2>AI Assist Platform</h2>
+          <span class="brand-badge">Workspace Console</span>
+        </div>
+      </RouterLink>
+      <div class="brand-context">
+        <strong>{{ currentMenu.label }}</strong>
+        <span>{{ currentMenu.hint }}</span>
+      </div>
     </div>
 
-    <nav class="menu-group">
+    <nav class="menu-group" aria-label="主导航">
       <RouterLink
         v-for="item in menus"
         :key="item.path"
@@ -92,11 +133,16 @@ onMounted(() => {
         :class="{ active: isActivePath(item.path) }"
         :title="item.label"
       >
-        {{ item.label }}
+        <strong>{{ item.label }}</strong>
       </RouterLink>
     </nav>
 
     <div class="settings-group">
+      <div class="utility-badges">
+        <span v-for="badge in utilityBadges" :key="badge.key" class="utility-badge">
+          {{ badge.label }}
+        </span>
+      </div>
       <button
         class="avatar-trigger"
         :class="{ active: settingsMenus.some((item) => isActivePath(item.path)) || settingsOpen }"
