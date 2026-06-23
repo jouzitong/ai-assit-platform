@@ -57,6 +57,7 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
             3. 如果历史消息和最后一条消息存在变化，以最后一条消息表达的有效诉求为准
             4. 输出 JSON，结构固定为：
                {
+                 "title": "6到20字的会话标题",
                  "summary": "中文摘要",
                  "invalidIntents": [
                    {
@@ -114,7 +115,11 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
                 userMessageContext.setInvalidIntents(summaryResult.getInvalidIntents() == null
                         ? new ArrayList<>()
                         : new ArrayList<>(summaryResult.getInvalidIntents()));
-                refreshSessionName(context, summaryResult.getSummary());
+                refreshSessionName(context, summaryResult.getTitle(), summaryResult.getSummary());
+                context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(),
+                        nodeConfig.getNodeType(),
+                        "title",
+                        trimToNull(summaryResult.getTitle()));
                 context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(),
                         nodeConfig.getNodeType(),
                         "summary",
@@ -130,19 +135,19 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
-    private void refreshSessionName(WorkflowContext context, String summary) {
+    private void refreshSessionName(WorkflowContext context, String title, String summary) {
         AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         if (context.getSession() == null
                 || context.getSession().getId() == null
                 || currentMessage == null
-                || !StringUtils.hasText(summary)) {
+                || (!StringUtils.hasText(title) && !StringUtils.hasText(summary))) {
             return;
         }
         boolean firstRound = Integer.valueOf(1).equals(currentMessage.getSortNo());
         if (!firstRound && !allowUpdateSessionName(context.getCommand())) {
             return;
         }
-        String sessionName = buildSessionName(summary);
+        String sessionName = buildSessionName(title, summary);
         if (!StringUtils.hasText(sessionName)) {
             return;
         }
@@ -170,12 +175,19 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
         return false;
     }
 
-    private String buildSessionName(String summary) {
-        String normalized = summary == null ? "" : summary.trim();
+    private String buildSessionName(String title, String summary) {
+        String normalized = trimToNull(title);
+        if (!StringUtils.hasText(normalized)) {
+            normalized = trimToNull(summary);
+        }
         if (!StringUtils.hasText(normalized)) {
             return "";
         }
         return normalized.length() > 20 ? normalized.substring(0, 20) : normalized;
+    }
+
+    private String trimToNull(String value) {
+        return StringUtils.hasText(value) ? value.trim() : null;
     }
 
     private ChatRequest buildRequest(WorkflowContext context, UserMessageContext userMessageContext) {
@@ -334,6 +346,7 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
 
     @lombok.Data
     private static class ChatMessageSummaryResult {
+        private String title;
         private String summary;
         private List<InvalidIntentItem> invalidIntents = new ArrayList<>();
     }
