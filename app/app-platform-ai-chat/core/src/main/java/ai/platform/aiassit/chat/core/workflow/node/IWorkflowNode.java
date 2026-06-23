@@ -11,7 +11,7 @@ import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
  */
 public interface IWorkflowNode {
 
-    String type();
+    String code();
 
     NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig);
 

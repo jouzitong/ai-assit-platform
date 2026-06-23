@@ -99,19 +99,19 @@ public class SqlGenerateNode extends BaseWorkflowNode {
 
         try {
             ChatRequest request = buildRequest(command, context);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), type()).setRequest(request);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), type()).setStatus("RUNNING");
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setRequest(request);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("RUNNING");
             ChatResponse response = aiChatExecutionApi.chat(request).getData();
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), type()).setResponse(response);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setResponse(response);
             String generatedSql = normalizeSql(extractAnswer(response));
             if (!StringUtils.hasText(generatedSql)) {
                 return NodeResult.fail("generated sql is empty");
             }
             context.setGeneratedSql(generatedSql);
-            context.putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), type(), "requestId", response == null ? null : response.getRequestId());
+            context.putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "requestId", response == null ? null : response.getRequestId());
             context.put("generatedSql", generatedSql);
             context.put("sqlGenerateRequestId", response == null ? null : response.getRequestId());
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), type()).setStatus("SUCCESS");
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("SUCCESS");
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.SQL_DRAFT.name(),
@@ -127,7 +127,7 @@ public class SqlGenerateNode extends BaseWorkflowNode {
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("sql generate failed, sessionCode={}", context.getSession() == null ? null : context.getSession().getSessionCode(), ex);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), type()).setStatus("FAILED");
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("FAILED");
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.WORKFLOW_ERROR.name(),
@@ -145,8 +145,8 @@ public class SqlGenerateNode extends BaseWorkflowNode {
     }
 
     @Override
-    public String type() {
-        return WorkflowNodeCodes.SQL_GENERATE.getNodeType();
+    public String code() {
+        return WorkflowNodeCodes.SQL_GENERATE.getNodeCode();
     }
 
     @Override
@@ -190,6 +190,11 @@ public class SqlGenerateNode extends BaseWorkflowNode {
         builder.append("查询规划：\n").append(context.getAnalysisResult()).append("\n\n");
         appendStructuredSection(builder, "SQL 生成规范", context.get(SQL_GENERATION_POLICY_KEY));
         appendStructuredSection(builder, "用户偏好", context.get(USER_PREFERENCE_KEY));
+        if (StringUtils.hasText(context.getPromptContext(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()))) {
+            builder.append("Prompt 上下文：\n")
+                    .append(context.getPromptContext(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()))
+                    .append("\n\n");
+        }
         if (StringUtils.hasText(context.getKnowledgeResult())) {
             builder.append("知识上下文：\n").append(context.getKnowledgeResult()).append("\n\n");
         }

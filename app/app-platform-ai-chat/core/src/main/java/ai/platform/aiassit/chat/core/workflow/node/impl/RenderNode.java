@@ -110,7 +110,7 @@ public class RenderNode extends BaseWorkflowNode {
             }
 
             context.setRenderedAnswer(answer);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setStatus(STATUS_SUCCESS);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
             context.put("renderedAnswer", answer);
             context.publishEvent("answer-ready", "final answer rendered", answer, null, STATUS_SUCCESS);
             persistAssistantMessage(context, answer);
@@ -130,7 +130,7 @@ public class RenderNode extends BaseWorkflowNode {
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("render node failed, roundCode={}", context.getRound().getRoundCode(), ex);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setStatus(STATUS_FAILED);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_FAILED);
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.WORKFLOW_ERROR.name(),
@@ -149,8 +149,8 @@ public class RenderNode extends BaseWorkflowNode {
     }
 
     @Override
-    public String type() {
-        return WorkflowNodeCodes.RENDER.getNodeType();
+    public String code() {
+        return WorkflowNodeCodes.RENDER.getNodeCode();
     }
 
     @Override
@@ -182,10 +182,10 @@ public class RenderNode extends BaseWorkflowNode {
         meta.setTraceId(command.getTraceId());
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
         request.setMeta(meta);
-        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setRequest(request);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setRequest(request);
 
         ChatResponse response = aiChatExecutionApi.chat(request).getData();
-        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode(), type()).setResponse(response);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setResponse(response);
         return extractAnswer(response);
     }
 
@@ -193,6 +193,9 @@ public class RenderNode extends BaseWorkflowNode {
         StringBuilder builder = new StringBuilder();
         builder.append("用户问题：\n").append(command.getMessage()).append("\n\n");
         builder.append("查询规划：\n").append(defaultIfBlank(context.getAnalysisResult(), "无")).append("\n\n");
+        builder.append("Prompt 上下文：\n")
+                .append(defaultIfBlank(context.getPromptContext(WorkflowNodeCodes.RENDER.getNodeCode()), "无"))
+                .append("\n\n");
         builder.append("知识上下文：\n").append(defaultIfBlank(context.getKnowledgeResult(), "无")).append("\n\n");
         builder.append("候选 SQL：\n").append(defaultIfBlank(context.getValidatedSql(), context.getGeneratedSql())).append("\n\n");
         builder.append("SQL 执行状态：\n").append(defaultIfBlank(context.getSqlExecutionStatus(), "UNKNOWN")).append("\n\n");

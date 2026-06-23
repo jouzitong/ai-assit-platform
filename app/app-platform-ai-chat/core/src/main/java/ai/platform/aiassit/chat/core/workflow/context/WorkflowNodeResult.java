@@ -27,11 +27,6 @@ public class WorkflowNodeResult implements Serializable {
     private String nodeCode;
 
     /**
-     * 节点类型。
-     */
-    private String nodeType;
-
-    /**
      * 节点执行状态。
      */
     private String status;

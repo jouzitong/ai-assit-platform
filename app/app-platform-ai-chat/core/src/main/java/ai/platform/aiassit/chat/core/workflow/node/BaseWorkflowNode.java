@@ -3,6 +3,7 @@ package ai.platform.aiassit.chat.core.workflow.node;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
+import ai.platform.aiassit.chat.core.workflow.capability.WorkflowPromptContextCapabilityExecutor;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.skill.WorkflowNodeSkillExecutor;
 import lombok.extern.slf4j.Slf4j;
@@ -18,8 +19,6 @@ import org.springframework.beans.factory.annotation.Autowired;
  * ChatMessageNode     初始化/加载会话上下文
  * ↓
  * QueryPlanningNode   提炼用户意图、生成执行规划
- * ↓
- * KnowledgeSearchNode 结合知识库与模型配置补充上下文
  * ↓
  * SqlGenerateNode     生成候选 SQL
  * ↓                  ↑
@@ -41,10 +40,17 @@ public abstract class BaseWorkflowNode implements IWorkflowNode {
     @Autowired
     private WorkflowNodeSkillExecutor skillExecutor;
 
+    @Autowired
+    private WorkflowPromptContextCapabilityExecutor capabilityExecutor;
+
     protected abstract NodeResult doExecute(WorkflowContext context);
 
     @Override
     public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+        NodeResult capabilityResult = capabilityExecutor.execute(context, nodeConfig);
+        if (!capabilityResult.isSuccess()) {
+            return capabilityResult;
+        }
         NodeResult beforeResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.BEFORE_EXECUTE, null);
         if (!beforeResult.isSuccess()) {
             return beforeResult;

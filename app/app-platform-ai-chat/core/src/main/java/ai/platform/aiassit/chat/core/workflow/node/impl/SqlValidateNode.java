@@ -56,7 +56,7 @@ public class SqlValidateNode extends BaseWorkflowNode {
         String normalizedSql = normalizeSql(generatedSql);
         String validationError = validateSql(normalizedSql);
         context.setSqlValidationError(validationError);
-        context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), type()).setStatus(validationError == null ? "SUCCESS" : "FAILED");
+        context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode()).setStatus(validationError == null ? "SUCCESS" : "FAILED");
         context.put("sqlValidationError", validationError);
 
         if (validationError == null) {
@@ -98,8 +98,8 @@ public class SqlValidateNode extends BaseWorkflowNode {
     }
 
     @Override
-    public String type() {
-        return WorkflowNodeCodes.SQL_VALIDATE.getNodeType();
+    public String code() {
+        return WorkflowNodeCodes.SQL_VALIDATE.getNodeCode();
     }
 
     @Override

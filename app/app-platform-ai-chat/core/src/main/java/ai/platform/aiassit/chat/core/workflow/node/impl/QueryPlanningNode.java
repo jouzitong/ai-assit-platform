@@ -276,11 +276,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     planningResult.getAmbiguity() != null && Boolean.TRUE.equals(planningResult.getAmbiguity().getHasAmbiguity()));
             String analysisResult = buildAnalysisSummary(planningResult);
 
-            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setRequest(planningRequest);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setResponse(planningResponse);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setStatus(STATUS_SUCCESS);
-            context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type(), "planningResult", planningResult);
-            context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type(), "planningRequestId",
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).setRequest(planningRequest);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).setResponse(planningResponse);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).setStatus(STATUS_SUCCESS);
+            context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), "planningResult", planningResult);
+            context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), "planningRequestId",
                     planningResponse == null ? null : planningResponse.getRequestId());
             context.setAnalysisResult(analysisResult);
             context.put("queryPlan", analysisResult);
@@ -320,9 +320,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     null
             );
-            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setStatus(STATUS_FAILED);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).setStatus(STATUS_FAILED);
             finishRound(context.getRound(),
-                    context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).getRequest(),
+                    context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).getRequest(),
                     null,
                     STATUS_FAILED);
             return NodeResult.fail(ex.getMessage());
@@ -330,8 +330,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     @Override
-    public String type() {
-        return WorkflowNodeCodes.QUERY_PLANNING.getNodeType();
+    public String code() {
+        return WorkflowNodeCodes.QUERY_PLANNING.getNodeCode();
     }
 
     @Override

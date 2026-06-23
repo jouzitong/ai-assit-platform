@@ -133,9 +133,9 @@ public class ChatMessageNode extends BaseWorkflowNode {
         );
         context.getOrCreateUserMessageContext().setCurrentMessage(userMessage);
         context.refreshUserMessageContext();
-        context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), type()).setStatus(STATUS_SUCCESS);
-        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), type(), "session", session);
-        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), type(), "currentMessage", userMessage);
+        context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode()).setStatus(STATUS_SUCCESS);
+        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "session", session);
+        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "currentMessage", userMessage);
         context.publishEvent("chat-message-ready",
                 "session and user message prepared");
 
@@ -143,8 +143,8 @@ public class ChatMessageNode extends BaseWorkflowNode {
     }
 
     @Override
-    public String type() {
-        return WorkflowNodeCodes.CHAT_MESSAGE.getNodeType();
+    public String code() {
+        return WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode();
     }
 
     private AiChatSessionDTO createSession(AiChatQueryCommand command, Long userId) {

@@ -106,9 +106,9 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
 
         try {
             ChatRequest request = buildRequest(context, userMessageContext);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), nodeConfig.getNodeType()).setRequest(request);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode()).setRequest(request);
             ChatResponse response = aiChatExecutionApi.chat(request).getData();
-            context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), nodeConfig.getNodeType()).setResponse(response);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode()).setResponse(response);
             ChatMessageSummaryResult summaryResult = parseSummaryResult(extractAnswer(response));
             if (summaryResult != null && StringUtils.hasText(summaryResult.getSummary())) {
                 userMessageContext.setSummary(summaryResult.getSummary().trim());
@@ -117,15 +117,12 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
                         : new ArrayList<>(summaryResult.getInvalidIntents()));
                 refreshSessionName(context, summaryResult.getTitle(), summaryResult.getSummary());
                 context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(),
-                        nodeConfig.getNodeType(),
                         "title",
                         trimToNull(summaryResult.getTitle()));
                 context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(),
-                        nodeConfig.getNodeType(),
                         "summary",
                         summaryResult.getSummary().trim());
                 context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(),
-                        nodeConfig.getNodeType(),
                         "invalidIntents",
                         userMessageContext.getInvalidIntents());
             }

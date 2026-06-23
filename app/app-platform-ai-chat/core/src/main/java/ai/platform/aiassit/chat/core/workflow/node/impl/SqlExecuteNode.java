@@ -65,7 +65,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
         if (providedResult != null) {
             context.setSqlExecutionStatus("SUCCESS");
             context.setSqlExecutionResult(providedResult);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), type()).setStatus("SUCCESS");
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode()).setStatus("SUCCESS");
             context.put("sqlExecutionResult", providedResult);
             historyRecorder.saveArtifact(
                     context,
@@ -91,7 +91,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
 
         context.setSqlExecutionStatus("SKIPPED");
         context.setSqlExecutionResult(degradedResult);
-        context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), type()).setStatus("SKIPPED");
+        context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode()).setStatus("SKIPPED");
         context.put("sqlExecutionResult", degradedResult);
         historyRecorder.saveArtifact(
                 context,
@@ -109,8 +109,8 @@ public class SqlExecuteNode extends BaseWorkflowNode {
     }
 
     @Override
-    public String type() {
-        return WorkflowNodeCodes.SQL_EXECUTE.getNodeType();
+    public String code() {
+        return WorkflowNodeCodes.SQL_EXECUTE.getNodeCode();
     }
 
     @Override

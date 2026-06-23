@@ -1,6 +1,5 @@
 package ai.platform.aiassit.chat.core.workflow.bean;
 
-import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
@@ -14,16 +13,34 @@ import java.util.List;
  * @since 2026/6/8
  */
 @Data
-@AllArgsConstructor
 @NoArgsConstructor
 public class WorkflowNodeConfig implements Serializable {
 
     private String nodeId;
 
-    private String nodeType;
-
     private String nextNodeId;
 
     private List<WorkflowNodeSkillConfig> skills = new ArrayList<>();
+
+    private List<WorkflowNodeCapabilityConfig> capabilities = new ArrayList<>();
+
+    public WorkflowNodeConfig(String nodeId,
+                              String nextNodeId,
+                              List<WorkflowNodeSkillConfig> skills) {
+        this.nodeId = nodeId;
+        this.nextNodeId = nextNodeId;
+        this.skills = skills == null ? new ArrayList<>() : new ArrayList<>(skills);
+        this.capabilities = new ArrayList<>();
+    }
+
+    public WorkflowNodeConfig(String nodeId,
+                              String nextNodeId,
+                              List<WorkflowNodeSkillConfig> skills,
+                              List<WorkflowNodeCapabilityConfig> capabilities) {
+        this.nodeId = nodeId;
+        this.nextNodeId = nextNodeId;
+        this.skills = skills == null ? new ArrayList<>() : new ArrayList<>(skills);
+        this.capabilities = capabilities == null ? new ArrayList<>() : new ArrayList<>(capabilities);
+    }
 
 }

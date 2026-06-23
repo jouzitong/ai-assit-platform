@@ -28,7 +28,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     public DefaultWorkflowEngineImpl(List<IWorkflowNode> nodes) {
         nodeRegistry = new HashMap<>();
         for (IWorkflowNode node : nodes) {
-            nodeRegistry.put(node.type(), node);
+            nodeRegistry.put(node.code(), node);
         }
     }
 
@@ -42,14 +42,14 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 context.publishEvent("workflow-error", "workflow node config not found: " + currentNodeId);
                 return;
             }
-            IWorkflowNode currentNode = nodeRegistry.get(workflowNodeConfig.getNodeType());
+            IWorkflowNode currentNode = nodeRegistry.get(workflowNodeConfig.getNodeId());
             if (currentNode == null) {
-                context.put("error", "workflow node not found: " + workflowNodeConfig.getNodeType());
-                context.publishEvent("workflow-error", "workflow node not found: " + workflowNodeConfig.getNodeType());
+                context.put("error", "workflow node not found: " + workflowNodeConfig.getNodeId());
+                context.publishEvent("workflow-error", "workflow node not found: " + workflowNodeConfig.getNodeId());
                 return;
             }
             context.publishEvent("node-start",
-                    "start node: " + workflowNodeConfig.getNodeId() + " [" + workflowNodeConfig.getNodeType() + "]");
+                    "start node: " + workflowNodeConfig.getNodeId());
             NodeResult result;
             try {
                 result = currentNode.execute(context, workflowNodeConfig);
@@ -66,7 +66,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 return;
             }
             context.publishEvent("node-complete",
-                    "complete node: " + workflowNodeConfig.getNodeId() + " [" + workflowNodeConfig.getNodeType() + "]");
+                    "complete node: " + workflowNodeConfig.getNodeId());
             if (StringUtils.isNotBlank(result.getNextNodeId())) {
                 currentNodeId = result.getNextNodeId();
             } else {

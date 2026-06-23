@@ -129,25 +129,20 @@ public class WorkflowContext implements Serializable {
      * 获取或初始化指定节点的结果上下文。
      *
      * @param nodeCode 节点编码
-     * @param nodeType 节点类型
      * @return 节点结果上下文
      */
-    public WorkflowNodeResult getOrCreateNodeResult(String nodeCode, String nodeType) {
+    public WorkflowNodeResult getOrCreateNodeResult(String nodeCode) {
         WorkflowResultContext context = getOrCreateResultContext();
         WorkflowNodeResult nodeResult = context.getNodeResults().computeIfAbsent(nodeCode, key -> {
             WorkflowNodeResult result = new WorkflowNodeResult();
             result.setNodeCode(nodeCode);
-            result.setNodeType(nodeType);
             return result;
         });
-        if (nodeResult.getNodeType() == null) {
-            nodeResult.setNodeType(nodeType);
-        }
         return nodeResult;
     }
 
-    public void putNodeOutput(String nodeCode, String nodeType, String key, Object value) {
-        getOrCreateNodeResult(nodeCode, nodeType).getOutputs().put(key, value);
+    public void putNodeOutput(String nodeCode, String key, Object value) {
+        getOrCreateNodeResult(nodeCode).getOutputs().put(key, value);
     }
 
     @SuppressWarnings("unchecked")
@@ -159,8 +154,8 @@ public class WorkflowContext implements Serializable {
         return (T) nodeResult.getOutputs().get(key);
     }
 
-    public void putNodeMetadata(String nodeCode, String nodeType, String key, Object value) {
-        getOrCreateNodeResult(nodeCode, nodeType).getMetadata().put(key, value);
+    public void putNodeMetadata(String nodeCode, String key, Object value) {
+        getOrCreateNodeResult(nodeCode).getMetadata().put(key, value);
     }
 
     /**
@@ -237,7 +232,7 @@ public class WorkflowContext implements Serializable {
 
     public void setRound(AiChatRoundDTO round) {
         getOrCreateResultContext().setRound(round);
-        putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.CHAT_MESSAGE.getNodeType(), "round", round);
+        putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "round", round);
     }
 
     public String getAnalysisResult() {
@@ -245,7 +240,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setAnalysisResult(String analysisResult) {
-        putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.QUERY_PLANNING.getNodeType(), "analysisResult", analysisResult);
+        putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), "analysisResult", analysisResult);
     }
 
     public String getKnowledgeBaseId() {
@@ -253,7 +248,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setKnowledgeBaseId(String knowledgeBaseId) {
-        putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType(), "knowledgeBaseId", knowledgeBaseId);
+        putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), "knowledgeBaseId", knowledgeBaseId);
     }
 
     public String getKnowledgeResult() {
@@ -261,7 +256,15 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setKnowledgeResult(String knowledgeResult) {
-        putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType(), "knowledgeResult", knowledgeResult);
+        putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), "knowledgeResult", knowledgeResult);
+    }
+
+    public String getPromptContext(String nodeCode) {
+        return getNodeOutput(nodeCode, "promptContext");
+    }
+
+    public void setPromptContext(String nodeCode, String promptContext) {
+        putNodeOutput(nodeCode, "promptContext", promptContext);
     }
 
     public String getGeneratedSql() {
@@ -269,7 +272,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setGeneratedSql(String generatedSql) {
-        putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), WorkflowNodeCodes.SQL_GENERATE.getNodeType(), "generatedSql", generatedSql);
+        putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "generatedSql", generatedSql);
     }
 
     public String getValidatedSql() {
@@ -277,7 +280,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setValidatedSql(String validatedSql) {
-        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeType(), "validatedSql", validatedSql);
+        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "validatedSql", validatedSql);
     }
 
     public String getSqlValidationError() {
@@ -285,7 +288,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setSqlValidationError(String sqlValidationError) {
-        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeType(), "sqlValidationError", sqlValidationError);
+        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "sqlValidationError", sqlValidationError);
     }
 
     public String getSqlExecutionStatus() {
@@ -293,7 +296,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setSqlExecutionStatus(String sqlExecutionStatus) {
-        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.SQL_EXECUTE.getNodeType(), "sqlExecutionStatus", sqlExecutionStatus);
+        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionStatus", sqlExecutionStatus);
     }
 
     public Object getSqlExecutionResult() {
@@ -301,7 +304,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setSqlExecutionResult(Object sqlExecutionResult) {
-        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.SQL_EXECUTE.getNodeType(), "sqlExecutionResult", sqlExecutionResult);
+        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionResult", sqlExecutionResult);
     }
 
     public String getRenderedAnswer() {
@@ -309,7 +312,7 @@ public class WorkflowContext implements Serializable {
     }
 
     public void setRenderedAnswer(String renderedAnswer) {
-        putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeType(), "renderedAnswer", renderedAnswer);
+        putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer", renderedAnswer);
     }
 
     /**
