@@ -211,7 +211,7 @@ public interface WorkflowContextKeys {
         String PRE_GENERATE_RESULT = "sqlPreGenerateResult";
 
         /**
-         * 当前候选 SQL。
+         * 当前伪 SQL 草案。
          *
          * @see String
          */

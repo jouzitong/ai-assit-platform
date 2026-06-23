@@ -93,7 +93,7 @@ public class SqlValidateNode extends BaseWorkflowNode {
         );
         if (retryCount <= MAX_RETRY_COUNT) {
             context.put(WorkflowContextKeys.SqlGenerate.FEEDBACK, validationError);
-            return NodeResult.success(WorkflowNodeCodes.SQL_GENERATE.getNodeCode());
+            return NodeResult.success(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode());
         }
         return NodeResult.fail(validationError);
     }

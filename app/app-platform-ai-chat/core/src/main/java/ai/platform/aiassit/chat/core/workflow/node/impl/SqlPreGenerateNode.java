@@ -30,6 +30,7 @@ import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
@@ -45,21 +46,21 @@ import java.util.Objects;
 import java.util.Set;
 
 /**
- * SQL 生成节点，负责基于规划和知识上下文生成候选 SQL。
+ * SQL 预生成节点，负责基于规划和知识上下文生成预生成结构与伪 SQL。
  *
  * <p>功能：</p>
  * <ul>
  *     <li>消费用户问题、查询规划、知识上下文和必要历史消息。</li>
- *     <li>调用模型生成候选 SQL 草案。</li>
- *     <li>对模型输出做最小清洗，并将候选 SQL 写入 {@link WorkflowContext}。</li>
- *     <li>记录 SQL 草案 artifact，供后续校验节点继续处理。</li>
+ *     <li>调用模型生成 SQL 预生成结构。</li>
+ *     <li>调用模型生成伪 SQL 草案。</li>
+ *     <li>记录预生成结果与伪 SQL artifact，供后续真实 SQL 生成阶段继续处理。</li>
  * </ul>
  *
  * <p>边界描述：</p>
  * <ul>
- *     <li>只负责生成候选 SQL，不判定最终安全性与可执行性。</li>
+ *     <li>只负责生成预生成结果与伪 SQL，不负责真实可执行 SQL。</li>
  *     <li>不负责知识检索，不负责真实执行，不负责最终答案渲染。</li>
- *     <li>即使携带假设说明，也只输出 SQL 文本，不扩展成解释性回答。</li>
+ *     <li>即使携带假设说明，也只输出伪 SQL 文本，不扩展成解释性回答。</li>
  * </ul>
  *
  * @author zhouzhitong
@@ -67,37 +68,107 @@ import java.util.Set;
  */
 @Service
 @Slf4j
-public class SqlGenerateNode extends BaseWorkflowNode {
+public class SqlPreGenerateNode extends BaseWorkflowNode {
 
-    private static final String DEFAULT_SCENE = "ai-chat-sql-generate";
+    private static final String DEFAULT_SCENE = "ai-chat-sql-pre-generate";
     private static final String DEFAULT_KB_ID = "w05enpcxa4";
     private static final int DEFAULT_KB_TOP_K = 20;
+    private static final int PRE_GENERATE_PARSE_MAX_RETRY = 2;
     private static final String SQL_GENERATION_POLICY_KEY = "sqlGenerationPolicy";
     private static final String USER_PREFERENCE_KEY = "resolvedUserPreferences";
+    private static final String SQL_PRE_GENERATE_PROMPT = """
+            你是 SQL 预生成分析节点。
+            你的任务不是生成 SQL，而是基于“查询规划”和“知识库命中文档”抽取后续 SQL 生成必须依赖的物理表信息。
+
+            规则：
+            1. 只能根据知识库命中文档中的明确证据，输出数据库真实表名。
+            2. query plan 中的主体、关联对象、过滤条件只是语义线索，不能直接当成物理表名。
+            3. 如果知识库文档无法明确支持某个物理表名、关联方式或过滤字段，必须留空，并在 problems 中说明。
+            4. mainTable.tableName 和 relationTables[*].tableName 必须是数据库中可直接查询的真实表名。
+            5. knowledgeHits 只允许引用当前输入里出现的 documentId。
+            6. 如果无法确认，就输出 null 或空数组，不要猜。
+            7. 只输出严格合法 JSON，不要输出 markdown、解释、代码块。
+
+            JSON 结构固定为：
+            {
+              "mainTable": {
+                "tableName": "真实物理表名，无法确认时为 null",
+                "tableComment": "主表说明，可为 null",
+                "confidence": 0.0,
+                "knowledgeHits": [
+                  {
+                    "documentId": "命中文档ID",
+                    "score": 0.0,
+                    "reason": "为什么这个文档支撑主表判断"
+                  }
+                ]
+              },
+              "relationTables": [
+                {
+                  "tableName": "真实物理表名，无法确认时为 null",
+                  "tableComment": "关联表说明，可为 null",
+                  "relationType": "如 left_join / inner_join，无法确认时为 null",
+                  "relationComment": "关联说明，可为 null",
+                  "confidence": 0.0,
+                  "knowledgeHits": [
+                    {
+                      "documentId": "命中文档ID",
+                      "score": 0.0,
+                      "reason": "为什么这个文档支撑关联表判断"
+                    }
+                  ]
+                }
+              ],
+              "filters": [
+                {
+                  "tableName": "真实物理表名，无法确认时可为 null",
+                  "fieldName": "真实物理字段名，无法确认时可为 null",
+                  "operator": "= / in / between / like 等，无法确认时可为 null",
+                  "value": "过滤值，可为 null",
+                  "conditionComment": "过滤条件说明，可为 null",
+                  "confidence": 0.0
+                }
+              ],
+              "problems": [
+                {
+                  "type": "问题类型",
+                  "message": "问题描述",
+                  "suggestion": "建议方案",
+                  "blocking": false,
+                  "confidence": 0.0
+                }
+              ],
+              "confidence": 0.0
+            }
+            """;
     private static final String SQL_GENERATION_PROMPT = """
-            你是一个 NL2SQL 生成节点。
-            请严格根据提供的用户问题、查询规划和知识上下文，生成一条候选 SQL。
+            你是一个 SQL 预生成节点。
+            请严格根据提供的用户问题、查询规划、预生成结构和知识上下文，生成一条伪 SQL。
             你还会收到“SQL 生成规范”和“用户偏好”两个补充部分：
             - SQL 生成规范属于硬约束，必须遵守
             - 用户偏好属于软参考，仅在不与用户本轮要求和硬约束冲突时采用
 
             约束要求：
-            1. 优先输出单条 SELECT 或 WITH 查询
-            2. 不允许输出 INSERT、UPDATE、DELETE、DROP、ALTER、TRUNCATE、CREATE、MERGE
-            3. 如果上下文不足，也要尽量输出最合理的查询，并在 SQL 前用单行注释说明假设
-            4. 最终输出只包含 SQL 文本，可带 SQL 注释，不要解释
+            1. 这是伪 SQL，不要求一定能直接执行
+            2. 只允许输出单条 SELECT 或 WITH 风格伪 SQL
+            3. 不允许输出 INSERT、UPDATE、DELETE、DROP、ALTER、TRUNCATE、CREATE、MERGE
+            4. 如果真实表名、字段名还不完整，可以保留占位或在 SQL 前用单行注释说明假设
+            5. 最终输出只包含伪 SQL 文本，可带 SQL 注释，不要解释
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
     private final WorkflowHistoryRecorder historyRecorder;
+    private final ObjectMapper objectMapper;
 
-    public SqlGenerateNode(AiChatExecutionApi aiChatExecutionApi,
-                           AiMetaQueryApi aiMetaQueryApi,
-                           WorkflowHistoryRecorder historyRecorder) {
+    public SqlPreGenerateNode(AiChatExecutionApi aiChatExecutionApi,
+                              AiMetaQueryApi aiMetaQueryApi,
+                              WorkflowHistoryRecorder historyRecorder,
+                              ObjectMapper objectMapper) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.historyRecorder = historyRecorder;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -218,24 +289,24 @@ public class SqlGenerateNode extends BaseWorkflowNode {
             context.setSqlPreGenerateResult(sqlPreGenerateResult);
             context.put(WorkflowContextKeys.SqlGenerate.PRE_GENERATE_RESULT, sqlPreGenerateResult);
             ChatRequest request = buildRequest(command, context);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setRequest(request);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("RUNNING");
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setRequest(request);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setStatus("RUNNING");
             ChatResponse response = aiChatExecutionApi.chat(request).getData();
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setResponse(response);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setResponse(response);
             String generatedSql = normalizeSql(extractAnswer(response));
             if (!StringUtils.hasText(generatedSql)) {
-                return NodeResult.fail("generated sql is empty");
+                return NodeResult.fail("pseudo sql is empty");
             }
             context.setGeneratedSql(generatedSql);
-            context.putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "requestId", response == null ? null : response.getRequestId());
+            context.putNodeOutput(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), "requestId", response == null ? null : response.getRequestId());
             context.put(WorkflowContextKeys.SqlGenerate.GENERATED_SQL, generatedSql);
             context.put(WorkflowContextKeys.SqlGenerate.REQUEST_ID, response == null ? null : response.getRequestId());
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("SUCCESS");
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setStatus("SUCCESS");
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.SQL_DRAFT.name(),
                     AiChatArtifactStage.SQL_GEN.name(),
-                    "SQL 草案",
+                    "伪 SQL 草案",
                     generatedSql,
                     AiChatContentFormat.SQL.name(),
                     true,
@@ -245,13 +316,13 @@ public class SqlGenerateNode extends BaseWorkflowNode {
             );
             return NodeResult.success(null);
         } catch (Exception ex) {
-            log.error("sql generate failed, sessionCode={}", context.getSession() == null ? null : context.getSession().getSessionCode(), ex);
-            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("FAILED");
+            log.error("sql pre-generate failed, sessionCode={}", context.getSession() == null ? null : context.getSession().getSessionCode(), ex);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setStatus("FAILED");
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.WORKFLOW_ERROR.name(),
                     AiChatArtifactStage.SQL_GEN.name(),
-                    "SQL 生成失败",
+                    "SQL 预生成失败",
                     ex.getMessage(),
                     AiChatContentFormat.PLAIN_TEXT.name(),
                     true,
@@ -265,7 +336,7 @@ public class SqlGenerateNode extends BaseWorkflowNode {
 
     @Override
     public String code() {
-        return WorkflowNodeCodes.SQL_GENERATE.getNodeCode();
+        return WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode();
     }
 
     @Override
@@ -274,209 +345,210 @@ public class SqlGenerateNode extends BaseWorkflowNode {
     }
 
     private SqlPreGenerateResult buildSqlPreGenerateResult(WorkflowContext context) {
-        SqlPreGenerateResult result = new SqlPreGenerateResult();
         PlanningResult planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
-        result.setKnowledgeSearchResponse(context.get(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE));
+        KbSearchResponse knowledgeSearchResponse = context.get(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE);
+        SqlPreGenerateResult result = new SqlPreGenerateResult();
+        result.setKnowledgeSearchResponse(knowledgeSearchResponse);
         if (planningResult == null) {
             addProblem(result, "planning_result_missing", "缺少查询规划结果", "请先完成 Query Planning 节点执行。", true, 1.0D);
             result.setConfidence(0.0D);
             return result;
         }
-
-        buildMainTable(result, planningResult);
-        buildRelationTables(result, planningResult);
-        buildFilters(result, planningResult);
-        attachKnowledgeHits(result);
-        buildProblems(result, planningResult, context);
-        result.setConfidence(calculateOverallConfidence(result));
-        return result;
-    }
-
-    private void buildMainTable(SqlPreGenerateResult result, PlanningResult planningResult) {
-        PlanningResult.Subject subject = planningResult.getSubject();
-        SqlPreGenerateResult.MainTableStruct mainTable = result.getMainTable();
-        if (subject == null) {
-            addProblem(result, "main_table_missing", "未识别到主表对象", "请补充用户问题中的核心查询主体。", true, 1.0D);
-            return;
-        }
-        mainTable.setTableName(firstNonBlank(subject.getName(), subject.getValue()));
-        mainTable.setTableComment(buildSubjectComment(subject));
-        mainTable.setConfidence(normalizeConfidence(subject.getScore()));
-        if (!StringUtils.hasText(mainTable.getTableName())) {
-            addProblem(result, "main_table_name_missing", "主表名称未确定", "请结合知识库表结构补充真实主表名。", true,
-                    normalizeConfidence(subject.getScore()));
-        }
-    }
-
-    private void buildRelationTables(SqlPreGenerateResult result, PlanningResult planningResult) {
-        PlanningResult.Subject subject = planningResult.getSubject();
-        if (subject == null || CollectionUtils.isEmpty(subject.getRelations())) {
-            return;
-        }
-        for (PlanningResult.RelationItem relation : subject.getRelations()) {
-            if (relation == null) {
-                continue;
-            }
-            SqlPreGenerateResult.RelationTableStruct table = new SqlPreGenerateResult.RelationTableStruct();
-            table.setTableName(firstNonBlank(relation.getName(), firstNonBlankFromList(relation.getValues())));
-            table.setTableComment(buildRelationComment(relation));
-            table.setRelationType("unknown");
-            table.setRelationComment("当前仅识别到关联对象，尚未确定具体 join 条件。");
-            table.setConfidence(normalizeConfidence(relation.getScore()));
-            result.getRelationTables().add(table);
-
-            addProblem(result,
-                    "relation_join_unknown",
-                    "关联表 " + firstNonBlank(table.getTableName(), "unknown") + " 的关联方式尚未确定",
-                    "请结合知识库补充 join 类型和关联字段。",
-                    false,
-                    normalizeConfidence(relation.getScore()));
-        }
-    }
-
-    private void buildFilters(SqlPreGenerateResult result, PlanningResult planningResult) {
-        if (CollectionUtils.isEmpty(planningResult.getFilters())) {
-            return;
-        }
-        String mainTableName = result.getMainTable() == null ? null : result.getMainTable().getTableName();
-        for (PlanningResult.FilterItem filter : planningResult.getFilters()) {
-            if (filter == null || !StringUtils.hasText(filter.getKey())) {
-                continue;
-            }
-            SqlPreGenerateResult.FilterConditionStruct item = new SqlPreGenerateResult.FilterConditionStruct();
-            item.setTableName(mainTableName);
-            item.setFieldName(filter.getKey().trim());
-            item.setOperator(inferOperator(filter.getValue()));
-            item.setValue(filter.getValue());
-            item.setConditionComment(buildFilterComment(filter));
-            item.setConfidence(normalizeConfidence(filter.getScore()));
-            result.getFilters().add(item);
-        }
-    }
-
-    private void buildProblems(SqlPreGenerateResult result, PlanningResult planningResult, WorkflowContext context) {
-        KbSearchResponse knowledgeSearchResponse = result.getKnowledgeSearchResponse();
         if (knowledgeSearchResponse == null || CollectionUtils.isEmpty(knowledgeSearchResponse.getItems())) {
             addProblem(result, "knowledge_context_missing", "当前未检索到可靠的知识库表结构上下文",
                     "请补充知识库表结构、字段说明和关联关系后再继续 SQL 生成。", false, 0.9D);
+            result.setConfidence(0.0D);
+            return result;
         }
-        if (planningResult.getAmbiguity() != null && Boolean.TRUE.equals(planningResult.getAmbiguity().getHasAmbiguity())
-                && !CollectionUtils.isEmpty(planningResult.getAmbiguity().getItems())) {
-            for (PlanningResult.AmbiguityItem ambiguityItem : planningResult.getAmbiguity().getItems()) {
-                if (ambiguityItem == null) {
-                    continue;
+        try {
+            SqlPreGenerateResult analyzed = analyzeSqlPreGenerateResult(context, planningResult, knowledgeSearchResponse);
+            analyzed.setKnowledgeSearchResponse(knowledgeSearchResponse);
+            backfillKnowledgeHitScores(analyzed, knowledgeSearchResponse);
+            if (analyzed.getMainTable() == null) {
+                analyzed.setMainTable(new SqlPreGenerateResult.MainTableStruct());
+            }
+            if (analyzed.getRelationTables() == null) {
+                analyzed.setRelationTables(new ArrayList<>());
+            }
+            if (analyzed.getFilters() == null) {
+                analyzed.setFilters(new ArrayList<>());
+            }
+            if (analyzed.getProblems() == null) {
+                analyzed.setProblems(new ArrayList<>());
+            }
+            return analyzed;
+        } catch (Exception ex) {
+            log.warn("sql pre-generate analyze failed, fallback to minimal result, error={}", ex.getMessage());
+            addProblem(result, "sql_pre_generate_analyze_failed", ex.getMessage(),
+                    "请检查知识库文档结构，或重试预生成分析。", true, 1.0D);
+            result.setConfidence(0.0D);
+            return result;
+        }
+    }
+
+    private SqlPreGenerateResult analyzeSqlPreGenerateResult(WorkflowContext context,
+                                                             PlanningResult planningResult,
+                                                             KbSearchResponse knowledgeSearchResponse) {
+        String currentText = extractAnswer(aiChatExecutionApi.chat(buildSqlPreGenerateRequest(context, planningResult, knowledgeSearchResponse)).getData());
+        String validationError = null;
+        for (int attempt = 0; attempt <= PRE_GENERATE_PARSE_MAX_RETRY; attempt++) {
+            try {
+                SqlPreGenerateResult result = objectMapper.readValue(cleanJson(currentText), SqlPreGenerateResult.class);
+                validateSqlPreGenerateResult(result);
+                return result;
+            } catch (Exception ex) {
+                validationError = ex.getMessage();
+                if (attempt == PRE_GENERATE_PARSE_MAX_RETRY) {
+                    throw new IllegalArgumentException("sql pre-generate result parse failed: " + validationError, ex);
                 }
-                addProblem(result,
-                        firstNonBlank(ambiguityItem.getType(), "ambiguity"),
-                        ambiguityItem.getQuestion(),
-                        ambiguityItem.getSuggestion(),
-                        ambiguityItem.getImportance() != null && ambiguityItem.getImportance() >= 8,
-                        normalizeConfidence(toConfidence(ambiguityItem.getImportance())));
+                currentText = retrySqlPreGenerateWithFeedback(context, planningResult, knowledgeSearchResponse, currentText, validationError);
+            }
+        }
+        throw new IllegalArgumentException("sql pre-generate result parse failed: " + validationError);
+    }
+
+    private ChatRequest buildSqlPreGenerateRequest(WorkflowContext context,
+                                                   PlanningResult planningResult,
+                                                   KbSearchResponse knowledgeSearchResponse) {
+        AiChatQueryCommand command = context.getCommand();
+        ChatRequest request = new ChatRequest();
+        request.setProvider(resolveProviderType(command == null ? null : command.getApiModel()));
+        request.setModel(resolveActualModel(command == null ? null : command.getApiModel()));
+
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(buildMessage(MessageRole.SYSTEM, SQL_PRE_GENERATE_PROMPT));
+        messages.add(buildMessage(MessageRole.USER, buildSqlPreGenerateInput(context, planningResult, knowledgeSearchResponse)));
+        request.setMessages(messages);
+
+        ChatOptions options = new ChatOptions();
+        options.setMaxTokens(Math.max(1024, resolveMaxTokens(command == null ? null : command.getApiModel())));
+        options.setTimeoutMs(30_000);
+        request.setOptions(options);
+
+        RequestMeta meta = new RequestMeta();
+        meta.setTraceId(command == null ? null : command.getTraceId());
+        meta.setScene("ai-chat-sql-pre-generate");
+        request.setMeta(meta);
+        return request;
+    }
+
+    private String buildSqlPreGenerateInput(WorkflowContext context,
+                                            PlanningResult planningResult,
+                                            KbSearchResponse knowledgeSearchResponse) {
+        StringBuilder builder = new StringBuilder();
+        builder.append("用户问题：\n").append(defaultText(context.getCommand() == null ? null : context.getCommand().getMessage())).append("\n\n");
+        builder.append("查询规划摘要：\n").append(defaultText(context.getAnalysisResult())).append("\n\n");
+        try {
+            builder.append("查询规划 JSON：\n").append(objectMapper.writeValueAsString(planningResult)).append("\n\n");
+        } catch (Exception ex) {
+            builder.append("查询规划 JSON：\n").append(String.valueOf(planningResult)).append("\n\n");
+        }
+        builder.append("知识库命中文档：\n").append(renderKnowledgeHits(knowledgeSearchResponse)).append("\n");
+        return builder.toString().trim();
+    }
+
+    private String renderKnowledgeHits(KbSearchResponse knowledgeSearchResponse) {
+        if (knowledgeSearchResponse == null || CollectionUtils.isEmpty(knowledgeSearchResponse.getItems())) {
+            return "[]";
+        }
+        StringBuilder builder = new StringBuilder();
+        int index = 1;
+        for (KbSearchItem item : knowledgeSearchResponse.getItems()) {
+            if (item == null) {
+                continue;
+            }
+            builder.append(index++).append(". ")
+                    .append("documentId=").append(defaultText(item.getDocumentId()))
+                    .append(", score=").append(item.getScore())
+                    .append(", metadata=").append(item.getMetadata())
+                    .append('\n')
+                    .append(defaultText(item.getContent()))
+                    .append("\n\n");
+        }
+        return builder.toString().trim();
+    }
+
+    private String retrySqlPreGenerateWithFeedback(WorkflowContext context,
+                                                   PlanningResult planningResult,
+                                                   KbSearchResponse knowledgeSearchResponse,
+                                                   String previousOutput,
+                                                   String validationError) {
+        ChatRequest retryRequest = buildSqlPreGenerateRequest(context, planningResult, knowledgeSearchResponse);
+        List<ChatMessage> messages = new ArrayList<>();
+        messages.add(buildMessage(MessageRole.SYSTEM, SQL_PRE_GENERATE_PROMPT));
+        messages.add(buildMessage(MessageRole.ASSISTANT, defaultText(previousOutput)));
+        messages.add(buildMessage(MessageRole.USER, """
+                你上一次返回的 JSON 不合法，请严格修正后重新返回。
+                校验错误：
+                %s
+                额外要求：
+                - 只返回 JSON
+                - 不允许代码块
+                - tableName 必须来自知识库文档里的真实物理表名，不能使用 query plan 中的中文主体名
+                - knowledgeHits.documentId 只能引用当前输入里已有的 documentId
+                """.formatted(validationError)));
+        retryRequest.setMessages(messages);
+        return extractAnswer(aiChatExecutionApi.chat(retryRequest).getData());
+    }
+
+    private void validateSqlPreGenerateResult(SqlPreGenerateResult result) {
+        if (result == null) {
+            throw new IllegalArgumentException("result is null");
+        }
+        if (result.getMainTable() == null) {
+            throw new IllegalArgumentException("mainTable is required");
+        }
+        if (result.getRelationTables() == null) {
+            throw new IllegalArgumentException("relationTables is required");
+        }
+        if (result.getFilters() == null) {
+            throw new IllegalArgumentException("filters is required");
+        }
+        if (result.getProblems() == null) {
+            throw new IllegalArgumentException("problems is required");
+        }
+        if (result.getMainTable().getKnowledgeHits() == null) {
+            result.getMainTable().setKnowledgeHits(new ArrayList<>());
+        }
+        for (SqlPreGenerateResult.RelationTableStruct relationTable : result.getRelationTables()) {
+            if (relationTable != null && relationTable.getKnowledgeHits() == null) {
+                relationTable.setKnowledgeHits(new ArrayList<>());
             }
         }
     }
 
-    private void attachKnowledgeHits(SqlPreGenerateResult result) {
-        KbSearchResponse knowledgeSearchResponse = result.getKnowledgeSearchResponse();
-        if (knowledgeSearchResponse == null || CollectionUtils.isEmpty(knowledgeSearchResponse.getItems())) {
+    private void backfillKnowledgeHitScores(SqlPreGenerateResult result, KbSearchResponse knowledgeSearchResponse) {
+        if (result == null || knowledgeSearchResponse == null || CollectionUtils.isEmpty(knowledgeSearchResponse.getItems())) {
             return;
         }
+        Map<String, Double> scoreMap = new LinkedHashMap<>();
+        for (KbSearchItem item : knowledgeSearchResponse.getItems()) {
+            if (item != null && StringUtils.hasText(item.getDocumentId())) {
+                scoreMap.put(item.getDocumentId(), item.getScore());
+            }
+        }
         if (result.getMainTable() != null) {
-            result.getMainTable().setKnowledgeHits(resolveKnowledgeHits(
-                    knowledgeSearchResponse.getItems(),
-                    result.getMainTable().getTableName(),
-                    result.getMainTable().getTableComment(),
-                    "main_table_match"
-            ));
+            backfillKnowledgeHitScores(result.getMainTable().getKnowledgeHits(), scoreMap);
         }
         if (!CollectionUtils.isEmpty(result.getRelationTables())) {
             for (SqlPreGenerateResult.RelationTableStruct relationTable : result.getRelationTables()) {
-                if (relationTable == null) {
-                    continue;
+                if (relationTable != null) {
+                    backfillKnowledgeHitScores(relationTable.getKnowledgeHits(), scoreMap);
                 }
-                relationTable.setKnowledgeHits(resolveKnowledgeHits(
-                        knowledgeSearchResponse.getItems(),
-                        relationTable.getTableName(),
-                        relationTable.getTableComment(),
-                        "relation_table_match"
-                ));
             }
         }
     }
 
-    private List<SqlPreGenerateResult.KnowledgeHitRef> resolveKnowledgeHits(List<KbSearchItem> items,
-                                                                            String tableName,
-                                                                            String tableComment,
-                                                                            String reason) {
-        if (CollectionUtils.isEmpty(items) || (!StringUtils.hasText(tableName) && !StringUtils.hasText(tableComment))) {
-            return List.of();
+    private void backfillKnowledgeHitScores(List<SqlPreGenerateResult.KnowledgeHitRef> refs, Map<String, Double> scoreMap) {
+        if (CollectionUtils.isEmpty(refs)) {
+            return;
         }
-        Map<String, SqlPreGenerateResult.KnowledgeHitRef> matches = new LinkedHashMap<>();
-        for (KbSearchItem item : items) {
-            if (!isKnowledgeHitMatch(item, tableName, tableComment)) {
+        for (SqlPreGenerateResult.KnowledgeHitRef ref : refs) {
+            if (ref == null || ref.getScore() != null || !StringUtils.hasText(ref.getDocumentId())) {
                 continue;
             }
-            SqlPreGenerateResult.KnowledgeHitRef ref = new SqlPreGenerateResult.KnowledgeHitRef();
-            ref.setDocumentId(item == null ? null : item.getDocumentId());
-            ref.setScore(item == null ? null : item.getScore());
-            ref.setReason(reason);
-            matches.put(ref.getDocumentId() == null ? String.valueOf(matches.size()) : ref.getDocumentId(), ref);
+            ref.setScore(scoreMap.get(ref.getDocumentId()));
         }
-        return new ArrayList<>(matches.values());
-    }
-
-    private boolean isKnowledgeHitMatch(KbSearchItem item, String tableName, String tableComment) {
-        if (item == null) {
-            return false;
-        }
-        String content = safeLower(item.getContent());
-        String metadata = safeLower(item.getMetadata());
-        return containsAny(content, metadata, tableName) || containsAny(content, metadata, tableComment);
-    }
-
-    private boolean containsAny(String content, String metadata, String probe) {
-        if (!StringUtils.hasText(probe)) {
-            return false;
-        }
-        String normalized = probe.trim().toLowerCase(Locale.ROOT);
-        return content.contains(normalized) || metadata.contains(normalized);
-    }
-
-    private String safeLower(Object value) {
-        return value == null ? "" : String.valueOf(value).toLowerCase(Locale.ROOT);
-    }
-
-    private String buildSubjectComment(PlanningResult.Subject subject) {
-        List<String> comments = new ArrayList<>();
-        if (StringUtils.hasText(subject.getValue()) && !Objects.equals(subject.getValue(), subject.getName())) {
-            comments.add("原始主体：" + subject.getValue().trim());
-        }
-        if (!CollectionUtils.isEmpty(subject.getAliases())) {
-            comments.add("别名：" + String.join(" / ", subject.getAliases()));
-        }
-        return comments.isEmpty() ? null : String.join("；", comments);
-    }
-
-    private String buildRelationComment(PlanningResult.RelationItem relation) {
-        List<String> comments = new ArrayList<>();
-        if (!CollectionUtils.isEmpty(relation.getValues())) {
-            comments.add("取值：" + String.join(" / ", relation.getValues()));
-        }
-        if (!CollectionUtils.isEmpty(relation.getAliases())) {
-            comments.add("别名：" + String.join(" / ", relation.getAliases()));
-        }
-        return comments.isEmpty() ? null : String.join("；", comments);
-    }
-
-    private String buildFilterComment(PlanningResult.FilterItem filter) {
-        List<String> comments = new ArrayList<>();
-        if (StringUtils.hasText(filter.getModel())) {
-            comments.add("模型说明：" + filter.getModel().trim());
-        }
-        if (StringUtils.hasText(filter.getSource())) {
-            comments.add("来源：" + filter.getSource().trim());
-        }
-        return comments.isEmpty() ? null : String.join("；", comments);
     }
 
     private void addProblem(SqlPreGenerateResult result,
@@ -494,92 +566,19 @@ public class SqlGenerateNode extends BaseWorkflowNode {
         result.getProblems().add(problem);
     }
 
-    private Double calculateOverallConfidence(SqlPreGenerateResult result) {
-        List<Double> scores = new ArrayList<>();
-        if (result.getMainTable() != null) {
-            addConfidence(scores, result.getMainTable().getConfidence());
+    private String cleanJson(String text) {
+        if (!StringUtils.hasText(text)) {
+            throw new IllegalArgumentException("sql pre-generate output is empty");
         }
-        if (!CollectionUtils.isEmpty(result.getRelationTables())) {
-            for (SqlPreGenerateResult.RelationTableStruct relationTable : result.getRelationTables()) {
-                addConfidence(scores, relationTable == null ? null : relationTable.getConfidence());
-            }
-        }
-        if (!CollectionUtils.isEmpty(result.getFilters())) {
-            for (SqlPreGenerateResult.FilterConditionStruct filter : result.getFilters()) {
-                addConfidence(scores, filter == null ? null : filter.getConfidence());
-            }
-        }
-        if (scores.isEmpty()) {
-            return 0.0D;
-        }
-        double sum = 0.0D;
-        for (Double score : scores) {
-            sum += score;
-        }
-        return sum / scores.size();
+        String cleaned = text.trim();
+        cleaned = cleaned.replace("```json", "");
+        cleaned = cleaned.replace("```JSON", "");
+        cleaned = cleaned.replace("```", "");
+        return cleaned.trim();
     }
 
-    private void addConfidence(List<Double> scores, Double value) {
-        if (value != null) {
-            scores.add(value);
-        }
-    }
-
-    private Double normalizeConfidence(Double value) {
-        if (value == null) {
-            return null;
-        }
-        if (value < 0) {
-            return 0.0D;
-        }
-        if (value > 1) {
-            return 1.0D;
-        }
-        return value;
-    }
-
-    private Double toConfidence(Integer importance) {
-        if (importance == null) {
-            return null;
-        }
-        return Math.min(1.0D, Math.max(0.0D, importance / 10.0D));
-    }
-
-    private String inferOperator(String value) {
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        if (value.contains(",")) {
-            return "IN";
-        }
-        if (value.contains("~") || value.contains("至")) {
-            return "BETWEEN";
-        }
-        return "=";
-    }
-
-    private String firstNonBlank(String... values) {
-        if (values == null) {
-            return null;
-        }
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value.trim();
-            }
-        }
-        return null;
-    }
-
-    private String firstNonBlankFromList(List<String> values) {
-        if (CollectionUtils.isEmpty(values)) {
-            return null;
-        }
-        for (String value : values) {
-            if (StringUtils.hasText(value)) {
-                return value.trim();
-            }
-        }
-        return null;
+    private String defaultText(String value) {
+        return value == null ? "" : value;
     }
 
     private ChatRequest buildRequest(AiChatQueryCommand command, WorkflowContext context) {
@@ -616,11 +615,12 @@ public class SqlGenerateNode extends BaseWorkflowNode {
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         builder.append("用户问题：\n").append(command.getMessage()).append("\n\n");
         builder.append("查询规划：\n").append(context.getAnalysisResult()).append("\n\n");
+        builder.append("SQL 预生成结果：\n").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
         appendStructuredSection(builder, "SQL 生成规范", context.get(SQL_GENERATION_POLICY_KEY));
         appendStructuredSection(builder, "用户偏好", context.get(USER_PREFERENCE_KEY));
-        if (StringUtils.hasText(context.getPromptContext(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()))) {
+        if (StringUtils.hasText(context.getPromptContext(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()))) {
             builder.append("Prompt 上下文：\n")
-                    .append(context.getPromptContext(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()))
+                    .append(context.getPromptContext(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()))
                     .append("\n\n");
         }
         if (StringUtils.hasText(context.getKnowledgeResult())) {

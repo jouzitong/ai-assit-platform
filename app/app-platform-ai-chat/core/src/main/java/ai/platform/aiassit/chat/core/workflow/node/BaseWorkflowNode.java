@@ -20,7 +20,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * ↓
  * QueryPlanningNode   提炼用户意图、生成执行规划
  * ↓
- * SqlGenerateNode     生成候选 SQL
+ * SqlPreGenerateNode  生成预生成结果与伪 SQL
  * ↓                  ↑
  * SqlValidateNode ---- SQL 不合法时回跳重新生成
  * ↓

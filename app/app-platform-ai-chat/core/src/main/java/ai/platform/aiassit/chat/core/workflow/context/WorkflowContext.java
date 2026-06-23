@@ -274,19 +274,19 @@ public class WorkflowContext implements Serializable {
     }
 
     public String getGeneratedSql() {
-        return getNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "generatedSql");
+        return getNodeOutput(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), "generatedSql");
     }
 
     public <T> T getSqlPreGenerateResult() {
-        return getNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "sqlPreGenerateResult");
+        return getNodeOutput(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), "sqlPreGenerateResult");
     }
 
     public void setSqlPreGenerateResult(Object sqlPreGenerateResult) {
-        putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "sqlPreGenerateResult", sqlPreGenerateResult);
+        putNodeOutput(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), "sqlPreGenerateResult", sqlPreGenerateResult);
     }
 
     public void setGeneratedSql(String generatedSql) {
-        putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "generatedSql", generatedSql);
+        putNodeOutput(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), "generatedSql", generatedSql);
     }
 
     public String getValidatedSql() {

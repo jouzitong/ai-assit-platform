@@ -42,7 +42,7 @@ import java.util.UUID;
  *
  * <p>功能：</p>
  * <ul>
- *     <li>汇总用户问题、查询规划、知识上下文、候选 SQL、执行状态和执行结果。</li>
+ *     <li>汇总用户问题、查询规划、知识上下文、预生成结果、伪 SQL、执行状态和执行结果。</li>
  *     <li>调用模型生成最终面向用户的回答，必要时回退到本地兜底文案。</li>
  *     <li>落库 assistant message 和最终回答快照 artifact。</li>
  *     <li>结束当前 round，并写入最终状态与实际使用模型。</li>
@@ -67,11 +67,11 @@ public class RenderNode extends BaseWorkflowNode {
     private static final String DEFAULT_SCENE = "ai-chat-render";
     private static final String RENDER_PROMPT = """
             你是智能问数工作流的最终渲染节点。
-            请基于用户问题、查询规划、知识上下文、SQL 与执行结果，生成一段最终回复。
+            请基于用户问题、查询规划、知识上下文、预生成结果与伪 SQL，生成一段最终回复。
 
             要求：
             1. 用中文直接回答
-            2. 如果 SQL 实际未执行，需要明确说明当前只生成了 SQL 草案
+            2. 如果当前只有预生成结果或伪 SQL，需要明确说明尚未生成真实可执行 SQL
             3. 回答里要尽量包含关键结论、主要假设和下一步建议
             4. 不要输出 JSON
             """;
@@ -198,7 +198,8 @@ public class RenderNode extends BaseWorkflowNode {
                 .append(defaultIfBlank(context.getPromptContext(WorkflowNodeCodes.RENDER.getNodeCode()), "无"))
                 .append("\n\n");
         builder.append("知识上下文：\n").append(defaultIfBlank(context.getKnowledgeResult(), "无")).append("\n\n");
-        builder.append("候选 SQL：\n").append(defaultIfBlank(context.getValidatedSql(), context.getGeneratedSql())).append("\n\n");
+        builder.append("预生成结果：\n").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
+        builder.append("伪 SQL：\n").append(defaultIfBlank(context.getValidatedSql(), context.getGeneratedSql())).append("\n\n");
         builder.append("SQL 执行状态：\n").append(defaultIfBlank(context.getSqlExecutionStatus(), "UNKNOWN")).append("\n\n");
         builder.append("SQL 执行结果：\n").append(context.getSqlExecutionResult()).append("\n");
         return builder.toString();
@@ -209,11 +210,18 @@ public class RenderNode extends BaseWorkflowNode {
         if (StringUtils.hasText(context.getAnalysisResult())) {
             builder.append("查询规划：").append(context.getAnalysisResult()).append("\n\n");
         }
+        if (context.getSqlPreGenerateResult() != null) {
+            builder.append("预生成结果：").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
+        }
         if (StringUtils.hasText(context.getValidatedSql())) {
-            builder.append("候选 SQL：\n").append(context.getValidatedSql()).append("\n\n");
+            builder.append("伪 SQL：\n").append(context.getValidatedSql()).append("\n\n");
+        } else if (StringUtils.hasText(context.getGeneratedSql())) {
+            builder.append("伪 SQL：\n").append(context.getGeneratedSql()).append("\n\n");
         }
         if ("SKIPPED".equalsIgnoreCase(context.getSqlExecutionStatus())) {
-            builder.append("当前仅完成 SQL 草案生成，尚未接入真实执行器，请在接入 db-engine 执行能力后继续校验结果。");
+            builder.append("当前仅完成 SQL 预生成与伪 SQL 输出，尚未生成真实可执行 SQL。");
+        } else if (!StringUtils.hasText(context.getSqlExecutionStatus())) {
+            builder.append("当前仅完成 SQL 预生成与伪 SQL 输出，尚未进入真实 SQL 校验与执行阶段。");
         } else {
             builder.append("执行结果：").append(context.getSqlExecutionResult());
         }
