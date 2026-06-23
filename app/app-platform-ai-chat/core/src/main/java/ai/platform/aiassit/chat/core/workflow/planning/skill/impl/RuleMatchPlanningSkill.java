@@ -169,7 +169,6 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
     }
 
     private String buildRetrievalContext(WorkflowContext context) {
-        context.refreshUserMessageContext();
         List<String> parts = new ArrayList<>();
         String userMessageSummary = context.getOrCreateUserMessageContext().getSummary();
         if (StringUtils.hasText(userMessageSummary)) {

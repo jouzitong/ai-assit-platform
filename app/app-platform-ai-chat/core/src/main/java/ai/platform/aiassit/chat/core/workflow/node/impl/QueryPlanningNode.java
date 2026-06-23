@@ -27,12 +27,10 @@ import ai.platform.aiassit.chat.core.workflow.planning.skill.QueryPlanningSkillE
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
-import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.athena.framework.web.vo.IR;
@@ -58,7 +56,7 @@ import java.util.UUID;
  *     <li>基于当前用户问题、历史消息和技能分析结果，提炼查询意图。</li>
  *     <li>调用模型生成结构化规划结果，并做解析、校验、必要重试。</li>
  *     <li>沉淀用户目标、分析摘要、所需上下文、SQL 关注点、风险等规划产物。</li>
- *     <li>在首轮会话时刷新会话标题，并记录规划类 artifact。</li>
+ *     <li>记录规划类 artifact，并为后续节点提供稳定的结构化规划结果。</li>
  * </ul>
  *
  * <p>边界描述：</p>
@@ -179,7 +177,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     private final AiChatExecutionApi aiChatExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
     private final AiChatRoundService roundService;
-    private final AiChatSessionService sessionService;
     private final WorkflowHistoryRecorder historyRecorder;
     private final ObjectMapper objectMapper;
     private final WorkflowProperties workflowProperties;
@@ -188,7 +185,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
                              AiMetaQueryApi aiMetaQueryApi,
                              AiChatRoundService roundService,
-                             AiChatSessionService sessionService,
                              WorkflowHistoryRecorder historyRecorder,
                              ObjectMapper objectMapper,
                              WorkflowProperties workflowProperties,
@@ -196,7 +192,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.roundService = roundService;
-        this.sessionService = sessionService;
         this.historyRecorder = historyRecorder;
         this.objectMapper = objectMapper;
         this.workflowProperties = workflowProperties;
@@ -230,7 +225,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                 command.getScene());
 
         try {
-            context.refreshUserMessageContext();
             AiChatMessageDTO currentUserMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
             List<AiChatMessageDTO> historyMessages = new ArrayList<>(context.getOrCreateUserMessageContext().getSessionMessages());
             historyMessages = historyMessages.stream()
@@ -280,9 +274,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     context.getRound().getRoundCode(),
                     planningResult.getTitle(),
                     planningResult.getAmbiguity() != null && Boolean.TRUE.equals(planningResult.getAmbiguity().getHasAmbiguity()));
-            if (historyMessages.isEmpty()) {
-                refreshSessionName(context, planningResult);
-            }
             String analysisResult = buildAnalysisSummary(planningResult);
 
             context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), type()).setRequest(planningRequest);
@@ -730,27 +721,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             summaries.add("{" + joiner + "}");
         }
         return summaries.toString();
-    }
-
-    private void refreshSessionName(WorkflowContext context, PlanningResult result) {
-        if (context.getSession() == null || context.getSession().getId() == null || !StringUtils.hasText(result.getTitle())) {
-            log.debug("skip refresh session name, sessionExists={}, sessionId={}, sessionTitle={}",
-                    context.getSession() != null,
-                    context.getSession() == null ? null : context.getSession().getId(),
-                    result == null ? null : result.getTitle());
-            return;
-        }
-        AiChatSessionDTO update = new AiChatSessionDTO();
-        update.setSessionName(result.getTitle().trim());
-        AiChatSessionDTO updated = sessionService.edit(context.getSession().getId(), update);
-        if (updated != null) {
-            context.setSession(updated);
-        } else {
-            context.getSession().setSessionName(result.getTitle().trim());
-        }
-        log.info("refresh session name finished, sessionCode={}, sessionName={}",
-                context.getSession().getSessionCode(),
-                context.getSession().getSessionName());
     }
 
     private <T> T defaultIfNull(T value, T fallback) {

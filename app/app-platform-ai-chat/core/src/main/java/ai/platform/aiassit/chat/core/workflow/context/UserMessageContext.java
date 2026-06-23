@@ -36,4 +36,9 @@ public class UserMessageContext implements Serializable {
      * 对当前输入和历史输入整理后的汇总说明。
      */
     private String summary;
+
+    /**
+     * 已失效历史意图列表。
+     */
+    private List<InvalidIntentItem> invalidIntents = new ArrayList<>();
 }

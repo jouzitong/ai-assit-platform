@@ -64,7 +64,6 @@ public class WorkflowHistoryRecorder {
         List<AiChatMessageDTO> messages = new ArrayList<>(context.getOrCreateUserMessageContext().getSessionMessages());
         messages.add(created);
         context.getOrCreateUserMessageContext().setSessionMessages(messages);
-        context.refreshUserMessageContext();
         return created;
     }
 

@@ -165,6 +165,8 @@ public class WorkflowContext implements Serializable {
 
     /**
      * 根据当前会话消息和当前用户输入刷新用户消息上下文。
+     *
+     * <p>当前约定只在 ChatMessageNode 中调用，用于初始化本轮用户消息上下文。</p>
      */
     public void refreshUserMessageContext() {
         UserMessageContext messageContext = getOrCreateUserMessageContext();
@@ -172,6 +174,9 @@ public class WorkflowContext implements Serializable {
                 ? List.of()
                 : messageContext.getSessionMessages();
         messageContext.setSessionMessages(new ArrayList<>(sessionMessages));
+        if (messageContext.getInvalidIntents() == null) {
+            messageContext.setInvalidIntents(new ArrayList<>());
+        }
         messageContext.setSummary(buildUserMessageSummary(messageContext.getCurrentMessage(), buildHistoricalUserMessages()));
     }
 

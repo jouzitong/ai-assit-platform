@@ -92,7 +92,9 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
 
     private WorkflowDefinition buildWorkflowDefinition() {
         Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
-        nodes.put(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.CHAT_MESSAGE.getNodeType(), WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), java.util.List.of()));
+        nodes.put(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.CHAT_MESSAGE.getNodeType(), WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), java.util.List.of(
+                new WorkflowNodeSkillConfig("chat_message_summary", WorkflowSkillPhase.AFTER_EXECUTE)
+        )));
         nodes.put(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.QUERY_PLANNING.getNodeType(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), java.util.List.of()));
         nodes.put(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(), WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeType(), WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), java.util.List.of()));
         nodes.put(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), WorkflowNodeCodes.SQL_GENERATE.getNodeType(), WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), java.util.List.of(

@@ -208,9 +208,6 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
     }
 
     private String buildRetrievalQuery(AiChatQueryCommand command, WorkflowContext context) {
-        if (context != null) {
-            context.refreshUserMessageContext();
-        }
         String currentMessage = command == null ? null : command.getMessage();
         String messageSummary = context == null ? null : context.getOrCreateUserMessageContext().getSummary();
         if (!StringUtils.hasText(messageSummary)) {
