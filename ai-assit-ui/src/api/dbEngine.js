@@ -4,6 +4,7 @@ import { getToken } from '../utils/session'
 const DB_ENGINE_META_API_PREFIX = '/dbEngine/api/v1/meta/data-source'
 const DB_ENGINE_TABLE_META_API_PREFIX = '/dbEngine/api/v1/meta/table'
 const DB_ENGINE_FIELD_META_API_PREFIX = '/dbEngine/api/v1/meta/field'
+const DB_ENGINE_ACCESS_API_PREFIX = '/dbEngine/api/v1/db/access'
 
 export function searchDbDataSources(payload) {
   return request(`${DB_ENGINE_META_API_PREFIX}/_search`, {
@@ -52,6 +53,27 @@ export function previewDbTableKnowledge(sourceKey, tableName) {
 
 export function syncDbTableKnowledge(payload) {
   return request(`${DB_ENGINE_TABLE_META_API_PREFIX}/knowledge-sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function deleteDbTableMetaCascade(payload) {
+  return request(`${DB_ENGINE_TABLE_META_API_PREFIX}/delete-cascade`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function listDbAccessTables(payload) {
+  return request(`${DB_ENGINE_ACCESS_API_PREFIX}/tables`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
+export function syncDbAccessTableMeta(payload) {
+  return request(`${DB_ENGINE_ACCESS_API_PREFIX}/sync/table-meta`, {
     method: 'POST',
     body: JSON.stringify(payload ?? {})
   })

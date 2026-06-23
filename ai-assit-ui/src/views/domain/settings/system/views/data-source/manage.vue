@@ -39,12 +39,26 @@ const {
   exportDialogVisible,
   exportFormat,
   exportSubmitting,
+  tableSyncDialogVisible,
+  tableSyncLoading,
+  tableSyncSubmitting,
+  tableSyncError,
+  tableSyncAllowUpdate,
+  tableSyncCandidates,
+  tableSyncSelectedTables,
+  tableSyncSelectedCount,
+  tableSyncCandidateCount,
+  tableSyncPendingCount,
+  tableSyncAllChecked,
+  tableSyncIndeterminate,
   knowledgePreviewVisible,
   knowledgePreviewLoading,
   knowledgePreviewError,
   knowledgePreviewData,
   knowledgeSyncSubmitting,
   knowledgeSyncTarget,
+  tableDeleteSubmitting,
+  tableDeleteTarget,
   templateSubmitting,
   handleSourceChange,
   handlePageChange,
@@ -61,9 +75,15 @@ const {
   closeImportProgressDialog,
   openExportDialog,
   closeExportDialog,
+  openTableSyncDialog,
+  closeTableSyncDialog,
+  toggleTableSyncSelection,
+  toggleAllTableSyncSelection,
+  submitTableSync,
   openKnowledgePreview,
   closeKnowledgePreview,
   syncKnowledgeBase,
+  deleteTable,
   handleImportDragEnter,
   handleImportDragLeave,
   handleImportFile,
@@ -123,6 +143,9 @@ function onFileDrop(event) {
           <Download :size="16" />
           {{ exportSubmitting ? '导出中...' : '导出' }}
         </button>
+        <button type="button" class="toolbar-btn primary" :disabled="tableSyncSubmitting" @click="openTableSyncDialog">
+          {{ tableSyncSubmitting ? '同步中...' : '同步表格' }}
+        </button>
         <button type="button" class="toolbar-btn secondary" :disabled="knowledgeSyncSubmitting" @click="syncKnowledgeBase()">
           {{ knowledgeSyncSubmitting && !knowledgeSyncTarget ? '同步中...' : '同步知识库' }}
         </button>
@@ -170,6 +193,9 @@ function onFileDrop(event) {
                   <button type="button" class="link-btn" @click="openFieldWorkbench(item)">字段</button>
                   <button type="button" class="link-btn" :disabled="knowledgeSyncSubmitting" @click="syncKnowledgeBase(item)">
                     {{ knowledgeSyncSubmitting && knowledgeSyncTarget === item.name ? '同步中...' : '同步' }}
+                  </button>
+                  <button type="button" class="link-btn" :disabled="tableDeleteSubmitting" @click="deleteTable(item)">
+                    {{ tableDeleteSubmitting && tableDeleteTarget === item.name ? '删除中...' : '删除' }}
                   </button>
                   <button type="button" class="link-btn">权限</button>
                 </div>
@@ -445,6 +471,90 @@ function onFileDrop(event) {
           <button type="button" class="toolbar-secondary-btn" @click="closeExportDialog">取消</button>
           <button type="button" class="toolbar-add-btn" :disabled="exportSubmitting" @click="exportWorkbook">
             {{ exportSubmitting ? '导出中...' : '开始导出' }}
+          </button>
+        </footer>
+      </div>
+    </div>
+
+    <div v-if="tableSyncDialogVisible" class="modal-mask" @click.self="closeTableSyncDialog">
+      <div class="modal-card table-sync-modal">
+        <header class="modal-head">
+          <div>
+            <h3>同步表格</h3>
+            <p>{{ currentSource?.name || currentSource?.key || '当前数据源' }} · 勾选后同步到表元数据和字段元数据</p>
+          </div>
+          <button class="close-btn" type="button" @click="closeTableSyncDialog">×</button>
+        </header>
+
+        <div class="modal-body">
+          <section class="dialog-section section-panel">
+            <header class="section-head">
+              <h4>待同步表清单</h4>
+              <p>默认勾选未同步的数据表。开启覆盖更新后，会更新已存在的表和字段定义。</p>
+            </header>
+
+            <div class="table-sync-toolbar">
+              <label class="table-sync-check">
+                <input
+                  type="checkbox"
+                  :checked="tableSyncAllChecked"
+                  :indeterminate.prop="tableSyncIndeterminate"
+                  @change="toggleAllTableSyncSelection($event.target.checked)"
+                />
+                <span>全选</span>
+              </label>
+
+              <label class="table-sync-check">
+                <input v-model="tableSyncAllowUpdate" type="checkbox" />
+                <span>允许覆盖已有元数据</span>
+              </label>
+
+              <div class="table-sync-summary">
+                <span>共 {{ tableSyncCandidateCount }} 张</span>
+                <span>待同步 {{ tableSyncPendingCount }} 张</span>
+                <span>已选择 {{ tableSyncSelectedCount }} 张</span>
+              </div>
+            </div>
+
+            <div v-if="tableSyncError" class="error-banner">{{ tableSyncError }}</div>
+            <div v-else-if="tableSyncLoading" class="table-state">正在加载可同步的数据表...</div>
+            <div v-else-if="!tableSyncCandidates.length" class="table-state">当前数据源下没有可同步的数据表。</div>
+            <div v-else class="table-sync-list">
+              <label
+                v-for="item in tableSyncCandidates"
+                :key="item.name"
+                class="table-sync-item"
+                :class="{ 'is-synced': item.synced }"
+              >
+                <div class="table-sync-item__check">
+                  <input
+                    type="checkbox"
+                    :checked="tableSyncSelectedTables.includes(item.name)"
+                    @change="toggleTableSyncSelection(item.name, $event.target.checked)"
+                  />
+                </div>
+                <div class="table-sync-item__body">
+                  <div class="table-sync-item__head">
+                    <strong>{{ item.name }}</strong>
+                    <span class="status-chip" :class="item.synced ? 'is-ready' : 'is-draft'">
+                      {{ item.synced ? '已同步' : '未同步' }}
+                    </span>
+                  </div>
+                  <p>{{ formatEmpty(item.comment) }}</p>
+                  <div class="table-sync-item__meta">
+                    <span>类型：{{ formatEmpty(item.type) }}</span>
+                    <span>本地字段数：{{ item.localColumnCount ?? 0 }}</span>
+                  </div>
+                </div>
+              </label>
+            </div>
+          </section>
+        </div>
+
+        <footer class="modal-foot">
+          <button type="button" class="toolbar-secondary-btn" @click="closeTableSyncDialog">取消</button>
+          <button type="button" class="toolbar-add-btn" :disabled="tableSyncSubmitting || !tableSyncSelectedCount" @click="submitTableSync">
+            {{ tableSyncSubmitting ? '同步中...' : `开始同步（${tableSyncSelectedCount}）` }}
           </button>
         </footer>
       </div>

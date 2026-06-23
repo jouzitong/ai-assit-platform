@@ -1,6 +1,18 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { downloadDbMetaTemplateWorkbook, exportDbMetaWorkbook, previewDbTableKnowledge, searchDbDataSources, searchDbTableFields, searchDbTables, streamDbMetaImportWorkbook, syncDbTableKnowledge } from '../../../../../../api/dbEngine'
+import {
+  deleteDbTableMetaCascade,
+  downloadDbMetaTemplateWorkbook,
+  exportDbMetaWorkbook,
+  listDbAccessTables,
+  previewDbTableKnowledge,
+  searchDbDataSources,
+  searchDbTableFields,
+  searchDbTables,
+  streamDbMetaImportWorkbook,
+  syncDbAccessTableMeta,
+  syncDbTableKnowledge
+} from '../../../../../../api/dbEngine'
 import { showPopup } from '../../../../../../utils/popup'
 
 export function useDataSourceManagePage() {
@@ -27,12 +39,21 @@ export function useDataSourceManagePage() {
   const importJobProgress = reactive(createEmptyImportJobProgress())
   const exportDialogVisible = ref(false)
   const exportFormat = ref('json')
+  const tableSyncDialogVisible = ref(false)
+  const tableSyncLoading = ref(false)
+  const tableSyncSubmitting = ref(false)
+  const tableSyncError = ref('')
+  const tableSyncAllowUpdate = ref(false)
+  const tableSyncCandidates = ref([])
+  const tableSyncSelectedTables = ref([])
   const knowledgePreviewVisible = ref(false)
   const knowledgePreviewLoading = ref(false)
   const knowledgePreviewError = ref('')
   const knowledgePreviewData = reactive(createEmptyKnowledgePreview())
   const knowledgeSyncSubmitting = ref(false)
   const knowledgeSyncTarget = ref('')
+  const tableDeleteSubmitting = ref(false)
+  const tableDeleteTarget = ref('')
   const pageSizeOptions = [10, 20, 50]
   let importProgressStreamAbortController = null
 
@@ -70,6 +91,15 @@ export function useDataSourceManagePage() {
   const importProgressSummary = computed(() => importJobProgress.summary || createEmptyImportProgressSummary())
   const importActionLabel = computed(() => importJobActive.value ? '查看进度' : '导入')
   const importFormatLabel = computed(() => importFormat.value === 'excel' ? 'Excel' : 'JSON')
+  const tableSyncSelectedCount = computed(() => tableSyncSelectedTables.value.length)
+  const tableSyncCandidateCount = computed(() => tableSyncCandidates.value.length)
+  const tableSyncPendingCount = computed(() => tableSyncCandidates.value.filter(item => !item.synced).length)
+  const tableSyncAllChecked = computed(() => {
+    return tableSyncCandidateCount.value > 0 && tableSyncSelectedCount.value === tableSyncCandidateCount.value
+  })
+  const tableSyncIndeterminate = computed(() => {
+    return tableSyncSelectedCount.value > 0 && tableSyncSelectedCount.value < tableSyncCandidateCount.value
+  })
 
   onMounted(async () => {
     await loadInitialData()
@@ -168,6 +198,104 @@ export function useDataSourceManagePage() {
     exportFormat.value = 'json'
   }
 
+  async function openTableSyncDialog() {
+    if (!sourceKey.value) {
+      showPopup.error('当前数据源信息不完整，无法同步表格')
+      return
+    }
+    tableSyncDialogVisible.value = true
+    tableSyncError.value = ''
+    tableSyncAllowUpdate.value = false
+    await loadTableSyncCandidates()
+  }
+
+  function closeTableSyncDialog() {
+    tableSyncDialogVisible.value = false
+    tableSyncLoading.value = false
+    tableSyncSubmitting.value = false
+    tableSyncError.value = ''
+    tableSyncAllowUpdate.value = false
+    tableSyncCandidates.value = []
+    tableSyncSelectedTables.value = []
+  }
+
+  async function loadTableSyncCandidates() {
+    if (!sourceKey.value) {
+      tableSyncCandidates.value = []
+      tableSyncSelectedTables.value = []
+      return
+    }
+    tableSyncLoading.value = true
+    tableSyncError.value = ''
+    try {
+      const response = await listDbAccessTables({
+        sourceKey: sourceKey.value
+      })
+      const payload = unwrapPayload(response)
+      tableSyncCandidates.value = (payload?.tables ?? []).map(mapTableSyncCandidate)
+      tableSyncSelectedTables.value = tableSyncCandidates.value
+        .filter(item => !item.synced)
+        .map(item => item.name)
+    } catch (error) {
+      tableSyncError.value = error.message || '同步表格列表加载失败'
+      tableSyncCandidates.value = []
+      tableSyncSelectedTables.value = []
+    } finally {
+      tableSyncLoading.value = false
+    }
+  }
+
+  function toggleTableSyncSelection(tableName, checked) {
+    if (!tableName) {
+      return
+    }
+    if (checked) {
+      if (!tableSyncSelectedTables.value.includes(tableName)) {
+        tableSyncSelectedTables.value = [...tableSyncSelectedTables.value, tableName]
+      }
+      return
+    }
+    tableSyncSelectedTables.value = tableSyncSelectedTables.value.filter(item => item !== tableName)
+  }
+
+  function toggleAllTableSyncSelection(checked) {
+    tableSyncSelectedTables.value = checked
+      ? tableSyncCandidates.value.map(item => item.name)
+      : []
+  }
+
+  async function submitTableSync() {
+    if (!sourceKey.value) {
+      showPopup.error('当前数据源信息不完整，无法同步表格')
+      return
+    }
+    if (!tableSyncSelectedTables.value.length) {
+      tableSyncError.value = '请至少勾选一张需要同步的数据表'
+      return
+    }
+    tableSyncSubmitting.value = true
+    tableSyncError.value = ''
+    try {
+      const response = await syncDbAccessTableMeta({
+        sourceKey: sourceKey.value,
+        tables: tableSyncSelectedTables.value,
+        allowUpdate: tableSyncAllowUpdate.value
+      })
+      const payload = unwrapPayload(response) || {}
+      const createdTableCount = Number(payload.createdTableCount ?? 0)
+      const updatedTableCount = Number(payload.updatedTableCount ?? 0)
+      const createdFieldCount = Number(payload.createdFieldCount ?? 0)
+      const updatedFieldCount = Number(payload.updatedFieldCount ?? 0)
+      await refreshPage()
+      showPopup.success(`表格同步完成：新增表 ${createdTableCount}，更新表 ${updatedTableCount}，新增字段 ${createdFieldCount}，更新字段 ${updatedFieldCount}`)
+      closeTableSyncDialog()
+    } catch (error) {
+      tableSyncError.value = error.message || '表格同步失败'
+    } finally {
+      tableSyncSubmitting.value = false
+    }
+  }
+
   async function openKnowledgePreview(item) {
     if (!sourceKey.value || !item?.name) {
       showPopup.error('当前表信息不完整，无法预览知识库')
@@ -229,6 +357,37 @@ export function useDataSourceManagePage() {
     } finally {
       knowledgeSyncSubmitting.value = false
       knowledgeSyncTarget.value = ''
+    }
+  }
+
+  async function deleteTable(item) {
+    const tableName = item?.name || ''
+    if (!sourceKey.value || !tableName) {
+      showPopup.error('当前表信息不完整，无法删除')
+      return
+    }
+    const confirmed = window.confirm(`确认删除表「${tableName}」的元数据吗？这会同时删除字段和索引元数据。`)
+    if (!confirmed) {
+      return
+    }
+    tableDeleteSubmitting.value = true
+    tableDeleteTarget.value = tableName
+    try {
+      const response = await deleteDbTableMetaCascade({
+        sourceKey: sourceKey.value,
+        tableName
+      })
+      const payload = unwrapPayload(response) || {}
+      const deletedTableCount = Number(payload.deletedTableCount ?? 0)
+      const deletedFieldCount = Number(payload.deletedFieldCount ?? 0)
+      const deletedIndexCount = Number(payload.deletedIndexCount ?? 0)
+      await refreshPage()
+      showPopup.success(`删除完成：表 ${deletedTableCount}，字段 ${deletedFieldCount}，索引 ${deletedIndexCount}`)
+    } catch (error) {
+      showPopup.error(error.message || '删除失败')
+    } finally {
+      tableDeleteSubmitting.value = false
+      tableDeleteTarget.value = ''
     }
   }
 
@@ -438,6 +597,16 @@ export function useDataSourceManagePage() {
     }
   }
 
+  function mapTableSyncCandidate(item) {
+    return {
+      name: item.tableName || '-',
+      comment: item.tableComment || item.tableMeta?.tableComment || '',
+      type: item.tableType || item.tableMeta?.tableType || '',
+      synced: Boolean(item.synced),
+      localColumnCount: item.tableMeta?.columnCount ?? 0
+    }
+  }
+
   function mapFieldItem(item) {
     return {
       name: item.columnName || item.fieldName || item.name || '-',
@@ -633,12 +802,26 @@ export function useDataSourceManagePage() {
     exportDialogVisible,
     exportFormat,
     exportSubmitting,
+    tableSyncDialogVisible,
+    tableSyncLoading,
+    tableSyncSubmitting,
+    tableSyncError,
+    tableSyncAllowUpdate,
+    tableSyncCandidates,
+    tableSyncSelectedTables,
+    tableSyncSelectedCount,
+    tableSyncCandidateCount,
+    tableSyncPendingCount,
+    tableSyncAllChecked,
+    tableSyncIndeterminate,
     knowledgePreviewVisible,
     knowledgePreviewLoading,
     knowledgePreviewError,
     knowledgePreviewData,
     knowledgeSyncSubmitting,
     knowledgeSyncTarget,
+    tableDeleteSubmitting,
+    tableDeleteTarget,
     templateSubmitting,
     handleSourceChange,
     handlePageChange,
@@ -655,9 +838,15 @@ export function useDataSourceManagePage() {
     closeImportProgressDialog,
     openExportDialog,
     closeExportDialog,
+    openTableSyncDialog,
+    closeTableSyncDialog,
+    toggleTableSyncSelection,
+    toggleAllTableSyncSelection,
+    submitTableSync,
     openKnowledgePreview,
     closeKnowledgePreview,
     syncKnowledgeBase,
+    deleteTable,
     handleImportDragEnter,
     handleImportDragLeave,
     handleImportFile,

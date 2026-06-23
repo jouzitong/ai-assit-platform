@@ -154,13 +154,13 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
                             .tableName(resultSet.getString("table_name"))
                             .columnName(resultSet.getString("column_name"))
                             .dataType(resultSet.getString("data_type"))
-                            .columnLength((Integer) resultSet.getObject("character_maximum_length"))
-                            .columnPrecision((Integer) resultSet.getObject("numeric_precision"))
-                            .columnScale((Integer) resultSet.getObject("numeric_scale"))
+                            .columnLength(getInteger(resultSet, "character_maximum_length"))
+                            .columnPrecision(getInteger(resultSet, "numeric_precision"))
+                            .columnScale(getInteger(resultSet, "numeric_scale"))
                             .nullable("YES".equalsIgnoreCase(resultSet.getString("is_nullable")))
                             .primaryKey(resultSet.getInt("primary_key") == 1)
                             .defaultValue(resultSet.getString("column_default"))
-                            .ordinalPosition(resultSet.getInt("ordinal_position"))
+                            .ordinalPosition(getInteger(resultSet, "ordinal_position"))
                             .columnComment(resultSet.getString("column_comment"))
                             .build());
                 }
@@ -516,6 +516,17 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
         return value == null ? "" : value.replace("'", "''");
     }
 
+    private Integer getInteger(ResultSet resultSet, String columnLabel) throws SQLException {
+        Object value = resultSet.getObject(columnLabel);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        return Integer.valueOf(String.valueOf(value));
+    }
+
     private String resolveSchemaName(String requestedSchema) throws DbAccessException {
         if (StringUtils.hasText(requestedSchema)) {
             return requestedSchema.trim();
@@ -527,7 +538,37 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
             if (StringUtils.hasText(context.getDatabase().getDatabaseName())) {
                 return context.getDatabase().getDatabaseName().trim();
             }
+            String databaseNameFromJdbcUrl = resolveDatabaseNameFromJdbcUrl(context.getDatabase().getJdbcUrl());
+            if (StringUtils.hasText(databaseNameFromJdbcUrl)) {
+                return databaseNameFromJdbcUrl;
+            }
         }
         throw new DbAccessException("缺少 schema/database 配置");
+    }
+
+    private String resolveDatabaseNameFromJdbcUrl(String jdbcUrl) {
+        if (!StringUtils.hasText(jdbcUrl)) {
+            return null;
+        }
+        String normalized = jdbcUrl.trim();
+        int protocolIndex = normalized.indexOf("://");
+        if (protocolIndex < 0) {
+            return null;
+        }
+        String tail = normalized.substring(protocolIndex + 3);
+        int slashIndex = tail.indexOf('/');
+        if (slashIndex < 0 || slashIndex == tail.length() - 1) {
+            return null;
+        }
+        String path = tail.substring(slashIndex + 1);
+        int queryIndex = path.indexOf('?');
+        if (queryIndex >= 0) {
+            path = path.substring(0, queryIndex);
+        }
+        int paramIndex = path.indexOf(';');
+        if (paramIndex >= 0) {
+            path = path.substring(0, paramIndex);
+        }
+        return StringUtils.hasText(path) ? path.trim() : null;
     }
 }

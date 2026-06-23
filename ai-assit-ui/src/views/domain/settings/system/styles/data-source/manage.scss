@@ -209,6 +209,11 @@
   max-height: min(88vh, 920px);
 }
 
+.table-sync-modal {
+  width: min(920px, 100%);
+  max-height: min(88vh, 920px);
+}
+
 .modal-head {
   display: flex;
   align-items: flex-start;
@@ -226,6 +231,115 @@
   margin: 8px 0 0;
   color: #64748b;
   font-size: 13px;
+}
+
+.table-sync-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.table-sync-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #334155;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.table-sync-check input {
+  width: 16px;
+  height: 16px;
+}
+
+.table-sync-summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #64748b;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.table-sync-list {
+  display: grid;
+  gap: 12px;
+  max-height: min(52vh, 560px);
+  overflow: auto;
+}
+
+.table-sync-item {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr);
+  gap: 12px;
+  align-items: start;
+  padding: 14px 16px;
+  border-radius: 18px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  background: #fff;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+.table-sync-item:hover {
+  border-color: rgba(96, 165, 250, 0.65);
+  background: rgba(248, 250, 252, 0.96);
+}
+
+.table-sync-item.is-synced {
+  background: rgba(248, 250, 252, 0.92);
+}
+
+.table-sync-item__check {
+  display: grid;
+  place-items: center;
+  padding-top: 4px;
+}
+
+.table-sync-item__check input {
+  width: 16px;
+  height: 16px;
+}
+
+.table-sync-item__body {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+}
+
+.table-sync-item__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.table-sync-item__head strong {
+  color: #0f172a;
+  font-size: 15px;
+  line-height: 1.4;
+  word-break: break-word;
+}
+
+.table-sync-item__body p {
+  margin: 0;
+  color: #64748b;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.table-sync-item__meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .close-btn,
@@ -808,6 +922,12 @@
   .modal-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .table-sync-toolbar,
+  .table-sync-item__head {
+    align-items: stretch;
+    flex-direction: column;
   }
 
   .action-btn {
