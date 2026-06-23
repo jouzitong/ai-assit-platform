@@ -5,6 +5,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -31,8 +32,6 @@ import java.util.Set;
 @Component
 public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
 
-    private static final String CONTEXT_KEY = "resolvedUserPreferences";
-
     @Override
     public String code() {
         return "user_preference_resolve";
@@ -51,7 +50,7 @@ public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
         }
         Map<String, Object> preferenceProfile = resolvePreferenceProfile(command, context);
         if (!preferenceProfile.isEmpty()) {
-            context.put(CONTEXT_KEY, preferenceProfile);
+            context.put(WorkflowContextKeys.Skill.RESOLVED_USER_PREFERENCES, preferenceProfile);
         }
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }

@@ -15,6 +15,7 @@ import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -109,8 +110,8 @@ public class SqlGenerateNode extends BaseWorkflowNode {
             }
             context.setGeneratedSql(generatedSql);
             context.putNodeOutput(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), "requestId", response == null ? null : response.getRequestId());
-            context.put("generatedSql", generatedSql);
-            context.put("sqlGenerateRequestId", response == null ? null : response.getRequestId());
+            context.put(WorkflowContextKeys.SqlGenerate.GENERATED_SQL, generatedSql);
+            context.put(WorkflowContextKeys.SqlGenerate.REQUEST_ID, response == null ? null : response.getRequestId());
             context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_GENERATE.getNodeCode()).setStatus("SUCCESS");
             historyRecorder.saveArtifact(
                     context,

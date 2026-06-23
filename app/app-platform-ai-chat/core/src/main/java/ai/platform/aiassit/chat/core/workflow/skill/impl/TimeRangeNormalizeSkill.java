@@ -5,6 +5,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
 import org.springframework.util.StringUtils;
 
@@ -20,8 +21,6 @@ import java.util.Map;
  */
 //@Component
 public class TimeRangeNormalizeSkill implements IWorkflowNodeSkill {
-
-    private static final String CONTEXT_KEY = "normalizedTimeRange";
 
     @Override
     public String code() {
@@ -41,7 +40,7 @@ public class TimeRangeNormalizeSkill implements IWorkflowNodeSkill {
         }
         Map<String, Object> normalizedRange = resolveRange(command);
         if (!normalizedRange.isEmpty()) {
-            context.put(CONTEXT_KEY, normalizedRange);
+            context.put(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE, normalizedRange);
         }
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }

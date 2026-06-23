@@ -15,6 +15,7 @@ import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -111,7 +112,7 @@ public class RenderNode extends BaseWorkflowNode {
 
             context.setRenderedAnswer(answer);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
-            context.put("renderedAnswer", answer);
+            context.put(WorkflowContextKeys.Render.RENDERED_ANSWER, answer);
             context.publishEvent("answer-ready", "final answer rendered", answer, null, STATUS_SUCCESS);
             persistAssistantMessage(context, answer);
             historyRecorder.saveArtifact(

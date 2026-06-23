@@ -5,7 +5,9 @@ import lombok.NoArgsConstructor;
 
 import java.io.Serializable;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -23,6 +25,10 @@ public class WorkflowNodeConfig implements Serializable {
     private List<WorkflowNodeSkillConfig> skills = new ArrayList<>();
 
     private List<WorkflowNodeCapabilityConfig> capabilities = new ArrayList<>();
+
+    private Map<String, Object> options = new LinkedHashMap<>();
+
+    private Map<String, Object> ext = new LinkedHashMap<>();
 
     public WorkflowNodeConfig(String nodeId,
                               String nextNodeId,

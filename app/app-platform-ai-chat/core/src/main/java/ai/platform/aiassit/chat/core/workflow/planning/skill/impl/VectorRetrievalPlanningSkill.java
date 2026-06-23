@@ -9,6 +9,7 @@ import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
@@ -59,8 +60,8 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
             return null;
         }
         HybridSearchResponse response = fetchVectorHits(command, context, kbId);
-        context.put("vectorHybridSearchResponse", response);
-        context.put("vectorHybridSearchSummary", summarizeHits(response));
+        context.put(WorkflowContextKeys.Planning.VECTOR_HYBRID_SEARCH_RESPONSE, response);
+        context.put(WorkflowContextKeys.Planning.VECTOR_HYBRID_SEARCH_SUMMARY, summarizeHits(response));
 
         IntentEvidence evidence = new IntentEvidence();
         evidence.setSource(code());

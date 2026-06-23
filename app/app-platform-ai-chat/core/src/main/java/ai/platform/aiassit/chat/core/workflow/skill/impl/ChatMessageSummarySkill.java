@@ -20,6 +20,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.InvalidIntentItem;
 import ai.platform.aiassit.chat.core.workflow.context.UserMessageContext;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -127,7 +128,7 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
                         userMessageContext.getInvalidIntents());
             }
         } catch (Exception ex) {
-            context.put("chatMessageSummaryError", ex.getMessage());
+            context.put(WorkflowContextKeys.ChatMessage.SUMMARY_ERROR, ex.getMessage());
         }
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }

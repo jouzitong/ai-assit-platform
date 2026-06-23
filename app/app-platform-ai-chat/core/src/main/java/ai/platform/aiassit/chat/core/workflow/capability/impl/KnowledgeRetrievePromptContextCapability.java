@@ -13,6 +13,7 @@ import ai.platform.aiassit.chat.core.workflow.capability.PromptContextCapability
 import ai.platform.aiassit.chat.core.workflow.capability.PromptContextItem;
 import ai.platform.aiassit.chat.core.workflow.capability.PromptContextResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -67,13 +68,13 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         request.setMeta(meta);
 
         KbSearchResponse response = knowledgeApi.kbSearch(request);
-        context.put("knowledgeSearchResponse", response);
+        context.put(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE, response);
         String content = formatKnowledgeHits(response == null ? null : response.getItems());
         if (!StringUtils.hasText(content)) {
             return empty();
         }
         context.setKnowledgeResult(content);
-        context.put("knowledgeResult", content);
+        context.put(WorkflowContextKeys.Capability.KNOWLEDGE_RESULT, content);
 
         PromptContextItem item = new PromptContextItem();
         item.setTitle(resolveTitle(capabilityConfig, "知识库上下文"));

@@ -5,6 +5,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -28,8 +29,6 @@ import java.util.Set;
 @Component
 public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
 
-    private static final String CONTEXT_KEY = "sqlGenerationPolicy";
-
     @Override
     public String code() {
         return "sql_generation_policy";
@@ -47,7 +46,7 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
             return NodeResult.fail("command is required");
         }
         Map<String, Object> policy = buildPolicy(command, context);
-        context.put(CONTEXT_KEY, policy);
+        context.put(WorkflowContextKeys.Skill.SQL_GENERATION_POLICY, policy);
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
@@ -70,11 +69,11 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
         constraints.add("若涉及聚合指标，必须保证聚合表达式与 GROUP BY 维度一致。");
         constraints.add("仅在当前上下文能支持时使用 JOIN，无法确认关联关系时不要臆造关联字段。");
 
-        List<String> businessTerms = context.get("resolvedBusinessTerms");
+        List<String> businessTerms = context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
         if (!CollectionUtils.isEmpty(businessTerms)) {
             constraints.add("术语解析结果已提供业务术语，请优先使用这些标准术语对应的字段和口径：" + businessTerms);
         }
-        Object normalizedTimeRange = context.get("normalizedTimeRange");
+        Object normalizedTimeRange = context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE);
         if (normalizedTimeRange != null) {
             constraints.add("已识别标准化时间范围，请在 SQL 条件中优先落实该时间范围：" + normalizedTimeRange);
         }
@@ -107,10 +106,10 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
     private List<String> buildSources(AiChatQueryCommand command, WorkflowContext context) {
         List<String> sources = new ArrayList<>();
         sources.add("built-in-default-policy");
-        if (context.get("resolvedBusinessTerms") != null) {
+        if (context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS) != null) {
             sources.add("resolvedBusinessTerms");
         }
-        if (context.get("normalizedTimeRange") != null) {
+        if (context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE) != null) {
             sources.add("normalizedTimeRange");
         }
         if (StringUtils.hasText(context.getKnowledgeResult())) {

@@ -8,6 +8,7 @@ import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
@@ -56,7 +57,7 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
             return null;
         }
         IntentAnalyzeResponse response = aiRetrievalExecutionApi.analyzeIntent(buildRequest(context));
-        context.put("intentAnalyzeResponse", response);
+        context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
 
         IntentEvidence evidence = new IntentEvidence();
         evidence.setSource(code());
@@ -174,19 +175,19 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
         if (StringUtils.hasText(userMessageSummary)) {
             parts.add("用户消息上下文汇总：\n" + userMessageSummary);
         }
-        Object keywordSummary = context.get("keywordHybridSearchSummary");
+        Object keywordSummary = context.get(WorkflowContextKeys.Planning.KEYWORD_HYBRID_SEARCH_SUMMARY);
         if (keywordSummary instanceof String value && StringUtils.hasText(value)) {
             parts.add("关键词检索摘要：" + value);
         }
-        Object vectorSummary = context.get("vectorHybridSearchSummary");
+        Object vectorSummary = context.get(WorkflowContextKeys.Planning.VECTOR_HYBRID_SEARCH_SUMMARY);
         if (vectorSummary instanceof String value && StringUtils.hasText(value)) {
             parts.add("语义召回摘要：" + value);
         }
-        Object normalizedTimeRange = context.get("normalizedTimeRange");
+        Object normalizedTimeRange = context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE);
         if (normalizedTimeRange != null) {
             parts.add("时间范围补充：" + normalizedTimeRange);
         }
-        List<String> resolvedTerms = context.get("resolvedBusinessTerms");
+        List<String> resolvedTerms = context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             parts.add("业务术语补充：" + resolvedTerms);
         }

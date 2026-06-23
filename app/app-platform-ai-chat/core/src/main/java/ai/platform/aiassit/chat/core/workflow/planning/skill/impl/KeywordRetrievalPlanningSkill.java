@@ -9,6 +9,7 @@ import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.QueryPlanningSkillResult;
@@ -59,14 +60,14 @@ public class KeywordRetrievalPlanningSkill implements QueryPlanningSkill {
             return null;
         }
         HybridSearchResponse response = fetchKeywordHits(command, context, kbId);
-        context.put("keywordHybridSearchResponse", response);
-        context.put("keywordHybridSearchSummary", summarizeHits(response));
+        context.put(WorkflowContextKeys.Planning.KEYWORD_HYBRID_SEARCH_RESPONSE, response);
+        context.put(WorkflowContextKeys.Planning.KEYWORD_HYBRID_SEARCH_SUMMARY, summarizeHits(response));
 
         IntentEvidence evidence = new IntentEvidence();
         evidence.setSource(code());
         evidence.setSummary("通过 retrieval API 执行关键词检索召回业务术语和候选数据集。");
         evidence.setScore(topScore(response));
-        evidence.setTerms(resolveTerms(message, context.get("resolvedBusinessTerms"), response));
+        evidence.setTerms(resolveTerms(message, context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS), response));
         evidence.setCandidateDatasets(resolveCandidateDatasets(response));
         evidence.setRequiredContext(resolveRequiredContext(response));
         evidence.getAttributes().put("kbId", kbId);

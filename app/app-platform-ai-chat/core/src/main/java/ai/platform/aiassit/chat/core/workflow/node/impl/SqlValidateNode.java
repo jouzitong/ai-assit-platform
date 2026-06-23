@@ -2,6 +2,7 @@ package ai.platform.aiassit.chat.core.workflow.node.impl;
 
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -57,7 +58,7 @@ public class SqlValidateNode extends BaseWorkflowNode {
         String validationError = validateSql(normalizedSql);
         context.setSqlValidationError(validationError);
         context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode()).setStatus(validationError == null ? "SUCCESS" : "FAILED");
-        context.put("sqlValidationError", validationError);
+        context.put(WorkflowContextKeys.SqlValidate.VALIDATION_ERROR, validationError);
 
         if (validationError == null) {
             context.setValidatedSql(normalizedSql);
@@ -91,7 +92,7 @@ public class SqlValidateNode extends BaseWorkflowNode {
                 normalizedSql
         );
         if (retryCount <= MAX_RETRY_COUNT) {
-            context.put("sqlGenerationFeedback", validationError);
+            context.put(WorkflowContextKeys.SqlGenerate.FEEDBACK, validationError);
             return NodeResult.success(WorkflowNodeCodes.SQL_GENERATE.getNodeCode());
         }
         return NodeResult.fail(validationError);

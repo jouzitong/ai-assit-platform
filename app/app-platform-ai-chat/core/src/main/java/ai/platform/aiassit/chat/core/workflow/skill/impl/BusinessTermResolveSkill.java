@@ -5,6 +5,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.skill.IWorkflowNodeSkill;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -25,8 +26,6 @@ import java.util.Set;
 public class BusinessTermResolveSkill implements IWorkflowNodeSkill {
 
     private static final String EXT_KEY = "businessTerms";
-    private static final String CONTEXT_KEY = "resolvedBusinessTerms";
-
     @Override
     public String code() {
         return "business_term_resolve";
@@ -44,7 +43,7 @@ public class BusinessTermResolveSkill implements IWorkflowNodeSkill {
             return NodeResult.fail("command is required");
         }
         List<String> resolvedTerms = resolveTerms(command);
-        context.put(CONTEXT_KEY, resolvedTerms);
+        context.put(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS, resolvedTerms);
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 

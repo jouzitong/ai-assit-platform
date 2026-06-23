@@ -3,6 +3,7 @@ package ai.platform.aiassit.chat.core.workflow.node.impl;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -66,7 +67,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
             context.setSqlExecutionStatus("SUCCESS");
             context.setSqlExecutionResult(providedResult);
             context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode()).setStatus("SUCCESS");
-            context.put("sqlExecutionResult", providedResult);
+            context.put(WorkflowContextKeys.SqlExecute.RESULT, providedResult);
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.SQL_EXEC_RESULT.name(),
@@ -92,7 +93,7 @@ public class SqlExecuteNode extends BaseWorkflowNode {
         context.setSqlExecutionStatus("SKIPPED");
         context.setSqlExecutionResult(degradedResult);
         context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode()).setStatus("SKIPPED");
-        context.put("sqlExecutionResult", degradedResult);
+        context.put(WorkflowContextKeys.SqlExecute.RESULT, degradedResult);
         historyRecorder.saveArtifact(
                 context,
                 AiChatArtifactType.SQL_EXEC_RESULT.name(),

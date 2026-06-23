@@ -2,6 +2,7 @@ package ai.platform.aiassit.chat.core.workflow.context;
 
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
@@ -49,6 +50,11 @@ public class WorkflowContext implements Serializable {
      * 当前执行的工作流编码。
      */
     private String workflowCode;
+
+    /**
+     * 当前工作流定义。
+     */
+    private WorkflowDefinition workflowDefinition;
 
     /**
      * 当前对话会话信息。

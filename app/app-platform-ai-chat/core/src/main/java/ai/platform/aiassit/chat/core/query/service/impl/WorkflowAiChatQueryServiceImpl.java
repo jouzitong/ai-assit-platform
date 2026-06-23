@@ -12,6 +12,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.chat.core.workflow.capability.impl.KnowledgeRetrievePromptContextCapability;
 import ai.platform.aiassit.chat.core.workflow.capability.impl.SystemDocumentPromptContextCapability;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
 import lombok.extern.slf4j.Slf4j;
@@ -61,13 +62,14 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
     }
 
     private void handleQueryStream(AiChatQueryCommand command, SseEmitter emitter) {
-        WorkflowContext workflowContext = buildWorkflowContext(command);
+        WorkflowDefinition workflowDefinition = buildWorkflowDefinition();
+        WorkflowContext workflowContext = buildWorkflowContext(command, workflowDefinition);
         workflowContext.setEmitter(emitter);
         try {
             sendInitEvent(emitter, workflowContext);
-            workflowEngine.run(buildWorkflowDefinition(), workflowContext);
+            workflowEngine.run(workflowContext);
 
-            String error = workflowContext.get("error");
+            String error = workflowContext.get(WorkflowContextKeys.Common.ERROR);
             if (error != null) {
                 throw new IllegalStateException(error);
             }
@@ -87,32 +89,64 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
         }
     }
 
-    private WorkflowContext buildWorkflowContext(AiChatQueryCommand command) {
+    private WorkflowContext buildWorkflowContext(AiChatQueryCommand command, WorkflowDefinition workflowDefinition) {
         WorkflowContext context = new WorkflowContext();
         context.setCommand(command);
-        context.setWorkflowCode("ai-chat-query-workflow");
+        applyDefaultNodeBindings(workflowDefinition);
+        context.setWorkflowDefinition(workflowDefinition);
+        context.setWorkflowCode(workflowDefinition == null ? "ai-chat-query-workflow" : workflowDefinition.getWorkflowCode());
         return context;
     }
 
     private WorkflowDefinition buildWorkflowDefinition() {
         Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
-        nodes.put(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), java.util.List.of(
-                new WorkflowNodeSkillConfig("chat_message_summary", WorkflowSkillPhase.AFTER_EXECUTE)
-        )));
+        nodes.put(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), java.util.List.of()));
         nodes.put(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), java.util.List.of()));
-        nodes.put(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), java.util.List.of(
-                new WorkflowNodeSkillConfig("sql_generation_policy", WorkflowSkillPhase.BEFORE_EXECUTE),
-                new WorkflowNodeSkillConfig("user_preference_resolve", WorkflowSkillPhase.BEFORE_EXECUTE)
-        ), List.of(
-                buildKnowledgeCapability(),
-                buildSqlSystemDocumentCapability()
-        )));
+        nodes.put(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_GENERATE.getNodeCode(), WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), java.util.List.of()));
         nodes.put(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), java.util.List.of()));
         nodes.put(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeCode(), java.util.List.of()));
-        nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), null, java.util.List.of(), List.of(
-                buildRenderSystemDocumentCapability()
-        )));
+        nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), null, java.util.List.of()));
         return new WorkflowDefinition("ai-chat-query-workflow", nodes, WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode());
+    }
+
+    private void applyDefaultNodeBindings(WorkflowDefinition workflowDefinition) {
+        if (workflowDefinition == null || workflowDefinition.getNodes() == null || workflowDefinition.getNodes().isEmpty()) {
+            return;
+        }
+        bindSkills(workflowDefinition);
+        bindCapabilities(workflowDefinition);
+    }
+
+    private void bindSkills(WorkflowDefinition workflowDefinition) {
+        WorkflowNodeConfig chatMessageNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode());
+        if (chatMessageNode != null) {
+            chatMessageNode.setSkills(List.of(
+                    new WorkflowNodeSkillConfig("chat_message_summary", WorkflowSkillPhase.AFTER_EXECUTE)
+            ));
+        }
+        WorkflowNodeConfig sqlGenerateNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.SQL_GENERATE.getNodeCode());
+        if (sqlGenerateNode != null) {
+            sqlGenerateNode.setSkills(List.of(
+                    new WorkflowNodeSkillConfig("sql_generation_policy", WorkflowSkillPhase.BEFORE_EXECUTE),
+                    new WorkflowNodeSkillConfig("user_preference_resolve", WorkflowSkillPhase.BEFORE_EXECUTE)
+            ));
+        }
+    }
+
+    private void bindCapabilities(WorkflowDefinition workflowDefinition) {
+        WorkflowNodeConfig sqlGenerateNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.SQL_GENERATE.getNodeCode());
+        if (sqlGenerateNode != null) {
+            sqlGenerateNode.setCapabilities(List.of(
+                    buildKnowledgeCapability(),
+                    buildSqlSystemDocumentCapability()
+            ));
+        }
+        WorkflowNodeConfig renderNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.RENDER.getNodeCode());
+        if (renderNode != null) {
+            renderNode.setCapabilities(List.of(
+                    buildRenderSystemDocumentCapability()
+            ));
+        }
     }
 
     private WorkflowNodeCapabilityConfig buildKnowledgeCapability() {

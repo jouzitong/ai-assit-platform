@@ -16,6 +16,7 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.config.WorkflowProperties;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
+import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
@@ -239,9 +240,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     historyMessages.isEmpty());
 
             IntentAnalysisBundle intentAnalysisBundle = queryPlanningSkillExecutor.analyze(context);
-            context.put("intentAnalysisBundle", intentAnalysisBundle);
-            context.put("queryPlanningEvidences", intentAnalysisBundle.getEvidences());
-            context.put("queryPlanningContextMessages", intentAnalysisBundle.getContextMessages());
+            context.put(WorkflowContextKeys.Planning.INTENT_ANALYSIS_BUNDLE, intentAnalysisBundle);
+            context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_EVIDENCES, intentAnalysisBundle.getEvidences());
+            context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES, intentAnalysisBundle.getContextMessages());
             context.publishEvent("intent-analysis-ready", "intent analysis bundle prepared");
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
@@ -283,10 +284,10 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), "planningRequestId",
                     planningResponse == null ? null : planningResponse.getRequestId());
             context.setAnalysisResult(analysisResult);
-            context.put("queryPlan", analysisResult);
-            context.put("queryPlanResult", planningResult);
-            context.put("queryPlanningSummary", buildIntentAnalysisSummary(intentAnalysisBundle));
-            context.put("planningRequestId", planningResponse == null ? null : planningResponse.getRequestId());
+            context.put(WorkflowContextKeys.Planning.QUERY_PLAN, analysisResult);
+            context.put(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT, planningResult);
+            context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_SUMMARY, buildIntentAnalysisSummary(intentAnalysisBundle));
+            context.put(WorkflowContextKeys.Planning.PLANNING_REQUEST_ID, planningResponse == null ? null : planningResponse.getRequestId());
             context.publishEvent("query-plan-ready", "query plan prepared");
             historyRecorder.saveArtifact(
                     context,
@@ -394,11 +395,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (StringUtils.hasText(userMessageSummary)) {
             builder.append("用户消息上下文汇总：").append('\n').append(userMessageSummary).append('\n');
         }
-        List<String> resolvedTerms = context.get("resolvedBusinessTerms");
+        List<String> resolvedTerms = context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("业务术语补充：").append(resolvedTerms).append('\n');
         }
-        Object normalizedTimeRange = context.get("normalizedTimeRange");
+        Object normalizedTimeRange = context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE);
         if (normalizedTimeRange != null) {
             builder.append("时间范围补充：").append(normalizedTimeRange).append('\n');
         }
@@ -407,7 +408,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     @SuppressWarnings("unchecked")
     private void appendPlanningSkillMessages(List<ChatMessage> messages, WorkflowContext context) {
-        List<PlanningContextMessage> contextMessages = context.get("queryPlanningContextMessages");
+        List<PlanningContextMessage> contextMessages = context.get(WorkflowContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES);
         if (CollectionUtils.isEmpty(contextMessages)) {
             return;
         }
