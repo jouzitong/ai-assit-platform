@@ -25,7 +25,7 @@ Authorization: Bearer {{token}}
   "kbId": "{{kbId}}",
   "documentId": "{{docId1}}",
   "documentName": "manual-http-test/profile-001.txt",
-  "documentType": "DB_TABLE",
+  "documentType": 1,
   "sourceKey": "manual-http-test",
   "content": "张三，男，28岁，来自上海，当前职位是高级数据分析师，擅长 Java、SQL 和 Python。",
   "canUpdate": true,
@@ -76,3 +76,6 @@ Accept: {{acceptJson}}
     }
   }
 }
+
+### 4) get document detail
+GET {{host}}{{apiPrefix}}/api/v1/ai/kb/document/detail?documentCode={{docId1}}&kbCode={{kbId}}

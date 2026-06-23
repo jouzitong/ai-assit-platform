@@ -9,6 +9,8 @@ import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
+import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 
@@ -95,4 +97,6 @@ public interface AiKnowledgeDomainService {
      * @return 文档同步结果
      */
     AiKbSyncResponse syncDocument(AiKbSyncRequest request);
+
+    AiKbDeleteResponse deleteDocument(AiKbDeleteRequest request);
 }

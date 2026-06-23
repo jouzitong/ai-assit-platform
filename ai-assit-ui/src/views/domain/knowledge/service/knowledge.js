@@ -1,6 +1,6 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { createAiKnowledgeBase, listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
+import { createAiKnowledgeBase, deleteAiKnowledgeBaseDocuments, listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
 import { showPopup } from '../../../../utils/popup'
 
 export function useKnowledgePage() {
@@ -14,6 +14,8 @@ export function useKnowledgePage() {
   const createSubmitting = ref(false)
   const createError = ref('')
   const createForm = reactive(createEmptyKbForm())
+  const batchMode = ref(false)
+  const selectedDocumentCodes = ref([])
 
   const filteredSources = computed(() => {
     const normalized = keyword.value.trim().toLowerCase()
@@ -70,7 +72,7 @@ export function useKnowledgePage() {
   }
 
   async function triggerKnowledgeSync() {
-    const syncRows = filteredSources.value.filter(shouldSyncDocument)
+    const syncRows = resolveTargetRows().filter(shouldSyncDocument)
     if (!syncRows.length) {
       showPopup.warning('当前没有待同步或同步失败的文档')
       return
@@ -91,6 +93,36 @@ export function useKnowledgePage() {
       await loadDataSources()
     } catch (error) {
       errorMessage.value = error.message || '知识库文档同步失败'
+      showPopup.error(errorMessage.value)
+    } finally {
+      loading.value = false
+    }
+  }
+
+  async function deleteKnowledgeDocuments() {
+    const targetRows = resolveTargetRows()
+    if (!targetRows.length) {
+      showPopup.warning('请先选择要删除的文档')
+      return
+    }
+    if (!window.confirm(`确认删除已选择的 ${targetRows.length} 个知识库文档吗？`)) {
+      return
+    }
+    loading.value = true
+    errorMessage.value = ''
+    try {
+      const response = await deleteAiKnowledgeBaseDocuments({
+        documentCodes: targetRows.map(item => item.documentCode).filter(Boolean)
+      })
+      const deletedCount = Number(response?.deletedCount ?? 0)
+      const skippedCount = Array.isArray(response?.skippedDocumentCodes)
+        ? response.skippedDocumentCodes.length
+        : 0
+      showPopup.success(`知识库文档删除完成，已删除 ${deletedCount} 个文档${skippedCount ? `，跳过 ${skippedCount} 个` : ''}`)
+      clearBatchSelection()
+      await loadDataSources()
+    } catch (error) {
+      errorMessage.value = error.message || '知识库文档删除失败'
       showPopup.error(errorMessage.value)
     } finally {
       loading.value = false
@@ -152,6 +184,46 @@ export function useKnowledgePage() {
     showPopup.warning(`${label}功能建设中`)
   }
 
+  function enterBatchMode() {
+    batchMode.value = true
+    clearBatchSelection()
+  }
+
+  function exitBatchMode() {
+    batchMode.value = false
+    clearBatchSelection()
+  }
+
+  function toggleDocumentSelection(documentCode, checked) {
+    if (!documentCode) {
+      return
+    }
+    if (checked) {
+      if (!selectedDocumentCodes.value.includes(documentCode)) {
+        selectedDocumentCodes.value = [...selectedDocumentCodes.value, documentCode]
+      }
+      return
+    }
+    selectedDocumentCodes.value = selectedDocumentCodes.value.filter(item => item !== documentCode)
+  }
+
+  function toggleSelectAll(checked, rows) {
+    selectedDocumentCodes.value = checked
+      ? rows.map(item => item.documentCode).filter(Boolean)
+      : []
+  }
+
+  function clearBatchSelection() {
+    selectedDocumentCodes.value = []
+  }
+
+  function resolveTargetRows() {
+    if (!batchMode.value) {
+      return filteredSources.value
+    }
+    return filteredSources.value.filter(item => selectedDocumentCodes.value.includes(item.documentCode))
+  }
+
   return {
     activeTab,
     keyword,
@@ -162,14 +234,21 @@ export function useKnowledgePage() {
     createSubmitting,
     createError,
     createForm,
+    batchMode,
+    selectedDocumentCodes,
     filteredSources,
     openSource,
     triggerKnowledgeSync,
+    deleteKnowledgeDocuments,
     loadDataSources,
     openCreateDialog,
     closeCreateDialog,
     submitCreateDialog,
-    showPendingAction
+    showPendingAction,
+    enterBatchMode,
+    exitBatchMode,
+    toggleDocumentSelection,
+    toggleSelectAll
   }
 }
 

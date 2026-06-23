@@ -260,6 +260,13 @@ export function syncAiKnowledgeBaseDocuments(payload) {
   })
 }
 
+export function deleteAiKnowledgeBaseDocuments(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/delete`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
 async function tryReadErrorPayload(response) {
   const contentType = response.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {

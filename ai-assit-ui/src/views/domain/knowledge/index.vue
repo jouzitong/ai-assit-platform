@@ -29,23 +29,45 @@ const {
   createSubmitting,
   createError,
   createForm,
+  batchMode,
+  selectedDocumentCodes,
   filteredSources,
   openSource,
   triggerKnowledgeSync,
+  deleteKnowledgeDocuments,
   loadDataSources,
   openCreateDialog,
   closeCreateDialog,
   submitCreateDialog,
-  showPendingAction
+  showPendingAction,
+  enterBatchMode,
+  exitBatchMode,
+  toggleDocumentSelection,
+  toggleSelectAll
 } = useKnowledgePage()
 
 const filterSchema = ref(KNOWLEDGE_FILTER_SCHEMA.map(item => ({ ...item })))
 
-const tableColumns = KNOWLEDGE_TABLE_COLUMNS
+const tableColumns = computed(() => {
+  if (!batchMode.value) {
+    return KNOWLEDGE_TABLE_COLUMNS
+  }
+  return [
+    { key: '__select__', label: '选择', width: 8, alignCenter: true, slot: 'select' },
+    ...KNOWLEDGE_TABLE_COLUMNS
+  ]
+})
 
 const listConfig = KNOWLEDGE_LIST_CONFIG
 
 const actionItems = computed(() => {
+  if (batchMode.value) {
+    return [
+      { key: 'batch-sync', label: '同步', type: 'primary', action: 'batch-sync' },
+      { key: 'batch-delete', label: '删除', variant: 'ghost', action: 'batch-delete' },
+      { key: 'batch-cancel', label: '取消批量', variant: 'ghost', action: 'batch-cancel' }
+    ]
+  }
   if (activeTab.value === 'draft') {
     return [{ key: 'publish', label: '发布', type: 'primary', action: 'publish' }]
   }
@@ -55,7 +77,7 @@ const actionItems = computed(() => {
       { key: 'rollback', label: '版本回退', type: 'primary', action: 'rollback' }
     ]
   }
-  return KNOWLEDGE_ACTION_ITEMS
+  return [...KNOWLEDGE_ACTION_ITEMS, { key: 'batch', label: '批量操作', variant: 'ghost', action: 'batch' }]
 })
 
 const headerTab = computed(() => ({
@@ -106,6 +128,22 @@ function handleHeaderTabChange(nextTab) {
 }
 
 function handleToolbarAction(payload) {
+  if (payload?.action === 'batch') {
+    enterBatchMode()
+    return
+  }
+  if (payload?.action === 'batch-sync') {
+    triggerKnowledgeSync()
+    return
+  }
+  if (payload?.action === 'batch-delete') {
+    deleteKnowledgeDocuments()
+    return
+  }
+  if (payload?.action === 'batch-cancel') {
+    exitBatchMode()
+    return
+  }
   if (payload?.action === 'create') {
     openCreateDialog()
     return
@@ -134,6 +172,12 @@ function handleToolbarAction(payload) {
 
 function handleRowClick(payload) {
   if (payload?.row) {
+    if (batchMode.value) {
+      const documentCode = payload.row.documentCode
+      const checked = !selectedDocumentCodes.value.includes(documentCode)
+      toggleDocumentSelection(documentCode, checked)
+      return
+    }
     openSource(payload.row)
   }
 }
@@ -142,8 +186,20 @@ function handleTableAction(payload) {
   if (!payload?.row) {
     return
   }
+  if (batchMode.value) {
+    return
+  }
   openSource(payload.row)
 }
+
+const pageRowsSelected = computed(() => {
+  return pagedRows.value.length > 0 && pagedRows.value.every(row => selectedDocumentCodes.value.includes(row.documentCode))
+})
+
+const pageRowsIndeterminate = computed(() => {
+  const selectedCount = pagedRows.value.filter(row => selectedDocumentCodes.value.includes(row.documentCode)).length
+  return selectedCount > 0 && selectedCount < pagedRows.value.length
+})
 </script>
 
 <template>
@@ -162,6 +218,18 @@ function handleTableAction(payload) {
 
       <template #table>
         <div class="knowledge-table-panel">
+          <div v-if="batchMode" class="knowledge-batch-bar">
+            <label class="knowledge-batch-check">
+              <input
+                type="checkbox"
+                :checked="pageRowsSelected"
+                :indeterminate.prop="pageRowsIndeterminate"
+                @change="toggleSelectAll($event.target.checked, pagedRows)"
+              />
+              <span>本页全选</span>
+            </label>
+            <span class="knowledge-batch-summary">已选择 {{ selectedDocumentCodes.length }} 个文档</span>
+          </div>
           <DataTable
             :rows="pagedRows"
             :columns="tableColumns"
@@ -171,7 +239,16 @@ function handleTableAction(payload) {
             @update:sorts="sorts = $event"
             @row-click="handleRowClick"
             @action-click="handleTableAction"
-          />
+          >
+            <template #cell-select="{ row }">
+              <input
+                type="checkbox"
+                :checked="selectedDocumentCodes.includes(row.documentCode)"
+                @click.stop
+                @change="toggleDocumentSelection(row.documentCode, $event.target.checked)"
+              />
+            </template>
+          </DataTable>
         </div>
       </template>
 
@@ -264,6 +341,38 @@ function handleTableAction(payload) {
   display: grid;
   gap: 12px;
   min-height: 0;
+}
+
+.knowledge-batch-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 10px 14px;
+  border: 1px solid rgba(191, 219, 254, 0.95);
+  border-radius: 14px;
+  background: rgba(239, 246, 255, 0.72);
+}
+
+.knowledge-batch-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #1e3a8a;
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.knowledge-batch-check input {
+  width: 16px;
+  height: 16px;
+}
+
+.knowledge-batch-summary {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 600;
 }
 
 .sidebar-entry {
@@ -445,6 +554,11 @@ function handleTableAction(payload) {
 }
 
 @media (max-width: 720px) {
+  .knowledge-batch-bar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
   .kb-create-grid {
     grid-template-columns: 1fr;
   }

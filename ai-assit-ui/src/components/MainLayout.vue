@@ -31,7 +31,7 @@ onBeforeUnmount(() => {
     <section class="content">
       <RouterView />
     </section>
-    <ChatWidget />
+<!--    <ChatWidget />-->
   </div>
   <RouterView v-else />
 </template>

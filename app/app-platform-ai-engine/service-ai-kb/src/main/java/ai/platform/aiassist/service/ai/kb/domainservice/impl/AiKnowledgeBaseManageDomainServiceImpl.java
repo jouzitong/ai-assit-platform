@@ -22,6 +22,8 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
+import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
@@ -31,6 +33,8 @@ import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionContentD
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbStoreDTO;
 import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentQueryRequest;
+import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionQueryRequest;
+import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionContentQueryRequest;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentContentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionContentService;
@@ -393,6 +397,87 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         return response;
     }
 
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public AiKbDeleteResponse deleteDocument(AiKbDeleteRequest request) {
+        if (request == null || request.getDocumentCodes() == null || request.getDocumentCodes().isEmpty()) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
+        }
+        String requestKbCode = trimToNull(request.getKbCode());
+        List<String> requestedCodes = request.getDocumentCodes().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (requestedCodes.isEmpty()) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
+        }
+
+        AiKbDeleteResponse response = new AiKbDeleteResponse();
+        int deletedCount = 0;
+        int deletedContentCount = 0;
+        int deletedVersionCount = 0;
+        int deletedVersionContentCount = 0;
+        List<String> skippedDocumentCodes = new ArrayList<>();
+
+        for (String documentCode : requestedCodes) {
+            AiKbDocumentDTO document = resolveDocumentForDelete(requestKbCode, documentCode);
+            if (document == null || document.getId() == null) {
+                skippedDocumentCodes.add(documentCode);
+                continue;
+            }
+
+            AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
+            if (content != null && content.getId() != null && contentService.delete(content.getId())) {
+                deletedContentCount++;
+            }
+
+            AiKbDocumentQueryRequest versionDocumentQuery = new AiKbDocumentQueryRequest();
+            versionDocumentQuery.setKbCode(document.getKbCode());
+            versionDocumentQuery.setDocumentCode(document.getDocumentCode());
+            versionDocumentQuery.setPage(1);
+            versionDocumentQuery.setSize(1);
+
+            AiKbDocumentVersionQueryRequest versionQuery = new AiKbDocumentVersionQueryRequest();
+            versionQuery.setKbCode(document.getKbCode());
+            versionQuery.setDocumentCode(document.getDocumentCode());
+            versionQuery.setPage(1);
+            versionQuery.setSize(Integer.MAX_VALUE);
+            List<AiKbDocumentVersionDTO> versions = documentVersionService.listByQuery(versionQuery);
+            for (AiKbDocumentVersionDTO version : versions) {
+                if (version == null || version.getId() == null) {
+                    continue;
+                }
+                AiKbDocumentVersionContentQueryRequest versionContentQuery = new AiKbDocumentVersionContentQueryRequest();
+                versionContentQuery.setDocumentVersionId(version.getId());
+                versionContentQuery.setPage(1);
+                versionContentQuery.setSize(Integer.MAX_VALUE);
+                List<AiKbDocumentVersionContentDTO> versionContents = documentVersionContentService.queryAll(versionContentQuery);
+                for (AiKbDocumentVersionContentDTO versionContent : versionContents) {
+                    if (versionContent != null && versionContent.getId() != null && documentVersionContentService.delete(versionContent.getId())) {
+                        deletedVersionContentCount++;
+                    }
+                }
+                if (documentVersionService.delete(version.getId())) {
+                    deletedVersionCount++;
+                }
+            }
+
+            if (documentService.delete(document.getId())) {
+                deletedCount++;
+            } else {
+                skippedDocumentCodes.add(documentCode);
+            }
+        }
+
+        response.setDeletedCount(deletedCount);
+        response.setDeletedContentCount(deletedContentCount);
+        response.setDeletedVersionCount(deletedVersionCount);
+        response.setDeletedVersionContentCount(deletedVersionContentCount);
+        response.setSkippedDocumentCodes(skippedDocumentCodes);
+        return response;
+    }
+
     private PublishResult syncCurrentDocuments(String kbCode, List<AiKbDocumentDTO> documents) {
         AiKbStoreDTO store = storeService.getByKbCode(kbCode);
         if (store == null) {
@@ -694,6 +779,18 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
             return text.trim();
         }
         return null;
+    }
+
+    private AiKbDocumentDTO resolveDocumentForDelete(String kbCode, String documentCode) {
+        if (StringUtils.hasText(kbCode)) {
+            return documentService.getByKbCodeAndDocumentCode(kbCode, documentCode);
+        }
+        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        query.setDocumentCode(documentCode);
+        query.setPage(1);
+        query.setSize(2);
+        List<AiKbDocumentDTO> documents = documentService.listByQuery(query);
+        return documents.isEmpty() ? null : documents.get(0);
     }
 
     private AiKbDocumentListItemDTO toDocumentListItem(AiKbDocumentDTO source) {

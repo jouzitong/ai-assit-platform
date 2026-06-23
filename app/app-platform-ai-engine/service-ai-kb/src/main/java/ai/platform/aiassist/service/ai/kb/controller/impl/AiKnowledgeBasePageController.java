@@ -7,8 +7,10 @@ import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassist.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
+import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
 import org.athena.framework.web.vo.R;
@@ -67,5 +69,10 @@ public class AiKnowledgeBasePageController implements ai.platform.aiassist.servi
     @Override
     public R<AiKbSyncResponse> syncDocument(AiKbSyncRequest request) {
         return R.ok(domainService.syncDocument(request));
+    }
+
+    @Override
+    public R<AiKbDeleteResponse> deleteDocument(AiKbDeleteRequest request) {
+        return R.ok(domainService.deleteDocument(request));
     }
 }
