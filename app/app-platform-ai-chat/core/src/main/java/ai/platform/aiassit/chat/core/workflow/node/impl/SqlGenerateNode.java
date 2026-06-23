@@ -14,6 +14,9 @@ import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeCapabilityConfig;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
+import ai.platform.aiassit.chat.core.workflow.capability.impl.KnowledgeRetrievePromptContextCapability;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
@@ -60,6 +63,8 @@ import java.util.Objects;
 public class SqlGenerateNode extends BaseWorkflowNode {
 
     private static final String DEFAULT_SCENE = "ai-chat-sql-generate";
+    private static final String DEFAULT_KB_ID = "w05enpcxa4";
+    private static final int DEFAULT_KB_TOP_K = 20;
     private static final String SQL_GENERATION_POLICY_KEY = "sqlGenerationPolicy";
     private static final String USER_PREFERENCE_KEY = "resolvedUserPreferences";
     private static final String SQL_GENERATION_PROMPT = """
@@ -86,6 +91,43 @@ public class SqlGenerateNode extends BaseWorkflowNode {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
         this.historyRecorder = historyRecorder;
+    }
+
+    @Override
+    protected void beforeExecute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+        if (nodeConfig == null) {
+            return;
+        }
+        List<WorkflowNodeCapabilityConfig> capabilities = nodeConfig.getCapabilities();
+        if (capabilities == null) {
+            capabilities = new ArrayList<>();
+            nodeConfig.setCapabilities(capabilities);
+        }
+        WorkflowNodeCapabilityConfig knowledgeCapability = null;
+        for (WorkflowNodeCapabilityConfig capability : capabilities) {
+            if (capability != null && KnowledgeRetrievePromptContextCapability.CODE.equals(capability.getCode())) {
+                knowledgeCapability = capability;
+                break;
+            }
+        }
+        if (knowledgeCapability == null) {
+            knowledgeCapability = new WorkflowNodeCapabilityConfig();
+            knowledgeCapability.setCode(KnowledgeRetrievePromptContextCapability.CODE);
+            knowledgeCapability.setRequired(Boolean.FALSE);
+            knowledgeCapability.setSort(100);
+            capabilities.add(knowledgeCapability);
+        }
+        knowledgeCapability.getOptions().putIfAbsent("title", "SQL 相关知识库上下文");
+        knowledgeCapability.getOptions().put("queryMode", "planning_subject_relations");
+        knowledgeCapability.getOptions().putIfAbsent("queryTemplate", """
+                用户问题：
+                {message}
+
+                查询规划：
+                {analysis}
+                """.trim());
+        knowledgeCapability.getOptions().put("kbId", DEFAULT_KB_ID);
+        knowledgeCapability.getOptions().put("topK", DEFAULT_KB_TOP_K);
     }
 
     @Override

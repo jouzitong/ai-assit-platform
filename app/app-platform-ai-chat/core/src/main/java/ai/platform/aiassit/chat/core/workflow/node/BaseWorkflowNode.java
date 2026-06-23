@@ -43,10 +43,15 @@ public abstract class BaseWorkflowNode implements IWorkflowNode {
     @Autowired
     private WorkflowPromptContextCapabilityExecutor capabilityExecutor;
 
+    protected void beforeExecute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+    }
+
     protected abstract NodeResult doExecute(WorkflowContext context);
 
     @Override
     public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+        beforeExecute(context, nodeConfig);
+
         NodeResult capabilityResult = capabilityExecutor.execute(context, nodeConfig);
         if (!capabilityResult.isSuccess()) {
             return capabilityResult;

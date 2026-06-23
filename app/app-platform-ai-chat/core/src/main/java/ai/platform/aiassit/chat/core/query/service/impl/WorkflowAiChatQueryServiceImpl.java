@@ -5,12 +5,7 @@ import ai.platform.aiassit.chat.core.query.dto.AiChatQueryResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
 import ai.platform.aiassit.chat.core.query.service.AiChatQueryService;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
-import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
-import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeSkillConfig;
-import ai.platform.aiassit.chat.core.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.chat.core.workflow.capability.impl.KnowledgeRetrievePromptContextCapability;
-import ai.platform.aiassit.chat.core.workflow.capability.impl.SystemDocumentPromptContextCapability;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
@@ -22,7 +17,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -92,7 +86,6 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
     private WorkflowContext buildWorkflowContext(AiChatQueryCommand command, WorkflowDefinition workflowDefinition) {
         WorkflowContext context = new WorkflowContext();
         context.setCommand(command);
-        applyDefaultNodeBindings(workflowDefinition);
         context.setWorkflowDefinition(workflowDefinition);
         context.setWorkflowCode(workflowDefinition == null ? "ai-chat-query-workflow" : workflowDefinition.getWorkflowCode());
         return context;
@@ -107,93 +100,6 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
         nodes.put(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeCode(), java.util.List.of()));
         nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(), new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), null, java.util.List.of()));
         return new WorkflowDefinition("ai-chat-query-workflow", nodes, WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode());
-    }
-
-    private void applyDefaultNodeBindings(WorkflowDefinition workflowDefinition) {
-        if (workflowDefinition == null || workflowDefinition.getNodes() == null || workflowDefinition.getNodes().isEmpty()) {
-            return;
-        }
-        bindSkills(workflowDefinition);
-        bindCapabilities(workflowDefinition);
-    }
-
-    private void bindSkills(WorkflowDefinition workflowDefinition) {
-        WorkflowNodeConfig chatMessageNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode());
-        if (chatMessageNode != null) {
-            chatMessageNode.setSkills(List.of(
-                    new WorkflowNodeSkillConfig("chat_message_summary", WorkflowSkillPhase.AFTER_EXECUTE)
-            ));
-        }
-        WorkflowNodeConfig sqlGenerateNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.SQL_GENERATE.getNodeCode());
-        if (sqlGenerateNode != null) {
-            sqlGenerateNode.setSkills(List.of(
-                    new WorkflowNodeSkillConfig("sql_generation_policy", WorkflowSkillPhase.BEFORE_EXECUTE),
-                    new WorkflowNodeSkillConfig("user_preference_resolve", WorkflowSkillPhase.BEFORE_EXECUTE)
-            ));
-        }
-    }
-
-    private void bindCapabilities(WorkflowDefinition workflowDefinition) {
-        WorkflowNodeConfig sqlGenerateNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.SQL_GENERATE.getNodeCode());
-        if (sqlGenerateNode != null) {
-            sqlGenerateNode.setCapabilities(List.of(
-                    buildKnowledgeCapability(),
-                    buildSqlSystemDocumentCapability()
-            ));
-        }
-        WorkflowNodeConfig renderNode = workflowDefinition.getNodes().get(WorkflowNodeCodes.RENDER.getNodeCode());
-        if (renderNode != null) {
-            renderNode.setCapabilities(List.of(
-                    buildRenderSystemDocumentCapability()
-            ));
-        }
-    }
-
-    private WorkflowNodeCapabilityConfig buildKnowledgeCapability() {
-        WorkflowNodeCapabilityConfig config = new WorkflowNodeCapabilityConfig();
-        config.setCode(KnowledgeRetrievePromptContextCapability.CODE);
-        config.setRequired(Boolean.FALSE);
-        config.setSort(100);
-        config.getOptions().put("title", "SQL 相关知识库上下文");
-        config.getOptions().put("queryTemplate", """
-                用户问题：
-                {message}
-
-                查询规划：
-                {analysis}
-                """.trim());
-        config.getOptions().put("topK", 5);
-        return config;
-    }
-
-    private WorkflowNodeCapabilityConfig buildSqlSystemDocumentCapability() {
-        WorkflowNodeCapabilityConfig config = new WorkflowNodeCapabilityConfig();
-        config.setCode(SystemDocumentPromptContextCapability.CODE);
-        config.setRequired(Boolean.FALSE);
-        config.setSort(200);
-        config.getOptions().put("title", "SQL 生成系统文档");
-        config.getOptions().put("source", "workflow-sql-generate-doc");
-        config.getOptions().put("documents", List.of(
-                "当知识上下文给出了表、字段、指标、过滤口径时，SQL 生成必须严格沿用，不要自造字段或口径。",
-                "输出必须保持单条 SELECT 或 WITH SQL，优先显式列名，不要输出解释性正文。",
-                "若关联关系在规划结果、知识上下文、系统文档中没有出现，不允许臆造 JOIN 条件。"
-        ));
-        return config;
-    }
-
-    private WorkflowNodeCapabilityConfig buildRenderSystemDocumentCapability() {
-        WorkflowNodeCapabilityConfig config = new WorkflowNodeCapabilityConfig();
-        config.setCode(SystemDocumentPromptContextCapability.CODE);
-        config.setRequired(Boolean.FALSE);
-        config.setSort(100);
-        config.getOptions().put("title", "渲染系统文档");
-        config.getOptions().put("source", "workflow-render-doc");
-        config.getOptions().put("documents", List.of(
-                "最终回答优先给出结论，再补充关键依据，不要把内部推理链完整暴露给用户。",
-                "若 SQL 执行状态为 SKIPPED，必须明确说明当前只生成了 SQL 草案，不能伪装成真实查询结果。",
-                "若上下文包含组件或系统文档说明，应优先沿用其中的术语、字段名称和展示约束。"
-        ));
-        return config;
     }
 
     private void sendInitEvent(SseEmitter emitter, WorkflowContext workflowContext) throws IOException {

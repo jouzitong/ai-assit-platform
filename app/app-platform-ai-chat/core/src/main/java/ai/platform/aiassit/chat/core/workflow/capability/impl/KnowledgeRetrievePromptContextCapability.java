@@ -14,13 +14,16 @@ import ai.platform.aiassit.chat.core.workflow.capability.PromptContextItem;
 import ai.platform.aiassit.chat.core.workflow.capability.PromptContextResult;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningResult;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 基于知识库检索补充 prompt 上下文。
@@ -32,6 +35,7 @@ import java.util.Map;
 public class KnowledgeRetrievePromptContextCapability implements PromptContextCapability {
 
     public static final String CODE = "knowledge_retrieve_prompt_context";
+    private static final String QUERY_MODE_PLANNING_SUBJECT_RELATIONS = "planning_subject_relations";
 
     private final AiKnowledgeApi knowledgeApi;
 
@@ -96,6 +100,13 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
     private String buildQuery(AiChatQueryCommand command,
                               WorkflowContext context,
                               WorkflowNodeCapabilityConfig capabilityConfig) {
+        String queryMode = resolveOptionAsString(capabilityConfig, "queryMode");
+        if (QUERY_MODE_PLANNING_SUBJECT_RELATIONS.equals(queryMode)) {
+            String planningDrivenQuery = buildPlanningDrivenQuery(command, context);
+            if (StringUtils.hasText(planningDrivenQuery)) {
+                return planningDrivenQuery;
+            }
+        }
         Object queryTemplate = capabilityConfig == null || capabilityConfig.getOptions() == null
                 ? null
                 : capabilityConfig.getOptions().get("queryTemplate");
@@ -111,6 +122,57 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
             return analysis;
         }
         return message;
+    }
+
+    private String buildPlanningDrivenQuery(AiChatQueryCommand command, WorkflowContext context) {
+        PlanningResult planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+        if (planningResult == null || planningResult.getSubject() == null) {
+            return null;
+        }
+        PlanningResult.Subject subject = planningResult.getSubject();
+        Set<String> subjectTerms = new LinkedHashSet<>();
+        appendTerm(subjectTerms, subject.getName());
+        appendTerm(subjectTerms, subject.getValue());
+        appendTerms(subjectTerms, subject.getAliases());
+
+        List<String> relationLines = new ArrayList<>();
+        if (!CollectionUtils.isEmpty(subject.getRelations())) {
+            for (PlanningResult.RelationItem relation : subject.getRelations()) {
+                if (relation == null) {
+                    continue;
+                }
+                Set<String> relationTerms = new LinkedHashSet<>();
+                appendTerm(relationTerms, relation.getName());
+                appendTerms(relationTerms, relation.getValues());
+                appendTerms(relationTerms, relation.getAliases());
+                if (!relationTerms.isEmpty()) {
+                    relationLines.add(String.join(" / ", relationTerms));
+                }
+            }
+        }
+
+        if (subjectTerms.isEmpty() && relationLines.isEmpty()) {
+            return null;
+        }
+
+        StringBuilder builder = new StringBuilder();
+        builder.append("请基于以下查询规划对象，检索完整的真实表信息、字段说明、表关系和 SQL 使用口径。");
+        if (!subjectTerms.isEmpty()) {
+            builder.append("\n主体对象：").append(String.join(" / ", subjectTerms));
+        }
+        if (!relationLines.isEmpty()) {
+            builder.append("\n关联对象：");
+            for (int i = 0; i < relationLines.size(); i++) {
+                builder.append("\n").append(i + 1).append(". ").append(relationLines.get(i));
+            }
+        }
+        if (StringUtils.hasText(command.getMessage())) {
+            builder.append("\n用户问题：").append(command.getMessage().trim());
+        }
+        if (StringUtils.hasText(context.getAnalysisResult())) {
+            builder.append("\n规划摘要：").append(context.getAnalysisResult().trim());
+        }
+        return builder.toString().trim();
     }
 
     private int resolveTopK(AiChatQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
@@ -190,6 +252,28 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
                 ? null
                 : capabilityConfig.getOptions().get("priority");
         return value instanceof Number number ? number.intValue() : fallback;
+    }
+
+    private String resolveOptionAsString(WorkflowNodeCapabilityConfig capabilityConfig, String key) {
+        Object value = capabilityConfig == null || capabilityConfig.getOptions() == null
+                ? null
+                : capabilityConfig.getOptions().get(key);
+        return value instanceof String str && StringUtils.hasText(str) ? str.trim() : null;
+    }
+
+    private void appendTerm(Set<String> target, String value) {
+        if (StringUtils.hasText(value)) {
+            target.add(value.trim());
+        }
+    }
+
+    private void appendTerms(Set<String> target, List<String> values) {
+        if (CollectionUtils.isEmpty(values)) {
+            return;
+        }
+        for (String value : values) {
+            appendTerm(target, value);
+        }
     }
 
     private Object safeGet(Map<String, Object> map, String key) {
