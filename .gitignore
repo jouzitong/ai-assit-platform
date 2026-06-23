@@ -38,6 +38,7 @@ tools/service-manager/process-state.json
 build/
 !**/src/main/**/build/
 !**/src/test/**/build/
+.codegraph/
 
 ### VS Code ###
 .vscode/
