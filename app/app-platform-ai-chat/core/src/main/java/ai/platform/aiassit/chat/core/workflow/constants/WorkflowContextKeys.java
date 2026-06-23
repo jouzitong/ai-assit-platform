@@ -8,6 +8,7 @@ import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBu
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.PlanningResult;
+import ai.platform.aiassit.chat.core.workflow.sql.contract.SqlPreGenerateResult;
 
 import java.util.List;
 import java.util.Map;
@@ -201,6 +202,13 @@ public interface WorkflowContextKeys {
      * SQL 生成域上下文键。
      */
     interface SqlGenerate {
+
+        /**
+         * SQL 预生成结构化结果。
+         *
+         * @see SqlPreGenerateResult
+         */
+        String PRE_GENERATE_RESULT = "sqlPreGenerateResult";
 
         /**
          * 当前候选 SQL。
