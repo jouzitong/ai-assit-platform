@@ -17,6 +17,8 @@ import java.util.Locale;
 /**
  * SQL 校验节点，负责做本地安全兜底，并在必要时回跳生成节点。
  *
+ * <p>当前节点已停用，仅保留兼容代码路径，后续计划移除。</p>
+ *
  * <p>功能：</p>
  * <ul>
  *     <li>对候选 SQL 做规范化处理。</li>
@@ -36,6 +38,7 @@ import java.util.Locale;
  * @since 2026/6/9
  */
 @Service
+@Deprecated(since = "2026-06-23", forRemoval = true)
 public class SqlValidateNode extends BaseWorkflowNode {
 
     private static final String RETRY_KEY = "sqlValidateRetryCount";

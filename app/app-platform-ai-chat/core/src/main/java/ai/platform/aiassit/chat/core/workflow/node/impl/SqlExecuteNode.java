@@ -20,6 +20,8 @@ import java.util.Map;
 /**
  * SQL 执行节点。
  *
+ * <p>当前节点已停用，仅保留兼容代码路径，后续计划移除。</p>
+ *
  * <p>当前仓库尚未接入稳定的 NL2SQL 执行 API，因此这里先统一收敛为显式执行结果：
  * 如果上游已提供预执行结果则直接透传，否则返回结构化降级说明，避免伪装成真实执行。</p>
  *
@@ -42,6 +44,7 @@ import java.util.Map;
  * @since 2026/6/9
  */
 @Service
+@Deprecated(since = "2026-06-23", forRemoval = true)
 public class SqlExecuteNode extends BaseWorkflowNode {
 
     private final WorkflowHistoryRecorder historyRecorder;
