@@ -43,6 +43,16 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-db-engine-db-executor-spi</artifactId>
+                <version>${app.platform.db.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-db-engine-db-executor-mysql</artifactId>
+                <version>${app.platform.db.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-boot</artifactId>
                 <version>${app.platform.db.engine.version}</version>
             </dependency>
@@ -60,6 +70,8 @@
         <module>api</module>
         <module>meta</module>
         <module>core</module>
+        <module>db-executor-spi</module>
+        <module>db-executor-impl</module>
         <module>boot</module>
     </modules>
 </project>

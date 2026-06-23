@@ -6,36 +6,28 @@
 
     <parent>
         <groupId>ai.platform.aiassit</groupId>
-        <artifactId>app-platform-db-engine</artifactId>
+        <artifactId>app-platform-db-engine-db-executor-impl</artifactId>
         <version>1.0.0-SNAPSHOT</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>app-platform-db-engine-core</artifactId>
+    <artifactId>app-platform-db-engine-db-executor-mysql</artifactId>
     <packaging>jar</packaging>
-    <name>app-platform-db-engine-core</name>
+    <name>app-platform-db-engine-db-executor-mysql</name>
 
     <dependencies>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-db-engine-api</artifactId>
-        </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-db-engine-db-executor-spi</artifactId>
         </dependency>
         <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-db-engine-meta</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-user-system-settings-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
             <groupId>org.springframework</groupId>
             <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>mysql</groupId>
+            <artifactId>mysql-connector-java</artifactId>
+            <scope>runtime</scope>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

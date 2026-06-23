@@ -38,6 +38,11 @@ public class DbDataSourceConfig {
     private DbDataSourceAuthConfig auth;
 
     /**
+     * 数据库连接配置。
+     */
+    private DbDataSourceDatabaseConfig database;
+
+    /**
      * 扩展属性。
      */
     private Map<String, Object> attributes;

@@ -20,20 +20,14 @@
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-db-engine-core</artifactId>
         </dependency>
-
         <dependency>
-            <groupId>mysql</groupId>
-            <artifactId>mysql-connector-java</artifactId>
-            <scope>runtime</scope>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-db-engine-db-executor-mysql</artifactId>
         </dependency>
-
         <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>
-
-
-
         <dependency>
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-cloud-nacos</artifactId>

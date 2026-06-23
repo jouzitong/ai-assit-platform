@@ -1,0 +1,56 @@
+package ai.platform.aiassit.db.engine.executor.mysql.support;
+
+import ai.platform.aiassit.db.engine.executor.spi.exception.DbAccessException;
+import org.springframework.util.StringUtils;
+
+import java.util.Locale;
+
+public final class MysqlSqlGuard {
+
+    private MysqlSqlGuard() {
+    }
+
+    public static String validateQuery(String sql) throws DbAccessException {
+        String normalized = normalize(sql);
+        String operation = firstKeyword(normalized);
+        if (!"SELECT".equals(operation) && !"WITH".equals(operation)) {
+            throw new DbAccessException("查询只允许执行 SELECT/WITH 语句");
+        }
+        return normalized;
+    }
+
+    public static String validateExecute(String sql) throws DbAccessException {
+        String normalized = normalize(sql);
+        String operation = firstKeyword(normalized);
+        if (!"INSERT".equals(operation) && !"UPDATE".equals(operation) && !"DELETE".equals(operation)) {
+            throw new DbAccessException("执行只允许 INSERT/UPDATE/DELETE 语句");
+        }
+        return normalized;
+    }
+
+    private static String normalize(String sql) throws DbAccessException {
+        if (!StringUtils.hasText(sql)) {
+            throw new DbAccessException("SQL 不能为空");
+        }
+        String normalized = sql.trim();
+        while (normalized.endsWith(";")) {
+            normalized = normalized.substring(0, normalized.length() - 1).trim();
+        }
+        if (!StringUtils.hasText(normalized)) {
+            throw new DbAccessException("SQL 不能为空");
+        }
+        if (normalized.contains(";")) {
+            throw new DbAccessException("暂不支持多语句执行");
+        }
+        if (normalized.contains("--") || normalized.contains("/*") || normalized.contains("*/")) {
+            throw new DbAccessException("暂不支持包含注释的 SQL");
+        }
+        return normalized;
+    }
+
+    private static String firstKeyword(String sql) {
+        int index = sql.indexOf(' ');
+        String keyword = index < 0 ? sql : sql.substring(0, index);
+        return keyword.trim().toUpperCase(Locale.ROOT);
+    }
+}
