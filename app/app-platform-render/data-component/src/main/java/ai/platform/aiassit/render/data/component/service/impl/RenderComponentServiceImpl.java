@@ -24,4 +24,10 @@ public class RenderComponentServiceImpl
     protected IConvert<RenderComponentEntity, RenderComponentDTO> convert() {
         return convert;
     }
+
+    @Override
+    public RenderComponentDTO queryByKey(String key) {
+        RenderComponentEntity entity = baseMapper.selectByKey(key);
+        return entity == null ? null : convert.toDTO(entity);
+    }
 }

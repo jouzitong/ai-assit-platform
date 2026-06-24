@@ -23,6 +23,8 @@
   - 适用于新服务建模块、`boot/core/api` 分层、模块职责边界相关任务。
 - [基础数据模块开发规范](./detail/backend/data-module.md)
   - 适用于基础表、entity/dto、mapper、service、controller、枚举处理等 CRUD 数据模块任务。
+- [日志规范](./detail/backend/logging-module.md)
+  - 适用于业务日志级别选择、可追溯字段、审计日志、异常日志边界相关任务。
 - [异常处理规范](./detail/backend/exception-module.md)
   - 适用于 Web 异常返回、业务异常抛出、自定义异常类设计、HTTP 状态语义相关任务。
 

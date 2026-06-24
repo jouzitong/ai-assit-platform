@@ -15,7 +15,10 @@ public interface RenderBizCodeConstant {
     // 52_01_xxxx 必填缺失
     Integer REQUIRED_RENDER_PAGE_CODE = 52_01_0001;
     Integer REQUIRED_RENDER_PAGE_NAME = 52_01_0002;
+    Integer REQUIRED_COMPONENT_KEY = 52_01_0003;
+    Integer REQUIRED_COMPONENT_NAME = 52_01_0004;
 
     // 52_03_xxxx 资源不存在
     Integer RENDER_PAGE_NOT_FOUND = 52_03_0001;
+    Integer COMPONENT_NOT_FOUND = 52_03_0002;
 }

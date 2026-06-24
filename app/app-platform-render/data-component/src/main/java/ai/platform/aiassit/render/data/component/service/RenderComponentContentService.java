@@ -4,4 +4,6 @@ import ai.platform.aiassit.render.data.component.entity.dto.RenderComponentConte
 import org.athena.framework.data.jdbc.serivce.IMapperService;
 
 public interface RenderComponentContentService extends IMapperService<RenderComponentContentDTO> {
+
+    RenderComponentContentDTO queryByComponentKey(String componentKey);
 }
