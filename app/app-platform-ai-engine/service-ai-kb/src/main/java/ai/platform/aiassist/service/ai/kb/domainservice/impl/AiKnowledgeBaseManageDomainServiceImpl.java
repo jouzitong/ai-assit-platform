@@ -23,7 +23,9 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncCheckRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
+import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
@@ -63,6 +65,11 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomainService {
+
+    private static final String LAST_SYNC_CHECKSUM_KEY = "lastSyncChecksum";
+    private static final String LAST_SYNC_VERSION_NO_KEY = "lastSyncVersionNo";
+    private static final String LAST_SYNC_AT_KEY = "lastSyncAt";
+    private static final String LAST_SYNC_PROVIDER_DOCUMENT_ID_KEY = "lastSyncProviderDocumentId";
 
     private final AiKbStoreService storeService;
     private final AiKbDocumentService documentService;
@@ -398,6 +405,45 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
     }
 
     @Override
+    public AiKbSyncCheckResponse checkDocumentSync(AiKbSyncCheckRequest request) {
+        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        query.setKbCode(request == null ? null : trimToNull(request.getKbCode()));
+        query.setPage(1);
+        query.setSize(Integer.MAX_VALUE);
+        List<AiKbDocumentDTO> documents = documentService.listByQuery(query);
+
+        Set<String> targetDocumentCodes = request == null || request.getDocumentCodes() == null
+                ? Set.of()
+                : request.getDocumentCodes().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .collect(Collectors.toCollection(HashSet::new));
+        if (!targetDocumentCodes.isEmpty()) {
+            documents = documents.stream()
+                    .filter(item -> targetDocumentCodes.contains(item.getDocumentCode()))
+                    .toList();
+        }
+        if (documents.isEmpty()) {
+            throw BizException.of(AiKbBizCodeConstant.CURRENT_DOCUMENT_NOT_FOUND);
+        }
+
+        AiKbSyncCheckResponse response = new AiKbSyncCheckResponse();
+        response.setTotalCount(documents.size());
+        for (AiKbDocumentDTO document : documents) {
+            AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
+            AiKbSyncCheckResponse.Item item = buildSyncCheckItem(document, content);
+            response.getItems().add(item);
+            switch (item.getStatus()) {
+                case "MATCHED" -> response.setMatchedCount(response.getMatchedCount() + 1);
+                case "CHANGED" -> response.setChangedCount(response.getChangedCount() + 1);
+                case "NOT_SYNCED" -> response.setNotSyncedCount(response.getNotSyncedCount() + 1);
+                default -> response.setMissingSnapshotCount(response.getMissingSnapshotCount() + 1);
+            }
+        }
+        return response;
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public AiKbDeleteResponse deleteDocument(AiKbDeleteRequest request) {
         if (request == null || request.getDocumentCodes() == null || request.getDocumentCodes().isEmpty()) {
@@ -541,8 +587,22 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
             document.setProviderSyncStatus(AiKbProviderSyncStatus.SUCCESS);
             document.setLastError(null);
             documentService.update(document.getId(), document);
+            persistSyncSnapshot(document, contentService.getByDocumentId(document.getId()));
         }
         return new PublishResult(aiDocuments.size(), skipped);
+    }
+
+    private void persistSyncSnapshot(AiKbDocumentDTO document, AiKbDocumentContentDTO content) {
+        if (document == null || content == null || content.getId() == null) {
+            return;
+        }
+        Map<String, Object> ext = copyMap(content.getExtJson());
+        ext.put(LAST_SYNC_CHECKSUM_KEY, document.getContentChecksum());
+        ext.put(LAST_SYNC_VERSION_NO_KEY, document.getDocumentVersionNo());
+        ext.put(LAST_SYNC_AT_KEY, LocalDateTime.now().toString());
+        ext.put(LAST_SYNC_PROVIDER_DOCUMENT_ID_KEY, document.getProviderDocumentId());
+        content.setExtJson(ext);
+        contentService.update(content.getId(), content);
     }
 
     private void markDocumentsSyncing(List<AiKbDocumentDTO> documents) {
@@ -566,6 +626,48 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         return syncStatus == null
                 || syncStatus == AiKbProviderSyncStatus.PENDING
                 || syncStatus == AiKbProviderSyncStatus.FAILED;
+    }
+
+    private AiKbSyncCheckResponse.Item buildSyncCheckItem(AiKbDocumentDTO document, AiKbDocumentContentDTO content) {
+        AiKbSyncCheckResponse.Item item = new AiKbSyncCheckResponse.Item();
+        item.setKbCode(document.getKbCode());
+        item.setDocumentCode(document.getDocumentCode());
+        item.setDocumentName(document.getDocumentName());
+        item.setProviderDocumentId(document.getProviderDocumentId());
+
+        if (content == null || !StringUtils.hasText(content.getRenderedContent())) {
+            item.setStatus("MISSING_SNAPSHOT");
+            item.setMessage("本地正文不存在");
+            return item;
+        }
+        if (document.getProviderSyncStatus() != AiKbProviderSyncStatus.SUCCESS || !StringUtils.hasText(document.getProviderDocumentId())) {
+            item.setStatus("NOT_SYNCED");
+            item.setMessage("当前文档还未成功同步到远端");
+            return item;
+        }
+
+        Map<String, Object> ext = copyMap(content.getExtJson());
+        String lastSyncChecksum = objectText(ext.get(LAST_SYNC_CHECKSUM_KEY));
+        String lastSyncProviderDocumentId = objectText(ext.get(LAST_SYNC_PROVIDER_DOCUMENT_ID_KEY));
+        if (!StringUtils.hasText(lastSyncChecksum)) {
+            item.setStatus("MISSING_SNAPSHOT");
+            item.setMessage("缺少最近一次成功同步快照");
+            return item;
+        }
+        if (StringUtils.hasText(lastSyncProviderDocumentId)
+                && !Objects.equals(lastSyncProviderDocumentId, trimToNull(document.getProviderDocumentId()))) {
+            item.setStatus("CHANGED");
+            item.setMessage("远端文档标识已变更，建议重新同步");
+            return item;
+        }
+        if (Objects.equals(lastSyncChecksum, trimToNull(document.getContentChecksum()))) {
+            item.setStatus("MATCHED");
+            item.setMessage("本地内容与最近一次成功同步快照一致");
+            return item;
+        }
+        item.setStatus("CHANGED");
+        item.setMessage("本地内容已变化，需重新同步到远端");
+        return item;
     }
 
     private KbDocument toKbDocument(AiKbDocumentDTO document, AiKbDocumentContentDTO content, String renderedContent) {
@@ -779,6 +881,14 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
             return text.trim();
         }
         return null;
+    }
+
+    private String objectText(Object value) {
+        if (value == null) {
+            return null;
+        }
+        String text = Objects.toString(value, null);
+        return StringUtils.hasText(text) ? text.trim() : null;
     }
 
     private AiKbDocumentDTO resolveDocumentForDelete(String kbCode, String documentCode) {

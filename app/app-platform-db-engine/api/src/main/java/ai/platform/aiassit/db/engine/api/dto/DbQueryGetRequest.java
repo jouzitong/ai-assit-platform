@@ -14,7 +14,7 @@ public class DbQueryGetRequest {
 
     private Object id;
 
-    private Map<String, DbQueryFilterCondition> filters = new LinkedHashMap<>();
+    private Map<String, Object> filters = new LinkedHashMap<>();
 
     private DbQueryGetExt ext = new DbQueryGetExt();
 }

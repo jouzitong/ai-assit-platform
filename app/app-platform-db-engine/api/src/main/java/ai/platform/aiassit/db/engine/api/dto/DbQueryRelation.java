@@ -8,6 +8,11 @@ import java.util.Map;
 @Data
 public class DbQueryRelation {
 
+    /**
+     * 关联 SQL 的唯一标识。
+     */
+    private String key;
+
     private String model;
 
     private String type;

@@ -9,8 +9,10 @@ import ai.platform.aiassist.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbPageDocumentListRequest;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncCheckRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
+import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import org.athena.framework.web.vo.R;
 import org.springframework.http.MediaType;
@@ -106,6 +108,9 @@ public interface AiKnowledgeBasePageController {
      */
     @PostMapping("/api/v1/ai/kb/document/sync")
     R<AiKbSyncResponse> syncDocument(@RequestBody AiKbSyncRequest request);
+
+    @PostMapping("/api/v1/ai/kb/document/sync/check")
+    R<AiKbSyncCheckResponse> checkDocumentSync(@RequestBody(required = false) AiKbSyncCheckRequest request);
 
     @PostMapping("/api/v1/ai/kb/document/delete")
     R<AiKbDeleteResponse> deleteDocument(@RequestBody AiKbDeleteRequest request);

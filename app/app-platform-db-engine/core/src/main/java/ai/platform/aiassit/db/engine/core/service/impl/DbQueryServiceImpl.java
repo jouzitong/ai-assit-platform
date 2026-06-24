@@ -13,6 +13,7 @@ import ai.platform.aiassit.db.engine.api.dto.DbQueryListRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryListResponse;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryPivotRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryPivotResponse;
+import ai.platform.aiassit.db.engine.api.dto.DbQueryRelation;
 import ai.platform.aiassit.db.engine.api.dto.DbQuerySort;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeNode;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeRequest;
@@ -44,6 +45,9 @@ import java.util.stream.Collectors;
 public class DbQueryServiceImpl implements DbQueryService {
 
     private static final int DEFAULT_MAX_ROWS = 1000;
+    private static final String RELATION_FIELD_ALIAS_PREFIX = "__rel__";
+    private static final String RELATION_FIELD_ALIAS_DELIMITER = "__";
+    private static final String RELATION_FIELD_PATH_DOT_TOKEN = "__dot__";
 
     private final DbAccessService dbAccessService;
     private final DefaultDbSourceKeyResolver defaultDbSourceKeyResolver;
@@ -59,11 +63,13 @@ public class DbQueryServiceImpl implements DbQueryService {
     @Override
     public DbQueryGetResponse queryGet(DbQueryGetRequest request) {
         String table = requireModel(request == null ? null : request.getModel());
+        List<DbQueryRelation> relations = request == null || request.getExt() == null ? List.of() : request.getExt().getRelations();
         List<String> fields = request == null || request.getExt() == null ? List.of() : request.getExt().getFields();
+        List<DbQuerySort> sorts = request == null || request.getExt() == null ? List.of() : request.getExt().getSorts();
         StringBuilder sql = new StringBuilder("SELECT ")
-                .append(buildSelectClause(fields))
+                .append(buildSelectClause(fields, relations))
                 .append(" FROM ")
-                .append(wrapIdentifier(table));
+                .append(buildFromClause(table, relations));
         List<String> conditions = new ArrayList<>();
         if (request != null && request.getId() != null) {
             conditions.add(wrapIdentifier("id") + " = " + toSqlLiteral(request.getId()));
@@ -72,11 +78,12 @@ public class DbQueryServiceImpl implements DbQueryService {
             conditions.addAll(buildWhereConditions(request.getFilters()));
         }
         appendWhere(sql, conditions);
+        appendOrderBy(sql, sorts);
         sql.append(" LIMIT 1");
         QueryResult result = runQuery(sql.toString(), 1);
         DbQueryGetResponse response = new DbQueryGetResponse();
         if (!CollectionUtils.isEmpty(result.getRows())) {
-            response.setRecord(new LinkedHashMap<>(result.getRows().get(0)));
+            response.setRecord(transformRow(result.getRows().get(0)));
         }
         return response;
     }
@@ -84,27 +91,28 @@ public class DbQueryServiceImpl implements DbQueryService {
     @Override
     public DbQueryListResponse queryList(DbQueryListRequest request) {
         String table = requireModel(request == null ? null : request.getModel());
+        List<DbQueryRelation> relations = request == null || request.getExt() == null ? List.of() : request.getExt().getRelations();
         List<String> fields = request == null || request.getExt() == null ? List.of() : request.getExt().getFields();
         int page = normalizePage(request == null ? null : request.getPage());
         int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
         List<String> conditions = buildWhereConditions(request == null ? null : request.getFilterDict());
 
         StringBuilder sql = new StringBuilder("SELECT ")
-                .append(buildSelectClause(fields))
+                .append(buildSelectClause(fields, relations))
                 .append(" FROM ")
-                .append(wrapIdentifier(table));
+                .append(buildFromClause(table, relations));
         appendWhere(sql, conditions);
         appendOrderBy(sql, request == null || request.getExt() == null ? List.of() : request.getExt().getSorts());
         sql.append(" LIMIT ").append((page - 1) * pageSize).append(", ").append(pageSize);
 
         QueryResult result = runQuery(sql.toString(), pageSize);
-        long total = queryTotal(table, conditions);
+        long total = queryTotal(table, relations, conditions);
 
         DbQueryListResponse response = new DbQueryListResponse();
         response.setPage(page);
         response.setPageSize(pageSize);
         response.setTotal(total);
-        response.setRecords(copyRows(result.getRows()));
+        response.setRecords(transformRows(result.getRows()));
         return response;
     }
 
@@ -112,6 +120,7 @@ public class DbQueryServiceImpl implements DbQueryService {
     public DbQueryCountResponse queryCount(DbQueryCountRequest request) {
         QueryBundle bundle = buildAggregateBundle(
                 requireModel(request == null ? null : request.getModel()),
+                request == null || request.getExt() == null ? List.of() : request.getExt().getRelations(),
                 request == null ? null : request.getFilters(),
                 request == null ? null : request.getDimensions(),
                 request == null ? null : request.getMetrics(),
@@ -134,6 +143,7 @@ public class DbQueryServiceImpl implements DbQueryService {
     public DbQueryAggregateResponse queryAggregate(DbQueryAggregateRequest request) {
         QueryBundle bundle = buildAggregateBundle(
                 requireModel(request == null ? null : request.getModel()),
+                request == null || request.getExt() == null ? List.of() : request.getExt().getRelations(),
                 request == null ? null : request.getFilters(),
                 request == null ? null : request.getDimensions(),
                 request == null ? null : request.getMetrics(),
@@ -155,6 +165,7 @@ public class DbQueryServiceImpl implements DbQueryService {
     @Override
     public DbQueryTreeResponse queryTree(DbQueryTreeRequest request) {
         String table = requireModel(request == null ? null : request.getModel());
+        List<DbQueryRelation> relations = request == null || request.getExt() == null ? List.of() : request.getExt().getRelations();
         String idField = valueOrDefault(request == null || request.getExt() == null ? null : request.getExt().getIdField(), "id");
         String parentField = valueOrDefault(request == null || request.getExt() == null ? null : request.getExt().getParentField(), "parent_id");
         String labelField = valueOrDefault(request == null || request.getExt() == null ? null : request.getExt().getLabelField(), "name");
@@ -168,9 +179,9 @@ public class DbQueryServiceImpl implements DbQueryService {
         }
 
         StringBuilder sql = new StringBuilder("SELECT ")
-                .append(buildSelectClause(new ArrayList<>(fields)))
+                .append(buildSelectClause(new ArrayList<>(fields), relations))
                 .append(" FROM ")
-                .append(wrapIdentifier(table));
+                .append(buildFromClause(table, relations));
         appendWhere(sql, buildWhereConditions(request == null ? null : request.getFilters()));
         appendOrderBy(sql, request == null ? null : request.getSorts());
 
@@ -181,13 +192,13 @@ public class DbQueryServiceImpl implements DbQueryService {
 
         for (Map<String, Object> row : rows) {
             DbQueryTreeNode node = new DbQueryTreeNode();
-            Object id = row.get(idField);
-            Object parentId = row.get(parentField);
+            Object id = resolveProjectedValue(row, idField, relations);
+            Object parentId = resolveProjectedValue(row, parentField, relations);
             node.setId(id);
             node.setParentId(parentId);
-            Object label = row.get(labelField);
+            Object label = resolveProjectedValue(row, labelField, relations);
             node.setLabel(label == null ? null : String.valueOf(label));
-            node.setData(new LinkedHashMap<>(row));
+            node.setData(transformRow(row));
             nodeMap.put(id, node);
         }
         Object rootValue = request == null || request.getExt() == null ? null : request.getExt().getRootValue();
@@ -217,6 +228,7 @@ public class DbQueryServiceImpl implements DbQueryService {
         dimensions.addAll(columns);
         QueryBundle bundle = buildAggregateBundle(
                 table,
+                request != null && request.getExt() != null ? request.getExt().getRelations() : List.of(),
                 request == null ? null : request.getFilters(),
                 dimensions,
                 metrics,
@@ -267,6 +279,7 @@ public class DbQueryServiceImpl implements DbQueryService {
 
     private QueryBundle buildAggregateBundle(
             String table,
+            List<DbQueryRelation> relations,
             Map<String, DbQueryFilterCondition> filters,
             List<DbQueryCountDimension> dimensions,
             List<DbQueryCountMetric> metrics,
@@ -298,7 +311,7 @@ public class DbQueryServiceImpl implements DbQueryService {
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(String.join(", ", selectItems))
                 .append(" FROM ")
-                .append(wrapIdentifier(table));
+                .append(buildFromClause(table, relations));
         appendWhere(sql, buildWhereConditions(filters));
         if (!groupByItems.isEmpty()) {
             sql.append(" GROUP BY ").append(String.join(", ", groupByItems));
@@ -317,14 +330,67 @@ public class DbQueryServiceImpl implements DbQueryService {
         return func + "(" + target + ") AS " + wrapIdentifier(alias);
     }
 
-    private long queryTotal(String table, List<String> conditions) {
-        StringBuilder countSql = new StringBuilder("SELECT COUNT(1) AS cnt FROM ").append(wrapIdentifier(table));
+    private long queryTotal(String table, List<DbQueryRelation> relations, List<String> conditions) {
+        StringBuilder countSql = new StringBuilder("SELECT COUNT(1) AS cnt FROM ").append(buildFromClause(table, relations));
         appendWhere(countSql, conditions);
         QueryResult result = runQuery(countSql.toString(), 1);
         if (CollectionUtils.isEmpty(result.getRows())) {
             return 0L;
         }
         return toLong(result.getRows().get(0).get("cnt"));
+    }
+
+    private String buildFromClause(String table, List<DbQueryRelation> relations) {
+        StringBuilder fromClause = new StringBuilder(wrapIdentifier(table));
+        if (CollectionUtils.isEmpty(relations)) {
+            return fromClause.toString();
+        }
+        for (DbQueryRelation relation : relations) {
+            fromClause.append(" ")
+                    .append(resolveJoinType(relation == null ? null : relation.getType()))
+                    .append(" ")
+                    .append(wrapIdentifier(requireModel(relation == null ? null : relation.getModel())))
+                    .append(" ")
+                    .append(wrapIdentifier(requireRelationKey(relation)))
+                    .append(" ON ")
+                    .append(buildJoinConditionSql(relation));
+        }
+        return fromClause.toString();
+    }
+
+    private String buildJoinConditionSql(DbQueryRelation relation) {
+        String relationKey = requireRelationKey(relation);
+        Map<String, String> on = relation == null ? null : relation.getOn();
+        if (CollectionUtils.isEmpty(on)) {
+            throw BizException.of();
+        }
+        List<String> conditions = new ArrayList<>();
+        for (Map.Entry<String, String> entry : on.entrySet()) {
+            String leftField = wrapIdentifier(requireIdentifier(entry.getKey(), "relation on left field"));
+            String rightField = wrapIdentifier(qualifyRelationField(relationKey, entry.getValue(), "relation on right field"));
+            conditions.add(leftField + " = " + rightField);
+        }
+        Map<String, Object> filter = relation == null ? null : relation.getFilter();
+        if (!CollectionUtils.isEmpty(filter)) {
+            for (Map.Entry<String, Object> entry : filter.entrySet()) {
+                conditions.add(buildRelationFilterCondition(relationKey, entry.getKey(), entry.getValue()));
+            }
+        }
+        return String.join(" AND ", conditions);
+    }
+
+    private String buildRelationFilterCondition(String relationKey, String field, Object value) {
+        String qualifiedField = wrapIdentifier(qualifyRelationField(relationKey, field, "relation filter field"));
+        if (value == null) {
+            return qualifiedField + " IS NULL";
+        }
+        if (value instanceof Collection<?> collection) {
+            if (collection.isEmpty()) {
+                throw BizException.of();
+            }
+            return qualifiedField + " IN (" + toSqlLiteralList(collection) + ")";
+        }
+        return qualifiedField + " = " + toSqlLiteral(value);
     }
 
     private QueryResult runQuery(String sql, Integer maxRows) {
@@ -335,23 +401,34 @@ public class DbQueryServiceImpl implements DbQueryService {
         return dbAccessService.query(defaultDbSourceKeyResolver.resolve(null), request);
     }
 
-    private String buildSelectClause(List<String> fields) {
+    private String buildSelectClause(List<String> fields, List<DbQueryRelation> relations) {
         if (CollectionUtils.isEmpty(fields)) {
             return "*";
         }
+        Set<String> relationKeys = resolveRelationKeys(relations);
         return fields.stream()
-                .map(field -> wrapIdentifier(requireIdentifier(field, "field")))
+                .map(field -> buildSelectItem(field, relationKeys))
                 .collect(Collectors.joining(", "));
     }
 
-    private List<String> buildWhereConditions(Map<String, DbQueryFilterCondition> filters) {
+    private String buildSelectItem(String field, Set<String> relationKeys) {
+        String identifier = requireIdentifier(field, "field");
+        String wrapped = wrapIdentifier(identifier);
+        String relationKey = extractRelationKey(identifier, relationKeys);
+        if (relationKey == null) {
+            return wrapped;
+        }
+        return wrapped + " AS " + wrapIdentifier(encodeRelationFieldAlias(relationKey, relationFieldPath(identifier)));
+    }
+
+    private List<String> buildWhereConditions(Map<String, ?> filters) {
         List<String> conditions = new ArrayList<>();
         if (filters == null || filters.isEmpty()) {
             return conditions;
         }
-        for (Map.Entry<String, DbQueryFilterCondition> entry : filters.entrySet()) {
+        for (Map.Entry<String, ?> entry : filters.entrySet()) {
             String field = wrapIdentifier(requireIdentifier(entry.getKey(), "filter field"));
-            DbQueryFilterCondition condition = entry.getValue();
+            DbQueryFilterCondition condition = normalizeFilterCondition(entry.getValue());
             String op = condition == null || !StringUtils.hasText(condition.getOp()) ? "eq" : condition.getOp().trim().toLowerCase(Locale.ROOT);
             Object value = condition == null ? null : condition.getValue();
             switch (op) {
@@ -372,6 +449,29 @@ public class DbQueryServiceImpl implements DbQueryService {
             }
         }
         return conditions;
+    }
+
+    private DbQueryFilterCondition normalizeFilterCondition(Object rawCondition) {
+        if (rawCondition == null || rawCondition instanceof DbQueryFilterCondition) {
+            return (DbQueryFilterCondition) rawCondition;
+        }
+        if (rawCondition instanceof Map<?, ?> map) {
+            boolean hasOp = map.containsKey("op");
+            boolean hasValue = map.containsKey("value");
+            if (hasOp || hasValue) {
+                DbQueryFilterCondition condition = new DbQueryFilterCondition();
+                Object op = map.get("op");
+                if (op != null) {
+                    condition.setOp(String.valueOf(op));
+                }
+                condition.setValue(map.get("value"));
+                return condition;
+            }
+        }
+        DbQueryFilterCondition condition = new DbQueryFilterCondition();
+        condition.setOp("eq");
+        condition.setValue(rawCondition);
+        return condition;
     }
 
     private void appendWhere(StringBuilder sql, List<String> conditions) {
@@ -412,7 +512,7 @@ public class DbQueryServiceImpl implements DbQueryService {
             throw BizException.of();
         }
         String trimmed = value.trim();
-        if (!trimmed.matches("[A-Za-z0-9_]+")) {
+        if (!trimmed.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)*")) {
             throw BizException.of();
         }
         return trimmed;
@@ -423,6 +523,178 @@ public class DbQueryServiceImpl implements DbQueryService {
         return java.util.Arrays.stream(parts)
                 .map(part -> "`" + part + "`")
                 .collect(Collectors.joining("."));
+    }
+
+    private String requireRelationKey(DbQueryRelation relation) {
+        return requireIdentifier(relation == null ? null : relation.getKey(), "relation key");
+    }
+
+    private Set<String> resolveRelationKeys(List<DbQueryRelation> relations) {
+        if (CollectionUtils.isEmpty(relations)) {
+            return Set.of();
+        }
+        Set<String> relationKeys = new LinkedHashSet<>();
+        for (DbQueryRelation relation : relations) {
+            String relationKey = requireRelationKey(relation);
+            if (!relationKeys.add(relationKey)) {
+                throw BizException.of();
+            }
+        }
+        return relationKeys;
+    }
+
+    private String extractRelationKey(String identifier, Set<String> relationKeys) {
+        int separatorIndex = identifier.indexOf('.');
+        if (separatorIndex < 0) {
+            return null;
+        }
+        String relationKey = identifier.substring(0, separatorIndex);
+        return relationKeys.contains(relationKey) ? relationKey : null;
+    }
+
+    private String relationFieldPath(String identifier) {
+        int separatorIndex = identifier.indexOf('.');
+        if (separatorIndex < 0 || separatorIndex == identifier.length() - 1) {
+            throw BizException.of();
+        }
+        return identifier.substring(separatorIndex + 1);
+    }
+
+    private String encodeRelationFieldAlias(String relationKey, String fieldPath) {
+        return RELATION_FIELD_ALIAS_PREFIX
+                + relationKey
+                + RELATION_FIELD_ALIAS_DELIMITER
+                + fieldPath.replace(".", RELATION_FIELD_PATH_DOT_TOKEN);
+    }
+
+    private Map<String, Object> transformRow(Map<String, Object> row) {
+        Map<String, Object> transformed = new LinkedHashMap<>();
+        if (row == null || row.isEmpty()) {
+            return transformed;
+        }
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            DecodedRelationField decoded = decodeRelationFieldAlias(entry.getKey());
+            if (decoded == null) {
+                transformed.put(entry.getKey(), entry.getValue());
+                continue;
+            }
+            Map<String, Object> nested = ensureNestedMap(transformed, decoded.relationKey());
+            putNestedValue(nested, decoded.fieldPath(), entry.getValue());
+        }
+        collapseNullRelationMaps(transformed);
+        return transformed;
+    }
+
+    private List<Map<String, Object>> transformRows(List<Map<String, Object>> rows) {
+        if (CollectionUtils.isEmpty(rows)) {
+            return new ArrayList<>();
+        }
+        return rows.stream()
+                .map(this::transformRow)
+                .collect(Collectors.toCollection(ArrayList::new));
+    }
+
+    private Object resolveProjectedValue(Map<String, Object> row, String field, List<DbQueryRelation> relations) {
+        if (row == null || !StringUtils.hasText(field)) {
+            return null;
+        }
+        String identifier = requireIdentifier(field, "projected field");
+        String relationKey = extractRelationKey(identifier, resolveRelationKeys(relations));
+        if (relationKey == null) {
+            return row.get(identifier);
+        }
+        return row.get(encodeRelationFieldAlias(relationKey, relationFieldPath(identifier)));
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> ensureNestedMap(Map<String, Object> target, String key) {
+        Object current = target.get(key);
+        if (current instanceof Map<?, ?> map) {
+            return (Map<String, Object>) map;
+        }
+        Map<String, Object> nested = new LinkedHashMap<>();
+        target.put(key, nested);
+        return nested;
+    }
+
+    private void putNestedValue(Map<String, Object> target, String fieldPath, Object value) {
+        String[] parts = fieldPath.split("\\.");
+        Map<String, Object> current = target;
+        for (int i = 0; i < parts.length - 1; i++) {
+            current = ensureNestedMap(current, parts[i]);
+        }
+        current.put(parts[parts.length - 1], value);
+    }
+
+    private void collapseNullRelationMaps(Map<String, Object> row) {
+        List<String> keysToNull = new ArrayList<>();
+        for (Map.Entry<String, Object> entry : row.entrySet()) {
+            if (entry.getValue() instanceof Map<?, ?> map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nested = (Map<String, Object>) map;
+                collapseNullRelationMaps(nested);
+                if (isAllNullValues(nested)) {
+                    keysToNull.add(entry.getKey());
+                }
+            }
+        }
+        for (String key : keysToNull) {
+            row.put(key, null);
+        }
+    }
+
+    private boolean isAllNullValues(Map<String, Object> map) {
+        if (map.isEmpty()) {
+            return true;
+        }
+        for (Object value : map.values()) {
+            if (value instanceof Map<?, ?> nested) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> nestedMap = (Map<String, Object>) nested;
+                if (!isAllNullValues(nestedMap)) {
+                    return false;
+                }
+                continue;
+            }
+            if (value != null) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private DecodedRelationField decodeRelationFieldAlias(String alias) {
+        if (!StringUtils.hasText(alias) || !alias.startsWith(RELATION_FIELD_ALIAS_PREFIX)) {
+            return null;
+        }
+        String body = alias.substring(RELATION_FIELD_ALIAS_PREFIX.length());
+        int delimiterIndex = body.indexOf(RELATION_FIELD_ALIAS_DELIMITER);
+        if (delimiterIndex < 0) {
+            return null;
+        }
+        String relationKey = body.substring(0, delimiterIndex);
+        String fieldPath = body.substring(delimiterIndex + RELATION_FIELD_ALIAS_DELIMITER.length())
+                .replace(RELATION_FIELD_PATH_DOT_TOKEN, ".");
+        if (!StringUtils.hasText(relationKey) || !StringUtils.hasText(fieldPath)) {
+            return null;
+        }
+        return new DecodedRelationField(relationKey, fieldPath);
+    }
+
+    private String qualifyRelationField(String relationKey, String field, String label) {
+        String identifier = requireIdentifier(field, label);
+        return identifier.contains(".") ? identifier : relationKey + "." + identifier;
+    }
+
+    private String resolveJoinType(String joinType) {
+        String normalized = valueOrDefault(joinType, "left").toLowerCase(Locale.ROOT);
+        return switch (normalized) {
+            case "inner" -> "INNER JOIN";
+            case "right" -> "RIGHT JOIN";
+            case "full" -> "FULL JOIN";
+            case "left" -> "LEFT JOIN";
+            default -> throw BizException.of();
+        };
     }
 
     private String toSqlLiteralList(Object value) {
@@ -535,5 +807,8 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private record QueryBundle(String sql, int maxRows, int page, int pageSize, boolean grouped) {
+    }
+
+    private record DecodedRelationField(String relationKey, String fieldPath) {
     }
 }

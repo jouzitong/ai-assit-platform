@@ -11,4 +11,6 @@ public class DbQueryGetExt {
     private List<String> fields = new ArrayList<>();
 
     private List<DbQueryRelation> relations = new ArrayList<>();
+
+    private List<DbQuerySort> sorts = new ArrayList<>();
 }
