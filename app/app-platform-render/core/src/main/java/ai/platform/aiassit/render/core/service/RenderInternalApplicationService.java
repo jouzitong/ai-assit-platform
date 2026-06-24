@@ -1,5 +1,6 @@
 package ai.platform.aiassit.render.core.service;
 
+import ai.platform.aiassit.render.api.constant.RenderBizCodeConstant;
 import ai.platform.aiassit.render.api.dto.RenderDetailDTO;
 import ai.platform.aiassit.render.api.dto.RenderGetRequest;
 import ai.platform.aiassit.render.api.dto.RenderUpsertRequest;
@@ -10,6 +11,7 @@ import ai.platform.aiassit.render.data.render.entity.dto.RenderPageSnapshotDTO;
 import ai.platform.aiassit.render.data.render.service.RenderPageContentService;
 import ai.platform.aiassit.render.data.render.service.RenderPageService;
 import ai.platform.aiassit.render.data.render.service.RenderPageSnapshotService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -92,7 +94,7 @@ public class RenderInternalApplicationService {
     private RenderPageDTO requirePage(String code) {
         RenderPageDTO page = renderPageService.queryByCode(code);
         if (page == null) {
-            throw new IllegalArgumentException("render 不存在, code=" + code);
+            throw BizException.of(RenderBizCodeConstant.RENDER_PAGE_NOT_FOUND, code);
         }
         return page;
     }
@@ -127,14 +129,14 @@ public class RenderInternalApplicationService {
 
     private String requireCode(String code) {
         if (!StringUtils.hasText(code)) {
-            throw new IllegalArgumentException("render code 不能为空");
+            throw BizException.illegalParam(RenderBizCodeConstant.REQUIRED_RENDER_PAGE_CODE);
         }
         return code.trim();
     }
 
     private String requireName(String name) {
         if (!StringUtils.hasText(name)) {
-            throw new IllegalArgumentException("render name 不能为空");
+            throw BizException.illegalParam(RenderBizCodeConstant.REQUIRED_RENDER_PAGE_NAME);
         }
         return name.trim();
     }
