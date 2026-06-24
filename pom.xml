@@ -56,6 +56,7 @@
         <module>app/app-platform-ai-chat</module>
         <module>app/app-platform-db-engine</module>
         <module>app/app-platform-file</module>
+        <module>app/app-platform-render</module>
         <module>app/app-platform-user</module>
     </modules>
 
