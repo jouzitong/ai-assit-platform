@@ -40,11 +40,7 @@ public class RenderInternalApplicationService {
 
     @Transactional(rollbackFor = Exception.class)
     public RenderDetailDTO upsert(RenderUpsertRequest request) {
-        log.info("开始保存渲染页面，code={}, name={}, categoryCode={}, status={}",
-                request == null ? null : request.getCode(),
-                request == null ? null : request.getName(),
-                request == null ? null : request.getCategoryCode(),
-                request == null ? null : request.getStatus());
+        log.info("开始保存渲染页面, request: {}", request);
         String code = requireCode(request.getCode());
         RenderPageDTO existingPage = renderPageService.queryByCode(code);
         log.debug("渲染页面查询完成，code={}, exists={}", code, existingPage != null);
@@ -67,9 +63,8 @@ public class RenderInternalApplicationService {
 
         String content = normalizeContent(request.getContent());
         renderPageContentService.add(buildContentDto(code, content));
-        log.info("渲染页面内容创建完成，code={}, contentLength={}", code, content.length());
         renderPageSnapshotService.add(buildSnapshotDto(code, content));
-        log.info("渲染页面快照创建完成，code={}, contentLength={}", code, content.length());
+        log.info("渲染页面内容创建完成，code={}, contentLength={}", code, content.length());
         return toDetail(createdPage, content);
     }
 
