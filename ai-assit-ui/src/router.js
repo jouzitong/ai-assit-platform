@@ -12,6 +12,7 @@ import ProfilePage from './views/domain/settings/profile/index.vue'
 import SystemPage from './views/domain/settings/system/index.vue'
 import SystemOverviewPage from './views/domain/settings/system/views/overview.vue'
 import SystemParamsPage from './views/domain/settings/system/views/params.vue'
+import SystemAppMetadataPage from './views/domain/settings/system/views/app-metadata.vue'
 import SystemComponentsPage from './views/domain/settings/system/views/components.vue'
 import SystemPermissionsPage from './views/domain/settings/system/views/permissions.vue'
 import SystemAiPage from './views/domain/settings/system/views/ai.vue'
@@ -42,6 +43,7 @@ const routes = [
       { path: 'data-source', component: SystemDataSourcePage, meta: { title: '数据源配置' } },
       { path: 'data-source/:sourceKey', component: SystemDataSourceManagePage, meta: { title: '数据表管理' } },
       { path: 'params', component: SystemParamsPage, meta: { title: '系统参数' } },
+      { path: 'app-metadata', component: SystemAppMetadataPage, meta: { title: '应用元数据配置' } },
       { path: 'components', component: SystemComponentsPage, meta: { title: '常用组件' } },
       { path: 'permissions', component: SystemPermissionsPage, meta: { title: '权限配置' } },
       { path: 'ai', component: SystemAiPage, meta: { title: 'AI 接入' } },

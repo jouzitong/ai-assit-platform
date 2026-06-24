@@ -12,7 +12,6 @@ public interface RenderPageContentMapper extends CrudMapper<RenderPageContentEnt
             SELECT *
             FROM render_page_content
             WHERE page_code = #{pageCode}
-              AND deleted = 0
             LIMIT 1
             """)
     RenderPageContentEntity selectByPageCode(String pageCode);

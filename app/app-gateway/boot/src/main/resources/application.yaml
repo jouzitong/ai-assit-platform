@@ -42,6 +42,12 @@ spring:
               - Path=/file/**
             metadata:
               response-timeout: -1
+          - id: render-service-route
+            uri: lb://render
+            predicates:
+              - Path=/render/**
+            metadata:
+              response-timeout: -1
 
 
 gateway:

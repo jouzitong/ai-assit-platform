@@ -7,7 +7,10 @@ import ai.platform.aiassit.render.data.component.entity.dto.RenderComponentDTO;
 import ai.platform.aiassit.render.data.component.entity.dto.RenderComponentSnapshotDTO;
 import ai.platform.aiassit.render.data.component.entity.req.RenderComponentManageQueryRequest;
 import ai.platform.aiassit.render.data.component.entity.req.RenderComponentManageRequest;
+import ai.platform.aiassit.render.data.component.entity.req.RenderComponentStatusUpdateRequest;
+import ai.platform.aiassit.render.data.component.entity.vo.RenderComponentCategoryVO;
 import ai.platform.aiassit.render.data.component.entity.vo.RenderComponentManageVO;
+import ai.platform.aiassit.render.data.component.entity.vo.RenderComponentManageSummaryVO;
 import ai.platform.aiassit.render.data.component.service.RenderComponentContentService;
 import ai.platform.aiassit.render.data.component.service.RenderComponentManageService;
 import ai.platform.aiassit.render.data.component.service.RenderComponentService;
@@ -25,6 +28,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -49,7 +53,7 @@ public class RenderComponentManageServiceImpl implements RenderComponentManageSe
         RenderComponentManageQueryRequest safeQuery = request == null ? new RenderComponentManageQueryRequest() : request;
         List<RenderComponentManageVO> records = loadAllComponents().stream()
                 .filter(component -> safeQuery.getStatus() == null || safeQuery.getStatus() == component.getStatus())
-                .filter(component -> !StringUtils.hasText(safeQuery.getCategory()) || safeQuery.getCategory().equals(component.getCategory()))
+                .filter(component -> matchesCategoryFilter(safeQuery.getCategory(), component.getCategory()))
                 .filter(component -> !StringUtils.hasText(safeQuery.getKeyword())
                         || matchesKeyword(safeQuery.getKeyword(), component.getKey(), component.getName(), component.getCategory()))
                 .sorted(Comparator.comparing(RenderComponentManageVO::getUpdateTime,
@@ -57,6 +61,35 @@ public class RenderComponentManageServiceImpl implements RenderComponentManageSe
                         .thenComparing(RenderComponentManageVO::getId, Comparator.nullsLast(Comparator.reverseOrder())))
                 .toList();
         return toPageResult(records, safeQuery.page(), safeQuery.size());
+    }
+
+    @Override
+    public RenderComponentManageSummaryVO summary() {
+        List<RenderComponentManageVO> components = loadAllComponents();
+        RenderComponentManageSummaryVO summary = new RenderComponentManageSummaryVO();
+        summary.setTotal((long) components.size());
+        summary.setPublished(countByStatus(components, EffectiveStatus.PUBLISHED));
+        summary.setDraft(countByStatus(components, EffectiveStatus.DRAFT));
+        summary.setDisabled(countByStatus(components, EffectiveStatus.DISABLED));
+        summary.setCategories((long) categories().size());
+        return summary;
+    }
+
+    @Override
+    public List<RenderComponentCategoryVO> categories() {
+        Map<String, Long> counts = loadAllComponents().stream()
+                .collect(Collectors.groupingBy(component -> normalizeCategoryKey(component.getCategory()), LinkedHashMap::new, Collectors.counting()));
+        return counts.entrySet().stream()
+                .map(entry -> {
+                    RenderComponentCategoryVO vo = new RenderComponentCategoryVO();
+                    vo.setCategory(entry.getKey());
+                    vo.setLabel(resolveCategoryLabel(entry.getKey()));
+                    vo.setCount(entry.getValue());
+                    return vo;
+                })
+                .sorted(Comparator.comparing(RenderComponentCategoryVO::getCount, Comparator.nullsLast(Comparator.reverseOrder()))
+                        .thenComparing(RenderComponentCategoryVO::getLabel, Comparator.nullsLast(String::compareTo)))
+                .toList();
     }
 
     @Override
@@ -123,6 +156,25 @@ public class RenderComponentManageServiceImpl implements RenderComponentManageSe
 
         renderComponentSnapshotService.add(buildSnapshot(finalKey, finalDocMarkdown, finalExampleJson));
         return toManageVO(updated, renderComponentContentService.queryByComponentKey(finalKey));
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public RenderComponentManageVO updateStatus(Long id, RenderComponentStatusUpdateRequest request) {
+        RenderComponentDTO existing = renderComponentService.get(id);
+        if (existing == null) {
+            throw BizException.of(RenderBizCodeConstant.COMPONENT_NOT_FOUND, id);
+        }
+        if (request == null || request.getStatus() == null) {
+            throw BizException.illegalParam(RenderBizCodeConstant.REQUIRED_COMPONENT_STATUS);
+        }
+        RenderComponentDTO payload = new RenderComponentDTO();
+        payload.setKey(existing.getKey());
+        payload.setName(existing.getName());
+        payload.setCategory(existing.getCategory());
+        payload.setStatus(request.getStatus());
+        RenderComponentDTO updated = renderComponentService.update(id, payload);
+        return toManageVO(updated, renderComponentContentService.queryByComponentKey(updated.getKey()));
     }
 
     @Override
@@ -233,5 +285,24 @@ public class RenderComponentManageServiceImpl implements RenderComponentManageSe
             }
         }
         return false;
+    }
+
+    private long countByStatus(List<RenderComponentManageVO> components, EffectiveStatus status) {
+        return components.stream().filter(component -> component.getStatus() == status).count();
+    }
+
+    private boolean matchesCategoryFilter(String queryCategory, String componentCategory) {
+        if (!StringUtils.hasText(queryCategory)) {
+            return true;
+        }
+        return Objects.equals(normalizeCategoryKey(queryCategory), normalizeCategoryKey(componentCategory));
+    }
+
+    private String normalizeCategoryKey(String category) {
+        return StringUtils.hasText(category) ? category.trim() : "__uncategorized__";
+    }
+
+    private String resolveCategoryLabel(String category) {
+        return Objects.equals(category, "__uncategorized__") ? "未分类" : category;
     }
 }

@@ -1,0 +1,27 @@
+spring:
+  application:
+    name: render
+  profiles:
+    active: dev
+    include: common, lib
+server:
+  port: 13101
+  servlet:
+    context-path: /render
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler
+database:
+  name: 'ai_assist_render'
+#  name: 'ai_assist_ai_engine'
+
+
+lib:
+  jdbc:
+    enableCreateTableDdl: true
+    auto-add-column: true      # 默认 true
+    auto-update-column: false  # 默认 false，当前类型变更也暂未实现
+    auto-drop-column: false    # 默认 false
+    baseEntityPackages:
+      - ai.platform.aiassist
