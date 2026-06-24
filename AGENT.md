@@ -55,15 +55,17 @@ Do not commit `.codegraph/`.
 
 ## 2. 开发规范文档
 
-- `docs/dev-spec/` 是本仓库开发规范入口，采用“总览 + 子文档”结构。
-- 根入口是 `docs/dev-spec/README.md`，这里只做索引；细则要进入 `detail/` 下对应文档读取。
-- 前端任务默认按需读取 `docs/dev-spec/detail/frontend/README.md` 及其子文档：
-  - 路由相关读 `router.md`
-  - 页面结构相关读 `page.md`
-  - 样式相关读 `style.md`
-  - 主题相关读 `theme.md`
-  - 组件设计相关读 `component.md`
-- 后端模块边界、服务分层类任务默认按需读取 `docs/dev-spec/detail/backend/README.md` 和 `service-module.md`
+- `docs/dev-spec/` 是本仓库开发规范入口，采用“单一入口 + 子文档”结构。
+- 根入口是 `docs/dev-spec/README.md`；前后端目录下不再维护二级 `README.md`。
+- 前端任务默认按需读取：
+  - `docs/dev-spec/detail/frontend/router.md`
+  - `docs/dev-spec/detail/frontend/page.md`
+  - `docs/dev-spec/detail/frontend/style.md`
+  - `docs/dev-spec/detail/frontend/theme.md`
+  - `docs/dev-spec/detail/frontend/component.md`
+- 后端模块边界、服务分层类任务默认按需读取：
+  - `docs/dev-spec/detail/backend/service-module.md`
+  - `docs/dev-spec/detail/backend/data-module.md`
 - 如果规范文档与历史实现不一致，先以当前任务范围内的真实代码为准进行核对，再决定是修代码还是补规范，不要跳过确认。
 
 ## 3. 当前结构

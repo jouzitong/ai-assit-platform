@@ -4,11 +4,31 @@
 
 ## 索引
 
-- [前端开发规范](./detail/frontend/README.md)
-- [后端开发规范](./detail/backend/README.md)
+### 前端
+
+- [路由规范](./detail/frontend/router.md)
+  - 适用于页面入口、菜单挂载、父子路由关系、路由目录组织相关任务。
+- [页面结构规范](./detail/frontend/page.md)
+  - 适用于页面目录拆分、列表页/详情页结构、页面内模块分层相关任务。
+- [样式规范](./detail/frontend/style.md)
+  - 适用于样式文件组织、局部样式边界、命名方式、页面样式落点相关任务。
+- [主题规范](./detail/frontend/theme.md)
+  - 适用于主题变量、配色体系、视觉风格统一和主题扩展相关任务。
+- [组件规范](./detail/frontend/component.md)
+  - 适用于通用组件封装、组件职责边界、组件复用方式相关任务。
+
+### 后端
+
+- [服务模块结构规范](./detail/backend/service-module.md)
+  - 适用于新服务建模块、`boot/core/api` 分层、模块职责边界相关任务。
+- [基础数据模块开发规范](./detail/backend/data-module.md)
+  - 适用于基础表、entity/dto、mapper、service、controller、枚举处理等 CRUD 数据模块任务。
+- [异常处理规范](./detail/backend/exception-module.md)
+  - 适用于 Web 异常返回、业务异常抛出、自定义异常类设计、HTTP 状态语义相关任务。
 
 ## 说明
 
-- 根目录只做索引和说明，不放细化约定。
-- 细则优先拆到 `detail/frontend/` 和 `detail/backend/`。
-- 后续补充时继续保持“总览 + 子文档”的结构，避免单文件膨胀。
+- `docs/dev-spec/README.md` 是唯一规范入口，前后端目录下不再保留二级 `README.md`。
+- 细则直接拆到 `detail/frontend/` 和 `detail/backend/` 下的具体文档中。
+- 后续补充时继续保持“单一入口 + 具体子文档”的结构，避免索引分散、重复维护。
+- 新任务如果涉及实现方式选择，先根据这里的简述定位到对应规范，再进入具体文档读取。
