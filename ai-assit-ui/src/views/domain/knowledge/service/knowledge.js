@@ -1,4 +1,4 @@
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { createAiKnowledgeBase, deleteAiKnowledgeBaseDocuments, listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
 import { showPopup } from '../../../../utils/popup'
@@ -6,7 +6,11 @@ import { showPopup } from '../../../../utils/popup'
 export function useKnowledgePage() {
   const router = useRouter()
   const keyword = ref('')
+  const bizTypeCode = ref('')
   const activeTab = ref('current')
+  const page = ref(1)
+  const pageSize = ref(10)
+  const totalItems = ref(0)
   const sourceList = ref([])
   const loading = ref(false)
   const errorMessage = ref('')
@@ -16,21 +20,37 @@ export function useKnowledgePage() {
   const createForm = reactive(createEmptyKbForm())
   const batchMode = ref(false)
   const selectedDocumentCodes = ref([])
+  let reloadTimer = null
 
-  const filteredSources = computed(() => {
-    const normalized = keyword.value.trim().toLowerCase()
-    const matchedByTab = sourceList.value.filter(item => matchTab(item, activeTab.value))
-    if (!normalized) {
-      return matchedByTab
-    }
-    return matchedByTab.filter(item =>
-      [item.kbCode, item.documentCode, item.documentName, item.bizKey, item.sourceSystem].some(value =>
-        String(value ?? '').toLowerCase().includes(normalized)
-      )
-    )
-  })
+  const filteredSources = computed(() => sourceList.value)
 
   onMounted(() => {
+    loadDataSources()
+  })
+
+  onBeforeUnmount(() => {
+    if (reloadTimer) {
+      clearTimeout(reloadTimer)
+      reloadTimer = null
+    }
+  })
+
+  watch([keyword, bizTypeCode, activeTab], () => {
+    if (reloadTimer) {
+      clearTimeout(reloadTimer)
+    }
+    page.value = 1
+    reloadTimer = setTimeout(() => {
+      loadDataSources()
+    }, 250)
+  })
+
+  watch(page, () => {
+    loadDataSources()
+  })
+
+  watch(pageSize, () => {
+    page.value = 1
     loadDataSources()
   })
 
@@ -42,13 +62,23 @@ export function useKnowledgePage() {
       showPopup.info('知识库文档刷新中...', { title: 'Loading', duration: 1600 })
     }
     try {
-      const payload = await listAiKnowledgeBaseDocuments({})
-      sourceList.value = normalizeDocumentList(payload).map(mapDocumentItem)
+      const payload = await listAiKnowledgeBaseDocuments(buildListRequestPayload({
+        keyword: keyword.value,
+        bizTypeCode: bizTypeCode.value,
+        tab: activeTab.value,
+        page: page.value,
+        size: pageSize.value
+      }))
+      const normalized = normalizeDocumentList(payload)
+      sourceList.value = normalized.list.map(mapDocumentItem)
+      totalItems.value = normalized.total
       if (showSuccessPopup) {
         showPopup.success('知识库文档列表已刷新')
       }
     } catch (error) {
       errorMessage.value = error.message || '知识库文档列表加载失败'
+      sourceList.value = []
+      totalItems.value = 0
       showPopup.error(errorMessage.value)
     } finally {
       loading.value = false
@@ -226,7 +256,11 @@ export function useKnowledgePage() {
 
   return {
     activeTab,
+    page,
+    pageSize,
+    totalItems,
     keyword,
+    bizTypeCode,
     sourceList,
     loading,
     errorMessage,
@@ -250,6 +284,20 @@ export function useKnowledgePage() {
     toggleDocumentSelection,
     toggleSelectAll
   }
+}
+
+function buildListRequestPayload({ keyword, bizTypeCode, tab, page, size }) {
+  const payload = {}
+  if (keyword.trim()) {
+    payload.keyword = keyword.trim()
+  }
+  if (bizTypeCode !== '' && bizTypeCode !== null && bizTypeCode !== undefined) {
+    payload.bizTypeCode = Number(bizTypeCode)
+  }
+  payload.tab = tab || 'current'
+  payload.page = page
+  payload.size = size
+  return payload
 }
 
 function createEmptyKbForm() {
@@ -307,16 +355,16 @@ function mapDocumentItem(item) {
     kbCode: item?.kbCode || '-',
     documentCode: item?.documentCode || '-',
     documentName: item?.documentName || '-',
-    documentType: item?.documentType || '-',
-    bizType: item?.bizType || '-',
+    documentType: item?.documentType ?? null,
+    bizType: item?.bizType ?? null,
     bizKey: item?.bizKey || '-',
     sourceSystem: item?.sourceSystem || '-',
-    status: formatStatus(item?.status),
+    status: item?.status ?? null,
     statusClass: resolveStatusClass(item?.status),
     providerDocumentId: item?.providerDocumentId || '-',
-    providerSyncStatus: formatProviderSyncStatus(item?.providerSyncStatus),
+    providerSyncStatus: item?.providerSyncStatus ?? null,
     currentVersionNo: item?.currentVersionNo ?? '-',
-    contentFormat: item?.contentFormat || '-',
+    contentFormat: item?.contentFormat ?? null,
     contentSize: formatContentSize(item?.contentSize),
     lastGeneratedAt: formatDateTime(item?.lastGeneratedAt),
     raw: item
@@ -325,54 +373,38 @@ function mapDocumentItem(item) {
 
 function normalizeDocumentList(payload) {
   if (Array.isArray(payload)) {
-    return payload
-  }
-  if (Array.isArray(payload?.data)) {
-    return payload.data
+    return {
+      list: payload,
+      total: payload.length
+    }
   }
   if (Array.isArray(payload?.list)) {
-    return payload.list
+    return {
+      list: payload.list,
+      total: resolvePageTotal(payload?.pageInfo?.total, payload.list.length)
+    }
   }
-  return []
-}
-
-function matchTab(item, tabKey) {
-  const rawStatus = String(item.raw?.status || '').toUpperCase()
-  if (tabKey === 'history') {
-    return rawStatus === 'DISABLED'
+  if (Array.isArray(payload?.data)) {
+    return {
+      list: payload.data,
+      total: payload.data.length
+    }
   }
-  return rawStatus !== 'DISABLED'
+  return {
+    list: [],
+    total: 0
+  }
 }
 
 function shouldSyncDocument(item) {
-  const syncStatus = String(item.raw?.providerSyncStatus || '').toUpperCase()
-  return !syncStatus || syncStatus === 'PENDING' || syncStatus === 'FAILED'
+  const syncStatus = item.raw?.providerSyncStatus
+  return syncStatus === null || syncStatus === undefined || isPendingSyncStatus(syncStatus) || isFailedSyncStatus(syncStatus)
 }
 
 function resolveStatusClass(status) {
-  const normalized = String(status || '').toUpperCase()
-  if (normalized === 'ACTIVE') return 'online'
-  if (normalized === 'DISABLED' || normalized === 'INACTIVE') return 'offline'
-  return normalized ? 'warning' : ''
-}
-
-function formatStatus(status) {
-  const statusLabelMap = {
-    ACTIVE: '生效',
-    DISABLED: '已停用',
-    INACTIVE: '已停用'
-  }
-  return statusLabelMap[status] || status || '-'
-}
-
-function formatProviderSyncStatus(status) {
-  const statusLabelMap = {
-    PENDING: '待同步',
-    RUNNING: '同步中',
-    SUCCESS: '同步成功',
-    FAILED: '同步失败'
-  }
-  return statusLabelMap[status] || status || '-'
+  if (isActiveStatus(status)) return 'online'
+  if (isDisabledStatus(status)) return 'offline'
+  return status === null || status === undefined || status === '' ? '' : 'warning'
 }
 
 function formatDateTime(value) {
@@ -394,4 +426,38 @@ function formatContentSize(value) {
     return `${(size / 1024).toFixed(1)} KB`
   }
   return `${(size / 1024 / 1024).toFixed(1)} MB`
+}
+
+function isActiveStatus(value) {
+  return matchesEnumValue(value, [1, '1', 'ACTIVE'])
+}
+
+function isDisabledStatus(value) {
+  return matchesEnumValue(value, [2, '2', 'DISABLED', 'INACTIVE'])
+}
+
+function isPendingSyncStatus(value) {
+  return matchesEnumValue(value, [1, '1', 'PENDING'])
+}
+
+function isFailedSyncStatus(value) {
+  return matchesEnumValue(value, [4, '4', 'FAILED'])
+}
+
+function matchesEnumValue(value, candidates) {
+  if (value === null || value === undefined) {
+    return false
+  }
+  const normalized = typeof value === 'string' ? value.trim().toUpperCase() : String(value)
+  return candidates.some(candidate => {
+    if (typeof candidate === 'string') {
+      return normalized === candidate.toUpperCase()
+    }
+    return String(candidate) === String(value)
+  })
+}
+
+function resolvePageTotal(total, fallback) {
+  const numericTotal = Number(total)
+  return Number.isFinite(numericTotal) ? numericTotal : fallback
 }

@@ -42,8 +42,11 @@ import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionContentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbStoreService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
+import org.athena.framework.data.jdbc.vo.PageInfo;
+import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -145,17 +148,28 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
     }
 
     @Override
-    public List<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request) {
+    public PageResultVO<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request) {
         AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        int page = 1;
+        int size = 10;
         if (request != null) {
             query.setKbCode(trimToNull(request.getKbCode()));
             query.setDocumentCode(trimToNull(request.getDocumentCode()));
+            query.setKeyword(trimToNull(request.getKeyword()));
+            query.setBizType(resolveBizType(request.getBizTypeCode()));
+            query.setStatus(resolveDocumentStatus(request.getTab()));
+            page = safePage(request.getPage());
+            size = safeSize(request.getSize());
+        } else {
+            query.setStatus(AiKbDocumentStatus.ACTIVE);
         }
-        query.setPage(1);
-        query.setSize(Integer.MAX_VALUE);
-        return documentService.queryAll(query).stream()
+        query.setPage(page);
+        query.setSize(size);
+        PageResultVO<AiKbDocumentDTO> result = documentService.page(query);
+        List<AiKbDocumentListItemDTO> records = result.getList().stream()
                 .map(this::toDocumentListItem)
                 .toList();
+        return PageResultVO.of(records, new PageInfo(result.getPageInfo().total(), size, page));
     }
 
     @Override
@@ -909,15 +923,15 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         target.setKbCode(source.getKbCode());
         target.setDocumentCode(source.getDocumentCode());
         target.setDocumentName(source.getDocumentName());
-        target.setDocumentType(enumName(source.getDocumentType()));
-        target.setBizType(enumName(source.getBizType()));
+        target.setDocumentType(source.getDocumentType());
+        target.setBizType(source.getBizType());
         target.setBizKey(source.getBizKey());
         target.setSourceSystem(source.getSourceSystem());
-        target.setStatus(enumName(source.getStatus()));
+        target.setStatus(source.getStatus());
         target.setProviderDocumentId(source.getProviderDocumentId());
-        target.setProviderSyncStatus(enumName(source.getProviderSyncStatus()));
+        target.setProviderSyncStatus(source.getProviderSyncStatus());
         target.setCurrentVersionNo(source.getDocumentVersionNo());
-        target.setContentFormat(enumName(source.getContentFormat()));
+        target.setContentFormat(source.getContentFormat());
         target.setContentSize(source.getContentSize());
         target.setLastGeneratedAt(source.getLastGeneratedAt());
         return target;
@@ -980,6 +994,36 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
 
     private AiKbSourceType bizTypeToSourceType(AiKbBizType bizType) {
         return bizType == null ? null : AiKbSourceType.valueOf(bizType.name());
+    }
+
+    private AiKbBizType resolveBizType(Integer bizTypeCode) {
+        if (bizTypeCode == null) {
+            return null;
+        }
+        for (AiKbBizType item : AiKbBizType.values()) {
+            if (item.getCode() == bizTypeCode) {
+                return item;
+            }
+        }
+        return null;
+    }
+
+    private AiKbDocumentStatus resolveDocumentStatus(String tab) {
+        if (!StringUtils.hasText(tab)) {
+            return AiKbDocumentStatus.ACTIVE;
+        }
+        if ("history".equalsIgnoreCase(tab.trim())) {
+            return AiKbDocumentStatus.DISABLED;
+        }
+        return AiKbDocumentStatus.ACTIVE;
+    }
+
+    private int safePage(Integer page) {
+        return page == null || page < 1 ? 1 : page;
+    }
+
+    private int safeSize(Integer size) {
+        return size == null || size < 1 ? 10 : Math.min(size, 200);
     }
 
     private String checksum(String content) {

@@ -15,6 +15,7 @@ import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
+import org.athena.framework.data.jdbc.vo.PageResultVO;
 
 import java.util.List;
 
@@ -58,7 +59,7 @@ public interface AiKnowledgeDomainService {
      * @param request 知识库文档列表查询请求，包含知识库编码、文档类型、业务类型等筛选条件
      * @return 知识库文档列表项
      */
-    List<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request);
+    PageResultVO<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request);
 
     /**
      * 获取知识库文档详情。

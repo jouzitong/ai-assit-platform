@@ -14,6 +14,9 @@
 @scene = manual-http-test
 @docId1 = file_0661cff9804e40dbb2808dc41524957c_16686760
 @topK = 5
+@kbCode = {{kbId}}
+@documentCode = {{docId1}}
+@documentDbId = 1
 
 ### 1) Upsert local knowledge document
 POST {{host}}{{apiPrefix}}/internal/v1/ai/kb/document/upsert
@@ -79,3 +82,132 @@ Accept: {{acceptJson}}
 
 ### 4) get document detail
 GET {{host}}{{apiPrefix}}/api/v1/ai/kb/document/detail?documentCode={{docId1}}&kbCode={{kbId}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 5) page api - knowledge base list
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/list
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{}
+
+### 6) page api - create knowledge base
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/create
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbCode": "{{kbCode}}",
+  "kbName": "manual-http-test-kb",
+  "sourceType": 1,
+  "sourceKey": "manual-http-test",
+  "providerKbId": "{{kbId}}",
+  "status": 1,
+  "ext": {
+    "traceId": "{{traceId}}-page-create",
+    "scene": "{{scene}}",
+    "workspaceId": "{{workspaceId}}",
+    "owner": "codex"
+  }
+}
+
+### 7) page api - document list
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/document/list
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbCode": "{{kbCode}}",
+  "keyword": "{{documentCode}}",
+  "tab": "current",
+  "page": 1,
+  "size": 20
+}
+
+### 8) page api - document detail
+GET {{host}}{{apiPrefix}}/api/v1/ai/kb/document/detail?kbCode={{kbCode}}&documentCode={{documentCode}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 9) page api - document upsert
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/document/upsert
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbId": "{{kbCode}}",
+  "documentId": "{{documentCode}}",
+  "documentName": "manual-http-test/profile-001.txt",
+  "documentType": 1,
+  "sourceType": 1,
+  "sourceKey": "manual-http-test",
+  "content": "张三，男，28岁，来自上海，当前职位是高级数据分析师，擅长 Java、SQL 和 Python。",
+  "canUpdate": true,
+  "ext": {
+    "traceId": "{{traceId}}-page-upsert",
+    "scene": "{{scene}}",
+    "workspaceId": "{{workspaceId}}",
+    "owner": "codex"
+  }
+}
+
+### 10) page api - update document content
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/document/content/update
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "documentId": {{documentDbId}},
+  "content": "张三，男，28岁，来自上海，当前职位是高级数据分析师，擅长 Java、SQL、Python 和 Spring Boot。",
+  "ext": {
+    "traceId": "{{traceId}}-page-content-update",
+    "scene": "{{scene}}",
+    "workspaceId": "{{workspaceId}}"
+  }
+}
+
+### 11) page api - sync document
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/document/sync
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbCode": "{{kbCode}}",
+  "documentCodes": [
+    "{{documentCode}}"
+  ],
+  "force": true
+}
+
+### 12) page api - check document sync
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/document/sync/check
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbCode": "{{kbCode}}",
+  "documentCodes": [
+    "{{documentCode}}"
+  ]
+}
+
+### 13) page api - delete document
+POST {{host}}{{apiPrefix}}/api/v1/ai/kb/document/delete
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "kbCode": "{{kbCode}}",
+  "documentCodes": [
+    "{{documentCode}}"
+  ]
+}

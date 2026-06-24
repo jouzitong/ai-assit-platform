@@ -1,5 +1,6 @@
 package ai.platform.aiassist.service.ai.kb.service.impl;
 
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassist.service.ai.kb.convert.AiKbDocumentConvert;
 import ai.platform.aiassist.service.ai.kb.entity.AiKbDocumentEntity;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentDTO;
@@ -65,6 +66,24 @@ public class AiKbDocumentServiceImpl
             }
             if (StringUtils.hasText(req.getDocumentCode())) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode().trim());
+            }
+            if (StringUtils.hasText(req.getKeyword())) {
+                String keyword = req.getKeyword().trim();
+                wrapper.and(w -> w.lambda()
+                        .like(AiKbDocumentEntity::getKbCode, keyword)
+                        .or()
+                        .like(AiKbDocumentEntity::getDocumentCode, keyword)
+                        .or()
+                        .like(AiKbDocumentEntity::getDocumentName, keyword)
+                        .or()
+                        .like(AiKbDocumentEntity::getBizKey, keyword)
+                        .or()
+                        .like(AiKbDocumentEntity::getSourceSystem, keyword)
+                        .or()
+                        .like(AiKbDocumentEntity::getProviderDocumentId, keyword));
+            }
+            if (req.getBizType() != null) {
+                wrapper.lambda().eq(AiKbDocumentEntity::getBizType, req.getBizType());
             }
             if (req.getStatus() != null) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getStatus, req.getStatus());

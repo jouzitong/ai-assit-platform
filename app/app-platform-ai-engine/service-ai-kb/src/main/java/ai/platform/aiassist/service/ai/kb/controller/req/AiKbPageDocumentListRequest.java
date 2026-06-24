@@ -20,6 +20,12 @@ public class AiKbPageDocumentListRequest implements Serializable {
     private String keyword;
 
     /**
+     * 业务类型编码，可选。
+     */
+    @IgnoredQuery
+    private Integer bizTypeCode;
+
+    /**
      * 页面页签：current/draft/history。
      */
     @IgnoredQuery

@@ -15,6 +15,7 @@ import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
+import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -44,11 +45,16 @@ public class AiKnowledgeBasePageController implements ai.platform.aiassist.servi
     }
 
     @Override
-    public List<AiKbDocumentListItemDTO> listDocuments(AiKbPageDocumentListRequest request) {
+    public PageResultVO<AiKbDocumentListItemDTO> listDocuments(AiKbPageDocumentListRequest request) {
         ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest payload =
                 new ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest();
         if (request != null) {
             payload.setKbCode(request.getKbCode());
+            payload.setKeyword(request.getKeyword());
+            payload.setBizTypeCode(request.getBizTypeCode());
+            payload.setTab(request.getTab());
+            payload.setPage(request.getPage());
+            payload.setSize(request.getSize());
         }
         return domainService.listDocuments(payload);
     }

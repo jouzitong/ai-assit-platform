@@ -14,6 +14,7 @@ import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
+import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.athena.framework.web.vo.R;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -61,7 +62,7 @@ public interface AiKnowledgeBasePageController {
      * @return 知识库文档列表项集合
      */
     @PostMapping(value = "/api/v1/ai/kb/document/list", produces = MediaType.APPLICATION_JSON_VALUE)
-    List<AiKbDocumentListItemDTO> listDocuments(@RequestBody(required = false) AiKbPageDocumentListRequest request);
+    PageResultVO<AiKbDocumentListItemDTO> listDocuments(@RequestBody(required = false) AiKbPageDocumentListRequest request);
 
     /**
      * 查询知识库文档详情。

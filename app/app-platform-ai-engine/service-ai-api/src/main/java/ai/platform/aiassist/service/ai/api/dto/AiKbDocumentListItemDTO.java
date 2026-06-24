@@ -1,5 +1,10 @@
 package ai.platform.aiassist.service.ai.api.dto;
 
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
+import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
+import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -16,23 +21,23 @@ public class AiKbDocumentListItemDTO implements Serializable {
 
     private String documentName;
 
-    private String documentType;
+    private AiKbDocumentType documentType;
 
-    private String bizType;
+    private AiKbBizType bizType;
 
     private String bizKey;
 
     private String sourceSystem;
 
-    private String status;
+    private AiKbDocumentStatus status;
 
     private String providerDocumentId;
 
-    private String providerSyncStatus;
+    private AiKbProviderSyncStatus providerSyncStatus;
 
     private Integer currentVersionNo;
 
-    private String contentFormat;
+    private AiKbContentFormat contentFormat;
 
     private Long contentSize;
 

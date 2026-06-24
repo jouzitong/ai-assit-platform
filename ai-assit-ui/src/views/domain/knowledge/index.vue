@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import ActionBar from '../../../components/commons/list/ActionBar.vue'
 import DataListFooter from '../../../components/commons/list/DataListFooter.vue'
 import DataTable from '../../../components/commons/list/DataTable.vue'
@@ -14,15 +14,20 @@ import {
   KNOWLEDGE_PAGE_TITLE,
   KNOWLEDGE_TABLE_COLUMNS
 } from './data'
+import { SERVICE_NAMES } from '../../../config/services'
+import { useEnumStore } from '../../../store/enums'
 import { useKnowledgePage } from './service/knowledge'
 
-const page = ref(1)
-const pageSize = ref(10)
 const sorts = ref([{ key: 'documentName', type: 'asc' }])
+const { getServiceEnums, getEnumOptions } = useEnumStore()
 
 const {
   activeTab,
+  page,
+  pageSize,
+  totalItems,
   keyword,
+  bizTypeCode,
   loading,
   errorMessage,
   createDialogVisible,
@@ -46,7 +51,35 @@ const {
   toggleSelectAll
 } = useKnowledgePage()
 
-const filterSchema = ref(KNOWLEDGE_FILTER_SCHEMA.map(item => ({ ...item })))
+const filterSchema = computed(() => {
+  const bizTypeOptions = [
+    { code: '', name: '全部业务类型' },
+    ...getEnumOptions('aiKbBizType', SERVICE_NAMES.AI_ENGINE).map(item => ({
+      code: String(item.value ?? ''),
+      name: item.label
+    }))
+  ]
+
+  return KNOWLEDGE_FILTER_SCHEMA.map(item => {
+    if (item.key === 'keyword') {
+      return {
+        ...item,
+        value: keyword.value
+      }
+    }
+    if (item.key === 'bizTypeCode') {
+      return {
+        ...item,
+        value: bizTypeCode.value,
+        type_config: {
+          ...(item.type_config || {}),
+          options: bizTypeOptions
+        }
+      }
+    }
+    return { ...item }
+  })
+})
 
 const tableColumns = computed(() => {
   if (!batchMode.value) {
@@ -59,6 +92,7 @@ const tableColumns = computed(() => {
 })
 
 const listConfig = KNOWLEDGE_LIST_CONFIG
+const enumMap = computed(() => getServiceEnums(SERVICE_NAMES.AI_ENGINE))
 
 const actionItems = computed(() => {
   if (batchMode.value) {
@@ -85,41 +119,13 @@ const headerTab = computed(() => ({
   list: KNOWLEDGE_HEADER_TABS
 }))
 
-const pagedRows = computed(() => {
-  const start = (page.value - 1) * pageSize.value
-  return filteredSources.value.slice(start, start + pageSize.value)
-})
-
-watch(keyword, (value) => {
-  updateFilterValue('keyword', value)
-  page.value = 1
-})
-
-watch(activeTab, (value) => {
-  page.value = 1
-})
-
-watch(filteredSources, (rows) => {
-  const maxPage = Math.max(1, Math.ceil(rows.length / pageSize.value))
-  if (page.value > maxPage) {
-    page.value = maxPage
-  }
-})
-
-watch(pageSize, () => {
-  page.value = 1
-})
-
-function updateFilterValue(key, value) {
-  const field = filterSchema.value.find(item => item.key === key)
-  if (field) {
-    field.value = value
-  }
-}
-
 function handleFilterAction(payload) {
   if (payload?.action === 'keyword-change') {
     keyword.value = payload.value ?? ''
+    return
+  }
+  if (payload?.action === 'biz-type-change') {
+    bizTypeCode.value = payload.value ?? ''
   }
 }
 
@@ -193,12 +199,12 @@ function handleTableAction(payload) {
 }
 
 const pageRowsSelected = computed(() => {
-  return pagedRows.value.length > 0 && pagedRows.value.every(row => selectedDocumentCodes.value.includes(row.documentCode))
+  return filteredSources.value.length > 0 && filteredSources.value.every(row => selectedDocumentCodes.value.includes(row.documentCode))
 })
 
 const pageRowsIndeterminate = computed(() => {
-  const selectedCount = pagedRows.value.filter(row => selectedDocumentCodes.value.includes(row.documentCode)).length
-  return selectedCount > 0 && selectedCount < pagedRows.value.length
+  const selectedCount = filteredSources.value.filter(row => selectedDocumentCodes.value.includes(row.documentCode)).length
+  return selectedCount > 0 && selectedCount < filteredSources.value.length
 })
 </script>
 
@@ -224,17 +230,18 @@ const pageRowsIndeterminate = computed(() => {
                 type="checkbox"
                 :checked="pageRowsSelected"
                 :indeterminate.prop="pageRowsIndeterminate"
-                @change="toggleSelectAll($event.target.checked, pagedRows)"
+                @change="toggleSelectAll($event.target.checked, filteredSources)"
               />
               <span>本页全选</span>
             </label>
             <span class="knowledge-batch-summary">已选择 {{ selectedDocumentCodes.length }} 个文档</span>
           </div>
           <DataTable
-            :rows="pagedRows"
+            :rows="filteredSources"
             :columns="tableColumns"
             :list-config="listConfig"
             :sorts="sorts"
+            :enum-map="enumMap"
             row-key="key"
             @update:sorts="sorts = $event"
             @row-click="handleRowClick"
@@ -254,7 +261,7 @@ const pageRowsIndeterminate = computed(() => {
 
       <template #footer>
         <DataListFooter
-          :total-items="filteredSources.length"
+          :total-items="totalItems"
           :page="page"
           :page-size="pageSize"
           show-page-size
