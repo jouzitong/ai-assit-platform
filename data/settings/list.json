@@ -1,6 +1,10 @@
 {
   "id": "qwerty12345678aeswrtyui3234",
   "title": "测试列表页面",
+  "component": "common-tree-list | common-list",
+  "tree": {
+    "component": "common-tree"
+  },
   "tab": {
     "activeTab": "all",
     "tabs": [
