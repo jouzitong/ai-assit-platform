@@ -1,5 +1,4 @@
-import { buildUrl, request, resolveBusinessMessage, unwrapBusinessPayload } from '../utils/request'
-import { getToken } from '../utils/session'
+import { request, requestRaw, unwrapBusinessPayload } from '../utils/request'
 
 const DB_ENGINE_META_API_PREFIX = '/dbEngine/api/v1/meta/data-source'
 const DB_ENGINE_TABLE_META_API_PREFIX = '/dbEngine/api/v1/meta/table'
@@ -97,21 +96,14 @@ export async function streamDbMetaImportWorkbook(sourceKey, file, signal) {
   if (sourceKey) {
     formData.append('sourceKey', sourceKey)
   }
-  const token = getToken()
-  const response = await fetch(buildUrl('/dbEngine/api/v1/meta/workbook/import/stream'), {
+  const response = await requestRaw('/dbEngine/api/v1/meta/workbook/import/stream', {
     method: 'POST',
     body: formData,
     signal,
     headers: {
-      Accept: 'text/event-stream;charset=UTF-8',
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
+      Accept: 'text/event-stream;charset=UTF-8'
     }
   })
-
-  if (!response.ok) {
-    const errorPayload = await tryReadErrorPayload(response)
-    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
-  }
 
   const contentType = response.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -123,18 +115,9 @@ export async function streamDbMetaImportWorkbook(sourceKey, file, signal) {
 }
 
 export async function exportDbMetaWorkbook(sourceKey, format = 'json') {
-  const token = getToken()
-  const response = await fetch(buildUrl(`/dbEngine/api/v1/meta/workbook/export?sourceKey=${encodeURIComponent(sourceKey)}&format=${encodeURIComponent(format)}`), {
-    method: 'GET',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
+  const response = await requestRaw(`/dbEngine/api/v1/meta/workbook/export?sourceKey=${encodeURIComponent(sourceKey)}&format=${encodeURIComponent(format)}`, {
+    method: 'GET'
   })
-
-  if (!response.ok) {
-    const errorPayload = await tryReadErrorPayload(response)
-    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
-  }
 
   const contentType = response.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -158,18 +141,9 @@ export async function exportDbMetaWorkbook(sourceKey, format = 'json') {
 }
 
 export async function downloadDbMetaTemplateWorkbook(format = 'json') {
-  const token = getToken()
-  const response = await fetch(buildUrl(`/dbEngine/api/v1/meta/workbook/template?format=${encodeURIComponent(format)}`), {
-    method: 'GET',
-    headers: {
-      ...(token ? { Authorization: `Bearer ${token}` } : {})
-    }
+  const response = await requestRaw(`/dbEngine/api/v1/meta/workbook/template?format=${encodeURIComponent(format)}`, {
+    method: 'GET'
   })
-
-  if (!response.ok) {
-    const errorPayload = await tryReadErrorPayload(response)
-    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
-  }
 
   const contentType = response.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
@@ -190,14 +164,6 @@ export async function downloadDbMetaTemplateWorkbook(format = 'json') {
   const filename = match ? decodeURIComponent(match[1]) : `db-meta-template.${format === 'json' ? 'json' : 'xlsx'}`
   const blob = await response.blob()
   return { blob, filename }
-}
-
-async function tryReadErrorPayload(response) {
-  const contentType = response.headers.get('content-type') || ''
-  if (contentType.includes('application/json')) {
-    return response.json()
-  }
-  return response.text().catch(() => '')
 }
 
 function safeParseJson(text) {

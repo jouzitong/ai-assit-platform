@@ -1,19 +1,9 @@
-import { buildUrl, request, resolveBusinessMessage, unwrapBusinessPayload } from '../utils/request'
-import { getToken } from '../utils/session'
+import { request, requestRaw, unwrapBusinessPayload } from '../utils/request'
 
 const AI_CHAT_API_PREFIX = '/aiChat/api/v1/ai/chat'
 const AI_META_API_PREFIX = '/aiEngine/api/v1/ai/meta'
 const AI_ENGINE_API_PREFIX = '/aiEngine/api/v1/ai'
 const AI_ENGINE_INTERNAL_PREFIX = '/aiEngine'
-
-function buildAuthorizedHeaders(extraHeaders = {}) {
-  const token = getToken()
-  return {
-    'Content-Type': 'application/json',
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...extraHeaders
-  }
-}
 
 export function queryAiChat(payload) {
   return request(`${AI_CHAT_API_PREFIX}/query`, {
@@ -23,18 +13,13 @@ export function queryAiChat(payload) {
 }
 
 export async function queryAiChatStream(payload) {
-  const response = await fetch(buildUrl(`${AI_CHAT_API_PREFIX}/query/stream`), {
+  const response = await requestRaw(`${AI_CHAT_API_PREFIX}/query/stream`, {
     method: 'POST',
-    headers: buildAuthorizedHeaders({
+    headers: {
       Accept: 'text/event-stream;charset=UTF-8'
-    }),
+    },
     body: JSON.stringify(payload)
   })
-
-  if (!response.ok) {
-    const errorPayload = await tryReadErrorPayload(response)
-    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
-  }
 
   const contentType = response.headers.get('content-type') || ''
   if (contentType.includes('application/json')) {
