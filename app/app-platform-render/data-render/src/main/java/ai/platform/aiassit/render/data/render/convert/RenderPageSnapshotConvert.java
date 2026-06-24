@@ -1,0 +1,15 @@
+package ai.platform.aiassit.render.data.render.convert;
+
+import ai.platform.aiassit.render.data.render.entity.RenderPageSnapshotEntity;
+import ai.platform.aiassit.render.data.render.entity.dto.RenderPageSnapshotDTO;
+import org.athena.framework.data.jdbc.convert.IConvert;
+import org.mapstruct.Mapper;
+import org.mapstruct.ReportingPolicy;
+
+@Mapper(
+        componentModel = "spring",
+        builder = @org.mapstruct.Builder(disableBuilder = true),
+        unmappedTargetPolicy = ReportingPolicy.IGNORE
+)
+public interface RenderPageSnapshotConvert extends IConvert<RenderPageSnapshotEntity, RenderPageSnapshotDTO> {
+}

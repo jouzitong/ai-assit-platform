@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.platform.aiassit</groupId>
+        <artifactId>ai-assit-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>app-platform-render</artifactId>
+    <packaging>pom</packaging>
+    <name>app-platform-render</name>
+
+    <properties>
+        <app.platform.render.version>1.0.0-SNAPSHOT</app.platform.render.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-render-api</artifactId>
+                <version>${app.platform.render.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-render-core</artifactId>
+                <version>${app.platform.render.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-render-data-component</artifactId>
+                <version>${app.platform.render.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-render-data-render</artifactId>
+                <version>${app.platform.render.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-render-boot</artifactId>
+                <version>${app.platform.render.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>api</module>
+        <module>core</module>
+        <module>data-component</module>
+        <module>data-render</module>
+        <module>boot</module>
+    </modules>
+</project>
