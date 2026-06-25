@@ -16,6 +16,8 @@ public class DbQueryListRequest {
     @JsonProperty("filter_dict")
     private Map<String, DbQueryFilterCondition> filterDict = new LinkedHashMap<>();
 
+    private String filterExpr;
+
     private DbQueryExt ext = new DbQueryExt();
 
     private Integer page = 1;

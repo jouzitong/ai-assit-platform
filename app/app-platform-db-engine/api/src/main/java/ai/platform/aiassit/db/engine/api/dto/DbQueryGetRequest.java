@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.LinkedHashMap;
@@ -14,7 +15,10 @@ public class DbQueryGetRequest {
 
     private Object id;
 
-    private Map<String, Object> filters = new LinkedHashMap<>();
+    @JsonProperty("filter_dict")
+    private Map<String, Object> filterDict = new LinkedHashMap<>();
+
+    private String filterExpr;
 
     private DbQueryGetExt ext = new DbQueryGetExt();
 }

@@ -15,7 +15,10 @@ public class DbQueryCountRequest {
 
     private String model;
 
-    private Map<String, DbQueryFilterCondition> filters = new LinkedHashMap<>();
+    @JsonProperty("filter_dict")
+    private Map<String, DbQueryFilterCondition> filterDict = new LinkedHashMap<>();
+
+    private String filterExpr;
 
     private List<DbQueryCountDimension> dimensions = new ArrayList<>();
 

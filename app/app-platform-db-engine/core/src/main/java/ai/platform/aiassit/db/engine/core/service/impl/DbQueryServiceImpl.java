@@ -75,7 +75,7 @@ public class DbQueryServiceImpl implements DbQueryService {
             conditions.add(wrapIdentifier("id") + " = " + toSqlLiteral(request.getId()));
         }
         if (request != null) {
-            conditions.addAll(buildWhereConditions(request.getFilters()));
+            conditions.addAll(buildFilterConditions(request.getFilterDict(), request.getFilterExpr()));
         }
         appendWhere(sql, conditions);
         appendOrderBy(sql, sorts);
@@ -95,7 +95,10 @@ public class DbQueryServiceImpl implements DbQueryService {
         List<String> fields = request == null || request.getExt() == null ? List.of() : request.getExt().getFields();
         int page = normalizePage(request == null ? null : request.getPage());
         int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
-        List<String> conditions = buildWhereConditions(request == null ? null : request.getFilterDict());
+        List<String> conditions = buildFilterConditions(
+                request == null ? null : request.getFilterDict(),
+                request == null ? null : request.getFilterExpr()
+        );
 
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(buildSelectClause(fields, relations))
@@ -121,7 +124,8 @@ public class DbQueryServiceImpl implements DbQueryService {
         QueryBundle bundle = buildAggregateBundle(
                 requireModel(request == null ? null : request.getModel()),
                 request == null || request.getExt() == null ? List.of() : request.getExt().getRelations(),
-                request == null ? null : request.getFilters(),
+                request == null ? null : request.getFilterDict(),
+                request == null ? null : request.getFilterExpr(),
                 request == null ? null : request.getDimensions(),
                 request == null ? null : request.getMetrics(),
                 request == null ? null : request.getHaving(),
@@ -144,7 +148,8 @@ public class DbQueryServiceImpl implements DbQueryService {
         QueryBundle bundle = buildAggregateBundle(
                 requireModel(request == null ? null : request.getModel()),
                 request == null || request.getExt() == null ? List.of() : request.getExt().getRelations(),
-                request == null ? null : request.getFilters(),
+                request == null ? null : request.getFilterDict(),
+                request == null ? null : request.getFilterExpr(),
                 request == null ? null : request.getDimensions(),
                 request == null ? null : request.getMetrics(),
                 request == null ? null : request.getHaving(),
@@ -182,7 +187,10 @@ public class DbQueryServiceImpl implements DbQueryService {
                 .append(buildSelectClause(new ArrayList<>(fields), relations))
                 .append(" FROM ")
                 .append(buildFromClause(table, relations));
-        appendWhere(sql, buildWhereConditions(request == null ? null : request.getFilters()));
+        appendWhere(sql, buildFilterConditions(
+                request == null ? null : request.getFilterDict(),
+                request == null ? null : request.getFilterExpr()
+        ));
         appendOrderBy(sql, request == null ? null : request.getSorts());
 
         QueryResult result = runQuery(sql.toString(), DEFAULT_MAX_ROWS);
@@ -229,7 +237,8 @@ public class DbQueryServiceImpl implements DbQueryService {
         QueryBundle bundle = buildAggregateBundle(
                 table,
                 request != null && request.getExt() != null ? request.getExt().getRelations() : List.of(),
-                request == null ? null : request.getFilters(),
+                request == null ? null : request.getFilterDict(),
+                request == null ? null : request.getFilterExpr(),
                 dimensions,
                 metrics,
                 request == null ? null : request.getHaving(),
@@ -280,7 +289,8 @@ public class DbQueryServiceImpl implements DbQueryService {
     private QueryBundle buildAggregateBundle(
             String table,
             List<DbQueryRelation> relations,
-            Map<String, DbQueryFilterCondition> filters,
+            Map<String, ?> filterDict,
+            String filterExpr,
             List<DbQueryCountDimension> dimensions,
             List<DbQueryCountMetric> metrics,
             Map<String, DbQueryFilterCondition> having,
@@ -308,11 +318,12 @@ public class DbQueryServiceImpl implements DbQueryService {
 
         int safePage = normalizePage(page);
         int safePageSize = normalizePageSize(pageSize);
+        List<String> whereConditions = buildFilterConditions(filterDict, filterExpr);
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(String.join(", ", selectItems))
                 .append(" FROM ")
                 .append(buildFromClause(table, relations));
-        appendWhere(sql, buildWhereConditions(filters));
+        appendWhere(sql, whereConditions);
         if (!groupByItems.isEmpty()) {
             sql.append(" GROUP BY ").append(String.join(", ", groupByItems));
         }
@@ -431,24 +442,76 @@ public class DbQueryServiceImpl implements DbQueryService {
             DbQueryFilterCondition condition = normalizeFilterCondition(entry.getValue());
             String op = condition == null || !StringUtils.hasText(condition.getOp()) ? "eq" : condition.getOp().trim().toLowerCase(Locale.ROOT);
             Object value = condition == null ? null : condition.getValue();
-            switch (op) {
-                case "eq" -> conditions.add(field + " = " + toSqlLiteral(value));
-                case "ne", "neq" -> conditions.add(field + " <> " + toSqlLiteral(value));
-                case "gt" -> conditions.add(field + " > " + toSqlLiteral(value));
-                case "gte", "ge" -> conditions.add(field + " >= " + toSqlLiteral(value));
-                case "lt" -> conditions.add(field + " < " + toSqlLiteral(value));
-                case "lte", "le" -> conditions.add(field + " <= " + toSqlLiteral(value));
-                case "like" -> conditions.add(field + " LIKE " + toSqlLiteral("%" + value + "%"));
-                case "prefix_like" -> conditions.add(field + " LIKE " + toSqlLiteral(value + "%"));
-                case "suffix_like" -> conditions.add(field + " LIKE " + toSqlLiteral("%" + value));
-                case "in" -> conditions.add(field + " IN (" + toSqlLiteralList(value) + ")");
-                case "not_in" -> conditions.add(field + " NOT IN (" + toSqlLiteralList(value) + ")");
-                case "is_null" -> conditions.add(field + " IS NULL");
-                case "is_not_null" -> conditions.add(field + " IS NOT NULL");
-                default -> throw BizException.of();
-            }
+            conditions.add(buildAtomicCondition(field, op, value));
         }
         return conditions;
+    }
+
+    private List<String> buildFilterConditions(Map<String, ?> filterDict, String filterExpr) {
+        if (filterDict == null || filterDict.isEmpty()) {
+            if (StringUtils.hasText(filterExpr)) {
+                throw BizException.of();
+            }
+            return List.of();
+        }
+        if (!StringUtils.hasText(filterExpr)) {
+            return buildWhereConditions(filterDict);
+        }
+        Map<String, String> conditionSqlMap = buildConditionSqlMap(filterDict);
+        FilterExprParser parser = new FilterExprParser(filterExpr, conditionSqlMap);
+        String combinedCondition = parser.parse();
+        if (!conditionSqlMap.keySet().equals(parser.getReferencedIdentifiers())) {
+            throw BizException.of();
+        }
+        return List.of(combinedCondition);
+    }
+
+    private Map<String, String> buildConditionSqlMap(Map<String, ?> filterDict) {
+        Map<String, String> conditionSqlMap = new LinkedHashMap<>();
+        for (Map.Entry<String, ?> entry : filterDict.entrySet()) {
+            String key = requireIdentifier(entry.getKey(), "filter key");
+            DbQueryFilterCondition condition = normalizeFilterCondition(entry.getValue());
+            String op = condition == null || !StringUtils.hasText(condition.getOp()) ? "eq" : condition.getOp().trim().toLowerCase(Locale.ROOT);
+            Object value = condition == null ? null : condition.getValue();
+            conditionSqlMap.put(key, buildAtomicCondition(wrapIdentifier(key), op, value));
+        }
+        return conditionSqlMap;
+    }
+
+    private String buildAtomicCondition(String field, String op, Object value) {
+        switch (op) {
+            case "eq":
+                return field + " = " + toSqlLiteral(value);
+            case "ne":
+            case "neq":
+                return field + " <> " + toSqlLiteral(value);
+            case "gt":
+                return field + " > " + toSqlLiteral(value);
+            case "gte":
+            case "ge":
+                return field + " >= " + toSqlLiteral(value);
+            case "lt":
+                return field + " < " + toSqlLiteral(value);
+            case "lte":
+            case "le":
+                return field + " <= " + toSqlLiteral(value);
+            case "like":
+                return field + " LIKE " + toSqlLiteral("%" + value + "%");
+            case "prefix_like":
+                return field + " LIKE " + toSqlLiteral(value + "%");
+            case "suffix_like":
+                return field + " LIKE " + toSqlLiteral("%" + value);
+            case "in":
+                return field + " IN (" + toSqlLiteralList(value) + ")";
+            case "not_in":
+                return field + " NOT IN (" + toSqlLiteralList(value) + ")";
+            case "is_null":
+                return field + " IS NULL";
+            case "is_not_null":
+                return field + " IS NOT NULL";
+            default:
+                throw BizException.of();
+        }
     }
 
     private DbQueryFilterCondition normalizeFilterCondition(Object rawCondition) {
@@ -810,5 +873,132 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private record DecodedRelationField(String relationKey, String fieldPath) {
+    }
+
+    private static final class FilterExprParser {
+
+        private final List<String> tokens;
+        private final Map<String, String> conditionSqlMap;
+        private final Set<String> referencedIdentifiers = new LinkedHashSet<>();
+        private int index;
+
+        private FilterExprParser(String filterExpr, Map<String, String> conditionSqlMap) {
+            this.tokens = tokenizeFilterExpr(filterExpr);
+            this.conditionSqlMap = conditionSqlMap;
+        }
+
+        private String parse() {
+            String sql = parseOrExpression();
+            if (index != tokens.size()) {
+                throw BizException.of();
+            }
+            return sql;
+        }
+
+        private Set<String> getReferencedIdentifiers() {
+            return referencedIdentifiers;
+        }
+
+        private String parseOrExpression() {
+            String left = parseAndExpression();
+            while (matchKeyword("or")) {
+                String right = parseAndExpression();
+                left = "(" + left + " OR " + right + ")";
+            }
+            return left;
+        }
+
+        private String parseAndExpression() {
+            String left = parsePrimaryExpression();
+            while (matchKeyword("and")) {
+                String right = parsePrimaryExpression();
+                left = "(" + left + " AND " + right + ")";
+            }
+            return left;
+        }
+
+        private String parsePrimaryExpression() {
+            if (matchToken("(")) {
+                String nested = parseOrExpression();
+                if (!matchToken(")")) {
+                    throw BizException.of();
+                }
+                return "(" + nested + ")";
+            }
+            String identifier = consumeIdentifier();
+            referencedIdentifiers.add(identifier);
+            String conditionSql = conditionSqlMap.get(identifier);
+            if (!StringUtils.hasText(conditionSql)) {
+                throw BizException.of();
+            }
+            return conditionSql;
+        }
+
+        private boolean matchKeyword(String keyword) {
+            if (index >= tokens.size()) {
+                return false;
+            }
+            if (!keyword.equalsIgnoreCase(tokens.get(index))) {
+                return false;
+            }
+            index++;
+            return true;
+        }
+
+        private boolean matchToken(String token) {
+            if (index >= tokens.size()) {
+                return false;
+            }
+            if (!token.equals(tokens.get(index))) {
+                return false;
+            }
+            index++;
+            return true;
+        }
+
+        private String consumeIdentifier() {
+            if (index >= tokens.size()) {
+                throw BizException.of();
+            }
+            String token = tokens.get(index++);
+            if ("(".equals(token) || ")".equals(token) || "and".equalsIgnoreCase(token) || "or".equalsIgnoreCase(token)) {
+                throw BizException.of();
+            }
+            return token;
+        }
+
+        private static List<String> tokenizeFilterExpr(String filterExpr) {
+            if (!StringUtils.hasText(filterExpr)) {
+                throw BizException.of();
+            }
+            List<String> tokens = new ArrayList<>();
+            int position = 0;
+            while (position < filterExpr.length()) {
+                char current = filterExpr.charAt(position);
+                if (Character.isWhitespace(current)) {
+                    position++;
+                    continue;
+                }
+                if (current == '(' || current == ')') {
+                    tokens.add(String.valueOf(current));
+                    position++;
+                    continue;
+                }
+                int start = position;
+                while (position < filterExpr.length()) {
+                    char ch = filterExpr.charAt(position);
+                    if (Character.isLetterOrDigit(ch) || ch == '_' || ch == '.') {
+                        position++;
+                        continue;
+                    }
+                    break;
+                }
+                if (start == position) {
+                    throw BizException.of();
+                }
+                tokens.add(filterExpr.substring(start, position));
+            }
+            return tokens;
+        }
     }
 }

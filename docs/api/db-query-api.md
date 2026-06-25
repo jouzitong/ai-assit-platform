@@ -49,9 +49,11 @@
 - 语义：查询一条记录，最终 SQL 固定 `LIMIT 1`
 - 过滤来源：
   - `id` 存在时，自动拼接 `id = ?`
-  - `filters` 同时支持两种结构：
+  - `filter_dict` 同时支持两种结构：
     - `{ "status": "ENABLE" }`
     - `{ "status": { "op": "eq", "value": "ENABLE" } }`
+  - `filterExpr` 可选，用于组合 `filter_dict` 中的条件，例如：`(status or id) and code`
+  - 未传 `filterExpr` 时，`filter_dict` 默认仍按顶层 `AND` 拼接
 - 排序来源：`ext.sorts`
 - 关联来源：`ext.relations`
 - 返回结构：明细记录支持按关联 `key` 组装嵌套对象
@@ -74,6 +76,7 @@
 - 入口方法：`DbQueryServiceImpl.queryList(...)`
 - 语义：分页查询
 - 过滤来源：`filter_dict`
+- 过滤组合：`filterExpr`
 - 排序来源：`ext.sorts`
 - 关联来源：`ext.relations`
 - 总数统计：通过 `queryTotal(...)` 额外执行一条 `COUNT(1)` SQL
@@ -84,7 +87,8 @@
 - 入口方法：`DbQueryServiceImpl.queryCount(...)`
 - 实际依赖：`buildAggregateBundle(...)`
 - 语义：分组统计 / 计数统计
-- 过滤来源：`filters`
+- 过滤来源：`filter_dict`
+- 过滤组合：`filterExpr`
 - 分组来源：`dimensions`
 - 指标来源：`metrics`
 - having 来源：`having`
@@ -97,12 +101,16 @@
 - 入口方法：`DbQueryServiceImpl.queryAggregate(...)`
 - 与 `query.count` 共用 `buildAggregateBundle(...)`
 - 语义：聚合统计
+- 过滤来源：`filter_dict`
+- 过滤组合：`filterExpr`
 - 返回结构：保持扁平
 
 ### 4.5 `query.tree`
 
 - 入口方法：`DbQueryServiceImpl.queryTree(...)`
 - 语义：先查平铺数据，再在内存中按父子关系组装树
+- 过滤来源：`filter_dict`
+- 过滤组合：`filterExpr`
 - 可配置字段：
   - `ext.idField`
   - `ext.parentField`
@@ -117,6 +125,8 @@
 
 - 入口方法：`DbQueryServiceImpl.queryPivot(...)`
 - 语义：基于聚合结果再转成透视表
+- 过滤来源：`filter_dict`
+- 过滤组合：`filterExpr`
 - 行维度：`rows`
 - 列维度：`columns`
 - 指标：`metrics`
@@ -251,7 +261,7 @@ LEFT JOIN `users` `user`
 
 ### 7.2 `query.get` 兼容写法
 
-`DbQueryGetRequest.filters` 额外兼容简写：
+`DbQueryGetRequest.filterDict` 额外兼容简写，JSON 字段名为 `filter_dict`：
 
 ```json
 {

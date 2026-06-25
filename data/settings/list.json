@@ -1,5 +1,6 @@
 {
   "id": "qwerty12345678aeswrtyui3234",
+  "version": "1.0.0",
   "title": "测试列表页面",
   "component": "common-tree-list | common-list",
   "tree": {
@@ -26,6 +27,17 @@
       "is_delete": 0
     },
     "relations": [
+      {
+        "key": "tag",
+        "model": "ai_kb_document_tag",
+        "type": "one-to-many",
+        "foreign_key": "document_id",
+        "local_key": "id",
+        "filter_dict": {
+          "status": 1,
+          "is_delete": 0
+        }
+      }
     ]
   },
   "filters": [

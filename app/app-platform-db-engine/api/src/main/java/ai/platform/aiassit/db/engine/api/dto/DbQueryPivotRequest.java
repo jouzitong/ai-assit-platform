@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -14,7 +15,10 @@ public class DbQueryPivotRequest {
 
     private String model;
 
-    private Map<String, DbQueryFilterCondition> filters = new LinkedHashMap<>();
+    @JsonProperty("filter_dict")
+    private Map<String, DbQueryFilterCondition> filterDict = new LinkedHashMap<>();
+
+    private String filterExpr;
 
     private List<DbQueryCountDimension> rows = new ArrayList<>();
 

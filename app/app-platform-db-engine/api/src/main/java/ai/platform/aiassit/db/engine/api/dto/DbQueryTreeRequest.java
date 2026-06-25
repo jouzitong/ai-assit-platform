@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.api.dto;
 
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -14,7 +15,10 @@ public class DbQueryTreeRequest {
 
     private String model;
 
-    private Map<String, DbQueryFilterCondition> filters = new LinkedHashMap<>();
+    @JsonProperty("filter_dict")
+    private Map<String, DbQueryFilterCondition> filterDict = new LinkedHashMap<>();
+
+    private String filterExpr;
 
     private List<String> fields = new ArrayList<>();
 
