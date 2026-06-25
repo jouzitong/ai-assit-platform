@@ -3,6 +3,7 @@ import { request } from '../utils/request'
 const RENDER_API_PREFIX = '/render'
 const RENDER_PAGE_API_PREFIX = `${RENDER_API_PREFIX}/api/v1/render/pages`
 const RENDER_PAGE_CATEGORY_API_PREFIX = `${RENDER_API_PREFIX}/api/v1/render/page-categories`
+const RENDER_PAGE_CONTENT_API_PREFIX = `${RENDER_API_PREFIX}/api/v1/renderPageContents`
 
 export function searchRenderPages(payload) {
   return request(`${RENDER_PAGE_API_PREFIX}/page`, {
@@ -13,6 +14,12 @@ export function searchRenderPages(payload) {
 
 export function getRenderPage(id) {
   return request(`${RENDER_PAGE_API_PREFIX}/${id}`, {
+    method: 'GET'
+  })
+}
+
+export function getRenderPageContentByCode(pageCode) {
+  return request(`${RENDER_PAGE_CONTENT_API_PREFIX}/${encodeURIComponent(pageCode)}`, {
     method: 'GET'
   })
 }
