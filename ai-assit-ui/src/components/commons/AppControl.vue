@@ -24,10 +24,11 @@ const fetchTimer = ref(null)
 
 const config = computed(() => props.field.options || props.field.type_config || {})
 const normalizedType = computed(() => {
-  if (!props.field.type || props.field.type === 'input') {
+  const component = props.field.component || props.field.type
+  if (!component || component === 'input') {
     return 'text'
   }
-  return props.field.type
+  return component
 })
 const inputValue = computed(() => props.field.value ?? '')
 const isDisabled = computed(() => props.disabled || props.field.disabled === true)
@@ -48,7 +49,7 @@ const inputType = computed(() => {
   return 'text'
 })
 const placeholder = computed(() => config.value.placeholder || props.field.label || '')
-const options = computed(() => config.value.list || config.value.options || [])
+const options = computed(() => config.value.masks || config.value.list || config.value.options || [])
 const optionsSource = computed(() => Array.isArray(remoteOptions.value) ? remoteOptions.value : options.value)
 const enableSearch = computed(() => config.value.enableSearch === true)
 const searchKey = computed(() => config.value.searchKey || 'value')

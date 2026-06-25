@@ -16,7 +16,7 @@ public class DbQueryPivotRequest {
     private String model;
 
     @JsonProperty("filter_dict")
-    private Map<String, DbQueryFilterCondition> filterDict = new LinkedHashMap<>();
+    private Map<String, Object> filterDict = new LinkedHashMap<>();
 
     private String filterExpr;
 

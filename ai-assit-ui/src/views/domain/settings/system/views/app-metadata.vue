@@ -1,5 +1,5 @@
 <script setup>
-import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { Delete, EditPen, Plus, RefreshRight, Search, View } from '@element-plus/icons-vue'
 import { useAppMetadataPage } from '../service/app-metadata'
 
 const {
@@ -26,6 +26,7 @@ const {
   handlePageSizeChange,
   openCreateDialog,
   openEditDialog,
+  openPreviewPage,
   closeDialog,
   submitForm,
   confirmDelete,
@@ -123,6 +124,10 @@ const {
                 </td>
                 <td>
                   <div class="row-actions">
+                    <button class="row-action" type="button" @click="openPreviewPage(item)">
+                      <View :size="15" />
+                      预览
+                    </button>
                     <button class="row-action" type="button" @click="openEditDialog(item)">
                       <EditPen :size="15" />
                       编辑
@@ -213,6 +218,7 @@ const {
         </footer>
       </div>
     </div>
+
   </div>
 </template>
 

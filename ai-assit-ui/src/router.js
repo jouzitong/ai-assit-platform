@@ -30,6 +30,7 @@ const routes = [
   { path: '/query', component: QueryPage, meta: { title: '智能问数' } },
   { path: '/knowledge', component: KnowledgePage, meta: { title: '知识库' } },
   { path: '/knowledge/:sourceKey', component: KnowledgeManagePage, meta: { title: '知识库详情' } },
+  { path: '/preview/lowcode', component: SystemLowcodePage, meta: { title: '低代码预览' } },
   { path: '/emp/attendance', component: AttendancePage, meta: { title: '考勤看板' } },
   { path: '/emp/performance', component: PerformancePage, meta: { title: '绩效洞察' } },
   { path: '/emp/cost', component: CostPage, meta: { title: '人力成本分析' } },

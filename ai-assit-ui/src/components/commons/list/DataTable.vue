@@ -97,7 +97,7 @@ const sortedRows = computed(() => {
 function resolveFieldColumn(field) {
   if (field && typeof field === 'object') return normalizeColumn(field)
   const key = String(field)
-  return normalizeColumn({ key, fields: [key] })
+  return normalizeColumn({ key, field: key, fields: key })
 }
 
 function normalizeColumn(column) {
@@ -105,7 +105,9 @@ function normalizeColumn(column) {
   const options = column?.options && typeof column.options === 'object' ? column.options : {}
   const merged = { ...column, ...options, key }
   if (!merged.label) merged.label = key
-  if (merged.fields == null) merged.fields = [key]
+  if (merged.fields == null) {
+    merged.fields = typeof merged.field === 'string' && merged.field ? merged.field : key
+  }
   merged.__widthPart = resolveColumnWidthPart(merged)
   return merged
 }

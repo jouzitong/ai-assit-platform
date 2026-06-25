@@ -123,6 +123,15 @@ export function useAppMetadataPage() {
     dialogError.value = ''
   }
 
+  function openPreviewPage(item) {
+    if (!item?.code) {
+      showPopup.warning('当前页面缺少页面编码，无法预览')
+      return
+    }
+    const previewUrl = `/preview/lowcode?pageCode=${encodeURIComponent(item.code)}`
+    window.open(previewUrl, '_blank', 'noopener')
+  }
+
   async function submitForm() {
     const validationError = validateForm()
     if (validationError) {
@@ -294,6 +303,7 @@ export function useAppMetadataPage() {
     handlePageSizeChange,
     openCreateDialog,
     openEditDialog,
+    openPreviewPage,
     closeDialog,
     submitForm,
     confirmDelete,

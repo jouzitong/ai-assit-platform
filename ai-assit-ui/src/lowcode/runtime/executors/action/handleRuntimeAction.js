@@ -1,5 +1,5 @@
 function isFilterMutation(payload) {
-  return payload?.field && payload.field.type !== 'button'
+  return payload?.field && (payload.field.component || payload.field.type) !== 'button'
 }
 
 export async function handleRuntimeAction(runtime, payload = {}) {

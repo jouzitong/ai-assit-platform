@@ -19,7 +19,13 @@ function resolveFilterField(filter) {
 }
 
 function resolveFilterOp(filter) {
-  return filter?.queryOp || filter?.op || filter?.type_config?.op || (filter?.type === 'select' ? 'eq' : 'like')
+  if (filter?.queryOp || filter?.op || filter?.type_config?.op) {
+    return filter?.queryOp || filter?.op || filter?.type_config?.op
+  }
+  if (filter?.component === 'select' || filter?.type === 'select') {
+    return filter?.options?.multiple === true ? 'in' : 'eq'
+  }
+  return 'like'
 }
 
 function buildRuntimeFilterDict(schema, state) {
@@ -27,6 +33,9 @@ function buildRuntimeFilterDict(schema, state) {
   return filters.reduce((result, filter) => {
     const value = state.query?.[filter.key]
     if (value === '' || value === null || value === undefined) {
+      return result
+    }
+    if (Array.isArray(value) && value.length === 0) {
       return result
     }
     const field = resolveFilterField(filter)

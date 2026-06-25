@@ -12,7 +12,6 @@ public interface RenderPageMapper extends CrudMapper<RenderPageEntity> {
             SELECT *
             FROM render_page
             WHERE code = #{code}
-              AND deleted = 0
             LIMIT 1
             """)
     RenderPageEntity selectByCode(String code);
