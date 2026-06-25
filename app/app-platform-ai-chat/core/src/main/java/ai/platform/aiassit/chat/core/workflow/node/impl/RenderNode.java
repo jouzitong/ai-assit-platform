@@ -14,8 +14,8 @@ import ai.platform.aiassist.service.ai.api.enums.MessageRole;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
-import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -26,9 +26,9 @@ import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
-import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -78,18 +78,16 @@ public class RenderNode extends BaseWorkflowNode {
 
     private final AiChatExecutionApi aiChatExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
-    private final AiChatMessageService messageService;
     private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
 
+    @Autowired
     public RenderNode(AiChatExecutionApi aiChatExecutionApi,
                       AiMetaQueryApi aiMetaQueryApi,
-                      AiChatMessageService messageService,
                       AiChatRoundService roundService,
                       WorkflowHistoryRecorder historyRecorder) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
-        this.messageService = messageService;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
     }
