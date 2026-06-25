@@ -20,17 +20,19 @@
     ]
   },
   "datasource": {
+    "key": "ai_kb_document",
     "type": "system",
     "model": "ai_kb_document",
     "filter_dict": {
       "status": 1,
       "is_delete": 0
     },
+    "filterExpr": "(status and is_delete) or xx_field",
     "relations": [
       {
         "key": "tag",
         "model": "ai_kb_document_tag",
-        "type": "one-to-many",
+        "type": "left",
         "foreign_key": "document_id",
         "local_key": "id",
         "filter_dict": {
@@ -52,12 +54,31 @@
       "key": "id",
       "name": "id",
       "label": "ID",
+      "field": [
+        "id"
+      ],
       "options": {
         "styles": {
           "text-align": "center",
           "width": 8
         },
         "className": "text-center"
+      }
+    },
+    {
+      "key": "title",
+      "name": "title",
+      "label": "标题",
+      "field": [
+        "tag",
+        "title"
+      ],
+      "options": {
+        "styles": {
+          "text-align": "left",
+          "width": 20
+        },
+        "className": "text-left"
       }
     }
   ],
