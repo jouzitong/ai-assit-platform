@@ -14,6 +14,13 @@ from tools import (
 )
 
 
+TOOL_REGISTRY = {
+    "render_json_validate_tool": render_json_validate_tool,
+    "render_json_dry_run_tool": render_json_dry_run_tool,
+    "render_json_preview_tool": render_json_preview_tool,
+}
+
+
 def _build_transcript(messages: list[dict[str, Any]]) -> tuple[str, str]:
     system_parts: list[str] = []
     conversation_parts: list[str] = []
@@ -51,24 +58,48 @@ def _append_json_instruction(instructions: str, response_format: dict[str, Any] 
     return extra
 
 
+def _resolve_enabled_tool_names(payload: dict[str, Any]) -> list[str]:
+    resolved: list[str] = []
+    seen: set[str] = set()
+
+    for item in payload.get("tools") or []:
+        if not isinstance(item, dict):
+            continue
+        name = str(item.get("name") or "").strip()
+        if name and name in TOOL_REGISTRY and name not in seen:
+            resolved.append(name)
+            seen.add(name)
+
+    ext = payload.get("ext")
+    if isinstance(ext, dict):
+        for key in ("enabledTools", "toolNames", "aiAgentTools"):
+            values = ext.get(key)
+            if not isinstance(values, list):
+                continue
+            for value in values:
+                name = str(value or "").strip()
+                if name and name in TOOL_REGISTRY and name not in seen:
+                    resolved.append(name)
+                    seen.add(name)
+    return resolved
+
+
+def _resolve_enabled_tools(payload: dict[str, Any]) -> tuple[list[str], list[Any]]:
+    tool_names = _resolve_enabled_tool_names(payload)
+    return tool_names, [TOOL_REGISTRY[name] for name in tool_names]
+
+
 async def _run(payload: dict[str, Any]) -> dict[str, Any]:
     messages = payload.get("messages") or []
     instructions, transcript = _build_transcript(messages)
     instructions = _append_json_instruction(instructions, payload.get("responseFormat"))
     model = payload.get("model") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
+    enabled_tool_names, enabled_tools = _resolve_enabled_tools(payload)
     agent = Agent(
         name="AI Agent Provider",
-        instructions=instructions or (
-            "Answer the user's request clearly and concisely. "
-            "When the task involves render JSON, prefer using the render_json_validate_tool, "
-            "render_json_dry_run_tool, and render_json_preview_tool before giving a final answer."
-        ),
+        instructions=instructions or "Answer the user's request clearly and concisely.",
         model=model,
-        tools=[
-            render_json_validate_tool,
-            render_json_dry_run_tool,
-            render_json_preview_tool,
-        ],
+        tools=enabled_tools,
     )
     result = await Runner.run(agent, transcript or "USER: ")
     final_output = result.final_output
@@ -77,6 +108,7 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
     provider_meta = {
         "last_agent": getattr(getattr(result, "last_agent", None), "name", None),
         "raw_type": type(final_output).__name__,
+        "enabled_tools": enabled_tool_names,
     }
     return {
         "requestId": str(uuid.uuid4()),
