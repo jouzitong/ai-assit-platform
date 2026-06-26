@@ -4,7 +4,7 @@ set -u
 
 JAVA_HOME_DEFAULT='/usr/local/jdk17'
 APP_NAME="ai-engine"
-BOOT_JAR="app.jar"
+BOOT_JAR=""
 
 BIN_FILE=$(readlink -f "$0")
 cd "$(dirname "${BIN_FILE}")"
@@ -38,6 +38,25 @@ fi
 
 usage() {
     echo "Usage: $0 [start|stop|restart|status|version] [profile]"
+    exit 1
+}
+
+resolve_boot_jar() {
+    if [ -n "${BOOT_JAR}" ] && [ -f "${BASE_DIR}/${BOOT_JAR}" ]; then
+        return 0
+    fi
+
+    BOOT_JAR=$(cd "${BASE_DIR}" && ls app-*.jar 2>/dev/null | head -1)
+    if [ -n "${BOOT_JAR}" ] && [ -f "${BASE_DIR}/${BOOT_JAR}" ]; then
+        return 0
+    fi
+
+    BOOT_JAR=$(cd "${BASE_DIR}" && ls *.jar 2>/dev/null | head -1)
+    if [ -n "${BOOT_JAR}" ] && [ -f "${BASE_DIR}/${BOOT_JAR}" ]; then
+        return 0
+    fi
+
+    echo "Cannot find boot jar under ${BASE_DIR}"
     exit 1
 }
 
@@ -75,6 +94,7 @@ JAVA_OPTS="${JAVA_OPTS} -Dspring.profiles.active=prod"
 start() {
     local profile="${1:-}"
     cd "${BASE_DIR}" || exit 1
+    resolve_boot_jar
 
     if [ -n "${profile}" ]; then
         JAVA_OPTS=$(echo "${JAVA_OPTS}" | sed 's/-Dspring\.profiles\.active=[^ ]*//g')
@@ -132,6 +152,7 @@ status() {
 }
 
 version() {
+    resolve_boot_jar
     echo "${APP_NAME}"
     echo "JAVA_BIN: ${JAVA_BIN}"
     echo "BOOT_JAR: ${BOOT_JAR}"
