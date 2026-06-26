@@ -11,6 +11,7 @@ public enum ProviderType implements IEnum {
     DEEPSEEK(3, "DeepSeek"),
     OLLAMA(4, "Ollama"),
     CUSTOM(5, "其他"),
+    AI_AGENT(6, "AI Agent"),
     ;
 
     @JsonValue

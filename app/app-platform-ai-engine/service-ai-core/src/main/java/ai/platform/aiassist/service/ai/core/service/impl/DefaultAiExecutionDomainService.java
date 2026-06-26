@@ -18,7 +18,8 @@ import ai.platform.aiassist.service.ai.core.properties.AiCoreProperties;
 import ai.platform.aiassist.service.ai.core.convert.AiProviderRequestMapper;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.core.validator.AiRequestValidator;
-import ai.platform.aiassist.service.ai.spi.AiProvider;
+import ai.platform.aiassist.service.ai.spi.AiChatService;
+import ai.platform.aiassist.service.ai.spi.KnowledgeService;
 import org.springframework.beans.factory.ObjectProvider;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
 import org.springframework.stereotype.Service;
@@ -33,19 +34,24 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class DefaultAiExecutionDomainService implements AiExecutionDomainService {
 
-    private final Map<ProviderType, AiProvider> providers = new EnumMap<>(ProviderType.class);
+    private final Map<ProviderType, AiChatService> chatServices = new EnumMap<>(ProviderType.class);
+    private final Map<ProviderType, KnowledgeService> knowledgeServices = new EnumMap<>(ProviderType.class);
     private final AiCoreProperties properties;
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
     private final ScheduleMonitor scheduleMonitor;
 
-    public DefaultAiExecutionDomainService(List<AiProvider> aiProviders,
+    public DefaultAiExecutionDomainService(List<AiChatService> aiChatServices,
+                                           List<KnowledgeService> knowledgeServices,
                                            AiCoreProperties properties,
                                            AiRequestValidator validator,
                                            AiProviderRequestMapper requestMapper,
                                            ObjectProvider<ScheduleMonitor> scheduleMonitorProvider) {
-        for (AiProvider provider : aiProviders) {
-            this.providers.put(provider.providerType(), provider);
+        for (AiChatService service : aiChatServices) {
+            this.chatServices.put(service.providerType(), service);
+        }
+        for (KnowledgeService service : knowledgeServices) {
+            this.knowledgeServices.put(service.providerType(), service);
         }
         this.properties = properties;
         this.validator = validator;
@@ -56,7 +62,7 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     @Override
     public ChatResponse chat(ChatRequest request) {
         validator.validateChat(request);
-        return resolveProvider(request.getProvider())
+        return resolveChatService(request.getProvider())
                 .chat(requestMapper.mapChat(request, properties));
     }
 
@@ -66,7 +72,7 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
         if (observer == null) {
             throw new IllegalArgumentException("chatStream observer must not be null");
         }
-        resolveProvider(request.getProvider()).chatStream(requestMapper.mapChat(request, properties), observer);
+        resolveChatService(request.getProvider()).chatStream(requestMapper.mapChat(request, properties), observer);
     }
 
     @Override
@@ -92,34 +98,34 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     @Override
     public EmbedResponse embed(EmbedRequest request) {
         validator.validateEmbed(request);
-        return resolveProvider(request.getProvider()).embed(requestMapper.mapEmbed(request, properties));
+        return resolveKnowledgeService(request.getProvider()).embed(requestMapper.mapEmbed(request, properties));
     }
 
     @Override
     public RerankResponse rerank(RerankRequest request) {
         validator.validateRerank(request);
-        return resolveProvider(request.getProvider()).rerank(requestMapper.mapRerank(request, properties));
+        return resolveKnowledgeService(request.getProvider()).rerank(requestMapper.mapRerank(request, properties));
     }
 
     @Override
     public KbUpsertResponse kbUpsert(KbUpsertRequest request) {
         validator.validateKbUpsert(request);
-        return resolveProvider(null).kbUpsert(requestMapper.mapKbUpsert(request));
+        return resolveKnowledgeService(null).kbUpsert(requestMapper.mapKbUpsert(request));
     }
 
     @Override
     public KbDeleteResponse kbDelete(KbDeleteRequest request) {
         validator.validateKbDelete(request);
-        return resolveProvider(null).kbDelete(requestMapper.mapKbDelete(request));
+        return resolveKnowledgeService(null).kbDelete(requestMapper.mapKbDelete(request));
     }
 
     @Override
     public KbSearchResponse kbSearch(KbSearchRequest request) {
         validator.validateKbSearch(request);
-        return resolveProvider(null).kbSearch(requestMapper.mapKbSearch(request));
+        return resolveKnowledgeService(null).kbSearch(requestMapper.mapKbSearch(request));
     }
 
-    private AiProvider resolveProvider(ProviderType requestedProvider) {
+    private AiChatService resolveChatService(ProviderType requestedProvider) {
         ProviderType providerType = requestedProvider;
         if (providerType == null) {
             if (properties.isStrictProvider()) {
@@ -128,10 +134,26 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
             providerType = properties.getDefaultProvider();
         }
 
-        AiProvider provider = providers.get(providerType);
-        if (provider == null) {
-            throw new IllegalStateException("AI provider not found or not enabled: " + providerType);
+        AiChatService service = chatServices.get(providerType);
+        if (service == null) {
+            throw new IllegalStateException("AI chat service not found or not enabled: " + providerType);
         }
-        return provider;
+        return service;
+    }
+
+    private KnowledgeService resolveKnowledgeService(ProviderType requestedProvider) {
+        ProviderType providerType = requestedProvider;
+        if (providerType == null) {
+            if (properties.isStrictProvider()) {
+                throw new IllegalArgumentException("provider is required when ai.core.strict-provider=true");
+            }
+            providerType = properties.getDefaultProvider();
+        }
+
+        KnowledgeService service = knowledgeServices.get(providerType);
+        if (service == null) {
+            throw new IllegalStateException("knowledge service not found or not enabled: " + providerType);
+        }
+        return service;
     }
 }

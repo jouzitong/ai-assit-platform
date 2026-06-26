@@ -34,5 +34,9 @@
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>ai-provider-qwen-public</artifactId>
         </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>ai-provider-ai-agent</artifactId>
+        </dependency>
     </dependencies>
 </project>

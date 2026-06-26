@@ -17,7 +17,8 @@ import ai.platform.aiassist.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassist.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassist.service.ai.provider.client.QwenKnowledgeBaseClient;
 import ai.platform.aiassist.service.ai.provider.config.QwenProperties;
-import ai.platform.aiassist.service.ai.spi.AiProvider;
+import ai.platform.aiassist.service.ai.spi.AiChatService;
+import ai.platform.aiassist.service.ai.spi.KnowledgeService;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderChatRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderEmbedRequest;
 import ai.platform.aiassist.service.ai.spi.provider.dto.ProviderKbDeleteRequest;
@@ -50,7 +51,7 @@ import java.util.Objects;
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")
-public class QwenProvider implements AiProvider {
+public class QwenProvider implements AiChatService, KnowledgeService {
 
     private final QwenProperties properties;
     private final OpenAiChatModel chatModel;
