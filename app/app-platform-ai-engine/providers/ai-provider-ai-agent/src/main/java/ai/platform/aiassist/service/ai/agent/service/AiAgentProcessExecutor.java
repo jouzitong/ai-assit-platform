@@ -66,6 +66,9 @@ public class AiAgentProcessExecutor {
         } else if (StringUtils.hasText(properties.getDefaultModel())) {
             env.put("OPENAI_MODEL", properties.getDefaultModel());
         }
+        if (StringUtils.hasText(properties.getKnowledgeSearchUrl())) {
+            env.put("AI_AGENT_KB_SEARCH_URL", properties.getKnowledgeSearchUrl());
+        }
 
         try {
             Process process = processBuilder.start();

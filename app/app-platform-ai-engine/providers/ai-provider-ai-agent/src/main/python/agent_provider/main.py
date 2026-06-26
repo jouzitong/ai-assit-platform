@@ -8,6 +8,7 @@ from typing import Any
 from agents import Agent, Runner
 
 from tools import (
+    knowledge_base_search_tool,
     render_json_dry_run_tool,
     render_json_preview_tool,
     render_json_validate_tool,
@@ -15,6 +16,7 @@ from tools import (
 
 
 TOOL_REGISTRY = {
+    "knowledge_base_search_tool": knowledge_base_search_tool,
     "render_json_validate_tool": render_json_validate_tool,
     "render_json_dry_run_tool": render_json_dry_run_tool,
     "render_json_preview_tool": render_json_preview_tool,

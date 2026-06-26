@@ -31,6 +31,9 @@ public class AiAgentProperties {
     /** Python 执行工作目录，留空时使用应用当前目录 */
     private String workingDirectory = "";
 
+    /** Python tool 调用知识库搜索接口的完整地址 */
+    private String knowledgeSearchUrl = "http://127.0.0.1:13101/aiEngine/api/v1/ai/execution/kb/search";
+
     /** 调用超时（毫秒） */
     private Integer timeoutMs = 60000;
 }
