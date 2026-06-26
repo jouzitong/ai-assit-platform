@@ -45,9 +45,17 @@ function resolveValue(column) {
 function findLabel(value, list) {
   if (!list) return null
   if (Array.isArray(list)) {
-    const match = list.find((item) => (typeof item === 'object' ? item.value === value : item === value))
+    const match = list.find((item) => {
+      if (typeof item !== 'object') {
+        return String(item) === String(value)
+      }
+      const candidateValue = item.value ?? item.code ?? item.key ?? item.name
+      return String(candidateValue) === String(value)
+    })
     if (!match) return null
-    return typeof match === 'object' ? match.label : String(match)
+    return typeof match === 'object'
+      ? (match.label ?? match.desc ?? match.description ?? match.text ?? match.name ?? String(match.value ?? match.code ?? match.key ?? value))
+      : String(match)
   }
   if (typeof list === 'object') {
     return list[value] ?? null

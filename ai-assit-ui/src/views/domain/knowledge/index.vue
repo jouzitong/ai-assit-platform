@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, ref, watchEffect } from 'vue'
 import ActionBar from '../../../components/commons/list/ActionBar.vue'
 import DataListFooter from '../../../components/commons/list/DataListFooter.vue'
 import DataTable from '../../../components/commons/list/DataTable.vue'
@@ -19,7 +19,7 @@ import { useEnumStore } from '../../../store/enums'
 import { useKnowledgePage } from './service/knowledge'
 
 const sorts = ref([{ key: 'documentName', type: 'asc' }])
-const { getServiceEnums, getEnumOptions } = useEnumStore()
+const { getServiceEnums, getEnumOptions, getEnumLabel } = useEnumStore()
 
 const {
   activeTab,
@@ -34,6 +34,8 @@ const {
   createSubmitting,
   createError,
   createForm,
+  knowledgeBaseOptions,
+  selectedKnowledgeBase,
   batchMode,
   selectedDocumentCodes,
   filteredSources,
@@ -79,6 +81,24 @@ const filterSchema = computed(() => {
     }
     return { ...item }
   })
+})
+
+const documentTypeOptions = computed(() => {
+  return getEnumOptions('aiKbDocumentType', SERVICE_NAMES.AI_ENGINE)
+})
+
+const selectedKnowledgeBaseSourceTypeLabel = computed(() => {
+  const sourceType = selectedKnowledgeBase.value?.sourceType
+  if (sourceType === null || sourceType === undefined || sourceType === '') {
+    return '-'
+  }
+  return getEnumLabel('aiKbSourceType', sourceType, SERVICE_NAMES.AI_ENGINE)
+})
+
+watchEffect(() => {
+  if (!createForm.documentType && documentTypeOptions.value.length > 0) {
+    createForm.documentType = documentTypeOptions.value[0].value
+  }
 })
 
 const tableColumns = computed(() => {
@@ -272,11 +292,11 @@ const pageRowsIndeterminate = computed(() => {
     </ListCommonLayout>
 
     <div v-if="createDialogVisible" class="kb-create-mask" @click.self="closeCreateDialog">
-      <section class="kb-create-dialog" role="dialog" aria-modal="true" aria-label="新建知识库">
+      <section class="kb-create-dialog" role="dialog" aria-modal="true" aria-label="新增知识文档">
         <header class="kb-create-head">
           <div>
-            <h3>新建知识库</h3>
-            <p>创建知识库主记录，文档写入后会显示在当前列表。</p>
+            <h3>新增知识文档</h3>
+            <p>选择已有知识库，并直接录入文档正文。</p>
           </div>
           <button class="kb-create-close" type="button" :disabled="createSubmitting" @click="closeCreateDialog">×</button>
         </header>
@@ -286,41 +306,51 @@ const pageRowsIndeterminate = computed(() => {
         <div class="kb-create-grid">
           <label class="kb-create-field">
             <span>知识库编码</span>
-            <input v-model="createForm.kbCode" type="text" placeholder="例如 w05enpcxa4" />
+            <select v-model="createForm.kbId">
+              <option value="" disabled>请选择知识库</option>
+              <option v-for="item in knowledgeBaseOptions" :key="item.kbId" :value="item.kbId">
+                {{ item.kbId }}{{ item.kbName ? ` · ${item.kbName}` : '' }}
+              </option>
+            </select>
           </label>
           <label class="kb-create-field">
-            <span>知识库名称</span>
-            <input v-model="createForm.kbName" type="text" placeholder="例如 员工数据知识库" />
+            <span>文档编码</span>
+            <input v-model="createForm.documentCode" type="text" placeholder="例如 employee_profile" />
           </label>
           <label class="kb-create-field">
-            <span>来源类型</span>
-            <select v-model="createForm.sourceType">
-              <option value="DB_DATA_SOURCE">数据库数据源</option>
+            <span>文档名称</span>
+            <input v-model="createForm.documentName" type="text" placeholder="可选，默认同文档编码" />
+          </label>
+          <label class="kb-create-field">
+            <span>文档类型</span>
+            <select v-model="createForm.documentType">
+              <option v-for="item in documentTypeOptions" :key="item.value" :value="item.value">
+                {{ item.label }}
+              </option>
             </select>
           </label>
           <label class="kb-create-field">
             <span>业务唯一键</span>
-            <input v-model="createForm.sourceKey" type="text" placeholder="例如 ods_trade_mysql" />
+            <input :value="selectedKnowledgeBase?.sourceKey || '-'" type="text" disabled />
+          </label>
+          <label class="kb-create-field">
+            <span>来源类型</span>
+            <input :value="selectedKnowledgeBaseSourceTypeLabel" type="text" disabled />
           </label>
           <label class="kb-create-field">
             <span>远端 KB ID</span>
-            <input v-model="createForm.providerKbId" type="text" placeholder="可选" />
+            <input :value="selectedKnowledgeBase?.providerKbId || '-'" type="text" disabled />
           </label>
           <label class="kb-create-field">
-            <span>状态</span>
-            <select v-model="createForm.status">
-              <option value="INIT">初始化</option>
-              <option value="ACTIVE">可用</option>
-              <option value="DISABLED">停用</option>
+            <span>允许覆盖同编码文档</span>
+            <select v-model="createForm.canUpdate">
+              <option :value="true">是</option>
+              <option :value="false">否</option>
             </select>
           </label>
-          <label class="kb-create-field">
-            <span>Workspace ID</span>
-            <input v-model="createForm.workspaceId" type="text" placeholder="同步需要，可选" />
-          </label>
-          <label class="kb-create-field">
-            <span>KB Endpoint</span>
-            <input v-model="createForm.kbEndpoint" type="text" placeholder="同步需要，可选" />
+          <label class="kb-create-field full">
+            <span>文档内容</span>
+            <textarea v-model="createForm.content" rows="10" placeholder="请输入 Markdown 或纯文本内容" />
           </label>
           <label class="kb-create-field full">
             <span>扩展信息 JSON</span>

@@ -214,6 +214,13 @@ export function createAiKnowledgeBase(payload) {
   })
 }
 
+export function upsertAiKnowledgeBaseDocument(payload) {
+  return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/upsert`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
 export function listAiKnowledgeBaseDocuments(payload) {
   return request(`${AI_ENGINE_INTERNAL_PREFIX}/api/v1/ai/kb/document/list`, {
     method: 'POST',

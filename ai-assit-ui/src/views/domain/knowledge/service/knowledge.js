@@ -1,6 +1,12 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import { createAiKnowledgeBase, deleteAiKnowledgeBaseDocuments, listAiKnowledgeBaseDocuments, syncAiKnowledgeBaseDocuments } from '../../../../api/aiChat'
+import {
+  deleteAiKnowledgeBaseDocuments,
+  listAiKnowledgeBaseDocuments,
+  listAiKnowledgeBases,
+  syncAiKnowledgeBaseDocuments,
+  upsertAiKnowledgeBaseDocument
+} from '../../../../api/aiChat'
 import { showPopup } from '../../../../utils/popup'
 
 export function useKnowledgePage() {
@@ -18,13 +24,18 @@ export function useKnowledgePage() {
   const createSubmitting = ref(false)
   const createError = ref('')
   const createForm = reactive(createEmptyKbForm())
+  const knowledgeBaseOptions = ref([])
   const batchMode = ref(false)
   const selectedDocumentCodes = ref([])
   let reloadTimer = null
 
   const filteredSources = computed(() => sourceList.value)
+  const selectedKnowledgeBase = computed(() => {
+    return knowledgeBaseOptions.value.find(item => item.kbId === createForm.kbId) || null
+  })
 
   onMounted(() => {
+    loadKnowledgeBaseOptions()
     loadDataSources()
   })
 
@@ -163,6 +174,7 @@ export function useKnowledgePage() {
     Object.assign(createForm, createEmptyKbForm())
     createError.value = ''
     createDialogVisible.value = true
+    loadKnowledgeBaseOptions({ showErrorPopup: false })
   }
 
   function closeCreateDialog() {
@@ -183,30 +195,44 @@ export function useKnowledgePage() {
 
     createSubmitting.value = true
     try {
+      const kb = selectedKnowledgeBase.value
+      if (!kb?.kbId || !kb?.sourceKey) {
+        throw new Error('请选择有效的知识库')
+      }
       const ext = parseExtJson(createForm.extJson)
-      if (createForm.workspaceId.trim()) {
-        ext.workspaceId = createForm.workspaceId.trim()
-      }
-      if (createForm.kbEndpoint.trim()) {
-        ext.kbEndpoint = createForm.kbEndpoint.trim()
-      }
-
-      await createAiKnowledgeBase({
-        kbCode: createForm.kbCode.trim(),
-        kbName: createForm.kbName.trim(),
-        sourceType: createForm.sourceType,
-        sourceKey: createForm.sourceKey.trim(),
-        providerKbId: createForm.providerKbId.trim() || null,
-        status: createForm.status,
+      await upsertAiKnowledgeBaseDocument({
+        kbId: kb.kbId,
+        documentId: createForm.documentCode.trim(),
+        documentName: createForm.documentName.trim() || createForm.documentCode.trim(),
+        documentType: createForm.documentType,
+        sourceKey: kb.sourceKey,
+        content: createForm.content,
+        canUpdate: Boolean(createForm.canUpdate),
         ext
       })
       createDialogVisible.value = false
-      showPopup.success('知识库已新建，当前列表会在写入文档后展示对应文档')
+      showPopup.success('知识文档已保存')
       await loadDataSources()
     } catch (error) {
-      createError.value = error.message || '知识库新建失败'
+      createError.value = error.message || '知识文档保存失败'
     } finally {
       createSubmitting.value = false
+    }
+  }
+
+  async function loadKnowledgeBaseOptions(options = {}) {
+    const { showErrorPopup = true } = options
+    try {
+      const payload = await listAiKnowledgeBases({})
+      knowledgeBaseOptions.value = normalizeKnowledgeBases(payload)
+      if (!createForm.kbId && knowledgeBaseOptions.value.length > 0) {
+        createForm.kbId = knowledgeBaseOptions.value[0].kbId
+      }
+    } catch (error) {
+      knowledgeBaseOptions.value = []
+      if (showErrorPopup) {
+        showPopup.error(error.message || '知识库列表加载失败')
+      }
     }
   }
 
@@ -268,6 +294,8 @@ export function useKnowledgePage() {
     createSubmitting,
     createError,
     createForm,
+    knowledgeBaseOptions,
+    selectedKnowledgeBase,
     batchMode,
     selectedDocumentCodes,
     filteredSources,
@@ -302,27 +330,28 @@ function buildListRequestPayload({ keyword, bizTypeCode, tab, page, size }) {
 
 function createEmptyKbForm() {
   return {
-    kbCode: '',
-    kbName: '',
-    sourceType: 'DB_DATA_SOURCE',
-    sourceKey: '',
-    providerKbId: '',
-    status: 'INIT',
-    workspaceId: '',
-    kbEndpoint: '',
+    kbId: '',
+    documentCode: '',
+    documentName: '',
+    documentType: '',
+    content: '',
+    canUpdate: true,
     extJson: ''
   }
 }
 
 function validateCreateForm(form) {
-  if (!form.kbCode.trim()) {
-    return '请输入知识库编码'
+  if (!form.kbId.trim()) {
+    return '请选择知识库'
   }
-  if (!form.kbName.trim()) {
-    return '请输入知识库名称'
+  if (!form.documentCode.trim()) {
+    return '请输入文档编码'
   }
-  if (!form.sourceKey.trim()) {
-    return '请输入业务唯一键'
+  if (form.documentType === '' || form.documentType === null || form.documentType === undefined) {
+    return '请选择文档类型'
+  }
+  if (!String(form.content || '').trim()) {
+    return '请输入文档内容'
   }
   try {
     parseExtJson(form.extJson)
@@ -330,6 +359,19 @@ function validateCreateForm(form) {
     return error.message
   }
   return ''
+}
+
+function normalizeKnowledgeBases(payload) {
+  const list = Array.isArray(payload) ? payload : Array.isArray(payload?.data) ? payload.data : []
+  return list
+    .map(item => ({
+      kbId: item?.kbId ? String(item.kbId) : '',
+      kbName: item?.kbName ? String(item.kbName) : '',
+      sourceKey: item?.sourceKey ? String(item.sourceKey) : '',
+      sourceType: item?.sourceType ?? null,
+      providerKbId: item?.providerKbId ? String(item.providerKbId) : ''
+    }))
+    .filter(item => item.kbId)
 }
 
 function parseExtJson(value) {

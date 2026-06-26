@@ -64,7 +64,7 @@ export const KNOWLEDGE_LIST_CONFIG = {
 }
 
 export const KNOWLEDGE_ACTION_ITEMS = [
-  { key: 'create', label: '新建知识库', type: 'primary', action: 'create' },
+  { key: 'create', label: '新增文档', type: 'primary', action: 'create' },
   { key: 'refresh', label: '刷新', variant: 'ghost', action: 'refresh' },
   { key: 'sync', label: '同步', variant: 'ghost', action: 'sync' }
 ]
