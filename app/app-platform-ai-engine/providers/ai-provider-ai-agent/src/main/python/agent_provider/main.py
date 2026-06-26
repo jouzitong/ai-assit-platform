@@ -7,6 +7,12 @@ from typing import Any
 
 from agents import Agent, Runner
 
+from tools import (
+    render_json_dry_run_tool,
+    render_json_preview_tool,
+    render_json_validate_tool,
+)
+
 
 def _build_transcript(messages: list[dict[str, Any]]) -> tuple[str, str]:
     system_parts: list[str] = []
@@ -52,8 +58,17 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
     model = payload.get("model") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
     agent = Agent(
         name="AI Agent Provider",
-        instructions=instructions or "Answer the user's request clearly and concisely.",
+        instructions=instructions or (
+            "Answer the user's request clearly and concisely. "
+            "When the task involves render JSON, prefer using the render_json_validate_tool, "
+            "render_json_dry_run_tool, and render_json_preview_tool before giving a final answer."
+        ),
         model=model,
+        tools=[
+            render_json_validate_tool,
+            render_json_dry_run_tool,
+            render_json_preview_tool,
+        ],
     )
     result = await Runner.run(agent, transcript or "USER: ")
     final_output = result.final_output
