@@ -95,6 +95,7 @@ public class AiAgentProcessExecutor {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("model", StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getDefaultModel());
         payload.put("messages", request.getMessages());
+        payload.put("tools", request.getTools());
         payload.put("responseFormat", request.getResponseFormat());
         payload.put("meta", request.getMeta());
         payload.put("ext", request.getExt());
