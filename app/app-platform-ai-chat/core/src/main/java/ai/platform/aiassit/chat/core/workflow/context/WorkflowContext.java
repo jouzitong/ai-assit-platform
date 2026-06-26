@@ -24,7 +24,7 @@ import java.util.Objects;
 /**
  * 工作流上下文。
  *
- * <p>用于承载一次 AI 对话工作流执行过程中的输入参数、会话信息、节点中间结果、SQL 执行结果以及 SSE 推送对象。</p>
+ * <p>用于承载一次 AI 对话工作流执行过程中的输入参数、会话信息、节点中间结果、SQL 预生成阶段结果以及 SSE 推送对象。</p>
  *
  * @author zhouzhitong
  * @since 2026/6/8
@@ -35,6 +35,8 @@ public class WorkflowContext implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
+
+    private static final String SQL_STAGE_NODE_CODE = WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode();
 
     /**
      * 工作流事件默认运行中状态。
@@ -290,35 +292,35 @@ public class WorkflowContext implements Serializable {
     }
 
     public String getValidatedSql() {
-        return getNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "validatedSql");
+        return getNodeOutput(SQL_STAGE_NODE_CODE, "validatedSql");
     }
 
     public void setValidatedSql(String validatedSql) {
-        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "validatedSql", validatedSql);
+        putNodeOutput(SQL_STAGE_NODE_CODE, "validatedSql", validatedSql);
     }
 
     public String getSqlValidationError() {
-        return getNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "sqlValidationError");
+        return getNodeOutput(SQL_STAGE_NODE_CODE, "sqlValidationError");
     }
 
     public void setSqlValidationError(String sqlValidationError) {
-        putNodeOutput(WorkflowNodeCodes.SQL_VALIDATE.getNodeCode(), "sqlValidationError", sqlValidationError);
+        putNodeOutput(SQL_STAGE_NODE_CODE, "sqlValidationError", sqlValidationError);
     }
 
     public String getSqlExecutionStatus() {
-        return getNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionStatus");
+        return getNodeOutput(SQL_STAGE_NODE_CODE, "sqlExecutionStatus");
     }
 
     public void setSqlExecutionStatus(String sqlExecutionStatus) {
-        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionStatus", sqlExecutionStatus);
+        putNodeOutput(SQL_STAGE_NODE_CODE, "sqlExecutionStatus", sqlExecutionStatus);
     }
 
     public Object getSqlExecutionResult() {
-        return getNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionResult");
+        return getNodeOutput(SQL_STAGE_NODE_CODE, "sqlExecutionResult");
     }
 
     public void setSqlExecutionResult(Object sqlExecutionResult) {
-        putNodeOutput(WorkflowNodeCodes.SQL_EXECUTE.getNodeCode(), "sqlExecutionResult", sqlExecutionResult);
+        putNodeOutput(SQL_STAGE_NODE_CODE, "sqlExecutionResult", sqlExecutionResult);
     }
 
     public String getRenderedAnswer() {

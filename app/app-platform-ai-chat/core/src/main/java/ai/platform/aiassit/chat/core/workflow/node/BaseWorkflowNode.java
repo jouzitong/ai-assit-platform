@@ -21,10 +21,6 @@ import org.springframework.beans.factory.annotation.Autowired;
  * QueryPlanningNode   提炼用户意图、生成执行规划
  * ↓
  * SqlPreGenerateNode  生成预生成结果与伪 SQL
- * ↓                  ↑
- * SqlValidateNode ---- SQL 不合法时回跳重新生成
- * ↓
- * SqlExecuteNode      执行或显式降级执行结果
  * ↓
  * RenderNode          组织最终回复并落库
  * </pre>

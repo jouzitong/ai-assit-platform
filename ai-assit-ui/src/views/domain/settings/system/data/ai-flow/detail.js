@@ -71,47 +71,15 @@ export function createWorkflowSeed(workflowKey) {
         ]
       },
       {
-        key: 'sql-validate',
-        name: 'SqlValidateNode',
-        type: 'SQL 校验',
-        status: '启用',
-        mode: '回跳控制',
-        summary: '执行本地安全校验和结构校验，必要时回跳 SQL 生成节点重新出稿。',
-        configItems: [
-          { key: 'validate-rule-set', name: '校验规则集', type: '规则配置', summary: '定义危险关键字、多语句和只读约束规则。', status: '启用' },
-          { key: 'validate-result-schema', name: '校验返回数据结构', type: '输出结构', summary: '定义 validatedSql、validationError 和回跳指令结构。', status: '启用' }
-        ],
-        skillItems: [
-          { key: 'sql-ast-validate', name: 'SQL AST 校验', phase: 'AFTER_EXECUTE', summary: '对生成 SQL 做 AST 级结构校验。', status: '可扩展' },
-          { key: 'semantic-check', name: '口径一致性检查', phase: 'REVIEW_OUTPUT', summary: '检查字段、聚合口径和规划结果是否一致。', status: '可扩展' }
-        ]
-      },
-      {
-        key: 'sql-execute',
-        name: 'SqlExecuteNode',
-        type: 'SQL 执行',
-        status: '启用',
-        mode: '串行',
-        summary: '接入预执行结果或统一降级执行结果，收敛最终执行状态。',
-        configItems: [
-          { key: 'execute-input-template', name: '执行输入模板', type: '提示消息', summary: '定义 validatedSql 和预执行结果的入参格式。', status: '启用' },
-          { key: 'execute-result-schema', name: '执行返回数据结构', type: '输出结构', summary: '定义 sqlExecutionStatus、sqlExecutionResult 的结构。', status: '启用' }
-        ],
-        skillItems: [
-          { key: 'execute-audit', name: '执行审计', phase: 'AFTER_EXECUTE', summary: '记录执行耗时、入参摘要和调用来源。', status: '可扩展' },
-          { key: 'result-sample', name: '结果采样', phase: 'REVIEW_OUTPUT', summary: '对执行结果做抽样检查和结果摘要。', status: '可扩展' }
-        ]
-      },
-      {
         key: 'render',
         name: 'RenderNode',
         type: '结果渲染',
         status: '启用',
         mode: '串行',
-        summary: '汇总规划、SQL 和执行结果，生成最终回答并落库 assistant 消息。',
+        summary: '汇总规划、知识上下文和 SQL 预生成结果，生成最终回答并落库 assistant 消息。',
         configItems: [
           { key: 'render-system-prompt', name: '渲染提示消息', type: '提示消息', summary: '定义最终回答渲染节点使用的 system prompt。', status: '启用' },
-          { key: 'render-input-template', name: '渲染输入模板', type: '提示消息', summary: '定义规划结果、SQL 结果和知识上下文的拼装格式。', status: '启用' },
+          { key: 'render-input-template', name: '渲染输入模板', type: '提示消息', summary: '定义规划结果、SQL 预生成结果和知识上下文的拼装格式。', status: '启用' },
           { key: 'render-output-schema', name: '渲染返回数据结构', type: '输出结构', summary: '定义 renderedAnswer 和最终 artifact 的结构。', status: '启用' }
         ],
         skillItems: [

@@ -197,9 +197,7 @@ public class RenderNode extends BaseWorkflowNode {
                 .append("\n\n");
         builder.append("知识上下文：\n").append(defaultIfBlank(context.getKnowledgeResult(), "无")).append("\n\n");
         builder.append("预生成结果：\n").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
-        builder.append("伪 SQL：\n").append(defaultIfBlank(context.getValidatedSql(), context.getGeneratedSql())).append("\n\n");
-        builder.append("SQL 执行状态：\n").append(defaultIfBlank(context.getSqlExecutionStatus(), "UNKNOWN")).append("\n\n");
-        builder.append("SQL 执行结果：\n").append(context.getSqlExecutionResult()).append("\n");
+        builder.append("伪 SQL：\n").append(defaultIfBlank(context.getGeneratedSql(), "无")).append("\n");
         return builder.toString();
     }
 
@@ -211,18 +209,10 @@ public class RenderNode extends BaseWorkflowNode {
         if (context.getSqlPreGenerateResult() != null) {
             builder.append("预生成结果：").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
         }
-        if (StringUtils.hasText(context.getValidatedSql())) {
-            builder.append("伪 SQL：\n").append(context.getValidatedSql()).append("\n\n");
-        } else if (StringUtils.hasText(context.getGeneratedSql())) {
+        if (StringUtils.hasText(context.getGeneratedSql())) {
             builder.append("伪 SQL：\n").append(context.getGeneratedSql()).append("\n\n");
         }
-        if ("SKIPPED".equalsIgnoreCase(context.getSqlExecutionStatus())) {
-            builder.append("当前仅完成 SQL 预生成与伪 SQL 输出，尚未生成真实可执行 SQL。");
-        } else if (!StringUtils.hasText(context.getSqlExecutionStatus())) {
-            builder.append("当前仅完成 SQL 预生成与伪 SQL 输出，尚未进入真实 SQL 校验与执行阶段。");
-        } else {
-            builder.append("执行结果：").append(context.getSqlExecutionResult());
-        }
+        builder.append("当前链路仅输出查询规划、知识上下文和 SQL 预生成结果。");
         return builder.toString();
     }
 
