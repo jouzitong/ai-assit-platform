@@ -36,17 +36,14 @@
         FROM ai_model_config m
         LEFT JOIN ai_provider_config p
             ON p.provider_code = m.provider_code
-           AND p.deleted = 0
         LEFT JOIN ai_model_credential c
             ON c.id = (
                 SELECT ic.id
                 FROM ai_model_credential ic
                 WHERE ic.model_code = m.model_code
-                  AND ic.deleted = 0
                 ORDER BY ic.id DESC
                 LIMIT 1
             )
-        WHERE m.deleted = 0
     </sql>
 
     <sql id="AggregateWhere">
