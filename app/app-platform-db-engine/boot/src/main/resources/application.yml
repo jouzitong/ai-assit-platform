@@ -12,7 +12,7 @@ server:
     context-path: /dbEngine
 
 database:
-  name: 'platform_ai_assist_db_engine'
+  name: 'ai_assist_db_engine'
 
 mybatis-plus:
   configuration:

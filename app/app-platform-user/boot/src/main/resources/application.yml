@@ -11,4 +11,4 @@ spring:
     include: common, lib
 
 database:
-  name: 'platform_ai_aissit'
+  name: 'ai_assist_user'

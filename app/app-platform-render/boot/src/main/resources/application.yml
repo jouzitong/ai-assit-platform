@@ -5,7 +5,7 @@ spring:
     active: dev
     include: common, lib
 server:
-  port: 13101
+  port: 14401
   servlet:
     context-path: /render
 

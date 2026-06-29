@@ -7,7 +7,8 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.athena.framework.data.mybatis.entity.BaseEntity;
+import org.athena.framework.data.mybatis.entity.AuditableEntity;
+
 import java.time.LocalDateTime;
 
 /**
@@ -19,7 +20,7 @@ import java.time.LocalDateTime;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @TableName("ai_model_credential")
-public class AiModelCredentialEntity extends BaseEntity {
+public class AiModelCredentialEntity extends AuditableEntity {
 
     /** 密钥配置编码。 */
     @TableField("credential_code")

@@ -7,7 +7,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.athena.framework.data.mybatis.entity.BaseEntity;
+import org.athena.framework.data.mybatis.entity.AuditableEntity;
 
 /**
  * AI 模型配置实体。
@@ -18,7 +18,7 @@ import org.athena.framework.data.mybatis.entity.BaseEntity;
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
 @TableName("ai_model_config")
-public class AiModelConfigEntity extends BaseEntity {
+public class AiModelConfigEntity extends AuditableEntity {
 
     /**
      * 模型编码。（内部）
