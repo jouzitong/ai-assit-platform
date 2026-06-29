@@ -2,6 +2,8 @@ package ai.platform.aiassist.service.ai.api.dto;
 
 import lombok.Data;
 
+import java.util.Map;
+
 @Data
 public class AiModelConfigDTO {
 
@@ -26,6 +28,8 @@ public class AiModelConfigDTO {
     private Boolean enabled;
 
     private Integer priority;
+
+    private Map<String, Object> extJson;
 
     private String remark;
 }

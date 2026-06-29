@@ -43,21 +43,10 @@ export function createModelForm() {
     modelName: '',
     providerCode: '',
     apiModel: '',
-    capabilityTags: '',
-    maxContextTokens: '',
-    maxOutputTokens: '',
-    temperatureEnabled: 1,
     enabled: true,
-    priority: 100,
-    remark: '',
-    credentialId: null,
-    credentialCode: '',
     apiKeyInput: '',
     apiKeyMasked: '',
-    keyVersion: 1,
-    credentialEnabled: true,
-    expireAt: '',
-    credentialRemark: ''
+    extJson: `{\n  "capabilityTags": "chat,reasoning",\n  "maxContextTokens": 32000,\n  "maxOutputTokens": 4096,\n  "temperatureEnabled": 1,\n  "priority": 100\n}`
   }
 }
 

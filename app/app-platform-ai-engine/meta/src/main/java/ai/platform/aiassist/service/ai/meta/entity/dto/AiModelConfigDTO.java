@@ -4,6 +4,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
 
+import java.util.Map;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class AiModelConfigDTO extends BaseDTO {
@@ -16,17 +18,9 @@ public class AiModelConfigDTO extends BaseDTO {
 
     private String apiModel;
 
-    private String capabilityTags;
-
-    private Integer maxContextTokens;
-
-    private Integer maxOutputTokens;
-
-    private Integer temperatureEnabled;
-
     private Boolean enabled;
 
-    private Integer priority;
+    private String apiKey;
 
-    private String remark;
+    private Map<String, Object> extJson;
 }

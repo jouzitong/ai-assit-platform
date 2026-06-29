@@ -193,9 +193,7 @@ const {
                     <th>能力标签</th>
                     <th>状态</th>
                     <th>优先级</th>
-                    <th>凭证编码</th>
                     <th>脱敏 Key</th>
-                    <th>凭证状态</th>
                     <th>更新时间</th>
                     <th>操作</th>
                   </tr>
@@ -223,13 +221,7 @@ const {
                       </button>
                     </td>
                     <td>{{ row.priority ?? '-' }}</td>
-                    <td>{{ row.credentialCode || '-' }}</td>
                     <td>{{ row.apiKeyMasked || '-' }}</td>
-                    <td>
-                      <span class="state-chip" :class="row.credentialEnabled ? 'is-on' : 'is-off'">
-                        {{ row.credentialEnabled ? '启用' : '停用' }}
-                      </span>
-                    </td>
                     <td>{{ formatDateTime(row.updateTime) }}</td>
                     <td>
                       <div class="row-actions">
@@ -239,7 +231,7 @@ const {
                     </td>
                   </tr>
                   <tr v-if="!modelList.length">
-                    <td colspan="12" class="empty-cell">暂无 Model 数据</td>
+                    <td colspan="10" class="empty-cell">暂无 Model 数据</td>
                   </tr>
                 </tbody>
               </table>
@@ -424,30 +416,6 @@ const {
               <span>Provider 模型标识</span>
               <input v-model="modelForm.apiModel" class="field-control" type="text" />
             </label>
-            <label class="field-block">
-              <span>能力标签</span>
-              <input v-model="modelForm.capabilityTags" class="field-control" type="text" placeholder="chat,reasoning,vision" />
-            </label>
-            <label class="field-block">
-              <span>优先级</span>
-              <input v-model="modelForm.priority" class="field-control" type="number" min="0" />
-            </label>
-
-            <label class="field-block">
-              <span>最大上下文 Token</span>
-              <input v-model="modelForm.maxContextTokens" class="field-control" type="number" min="0" />
-            </label>
-            <label class="field-block">
-              <span>最大输出 Token</span>
-              <input v-model="modelForm.maxOutputTokens" class="field-control" type="number" min="0" />
-            </label>
-            <label class="field-block">
-              <span>温度参数</span>
-              <select v-model="modelForm.temperatureEnabled" class="field-control">
-                <option :value="1">启用温度参数</option>
-                <option :value="0">禁用温度参数</option>
-              </select>
-            </label>
 
             <label class="switch-block">
               <input v-model="modelForm.enabled" type="checkbox" />
@@ -455,32 +423,24 @@ const {
             </label>
 
             <label class="field-block full-span">
-              <span>备注</span>
-              <textarea v-model="modelForm.remark" class="field-control textarea-control" rows="3" />
+              <span>扩展配置 JSON</span>
+              <textarea
+                v-model="modelForm.extJson"
+                class="field-control textarea-control code-textarea"
+                rows="8"
+                placeholder='{"maxContextTokens":32000,"maxOutputTokens":4096,"temperatureEnabled":1,"priority":100}'
+              />
             </label>
           </div>
         </section>
 
         <section class="dialog-section credential-section">
           <header class="section-head">
-            <h4>内部凭证配置</h4>
-            <p>凭证与 Model 同弹窗维护。编辑时留空 API Key 表示保持现值。</p>
+            <h4>模型访问凭证</h4>
+            <p>当前直接明文存储 API Key。编辑时留空表示保持现值。</p>
           </header>
 
           <div class="form-grid three-column">
-            <label class="field-block">
-              <span>凭证编码</span>
-              <input v-model="modelForm.credentialCode" class="field-control" type="text" />
-            </label>
-            <label class="field-block">
-              <span>Key 版本</span>
-              <input v-model="modelForm.keyVersion" class="field-control" type="number" min="1" />
-            </label>
-            <label class="switch-block">
-              <input v-model="modelForm.credentialEnabled" type="checkbox" />
-              <span>启用凭证</span>
-            </label>
-
             <label class="field-block full-span">
               <span>API Key</span>
               <input
@@ -493,14 +453,6 @@ const {
             <label class="field-block">
               <span>当前脱敏值</span>
               <input class="field-control" type="text" :value="modelForm.apiKeyMasked || '-'" disabled />
-            </label>
-            <label class="field-block">
-              <span>过期时间</span>
-              <input v-model="modelForm.expireAt" class="field-control" type="datetime-local" />
-            </label>
-            <label class="field-block full-span">
-              <span>凭证备注</span>
-              <textarea v-model="modelForm.credentialRemark" class="field-control textarea-control" rows="3" />
             </label>
           </div>
         </section>

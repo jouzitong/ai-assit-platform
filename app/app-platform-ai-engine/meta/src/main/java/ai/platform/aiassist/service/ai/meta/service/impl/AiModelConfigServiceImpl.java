@@ -50,7 +50,8 @@ public class AiModelConfigServiceImpl
             if (req.getEnabled() != null) {
                 wrapper.lambda().eq(AiModelConfigEntity::getEnabled, req.getEnabled());
             }
-            wrapper.lambda().orderByAsc(AiModelConfigEntity::getPriority);
+            wrapper.lambda().orderByDesc(AiModelConfigEntity::getUpdateTime)
+                    .orderByDesc(AiModelConfigEntity::getId);
         }
         return wrapper;
     }

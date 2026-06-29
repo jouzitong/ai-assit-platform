@@ -3,6 +3,7 @@ package ai.platform.aiassist.service.ai.api.dto;
 import lombok.Data;
 
 import java.util.List;
+import java.util.Map;
 
 @Data
 public class AiProviderModelOverviewDTO {
@@ -76,6 +77,8 @@ public class AiProviderModelOverviewDTO {
         private Boolean enabled;
 
         private Integer priority;
+
+        private Map<String, Object> extJson;
 
         private String remark;
     }

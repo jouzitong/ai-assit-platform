@@ -237,7 +237,7 @@ export function useAiPage() {
     loading.model = true
     try {
       const payload = unwrapPayload(await searchAiChatModelManages(buildModelQuery()))
-      modelList.value = payload?.list ?? []
+      modelList.value = (payload?.list ?? []).map(normalizeModelRow)
       modelPagination.total = resolvePageTotal(payload?.pageInfo?.total, modelList.value.length)
     } catch (error) {
       showPopup.error(error.message || 'Model 列表加载失败')
@@ -300,12 +300,8 @@ export function useAiPage() {
     try {
       const detail = unwrapPayload(await getAiChatModelManage(row.id))
       Object.assign(modelForm, createModelForm(), detail, {
-        maxContextTokens: detail?.maxContextTokens ?? '',
-        maxOutputTokens: detail?.maxOutputTokens ?? '',
-        priority: detail?.priority ?? 100,
-        keyVersion: detail?.keyVersion ?? 1,
         apiKeyInput: '',
-        expireAt: detail?.expireAt ? formatDateTimeInput(detail.expireAt) : ''
+        extJson: formatJsonField(detail?.extJson)
       })
       modelDialogVisible.value = true
     } catch (error) {
@@ -363,12 +359,14 @@ export function useAiPage() {
       modelError.value = '请输入 Provider 模型标识'
       return false
     }
-    if (!modelForm.credentialCode.trim()) {
-      modelError.value = '请输入凭证编码'
-      return false
-    }
     if (modelDialogMode.value === 'create' && !modelForm.apiKeyInput.trim()) {
       modelError.value = '新增模型时必须填写 API Key'
+      return false
+    }
+    try {
+      parseJsonField(modelForm.extJson, '扩展配置')
+    } catch (error) {
+      modelError.value = error.message || '扩展配置格式不正确'
       return false
     }
     modelError.value = ''
@@ -433,26 +431,15 @@ export function useAiPage() {
 
     loading.modelSaving = true
     try {
+      const extJson = parseJsonField(modelForm.extJson, '扩展配置')
       const payload = {
         modelCode: modelForm.modelCode.trim(),
         modelName: modelForm.modelName.trim(),
         providerCode: modelForm.providerCode,
         apiModel: modelForm.apiModel.trim(),
-        capabilityTags: modelForm.capabilityTags.trim(),
-        maxContextTokens: normalizeNumber(modelForm.maxContextTokens),
-        maxOutputTokens: normalizeNumber(modelForm.maxOutputTokens),
-        temperatureEnabled: Number(modelForm.temperatureEnabled),
         enabled: modelForm.enabled,
-        priority: normalizeNumber(modelForm.priority),
-        remark: modelForm.remark.trim(),
-        credentialId: modelForm.credentialId || undefined,
-        credentialCode: modelForm.credentialCode.trim(),
         apiKeyInput: modelForm.apiKeyInput.trim() || undefined,
-        apiKeyMasked: modelForm.apiKeyMasked || undefined,
-        keyVersion: normalizeNumber(modelForm.keyVersion),
-        credentialEnabled: modelForm.credentialEnabled,
-        expireAt: modelForm.expireAt ? formatDateTimePayload(modelForm.expireAt) : null,
-        credentialRemark: modelForm.credentialRemark.trim()
+        extJson
       }
 
       if (modelDialogMode.value === 'create') {
@@ -656,6 +643,20 @@ export function useAiPage() {
     }
   }
 
+  function normalizeModelRow(row) {
+    const ext = row?.extJson && typeof row.extJson === 'object' ? row.extJson : {}
+    return {
+      ...row,
+      extJson: ext,
+      capabilityTags: ext.capabilityTags ?? '',
+      maxContextTokens: normalizeNumber(ext.maxContextTokens),
+      maxOutputTokens: normalizeNumber(ext.maxOutputTokens),
+      temperatureEnabled: normalizeNumber(ext.temperatureEnabled),
+      priority: normalizeNumber(ext.priority),
+      remark: ext.remark ?? ''
+    }
+  }
+
   function formatJsonField(value) {
     if (!value) {
       return ''
@@ -706,26 +707,6 @@ export function useAiPage() {
     return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
       date.getMinutes()
     )}`
-  }
-
-  function formatDateTimeInput(value) {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) {
-      return ''
-    }
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(
-      date.getMinutes()
-    )}`
-  }
-
-  function formatDateTimePayload(value) {
-    const date = new Date(value)
-    if (Number.isNaN(date.getTime())) {
-      return null
-    }
-    return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(
-      date.getMinutes()
-    )}:${pad(date.getSeconds())}`
   }
 
   function pad(value) {

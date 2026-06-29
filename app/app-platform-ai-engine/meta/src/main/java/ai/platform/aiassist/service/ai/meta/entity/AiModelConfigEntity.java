@@ -2,12 +2,15 @@ package ai.platform.aiassist.service.ai.meta.entity;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+
+import java.util.Map;
 
 /**
  * AI 模型配置实体。
@@ -17,7 +20,7 @@ import org.athena.framework.data.mybatis.entity.AuditableEntity;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName("ai_model_config")
+@TableName(value = "ai_model_config", autoResultMap = true)
 public class AiModelConfigEntity extends AuditableEntity {
 
     /**
@@ -41,38 +44,18 @@ public class AiModelConfigEntity extends AuditableEntity {
     @TableField("api_model")
     private String apiModel;
     /**
-     * 能力标签，多个标签用逗号分隔。
-     */
-    @TableField("capability_tags")
-    private String capabilityTags;
-    /**
-     * 最大上下文 token 数。
-     */
-    @TableField("max_context_tokens")
-    private Integer maxContextTokens;
-    /**
-     * 最大输出 token 数。
-     */
-    @TableField("max_output_tokens")
-    private Integer maxOutputTokens;
-    /**
-     * 是否启用温度参数：1 启用，0 禁用。
-     */
-    @TableField("temperature_enabled")
-    private Integer temperatureEnabled;
-    /**
      * 启用状态：true 启用，false 禁用。
      */
     @TableField("enabled")
     private Boolean enabled;
     /**
-     * 优先级，越小优先级越高。
+     * API Key，当前直接明文存储。
      */
-    @TableField("priority")
-    private Integer priority;
+    @TableField("api_key")
+    private String apiKey;
     /**
-     * 备注。
+     * 扩展配置，例如 token 限制、温度参数等。
      */
-    @TableField("remark")
-    private String remark;
+    @TableField(value = "ext_json", typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> extJson;
 }

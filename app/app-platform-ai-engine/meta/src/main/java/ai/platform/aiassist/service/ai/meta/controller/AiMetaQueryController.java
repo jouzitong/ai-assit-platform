@@ -7,12 +7,12 @@ import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
-import ai.platform.aiassist.service.ai.meta.service.AiModelCredentialService;
 import ai.platform.aiassist.service.ai.meta.service.AiProviderConfigService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -23,14 +23,11 @@ public class AiMetaQueryController implements AiMetaQueryApi {
 
     private final AiProviderConfigService providerConfigService;
     private final AiModelConfigService modelConfigService;
-    private final AiModelCredentialService credentialService;
 
     public AiMetaQueryController(AiProviderConfigService providerConfigService,
-                                 AiModelConfigService modelConfigService,
-                                 AiModelCredentialService credentialService) {
+                                 AiModelConfigService modelConfigService) {
         this.providerConfigService = providerConfigService;
         this.modelConfigService = modelConfigService;
-        this.credentialService = credentialService;
     }
 
     @Override
@@ -68,7 +65,14 @@ public class AiMetaQueryController implements AiMetaQueryApi {
 
     @Override
     public List<AiModelCredentialDTO> listCredentials(@RequestBody(required = false) AiMetaQueryRequest request) {
-        return credentialService.queryAll(toInternalRequest(request)).stream()
+        ai.platform.aiassist.service.ai.meta.entity.req.AiMetaQueryRequest internalRequest = toInternalRequest(request);
+        if (internalRequest != null) {
+            internalRequest.setEnabled(null);
+        }
+        return modelConfigService.queryAll(internalRequest).stream()
+                .filter(this::hasCredential)
+                .filter(model -> request == null || request.getEnabled() == null
+                        || request.getEnabled().equals(model.getEnabled()))
                 .map(this::toCredentialDto)
                 .toList();
     }
@@ -104,28 +108,33 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         target.setModelName(source.getModelName());
         target.setProviderCode(source.getProviderCode());
         target.setApiModel(source.getApiModel());
-        target.setCapabilityTags(source.getCapabilityTags());
-        target.setMaxContextTokens(source.getMaxContextTokens());
-        target.setMaxOutputTokens(source.getMaxOutputTokens());
-        target.setTemperatureEnabled(source.getTemperatureEnabled());
+        target.setCapabilityTags(extText(source.getExtJson(), "capabilityTags"));
+        target.setMaxContextTokens(extInteger(source.getExtJson(), "maxContextTokens"));
+        target.setMaxOutputTokens(extInteger(source.getExtJson(), "maxOutputTokens"));
+        target.setTemperatureEnabled(extInteger(source.getExtJson(), "temperatureEnabled"));
         target.setEnabled(source.getEnabled());
-        target.setPriority(source.getPriority());
-        target.setRemark(source.getRemark());
+        target.setPriority(extInteger(source.getExtJson(), "priority"));
+        target.setExtJson(copyMap(source.getExtJson()));
+        target.setRemark(extText(source.getExtJson(), "remark"));
         return target;
     }
 
-    private AiModelCredentialDTO toCredentialDto(ai.platform.aiassist.service.ai.meta.entity.dto.AiModelCredentialDTO source) {
+    private AiModelCredentialDTO toCredentialDto(ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO source) {
         AiModelCredentialDTO target = new AiModelCredentialDTO();
         target.setId(source.getId());
-        target.setCredentialCode(source.getCredentialCode());
+        target.setCredentialCode(null);
         target.setProviderCode(source.getProviderCode());
         target.setModelCode(source.getModelCode());
-        target.setApiKeyMasked(source.getApiKeyMasked());
-        target.setKeyVersion(source.getKeyVersion());
+        target.setApiKeyMasked(maskApiKey(source.getApiKey()));
+        target.setKeyVersion(null);
         target.setEnabled(source.getEnabled());
-        target.setExpireAt(source.getExpireAt());
-        target.setRemark(source.getRemark());
+        target.setExpireAt(null);
+        target.setRemark(null);
         return target;
+    }
+
+    private boolean hasCredential(ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO source) {
+        return source != null && source.getApiKey() != null;
     }
 
     private AiProviderModelOverviewDTO.ProviderItem toOverviewProviderItem(
@@ -157,13 +166,61 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         target.setModelName(source.getModelName());
         target.setProviderCode(source.getProviderCode());
         target.setApiModel(source.getApiModel());
-        target.setCapabilityTags(source.getCapabilityTags());
-        target.setMaxContextTokens(source.getMaxContextTokens());
-        target.setMaxOutputTokens(source.getMaxOutputTokens());
-        target.setTemperatureEnabled(source.getTemperatureEnabled());
+        target.setCapabilityTags(extText(source.getExtJson(), "capabilityTags"));
+        target.setMaxContextTokens(extInteger(source.getExtJson(), "maxContextTokens"));
+        target.setMaxOutputTokens(extInteger(source.getExtJson(), "maxOutputTokens"));
+        target.setTemperatureEnabled(extInteger(source.getExtJson(), "temperatureEnabled"));
         target.setEnabled(source.getEnabled());
-        target.setPriority(source.getPriority());
-        target.setRemark(source.getRemark());
+        target.setPriority(extInteger(source.getExtJson(), "priority"));
+        target.setExtJson(copyMap(source.getExtJson()));
+        target.setRemark(extText(source.getExtJson(), "remark"));
         return target;
+    }
+
+    private Integer extInteger(Map<String, Object> ext, String key) {
+        if (ext == null) {
+            return null;
+        }
+        Object value = ext.get(key);
+        if (value instanceof Number number) {
+            return number.intValue();
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return Integer.parseInt(text.trim());
+            } catch (NumberFormatException ignored) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private String extText(Map<String, Object> ext, String key) {
+        if (ext == null) {
+            return null;
+        }
+        Object value = ext.get(key);
+        if (value == null) {
+            return null;
+        }
+        String text = String.valueOf(value).trim();
+        return text.isEmpty() ? null : text;
+    }
+
+    private Map<String, Object> copyMap(Map<String, Object> ext) {
+        return ext == null ? null : new LinkedHashMap<>(ext);
+    }
+
+    private String maskApiKey(String apiKey) {
+        if (apiKey == null || apiKey.isBlank()) {
+            return null;
+        }
+        String trimmed = apiKey.trim();
+        int visiblePrefix = Math.min(4, trimmed.length());
+        int visibleSuffix = trimmed.length() > 8 ? 4 : 1;
+        if (trimmed.length() <= visiblePrefix + visibleSuffix) {
+            return trimmed.charAt(0) + "***" + trimmed.charAt(trimmed.length() - 1);
+        }
+        return trimmed.substring(0, visiblePrefix) + "****" + trimmed.substring(trimmed.length() - visibleSuffix);
     }
 }

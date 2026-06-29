@@ -4,7 +4,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
 
-import java.time.LocalDateTime;
+import java.util.Map;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -20,33 +20,11 @@ public class AiModelManageDTO extends BaseDTO {
 
     private String apiModel;
 
-    private String capabilityTags;
-
-    private Integer maxContextTokens;
-
-    private Integer maxOutputTokens;
-
-    private Integer temperatureEnabled;
-
     private Boolean enabled;
-
-    private Integer priority;
-
-    private String remark;
-
-    private Long credentialId;
-
-    private String credentialCode;
 
     private String apiKeyInput;
 
     private String apiKeyMasked;
 
-    private Integer keyVersion;
-
-    private Boolean credentialEnabled;
-
-    private LocalDateTime expireAt;
-
-    private String credentialRemark;
+    private Map<String, Object> extJson;
 }

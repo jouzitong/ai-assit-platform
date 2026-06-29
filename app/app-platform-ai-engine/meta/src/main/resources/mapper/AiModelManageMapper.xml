@@ -4,6 +4,23 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="ai.platform.aiassist.service.ai.meta.mapper.AiModelManageMapper">
 
+    <resultMap id="AiModelManageResultMap" type="ai.platform.aiassist.service.ai.meta.entity.dto.AiModelManageDTO">
+        <id property="id" column="id"/>
+        <result property="modelCode" column="model_code"/>
+        <result property="modelName" column="model_name"/>
+        <result property="providerCode" column="provider_code"/>
+        <result property="providerName" column="provider_name"/>
+        <result property="apiModel" column="api_model"/>
+        <result property="enabled" column="enabled"/>
+        <result property="apiKeyMasked" column="api_key_masked"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <result property="createdBy" column="created_by"/>
+        <result property="lastModifiedBy" column="last_modified_by"/>
+        <result property="version" column="version"/>
+        <result property="extJson" column="ext_json" typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
     <sql id="AggregateColumns">
         m.id,
         m.model_code,
@@ -11,39 +28,25 @@
         m.provider_code,
         p.provider_name,
         m.api_model,
-        m.capability_tags,
-        m.max_context_tokens,
-        m.max_output_tokens,
-        m.temperature_enabled,
         m.enabled,
-        m.priority,
-        m.remark,
+        CASE
+            WHEN m.api_key IS NULL OR m.api_key = '' THEN NULL
+            WHEN CHAR_LENGTH(m.api_key) &lt;= 2 THEN CONCAT(SUBSTRING(m.api_key, 1, 1), '***', SUBSTRING(m.api_key, CHAR_LENGTH(m.api_key), 1))
+            WHEN CHAR_LENGTH(m.api_key) &lt;= 8 THEN CONCAT(SUBSTRING(m.api_key, 1, 2), '****', SUBSTRING(m.api_key, CHAR_LENGTH(m.api_key), 1))
+            ELSE CONCAT(SUBSTRING(m.api_key, 1, 4), '****', SUBSTRING(m.api_key, CHAR_LENGTH(m.api_key) - 3, 4))
+        END AS api_key_masked,
+        m.ext_json,
         m.create_time,
         m.update_time,
         m.created_by,
         m.updated_by AS last_modified_by,
-        m.version,
-        c.id AS credential_id,
-        c.credential_code,
-        c.api_key_masked,
-        c.key_version,
-        c.enabled AS credential_enabled,
-        c.expire_at,
-        c.remark AS credential_remark
+        m.version
     </sql>
 
     <sql id="AggregateFrom">
         FROM ai_model_config m
         LEFT JOIN ai_provider_config p
             ON p.provider_code = m.provider_code
-        LEFT JOIN ai_model_credential c
-            ON c.id = (
-                SELECT ic.id
-                FROM ai_model_credential ic
-                WHERE ic.model_code = m.model_code
-                ORDER BY ic.id DESC
-                LIMIT 1
-            )
     </sql>
 
     <sql id="AggregateWhere">
@@ -62,28 +65,31 @@
                     m.model_code LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.model_name LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.api_model LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR m.capability_tags LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR m.remark LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.provider_code LIKE CONCAT('%', #{query.keyword}, '%')
                     OR p.provider_name LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR c.credential_code LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.ext_json LIKE CONCAT('%', #{query.keyword}, '%')
                 )
             </if>
         </if>
     </sql>
 
-    <select id="pageAggregate" resultType="ai.platform.aiassist.service.ai.meta.entity.dto.AiModelManageDTO">
+    <select id="pageAggregate" resultMap="AiModelManageResultMap">
         SELECT
         <include refid="AggregateColumns"/>
         <include refid="AggregateFrom"/>
+        WHERE 1 = 1
         <include refid="AggregateWhere"/>
-        ORDER BY m.priority ASC, m.update_time DESC, m.id DESC
+        ORDER BY
+            COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED), 100) ASC,
+            m.update_time DESC,
+            m.id DESC
     </select>
 
-    <select id="selectByModelId" resultType="ai.platform.aiassist.service.ai.meta.entity.dto.AiModelManageDTO">
+    <select id="selectByModelId" resultMap="AiModelManageResultMap">
         SELECT
         <include refid="AggregateColumns"/>
         <include refid="AggregateFrom"/>
+        WHERE 1 = 1
         AND m.id = #{id}
         LIMIT 1
     </select>
