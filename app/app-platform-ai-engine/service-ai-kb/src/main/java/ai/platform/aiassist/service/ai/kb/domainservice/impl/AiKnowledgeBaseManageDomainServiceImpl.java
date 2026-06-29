@@ -18,6 +18,7 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
+import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
@@ -193,13 +194,15 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
     public AiKbDocumentUpsertResponse upsertDocument(AiKbDocumentUpsertRequest request) {
         validateUpsertRequest(request);
         String kbId = request.getKbId().trim();
+        AiKbStoreDTO store = requireStore(kbId);
+        AiKbDocumentType documentType = resolveDocumentType(request, store);
         String documentId = request.getDocumentId().trim();
         String documentName = StringUtils.hasText(request.getDocumentName()) ? request.getDocumentName().trim() : documentId;
         Map<String, Object> ext = normalizeExt(request.getExt());
-        AiKbBizType bizType = resolveBizType(request);
+        AiKbBizType bizType = resolveBizType(documentType, request.getBizType());
         AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
         boolean created = existing == null;
-        String sourceKey = resolveUpsertSourceKey(ext, existing);
+        String sourceKey = resolveUpsertSourceKey(ext, existing, store);
         if (!StringUtils.hasText(sourceKey)) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_KEY);
         }
@@ -209,9 +212,9 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
         boolean canUpdate = Boolean.TRUE.equals(request.getCanUpdate());
         log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, bizType={}, sourceKey={}, canUpdate={}",
-                kbId, documentId, request.getDocumentType(), bizType, sourceKey, canUpdate);
+                kbId, documentId, documentType, bizType, sourceKey, canUpdate);
 
-        AiKbStoreDTO store = ensureStore(kbId, bizType, sourceKey);
+        ensureStore(store, bizType);
         if (existing != null && !canUpdate) {
             log.info("ai kb document exists and update skipped, kbId={}, documentId={}, currentVersionNo={}",
                     kbId, documentId, existing.getDocumentVersionNo());
@@ -231,7 +234,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         boolean contentChanged = created || !Objects.equals(existing.getContentChecksum(), checksum);
         boolean metadataChanged = created
                 || !Objects.equals(document.getDocumentName(), documentName)
-                || !Objects.equals(document.getDocumentType(), request.getDocumentType())
+                || !Objects.equals(document.getDocumentType(), documentType)
                 || !Objects.equals(document.getBizType(), bizType)
                 || !Objects.equals(document.getBizKey(), documentBizKey)
                 || !Objects.equals(document.getMetaJson(), ext);
@@ -247,7 +250,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         }
 
         document.setDocumentName(documentName);
-        document.setDocumentType(request.getDocumentType());
+        document.setDocumentType(documentType);
         document.setBizType(bizType);
         document.setBizKey(documentBizKey);
         document.setContentChecksum(checksum);
@@ -815,9 +818,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (!StringUtils.hasText(request.getDocumentId())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_ID);
         }
-        if (request.getDocumentType() == null) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_TYPE);
-        }
         if (!StringUtils.hasText(request.getContent())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_CONTENT);
         }
@@ -841,42 +841,69 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         }
     }
 
-    private AiKbStoreDTO ensureStore(String kbId, AiKbBizType bizType, String sourceKey) {
-        // 上游只能向已存在的本地知识库写入当前文档，知识库创建由本系统管理流程负责。
+    private AiKbStoreDTO requireStore(String kbId) {
         AiKbStoreDTO store = storeService.getByKbCode(kbId);
         if (store == null) {
-            log.warn("ai kb store not found, kbId={}, bizType={}, sourceKey={}", kbId, bizType, sourceKey);
+            log.warn("ai kb store not found, kbId={}", kbId);
             throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbId);
-        }
-        if (store.getBizType() != null && bizType != null && store.getBizType() != bizType) {
-            log.warn("ai kb store biz type mismatch, kbId={}, expectBizType={}, actualBizType={}",
-                    kbId, bizType, store.getBizType());
-            throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_KB_SOURCE_TYPE, kbId, bizType, store.getBizType());
         }
         return store;
     }
 
-    private String resolveUpsertSourceKey(Map<String, Object> ext, AiKbDocumentDTO existing) {
+    private void ensureStore(AiKbStoreDTO store, AiKbBizType bizType) {
+        // 上游只能向已存在的本地知识库写入当前文档，知识库创建由本系统管理流程负责。
+        if (store.getBizType() != null && bizType != null && store.getBizType() != bizType) {
+            log.warn("ai kb store biz type mismatch, kbId={}, expectBizType={}, actualBizType={}",
+                    store.getKbCode(), bizType, store.getBizType());
+            throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_KB_SOURCE_TYPE,
+                    store.getKbCode(), bizType, store.getBizType());
+        }
+    }
+
+    private String resolveUpsertSourceKey(Map<String, Object> ext, AiKbDocumentDTO existing, AiKbStoreDTO store) {
         String extSourceKey = extText(ext, "sourceKey");
         if (StringUtils.hasText(extSourceKey)) {
             return extSourceKey;
         }
-        return extText(existing == null ? null : existing.getMetaJson(), "sourceKey");
+        String existingSourceKey = extText(existing == null ? null : existing.getMetaJson(), "sourceKey");
+        if (StringUtils.hasText(existingSourceKey)) {
+            return existingSourceKey;
+        }
+        return extText(store == null ? null : store.getExtJson(), "sourceKey");
     }
 
-    private AiKbBizType resolveBizType(AiKbDocumentUpsertRequest request) {
+    private AiKbDocumentType resolveDocumentType(AiKbDocumentUpsertRequest request, AiKbStoreDTO store) {
+        if (request.getDocumentType() != null) {
+            return request.getDocumentType();
+        }
+        if (store == null || store.getBizType() == null) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_TYPE);
+        }
+        List<AiKbDocumentType> matches = new ArrayList<>();
+        for (AiKbDocumentType item : AiKbDocumentType.values()) {
+            if (item.getBizType() == store.getBizType()) {
+                matches.add(item);
+            }
+        }
+        if (matches.size() == 1) {
+            return matches.get(0);
+        }
+        throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_TYPE);
+    }
+
+    private AiKbBizType resolveBizType(AiKbDocumentType documentType, AiKbBizType requestBizType) {
         // bizType 允许不传；不传时按 documentType 的预定义归属自动推导。
-        AiKbBizType inferred = request.getDocumentType().getBizType();
-        if (request.getBizType() == null) {
+        AiKbBizType inferred = documentType.getBizType();
+        if (requestBizType == null) {
             return inferred;
         }
-        if (request.getBizType() != inferred) {
+        if (requestBizType != inferred) {
             log.warn("ai kb biz type invalid, documentType={}, inferredBizType={}, actualBizType={}",
-                    request.getDocumentType(), inferred, request.getBizType());
+                    documentType, inferred, requestBizType);
             throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_DOCUMENT_SOURCE_TYPE,
-                    request.getDocumentType(), inferred, request.getBizType());
+                    documentType, inferred, requestBizType);
         }
-        return request.getBizType();
+        return requestBizType;
     }
 
     private Map<String, Object> normalizeExt(Map<String, Object> ext) {

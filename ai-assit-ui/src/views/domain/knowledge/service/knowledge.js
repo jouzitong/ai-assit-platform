@@ -199,16 +199,14 @@ export function useKnowledgePage() {
       if (!kb?.kbId || !kb?.sourceKey) {
         throw new Error('请选择有效的知识库')
       }
-      const ext = parseExtJson(createForm.extJson)
       await upsertAiKnowledgeBaseDocument({
         kbId: kb.kbId,
         documentId: createForm.documentCode.trim(),
         documentName: createForm.documentName.trim() || createForm.documentCode.trim(),
-        documentType: createForm.documentType,
-        sourceKey: kb.sourceKey,
         content: createForm.content,
-        canUpdate: Boolean(createForm.canUpdate),
-        ext
+        ext: {
+          sourceKey: kb.sourceKey
+        }
       })
       createDialogVisible.value = false
       showPopup.success('知识文档已保存')
@@ -333,10 +331,7 @@ function createEmptyKbForm() {
     kbId: '',
     documentCode: '',
     documentName: '',
-    documentType: '',
-    content: '',
-    canUpdate: true,
-    extJson: ''
+    content: ''
   }
 }
 
@@ -347,16 +342,8 @@ function validateCreateForm(form) {
   if (!form.documentCode.trim()) {
     return '请输入文档编码'
   }
-  if (form.documentType === '' || form.documentType === null || form.documentType === undefined) {
-    return '请选择文档类型'
-  }
   if (!String(form.content || '').trim()) {
     return '请输入文档内容'
-  }
-  try {
-    parseExtJson(form.extJson)
-  } catch (error) {
-    return error.message
   }
   return ''
 }
@@ -372,22 +359,6 @@ function normalizeKnowledgeBases(payload) {
       providerKbId: item?.providerKbId ? String(item.providerKbId) : ''
     }))
     .filter(item => item.kbId)
-}
-
-function parseExtJson(value) {
-  const text = String(value || '').trim()
-  if (!text) {
-    return {}
-  }
-  try {
-    const parsed = JSON.parse(text)
-    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-      throw new Error('扩展信息 JSON 必须是对象')
-    }
-    return { ...parsed }
-  } catch (error) {
-    throw new Error(error.message || '扩展信息 JSON 格式错误')
-  }
 }
 
 function mapDocumentItem(item) {

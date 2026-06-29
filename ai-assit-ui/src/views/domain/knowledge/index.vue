@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watchEffect } from 'vue'
+import { computed, ref } from 'vue'
 import ActionBar from '../../../components/commons/list/ActionBar.vue'
 import DataListFooter from '../../../components/commons/list/DataListFooter.vue'
 import DataTable from '../../../components/commons/list/DataTable.vue'
@@ -35,7 +35,6 @@ const {
   createError,
   createForm,
   knowledgeBaseOptions,
-  selectedKnowledgeBase,
   batchMode,
   selectedDocumentCodes,
   filteredSources,
@@ -81,24 +80,6 @@ const filterSchema = computed(() => {
     }
     return { ...item }
   })
-})
-
-const documentTypeOptions = computed(() => {
-  return getEnumOptions('aiKbDocumentType', SERVICE_NAMES.AI_ENGINE)
-})
-
-const selectedKnowledgeBaseBizTypeLabel = computed(() => {
-  const bizType = selectedKnowledgeBase.value?.bizType
-  if (bizType === null || bizType === undefined || bizType === '') {
-    return '-'
-  }
-  return getEnumLabel('aiKbBizType', bizType, SERVICE_NAMES.AI_ENGINE)
-})
-
-watchEffect(() => {
-  if (!createForm.documentType && documentTypeOptions.value.length > 0) {
-    createForm.documentType = documentTypeOptions.value[0].value
-  }
 })
 
 const tableColumns = computed(() => {
@@ -321,40 +302,9 @@ const pageRowsIndeterminate = computed(() => {
             <span>文档名称</span>
             <input v-model="createForm.documentName" type="text" placeholder="可选，默认同文档编码" />
           </label>
-          <label class="kb-create-field">
-            <span>文档类型</span>
-            <select v-model="createForm.documentType">
-              <option v-for="item in documentTypeOptions" :key="item.value" :value="item.value">
-                {{ item.label }}
-              </option>
-            </select>
-          </label>
-          <label class="kb-create-field">
-            <span>业务唯一键</span>
-            <input :value="selectedKnowledgeBase?.sourceKey || '-'" type="text" disabled />
-          </label>
-          <label class="kb-create-field">
-            <span>来源类型</span>
-            <input :value="selectedKnowledgeBaseBizTypeLabel" type="text" disabled />
-          </label>
-          <label class="kb-create-field">
-            <span>远端 KB ID</span>
-            <input :value="selectedKnowledgeBase?.providerKbId || '-'" type="text" disabled />
-          </label>
-          <label class="kb-create-field">
-            <span>允许覆盖同编码文档</span>
-            <select v-model="createForm.canUpdate">
-              <option :value="true">是</option>
-              <option :value="false">否</option>
-            </select>
-          </label>
           <label class="kb-create-field full">
             <span>文档内容</span>
             <textarea v-model="createForm.content" rows="10" placeholder="请输入 Markdown 或纯文本内容" />
-          </label>
-          <label class="kb-create-field full">
-            <span>扩展信息 JSON</span>
-            <textarea v-model="createForm.extJson" rows="4" placeholder='{"owner":"ai-engine"}' />
           </label>
         </div>
 
