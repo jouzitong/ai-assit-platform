@@ -368,7 +368,7 @@ function normalizeKnowledgeBases(payload) {
       kbId: item?.kbId ? String(item.kbId) : '',
       kbName: item?.kbName ? String(item.kbName) : '',
       sourceKey: item?.sourceKey ? String(item.sourceKey) : '',
-      sourceType: item?.sourceType ?? null,
+      bizType: item?.bizType ?? null,
       providerKbId: item?.providerKbId ? String(item.providerKbId) : ''
     }))
     .filter(item => item.kbId)

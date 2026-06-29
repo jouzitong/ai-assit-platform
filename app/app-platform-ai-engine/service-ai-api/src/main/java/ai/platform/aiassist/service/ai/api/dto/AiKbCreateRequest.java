@@ -1,6 +1,6 @@
 package ai.platform.aiassist.service.ai.api.dto;
 
-import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import lombok.Data;
 
@@ -16,8 +16,8 @@ public class AiKbCreateRequest implements Serializable {
     /** 知识库名称。 */
     private String kbName;
 
-    /** 来源对象类型。 */
-    private AiKbSourceType sourceType;
+    /** 业务场景类型。 */
+    private AiKbBizType bizType;
 
     /** 来源对象唯一键。 */
     private String sourceKey;

@@ -1,5 +1,10 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
+import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgePreviewDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgeSyncDTO;
@@ -12,10 +17,6 @@ import ai.platform.aiassit.db.engine.meta.service.DbTableFieldMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableKnowledgePreviewService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableKnowledgeSyncService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
-import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
-import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import lombok.extern.slf4j.Slf4j;
 import org.athena.framework.web.vo.R;
@@ -186,6 +187,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
         request.setDocumentName(buildDocumentName(table));
         request.setDocumentType(AiKbDocumentType.DB_TABLE);
         request.setSourceKey(sourceKey);
+        request.setBizType(AiKbBizType.DB_DATA_SOURCE);
         request.setContent(preview.getContent());
         request.setExt(buildExt(sourceKey, table));
 

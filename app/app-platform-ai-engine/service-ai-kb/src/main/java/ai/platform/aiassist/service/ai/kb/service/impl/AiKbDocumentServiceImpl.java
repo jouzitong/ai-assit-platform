@@ -78,8 +78,6 @@ public class AiKbDocumentServiceImpl
                         .or()
                         .like(AiKbDocumentEntity::getBizKey, keyword)
                         .or()
-                        .like(AiKbDocumentEntity::getSourceSystem, keyword)
-                        .or()
                         .like(AiKbDocumentEntity::getProviderDocumentId, keyword));
             }
             if (req.getBizType() != null) {

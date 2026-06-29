@@ -1,7 +1,7 @@
 package ai.platform.aiassist.service.ai.api.dto;
 
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
+import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -32,11 +32,11 @@ public class AiKbDocumentUpsertRequest implements Serializable {
     private AiKbDocumentType documentType;
 
     /**
-     * 来源对象类型，
+     * 业务类型，
      * <p>
-     * 非必填；未传时默认按 documentType 关联的 sourceType 推导。
+     * 非必填；未传时默认按 documentType 关联的 bizType 推导。
      */
-    private AiKbSourceType sourceType;
+    private AiKbBizType bizType;
 
     /**
      * 来源对象唯一键。

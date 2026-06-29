@@ -39,8 +39,6 @@ public class AiKbDocumentVersionDTO extends BaseDTO {
 
     private Map<String, Object> metaJson;
 
-    private String sourceSystem;
-
     private LocalDateTime snapshotAt;
 
     private String snapshotBy;

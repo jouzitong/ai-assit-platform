@@ -19,7 +19,6 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
-import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
@@ -107,8 +106,8 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
             }
             result.add(dto);
         }
-        log.info("ai kb list finish, sourceType={}, sourceKey={}, enabled={}, resultSize={}",
-                request == null ? null : request.getSourceType(),
+        log.info("ai kb list finish, bizType={}, sourceKey={}, enabled={}, resultSize={}",
+                request == null ? null : request.getBizType(),
                 request == null ? null : request.getSourceKey(),
                 request == null ? null : request.getEnabled(),
                 result.size());
@@ -131,13 +130,13 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         AiKbStoreDTO store = new AiKbStoreDTO();
         store.setKbCode(kbCode);
         store.setKbName(request.getKbName().trim());
-        store.setBizType(sourceTypeToBizType(request.getSourceType()));
+        store.setBizType(request.getBizType());
         store.setProviderKbId(trimToNull(request.getProviderKbId()));
         store.setStatus(request.getStatus() == null ? AiKbStoreStatus.INIT : request.getStatus());
         store.setExtJson(ext);
         store = storeService.add(store);
-        log.info("ai kb store created, kbCode={}, kbName={}, sourceType={}, sourceKey={}",
-                store.getKbCode(), store.getKbName(), request.getSourceType(), request.getSourceKey());
+        log.info("ai kb store created, kbCode={}, kbName={}, bizType={}, sourceKey={}",
+                store.getKbCode(), store.getKbName(), request.getBizType(), request.getSourceKey());
         return toKbInfo(store);
     }
 
@@ -198,14 +197,14 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         String documentId = request.getDocumentId().trim();
         String documentName = StringUtils.hasText(request.getDocumentName()) ? request.getDocumentName().trim() : documentId;
         String sourceKey = request.getSourceKey().trim();
-        AiKbSourceType sourceType = resolveSourceType(request);
+        AiKbBizType bizType = resolveBizType(request);
         String checksum = checksum(request.getContent());
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
         boolean canUpdate = Boolean.TRUE.equals(request.getCanUpdate());
-        log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, sourceType={}, sourceKey={}, canUpdate={}",
-                kbId, documentId, request.getDocumentType(), sourceType, sourceKey, canUpdate);
+        log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, bizType={}, sourceKey={}, canUpdate={}",
+                kbId, documentId, request.getDocumentType(), bizType, sourceKey, canUpdate);
 
-        AiKbStoreDTO store = ensureStore(kbId, sourceType, sourceKey);
+        AiKbStoreDTO store = ensureStore(kbId, bizType, sourceKey);
         AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
         if (existing != null && !canUpdate) {
             log.info("ai kb document exists and update skipped, kbId={}, documentId={}, currentVersionNo={}",
@@ -225,14 +224,12 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         }
 
         Map<String, Object> ext = normalizeExt(request.getExt());
-        String sourceSystem = resolveSourceSystem(ext);
         boolean contentChanged = created || !Objects.equals(existing.getContentChecksum(), checksum);
         boolean metadataChanged = created
                 || !Objects.equals(document.getDocumentName(), documentName)
                 || !Objects.equals(document.getDocumentType(), request.getDocumentType())
-                || !Objects.equals(document.getBizType(), sourceTypeToBizType(sourceType))
+                || !Objects.equals(document.getBizType(), bizType)
                 || !Objects.equals(document.getBizKey(), sourceKey)
-                || !Objects.equals(document.getSourceSystem(), sourceSystem)
                 || !Objects.equals(document.getMetaJson(), ext);
         log.info("ai kb upsert document diff, kbId={}, documentId={}, created={}, contentChanged={}, metadataChanged={}",
                 kbId, documentId, created, contentChanged, metadataChanged);
@@ -247,9 +244,8 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
 
         document.setDocumentName(documentName);
         document.setDocumentType(request.getDocumentType());
-        document.setBizType(sourceTypeToBizType(sourceType));
+        document.setBizType(bizType);
         document.setBizKey(sourceKey);
-        document.setSourceSystem(sourceSystem);
         document.setContentChecksum(checksum);
         document.setContentFormat(AiKbContentFormat.MARKDOWN);
         document.setContentSize(contentSize);
@@ -688,7 +684,8 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         KbDocument target = new KbDocument();
         target.setDocumentId(document.getDocumentCode());
         target.setContent(renderedContent);
-        target.setSource(StringUtils.hasText(document.getSourceSystem()) ? document.getSourceSystem() : document.getKbCode());
+        String sourceSystem = resolveSourceSystem(document.getMetaJson());
+        target.setSource(StringUtils.hasText(sourceSystem) ? sourceSystem : document.getKbCode());
         Map<String, Object> metadata = new LinkedHashMap<>();
         metadata.put("kbCode", document.getKbCode());
         metadata.put("documentCode", document.getDocumentCode());
@@ -733,7 +730,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         snapshot.setContentFormat(document.getContentFormat());
         snapshot.setContentSize(document.getContentSize());
         snapshot.setMetaJson(copyMap(document.getMetaJson()));
-        snapshot.setSourceSystem(document.getSourceSystem());
         snapshot.setSnapshotAt(snapshotAt);
         snapshot.setSnapshotBy("-1");
         snapshot.setRemark(document.getRemark());
@@ -836,7 +832,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (!StringUtils.hasText(request.getKbName())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_NAME);
         }
-        if (request.getSourceType() == null) {
+        if (request.getBizType() == null) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_TYPE);
         }
         if (!StringUtils.hasText(request.getSourceKey())) {
@@ -844,34 +840,34 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         }
     }
 
-    private AiKbStoreDTO ensureStore(String kbId, AiKbSourceType sourceType, String sourceKey) {
+    private AiKbStoreDTO ensureStore(String kbId, AiKbBizType bizType, String sourceKey) {
         // 上游只能向已存在的本地知识库写入当前文档，知识库创建由本系统管理流程负责。
         AiKbStoreDTO store = storeService.getByKbCode(kbId);
         if (store == null) {
-            log.warn("ai kb store not found, kbId={}, sourceType={}, sourceKey={}", kbId, sourceType, sourceKey);
+            log.warn("ai kb store not found, kbId={}, bizType={}, sourceKey={}", kbId, bizType, sourceKey);
             throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbId);
         }
-        if (store.getBizType() != null && store.getBizType() != sourceTypeToBizType(sourceType)) {
-            log.warn("ai kb store source type mismatch, kbId={}, expectSourceType={}, actualBizType={}",
-                    kbId, sourceType, store.getBizType());
-            throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_KB_SOURCE_TYPE, kbId, sourceType, store.getBizType());
+        if (store.getBizType() != null && bizType != null && store.getBizType() != bizType) {
+            log.warn("ai kb store biz type mismatch, kbId={}, expectBizType={}, actualBizType={}",
+                    kbId, bizType, store.getBizType());
+            throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_KB_SOURCE_TYPE, kbId, bizType, store.getBizType());
         }
         return store;
     }
 
-    private AiKbSourceType resolveSourceType(AiKbDocumentUpsertRequest request) {
-        // sourceType 允许不传；不传时按 documentType 的预定义归属自动推导。
-        AiKbSourceType inferred = request.getDocumentType().getSourceType();
-        if (request.getSourceType() == null) {
+    private AiKbBizType resolveBizType(AiKbDocumentUpsertRequest request) {
+        // bizType 允许不传；不传时按 documentType 的预定义归属自动推导。
+        AiKbBizType inferred = request.getDocumentType().getBizType();
+        if (request.getBizType() == null) {
             return inferred;
         }
-        if (request.getSourceType() != inferred) {
-            log.warn("ai kb source type invalid, documentType={}, inferredSourceType={}, actualSourceType={}",
-                    request.getDocumentType(), inferred, request.getSourceType());
+        if (request.getBizType() != inferred) {
+            log.warn("ai kb biz type invalid, documentType={}, inferredBizType={}, actualBizType={}",
+                    request.getDocumentType(), inferred, request.getBizType());
             throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_DOCUMENT_SOURCE_TYPE,
-                    request.getDocumentType(), inferred, request.getSourceType());
+                    request.getDocumentType(), inferred, request.getBizType());
         }
-        return request.getSourceType();
+        return request.getBizType();
     }
 
     private Map<String, Object> normalizeExt(Map<String, Object> ext) {
@@ -926,7 +922,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         target.setDocumentType(source.getDocumentType());
         target.setBizType(source.getBizType());
         target.setBizKey(source.getBizKey());
-        target.setSourceSystem(source.getSourceSystem());
+        target.setSourceSystem(resolveSourceSystem(source.getMetaJson()));
         target.setStatus(source.getStatus());
         target.setProviderDocumentId(source.getProviderDocumentId());
         target.setProviderSyncStatus(source.getProviderSyncStatus());
@@ -971,7 +967,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         AiKbInfoDTO dto = new AiKbInfoDTO();
         dto.setKbId(store.getKbCode());
         dto.setKbName(store.getKbName());
-        dto.setSourceType(bizTypeToSourceType(store.getBizType()));
+        dto.setBizType(store.getBizType());
         dto.setProviderKbId(store.getProviderKbId());
         dto.setStatus(store.getStatus());
         dto.setEnabled(store.getStatus() != AiKbStoreStatus.DISABLED);
@@ -981,31 +977,15 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
     }
 
     private String resolveSourceSystem(Map<String, Object> ext) {
-        // 上游系统名作为轻量来源标识放在 ext 里，便于后面排查是谁推的文档。
+        // sourceSystem 收敛到 metaJson 中，作为可选来源标识透出给页面展示和排查。
         Object value = ext.get("sourceSystem");
         return value instanceof String sourceSystem && StringUtils.hasText(sourceSystem)
                 ? sourceSystem.trim()
                 : null;
     }
 
-    private AiKbBizType sourceTypeToBizType(AiKbSourceType sourceType) {
-        return sourceType == null ? null : AiKbBizType.valueOf(sourceType.name());
-    }
-
-    private AiKbSourceType bizTypeToSourceType(AiKbBizType bizType) {
-        return bizType == null ? null : AiKbSourceType.valueOf(bizType.name());
-    }
-
     private AiKbBizType resolveBizType(Integer bizTypeCode) {
-        if (bizTypeCode == null) {
-            return null;
-        }
-        for (AiKbBizType item : AiKbBizType.values()) {
-            if (item.getCode() == bizTypeCode) {
-                return item;
-            }
-        }
-        return null;
+        return AiKbBizType.fromCode(bizTypeCode);
     }
 
     private AiKbDocumentStatus resolveDocumentStatus(String tab) {

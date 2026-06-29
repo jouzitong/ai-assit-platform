@@ -6,7 +6,7 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbDocumentType implements IEnum {
-    DB_TABLE(1, "数据库表文档", AiKbSourceType.DB_DATA_SOURCE),
+    DB_TABLE(1, "数据库表文档", AiKbBizType.DB_DATA_SOURCE),
     ;
 
     @JsonValue
@@ -14,12 +14,12 @@ public enum AiKbDocumentType implements IEnum {
 
     private final String name;
 
-    /** 该文档类型允许归属的来源类型。 */
-    private final AiKbSourceType sourceType;
+    /** 该文档类型默认归属的业务类型。 */
+    private final AiKbBizType bizType;
 
-    AiKbDocumentType(int code, String name, AiKbSourceType sourceType) {
+    AiKbDocumentType(int code, String name, AiKbBizType bizType) {
         this.code = code;
         this.name = name;
-        this.sourceType = sourceType;
+        this.bizType = bizType;
     }
 }

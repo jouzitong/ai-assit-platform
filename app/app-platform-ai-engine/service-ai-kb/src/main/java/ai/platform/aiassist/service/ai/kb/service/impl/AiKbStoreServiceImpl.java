@@ -2,7 +2,6 @@ package ai.platform.aiassist.service.ai.kb.service.impl;
 
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
-import ai.platform.aiassist.service.ai.api.enums.AiKbSourceType;
 import ai.platform.aiassist.service.ai.kb.convert.AiKbStoreConvert;
 import ai.platform.aiassist.service.ai.kb.entity.AiKbStoreEntity;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbStoreDTO;
@@ -60,9 +59,7 @@ public class AiKbStoreServiceImpl
         AiKbStoreQueryRequest query = new AiKbStoreQueryRequest();
         if (request != null) {
             query.setEnabled(request.getEnabled());
-            if (request.getSourceType() != null) {
-                query.setBizType(sourceTypeToBizType(request.getSourceType()));
-            }
+            query.setBizType(request.getBizType());
         }
         query.setPage(1);
         query.setSize(Integer.MAX_VALUE);
@@ -94,7 +91,4 @@ public class AiKbStoreServiceImpl
         return wrapper;
     }
 
-    private ai.platform.aiassist.service.ai.api.enums.AiKbBizType sourceTypeToBizType(AiKbSourceType sourceType) {
-        return sourceType == null ? null : ai.platform.aiassist.service.ai.api.enums.AiKbBizType.valueOf(sourceType.name());
-    }
 }

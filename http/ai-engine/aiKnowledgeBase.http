@@ -102,7 +102,7 @@ Authorization: Bearer {{token}}
 {
   "kbCode": "{{kbCode}}",
   "kbName": "manual-http-test-kb",
-  "sourceType": 1,
+  "bizType": 1,
   "sourceKey": "manual-http-test",
   "providerKbId": "{{kbId}}",
   "status": 1,
@@ -144,7 +144,7 @@ Authorization: Bearer {{token}}
   "documentId": "{{documentCode}}",
   "documentName": "manual-http-test/profile-001.txt",
   "documentType": 1,
-  "sourceType": 1,
+  "bizType": 1,
   "sourceKey": "manual-http-test",
   "content": "张三，男，28岁，来自上海，当前职位是高级数据分析师，擅长 Java、SQL 和 Python。",
   "canUpdate": true,

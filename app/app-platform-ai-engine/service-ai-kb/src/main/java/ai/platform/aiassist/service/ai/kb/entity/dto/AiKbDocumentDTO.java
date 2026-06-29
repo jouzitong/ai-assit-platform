@@ -28,8 +28,6 @@ public class AiKbDocumentDTO extends BaseDTO {
 
     private String bizKey;
 
-    private String sourceSystem;
-
     private AiKbDocumentStatus status;
 
     private String providerDocumentId;

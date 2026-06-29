@@ -53,10 +53,6 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("biz_key")
     private String bizKey;
 
-    /** 来源系统，例如 db-engine。 */
-    @TableField("source_system")
-    private String sourceSystem;
-
     /** 文档状态，例如 ACTIVE、DISABLED。 */
     @TableField("status")
     private AiKbDocumentStatus status;

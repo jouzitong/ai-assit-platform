@@ -30,14 +30,6 @@ public class AiKbDocumentContentServiceImpl
         return convert;
     }
 
-    public AiKbDocumentContentDTO newDTO() {
-        return new AiKbDocumentContentDTO();
-    }
-
-    public AiKbDocumentContentEntity newEntity() {
-        return new AiKbDocumentContentEntity();
-    }
-
     @Override
     public AiKbDocumentContentDTO getByDocumentId(Long documentId) {
         if (documentId == null) {
@@ -54,12 +46,7 @@ public class AiKbDocumentContentServiceImpl
     @Override
     protected <Query extends BaseRequest> QueryWrapper<AiKbDocumentContentEntity> buildQuery(Query query) {
         QueryWrapper<AiKbDocumentContentEntity> wrapper = super.buildQuery(query);
-        if (query instanceof AiKbDocumentContentQueryRequest req) {
-            if (req.getDocumentId() != null) {
-                wrapper.lambda().eq(AiKbDocumentContentEntity::getDocumentId, req.getDocumentId());
-            }
-            wrapper.lambda().orderByDesc(AiKbDocumentContentEntity::getUpdateTime, AiKbDocumentContentEntity::getId);
-        }
+        wrapper.lambda().orderByDesc(AiKbDocumentContentEntity::getUpdateTime, AiKbDocumentContentEntity::getId);
         return wrapper;
     }
 }

@@ -76,10 +76,6 @@ public class AiKbDocumentVersionEntity extends AuditableEntity {
     @TableField(value = "meta_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metaJson;
 
-    /** 来源系统。 */
-    @TableField("source_system")
-    private String sourceSystem;
-
     /** 快照时间。 */
     @TableField("snapshot_at")
     private LocalDateTime snapshotAt;

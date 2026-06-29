@@ -87,12 +87,12 @@ const documentTypeOptions = computed(() => {
   return getEnumOptions('aiKbDocumentType', SERVICE_NAMES.AI_ENGINE)
 })
 
-const selectedKnowledgeBaseSourceTypeLabel = computed(() => {
-  const sourceType = selectedKnowledgeBase.value?.sourceType
-  if (sourceType === null || sourceType === undefined || sourceType === '') {
+const selectedKnowledgeBaseBizTypeLabel = computed(() => {
+  const bizType = selectedKnowledgeBase.value?.bizType
+  if (bizType === null || bizType === undefined || bizType === '') {
     return '-'
   }
-  return getEnumLabel('aiKbSourceType', sourceType, SERVICE_NAMES.AI_ENGINE)
+  return getEnumLabel('aiKbBizType', bizType, SERVICE_NAMES.AI_ENGINE)
 })
 
 watchEffect(() => {
@@ -335,7 +335,7 @@ const pageRowsIndeterminate = computed(() => {
           </label>
           <label class="kb-create-field">
             <span>来源类型</span>
-            <input :value="selectedKnowledgeBaseSourceTypeLabel" type="text" disabled />
+            <input :value="selectedKnowledgeBaseBizTypeLabel" type="text" disabled />
           </label>
           <label class="kb-create-field">
             <span>远端 KB ID</span>
