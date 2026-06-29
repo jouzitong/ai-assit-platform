@@ -4,7 +4,6 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import lombok.Data;
 
-import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -38,12 +37,6 @@ public class AiKbDocumentUpsertRequest implements Serializable {
      * 非必填；未传时默认按 documentType 关联的 bizType 推导。
      */
     private AiKbBizType bizType;
-
-    /**
-     * 来源对象唯一键。
-     */
-    @Nullable
-    private String sourceKey;
 
     /**
      * 文档正文内容。

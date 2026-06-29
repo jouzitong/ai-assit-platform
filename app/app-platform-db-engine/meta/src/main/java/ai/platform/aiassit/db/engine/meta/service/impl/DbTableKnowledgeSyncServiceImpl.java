@@ -186,7 +186,6 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
         request.setDocumentId(buildDocumentId(sourceKey, table.getTableName()));
         request.setDocumentName(buildDocumentName(table));
         request.setDocumentType(AiKbDocumentType.DB_TABLE);
-        request.setSourceKey(sourceKey);
         request.setBizType(AiKbBizType.DB_DATA_SOURCE);
         request.setContent(preview.getContent());
         request.setExt(buildExt(sourceKey, table));

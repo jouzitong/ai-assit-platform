@@ -2,8 +2,8 @@ package ai.platform.aiassist.service.ai.kb.domainservice.impl;
 
 import ai.platform.aiassist.service.ai.api.constant.AiKbBizCodeConstant;
 import ai.platform.aiassist.service.ai.api.dto.AiKbCreateRequest;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
+import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentDetailDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentListRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
@@ -23,9 +23,9 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncCheckRequest;
+import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbDeleteResponse;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncCheckResponse;
-import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncRequest;
 import ai.platform.aiassist.service.ai.kb.controller.resp.AiKbSyncResponse;
 import ai.platform.aiassist.service.ai.kb.domainservice.AiKnowledgeDomainService;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentContentDTO;
@@ -34,14 +34,13 @@ import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionContentD
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbDocumentVersionDTO;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbStoreDTO;
 import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentQueryRequest;
-import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionQueryRequest;
 import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionContentQueryRequest;
+import ai.platform.aiassist.service.ai.kb.entity.req.AiKbDocumentVersionQueryRequest;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentContentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionContentService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbDocumentVersionService;
 import ai.platform.aiassist.service.ai.kb.service.AiKbStoreService;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.data.jdbc.vo.PageInfo;
@@ -50,10 +49,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.LocalDateTime;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HexFormat;
@@ -196,8 +195,16 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         String kbId = request.getKbId().trim();
         String documentId = request.getDocumentId().trim();
         String documentName = StringUtils.hasText(request.getDocumentName()) ? request.getDocumentName().trim() : documentId;
-        String sourceKey = request.getSourceKey().trim();
+        Map<String, Object> ext = normalizeExt(request.getExt());
         AiKbBizType bizType = resolveBizType(request);
+        AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
+        boolean created = existing == null;
+        String sourceKey = resolveUpsertSourceKey(ext, existing);
+        if (!StringUtils.hasText(sourceKey)) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_KEY);
+        }
+        ext.put("sourceKey", sourceKey);
+        String documentBizKey = documentId;
         String checksum = checksum(request.getContent());
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
         boolean canUpdate = Boolean.TRUE.equals(request.getCanUpdate());
@@ -205,7 +212,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
                 kbId, documentId, request.getDocumentType(), bizType, sourceKey, canUpdate);
 
         AiKbStoreDTO store = ensureStore(kbId, bizType, sourceKey);
-        AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
         if (existing != null && !canUpdate) {
             log.info("ai kb document exists and update skipped, kbId={}, documentId={}, currentVersionNo={}",
                     kbId, documentId, existing.getDocumentVersionNo());
@@ -213,7 +219,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
                     existing.getDocumentVersionNo(), null, "document exists and canUpdate is false");
         }
 
-        boolean created = existing == null;
         boolean updated = false;
         AiKbDocumentDTO document = created ? new AiKbDocumentDTO() : existing;
         if (created) {
@@ -223,13 +228,12 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
             document.setStatus(AiKbDocumentStatus.ACTIVE);
         }
 
-        Map<String, Object> ext = normalizeExt(request.getExt());
         boolean contentChanged = created || !Objects.equals(existing.getContentChecksum(), checksum);
         boolean metadataChanged = created
                 || !Objects.equals(document.getDocumentName(), documentName)
                 || !Objects.equals(document.getDocumentType(), request.getDocumentType())
                 || !Objects.equals(document.getBizType(), bizType)
-                || !Objects.equals(document.getBizKey(), sourceKey)
+                || !Objects.equals(document.getBizKey(), documentBizKey)
                 || !Objects.equals(document.getMetaJson(), ext);
         log.info("ai kb upsert document diff, kbId={}, documentId={}, created={}, contentChanged={}, metadataChanged={}",
                 kbId, documentId, created, contentChanged, metadataChanged);
@@ -245,7 +249,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         document.setDocumentName(documentName);
         document.setDocumentType(request.getDocumentType());
         document.setBizType(bizType);
-        document.setBizKey(sourceKey);
+        document.setBizKey(documentBizKey);
         document.setContentChecksum(checksum);
         document.setContentFormat(AiKbContentFormat.MARKDOWN);
         document.setContentSize(contentSize);
@@ -814,9 +818,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (request.getDocumentType() == null) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_TYPE);
         }
-        if (!StringUtils.hasText(request.getSourceKey())) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_KEY);
-        }
         if (!StringUtils.hasText(request.getContent())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_CONTENT);
         }
@@ -853,6 +854,14 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
             throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_KB_SOURCE_TYPE, kbId, bizType, store.getBizType());
         }
         return store;
+    }
+
+    private String resolveUpsertSourceKey(Map<String, Object> ext, AiKbDocumentDTO existing) {
+        String extSourceKey = extText(ext, "sourceKey");
+        if (StringUtils.hasText(extSourceKey)) {
+            return extSourceKey;
+        }
+        return extText(existing == null ? null : existing.getMetaJson(), "sourceKey");
     }
 
     private AiKbBizType resolveBizType(AiKbDocumentUpsertRequest request) {
