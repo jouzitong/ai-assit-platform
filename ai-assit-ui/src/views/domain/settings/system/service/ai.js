@@ -1,26 +1,21 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   createAiChatModelManage,
-  createAiChatProviderConfig,
   createAiKbStore,
   deleteAiChatModelManage,
-  deleteAiChatProviderConfig,
   deleteAiKbStore,
   editAiChatModelManage,
-  editAiChatProviderConfig,
   editAiKbStore,
   getAiChatModelManage,
+  listAiChatProviders,
   searchAiChatModelManages,
-  searchAiChatProviderConfigs,
   searchAiKbStores,
   updateAiChatModelManage,
-  updateAiChatProviderConfig,
   updateAiKbStore
 } from '../../../../../api/aiChat'
 import {
   createKbForm,
   createModelForm,
-  createProviderForm,
   enabledOptions,
   kbBizTypeOptions,
   kbStatusOptions,
@@ -29,19 +24,12 @@ import {
 import { showPopup } from '../../../../../utils/popup'
 
 export function useAiPage() {
-  const activeTab = ref('provider')
+  const activeTab = ref('model')
   const loading = reactive({
-    provider: false,
     model: false,
     kb: false,
-    providerSaving: false,
     modelSaving: false,
     kbSaving: false
-  })
-
-  const providerFilters = reactive({
-    providerCode: '',
-    enabled: ''
   })
 
   const modelFilters = reactive({
@@ -56,12 +44,6 @@ export function useAiPage() {
     enabled: ''
   })
 
-  const providerPagination = reactive({
-    page: 1,
-    size: 10,
-    total: 0
-  })
-
   const modelPagination = reactive({
     page: 1,
     size: 10,
@@ -74,15 +56,9 @@ export function useAiPage() {
     total: 0
   })
 
-  const providerList = ref([])
   const modelList = ref([])
   const kbList = ref([])
   const providerOptions = ref([])
-
-  const providerDialogVisible = ref(false)
-  const providerDialogMode = ref('create')
-  const providerError = ref('')
-  const providerForm = reactive(createProviderForm())
 
   const modelDialogVisible = ref(false)
   const modelDialogMode = ref('create')
@@ -94,30 +70,12 @@ export function useAiPage() {
   const kbError = ref('')
   const kbForm = reactive(createKbForm())
 
-  const currentTotal = computed(() => {
-    if (activeTab.value === 'provider') {
-      return providerPagination.total
-    }
-    if (activeTab.value === 'model') {
-      return modelPagination.total
-    }
-    return kbPagination.total
-  })
+  const currentTotal = computed(() => (activeTab.value === 'model' ? modelPagination.total : kbPagination.total))
 
   const currentPage = computed({
-    get: () => {
-      if (activeTab.value === 'provider') {
-        return providerPagination.page
-      }
-      if (activeTab.value === 'model') {
-        return modelPagination.page
-      }
-      return kbPagination.page
-    },
+    get: () => (activeTab.value === 'model' ? modelPagination.page : kbPagination.page),
     set: (value) => {
-      if (activeTab.value === 'provider') {
-        providerPagination.page = value
-      } else if (activeTab.value === 'model') {
+      if (activeTab.value === 'model') {
         modelPagination.page = value
       } else {
         kbPagination.page = value
@@ -126,19 +84,9 @@ export function useAiPage() {
   })
 
   const currentSize = computed({
-    get: () => {
-      if (activeTab.value === 'provider') {
-        return providerPagination.size
-      }
-      if (activeTab.value === 'model') {
-        return modelPagination.size
-      }
-      return kbPagination.size
-    },
+    get: () => (activeTab.value === 'model' ? modelPagination.size : kbPagination.size),
     set: (value) => {
-      if (activeTab.value === 'provider') {
-        providerPagination.size = value
-      } else if (activeTab.value === 'model') {
+      if (activeTab.value === 'model') {
         modelPagination.size = value
       } else {
         kbPagination.size = value
@@ -164,24 +112,15 @@ export function useAiPage() {
 
   watch(activeTab, async () => {
     if (activeTab.value === 'kb') {
-      await Promise.all([loadKbPage(), ensureProviderOptions()])
+      await loadKbPage()
       return
     }
-    await Promise.all([loadActiveTab(), ensureProviderOptions()])
+    await Promise.all([loadModelPage(), ensureProviderOptions()])
   })
 
   onMounted(async () => {
-    await Promise.all([loadProviderPage(), loadModelPage(), loadKbPage(), ensureProviderOptions()])
+    await Promise.all([loadModelPage(), loadKbPage(), ensureProviderOptions()])
   })
-
-  function buildProviderQuery() {
-    return {
-      page: providerPagination.page,
-      size: providerPagination.size,
-      providerCode: providerFilters.providerCode || undefined,
-      enabled: parseBooleanFilter(providerFilters.enabled)
-    }
-  }
 
   function buildModelQuery() {
     return {
@@ -211,25 +150,10 @@ export function useAiPage() {
   }
 
   async function loadActiveTab() {
-    if (activeTab.value === 'provider') {
-      await loadProviderPage()
-    } else if (activeTab.value === 'model') {
+    if (activeTab.value === 'model') {
       await loadModelPage()
     } else {
       await loadKbPage()
-    }
-  }
-
-  async function loadProviderPage() {
-    loading.provider = true
-    try {
-      const payload = unwrapPayload(await searchAiChatProviderConfigs(buildProviderQuery()))
-      providerList.value = payload?.list ?? []
-      providerPagination.total = resolvePageTotal(payload?.pageInfo?.total, providerList.value.length)
-    } catch (error) {
-      showPopup.error(error.message || 'Provider 列表加载失败')
-    } finally {
-      loading.provider = false
     }
   }
 
@@ -261,30 +185,11 @@ export function useAiPage() {
 
   async function ensureProviderOptions() {
     try {
-      const payload = unwrapPayload(
-        await searchAiChatProviderConfigs({
-          page: 1,
-          size: 200
-        })
-      )
-      providerOptions.value = payload?.list ?? []
+      const payload = unwrapPayload(await listAiChatProviders({}))
+      providerOptions.value = payload ?? []
     } catch (error) {
       showPopup.error(error.message || 'Provider 选项加载失败')
     }
-  }
-
-  function openProviderCreate() {
-    providerDialogMode.value = 'create'
-    providerError.value = ''
-    Object.assign(providerForm, createProviderForm())
-    providerDialogVisible.value = true
-  }
-
-  function openProviderEdit(row) {
-    providerDialogMode.value = 'edit'
-    providerError.value = ''
-    Object.assign(providerForm, createProviderForm(), JSON.parse(JSON.stringify(row)))
-    providerDialogVisible.value = true
   }
 
   function openModelCreate() {
@@ -325,23 +230,6 @@ export function useAiPage() {
     kbDialogVisible.value = true
   }
 
-  function validateProviderForm() {
-    if (!providerForm.providerCode.trim()) {
-      providerError.value = '请输入 Provider 编码'
-      return false
-    }
-    if (!providerForm.providerName.trim()) {
-      providerError.value = '请输入 Provider 名称'
-      return false
-    }
-    if (!providerForm.baseUrl.trim()) {
-      providerError.value = '请输入基础地址'
-      return false
-    }
-    providerError.value = ''
-    return true
-  }
-
   function validateModelForm() {
     if (!modelForm.modelCode.trim()) {
       modelError.value = '请输入模型编码'
@@ -351,8 +239,16 @@ export function useAiPage() {
       modelError.value = '请输入模型名称'
       return false
     }
-    if (!modelForm.providerCode) {
-      modelError.value = '请选择所属 Provider'
+    if (!modelForm.providerCode.trim()) {
+      modelError.value = '请输入 Provider 编码'
+      return false
+    }
+    if (!modelForm.providerName.trim()) {
+      modelError.value = '请输入 Provider 名称'
+      return false
+    }
+    if (!modelForm.baseUrl.trim()) {
+      modelError.value = '请输入基础地址'
       return false
     }
     if (!modelForm.apiModel.trim()) {
@@ -390,40 +286,6 @@ export function useAiPage() {
     return true
   }
 
-  async function submitProviderForm() {
-    if (!validateProviderForm()) {
-      return
-    }
-
-    loading.providerSaving = true
-    try {
-      const payload = {
-        providerCode: providerForm.providerCode.trim(),
-        providerName: providerForm.providerName.trim(),
-        baseUrl: providerForm.baseUrl.trim(),
-        connectTimeoutMs: normalizeNumber(providerForm.connectTimeoutMs),
-        readTimeoutMs: normalizeNumber(providerForm.readTimeoutMs),
-        enabled: providerForm.enabled,
-        remark: providerForm.remark.trim()
-      }
-
-      if (providerDialogMode.value === 'create') {
-        await createAiChatProviderConfig(payload)
-        showPopup.success('Provider 新增成功')
-      } else {
-        await updateAiChatProviderConfig(providerForm.id, payload)
-        showPopup.success('Provider 更新成功')
-      }
-
-      providerDialogVisible.value = false
-      await Promise.all([loadProviderPage(), ensureProviderOptions()])
-    } catch (error) {
-      providerError.value = error.message || 'Provider 保存失败'
-    } finally {
-      loading.providerSaving = false
-    }
-  }
-
   async function submitModelForm() {
     if (!validateModelForm()) {
       return
@@ -435,7 +297,9 @@ export function useAiPage() {
       const payload = {
         modelCode: modelForm.modelCode.trim(),
         modelName: modelForm.modelName.trim(),
-        providerCode: modelForm.providerCode,
+        providerCode: modelForm.providerCode.trim(),
+        providerName: modelForm.providerName.trim(),
+        baseUrl: modelForm.baseUrl.trim(),
         apiModel: modelForm.apiModel.trim(),
         enabled: modelForm.enabled,
         apiKeyInput: modelForm.apiKeyInput.trim() || undefined,
@@ -451,7 +315,7 @@ export function useAiPage() {
       }
 
       modelDialogVisible.value = false
-      await loadModelPage()
+      await Promise.all([loadModelPage(), ensureProviderOptions()])
     } catch (error) {
       modelError.value = error.message || 'Model 保存失败'
     } finally {
@@ -493,17 +357,6 @@ export function useAiPage() {
     }
   }
 
-  async function toggleProviderStatus(row) {
-    const nextValue = !row.enabled
-    try {
-      await editAiChatProviderConfig(row.id, { enabled: nextValue })
-      row.enabled = nextValue
-      showPopup.success(`Provider 已${nextValue ? '启用' : '停用'}`)
-    } catch (error) {
-      showPopup.error(error.message || 'Provider 状态更新失败')
-    }
-  }
-
   async function toggleModelStatus(row) {
     const nextValue = !row.enabled
     try {
@@ -527,19 +380,6 @@ export function useAiPage() {
     }
   }
 
-  async function confirmDeleteProvider(row) {
-    if (!window.confirm(`确认删除 Provider「${row.providerName}」吗？`)) {
-      return
-    }
-    try {
-      await deleteAiChatProviderConfig(row.id)
-      showPopup.success('Provider 已删除')
-      await Promise.all([loadProviderPage(), ensureProviderOptions()])
-    } catch (error) {
-      showPopup.error(error.message || 'Provider 删除失败')
-    }
-  }
-
   async function confirmDeleteModel(row) {
     if (!window.confirm(`确认删除 Model「${row.modelName}」吗？关联凭证也会一起删除。`)) {
       return
@@ -547,7 +387,7 @@ export function useAiPage() {
     try {
       await deleteAiChatModelManage(row.id)
       showPopup.success('Model 已删除')
-      await loadModelPage()
+      await Promise.all([loadModelPage(), ensureProviderOptions()])
     } catch (error) {
       showPopup.error(error.message || 'Model 删除失败')
     }
@@ -564,13 +404,6 @@ export function useAiPage() {
     } catch (error) {
       showPopup.error(error.message || 'KB 删除失败')
     }
-  }
-
-  function resetProviderFilters() {
-    providerFilters.providerCode = ''
-    providerFilters.enabled = ''
-    providerPagination.page = 1
-    loadProviderPage()
   }
 
   function resetModelFilters() {
@@ -590,10 +423,7 @@ export function useAiPage() {
   }
 
   function handleSearch() {
-    if (activeTab.value === 'provider') {
-      providerPagination.page = 1
-      loadProviderPage()
-    } else if (activeTab.value === 'model') {
+    if (activeTab.value === 'model') {
       modelPagination.page = 1
       loadModelPage()
     } else {
@@ -617,9 +447,7 @@ export function useAiPage() {
   }
 
   function openCreateByTab() {
-    if (activeTab.value === 'provider') {
-      openProviderCreate()
-    } else if (activeTab.value === 'model') {
+    if (activeTab.value === 'model') {
       openModelCreate()
     } else {
       openKbCreate()
@@ -726,17 +554,11 @@ export function useAiPage() {
   return {
     activeTab,
     loading,
-    providerFilters,
     modelFilters,
     kbFilters,
-    providerList,
     modelList,
     kbList,
     providerOptions,
-    providerDialogVisible,
-    providerDialogMode,
-    providerError,
-    providerForm,
     modelDialogVisible,
     modelDialogMode,
     modelError,
@@ -753,19 +575,14 @@ export function useAiPage() {
     currentSize,
     pageSummary,
     totalPages,
-    openProviderEdit,
     openModelEdit,
     openKbEdit,
-    submitProviderForm,
     submitModelForm,
     submitKbForm,
-    toggleProviderStatus,
     toggleModelStatus,
     toggleKbStatus,
-    confirmDeleteProvider,
     confirmDeleteModel,
     confirmDeleteKb,
-    resetProviderFilters,
     resetModelFilters,
     resetKbFilters,
     handleSearch,

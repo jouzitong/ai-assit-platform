@@ -106,6 +106,8 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         model.setModelCode(trimToNull(dto.getModelCode()));
         model.setModelName(trimToNull(dto.getModelName()));
         model.setProviderCode(trimToNull(dto.getProviderCode()));
+        model.setProviderName(trimToNull(dto.getProviderName()));
+        model.setBaseUrl(trimToNull(dto.getBaseUrl()));
         model.setApiModel(trimToNull(dto.getApiModel()));
         model.setEnabled(dto.getEnabled());
         String apiKey = trimToNull(dto.getApiKeyInput());
@@ -124,7 +126,8 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         merged.setModelCode(chooseValue(trimToNull(incoming.getModelCode()), current.getModelCode(), replaceNulls));
         merged.setModelName(chooseValue(trimToNull(incoming.getModelName()), current.getModelName(), replaceNulls));
         merged.setProviderCode(chooseValue(trimToNull(incoming.getProviderCode()), current.getProviderCode(), replaceNulls));
-        merged.setProviderName(current.getProviderName());
+        merged.setProviderName(chooseValue(trimToNull(incoming.getProviderName()), current.getProviderName(), replaceNulls));
+        merged.setBaseUrl(chooseValue(trimToNull(incoming.getBaseUrl()), current.getBaseUrl(), replaceNulls));
         merged.setApiModel(chooseValue(trimToNull(incoming.getApiModel()), current.getApiModel(), replaceNulls));
         merged.setEnabled(chooseValue(incoming.getEnabled(), current.getEnabled(), replaceNulls));
         merged.setApiKeyInput(trimToNull(incoming.getApiKeyInput()));
@@ -142,6 +145,12 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         }
         if (!StringUtils.hasText(dto.getProviderCode())) {
             throw new IllegalArgumentException("所属 Provider 不能为空");
+        }
+        if (!StringUtils.hasText(dto.getProviderName())) {
+            throw new IllegalArgumentException("Provider 名称不能为空");
+        }
+        if (!StringUtils.hasText(dto.getBaseUrl())) {
+            throw new IllegalArgumentException("基础地址不能为空");
         }
         if (!StringUtils.hasText(dto.getApiModel())) {
             throw new IllegalArgumentException("Provider 模型标识不能为空");

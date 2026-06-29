@@ -8,15 +8,11 @@
         SELECT
             m.api_model AS apiModel,
             m.provider_code AS providerCode,
-            p.provider_name AS providerName,
+            m.provider_name AS providerName,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxContextTokens')) AS SIGNED) AS maxContextTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxOutputTokens')) AS SIGNED) AS maxOutputTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED) AS priority
         FROM ai_model_config m
-        INNER JOIN ai_provider_config p
-            ON p.provider_code = m.provider_code
-           AND p.deleted = 0
-           AND p.enabled = TRUE
         WHERE m.deleted = 0
           AND m.enabled = TRUE
         ORDER BY

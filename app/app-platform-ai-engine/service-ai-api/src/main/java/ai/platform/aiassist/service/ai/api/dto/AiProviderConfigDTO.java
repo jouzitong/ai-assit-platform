@@ -13,10 +13,6 @@ public class AiProviderConfigDTO {
 
     private String baseUrl;
 
-    private Integer connectTimeoutMs;
-
-    private Integer readTimeoutMs;
-
     private Boolean enabled;
 
     private String remark;

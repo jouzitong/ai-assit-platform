@@ -7,7 +7,6 @@ import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
-import ai.platform.aiassist.service.ai.meta.service.AiProviderConfigService;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -15,34 +14,29 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @RestController
 //@RequestMapping("/api/v1/ai/meta")
 public class AiMetaQueryController implements AiMetaQueryApi {
 
-    private final AiProviderConfigService providerConfigService;
     private final AiModelConfigService modelConfigService;
 
-    public AiMetaQueryController(AiProviderConfigService providerConfigService,
-                                 AiModelConfigService modelConfigService) {
-        this.providerConfigService = providerConfigService;
+    public AiMetaQueryController(AiModelConfigService modelConfigService) {
         this.modelConfigService = modelConfigService;
     }
 
     @Override
     public AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request) {
         ai.platform.aiassist.service.ai.meta.entity.req.AiMetaQueryRequest internalRequest = toInternalRequest(request);
-        List<ai.platform.aiassist.service.ai.meta.entity.dto.AiProviderConfigDTO> providers =
-                providerConfigService.queryAll(internalRequest);
         List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models =
                 modelConfigService.queryAll(internalRequest);
-        Map<String, List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO>> modelMap = models.stream()
-                .collect(Collectors.groupingBy(ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO::getProviderCode));
+        List<ProviderAggregate> providers = groupProviders(models);
 
         AiProviderModelOverviewDTO response = new AiProviderModelOverviewDTO();
         response.setProviders(providers.stream()
-                .map(provider -> toOverviewProviderItem(provider, modelMap.get(provider.getProviderCode())))
+                .map(provider -> toOverviewProviderItem(provider))
                 .toList());
         response.setProviderCount(providers.size());
         response.setModelCount(models.size());
@@ -51,7 +45,7 @@ public class AiMetaQueryController implements AiMetaQueryApi {
 
     @Override
     public List<AiProviderConfigDTO> listProviders(@RequestBody(required = false) AiMetaQueryRequest request) {
-        return providerConfigService.queryAll(toInternalRequest(request)).stream()
+        return groupProviders(modelConfigService.queryAll(toInternalRequest(request))).stream()
                 .map(this::toProviderDto)
                 .toList();
     }
@@ -88,16 +82,14 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         return target;
     }
 
-    private AiProviderConfigDTO toProviderDto(ai.platform.aiassist.service.ai.meta.entity.dto.AiProviderConfigDTO source) {
+    private AiProviderConfigDTO toProviderDto(ProviderAggregate source) {
         AiProviderConfigDTO target = new AiProviderConfigDTO();
-        target.setId(source.getId());
-        target.setProviderCode(source.getProviderCode());
-        target.setProviderName(source.getProviderName());
-        target.setBaseUrl(source.getBaseUrl());
-        target.setConnectTimeoutMs(source.getConnectTimeoutMs());
-        target.setReadTimeoutMs(source.getReadTimeoutMs());
-        target.setEnabled(source.getEnabled());
-        target.setRemark(source.getRemark());
+        target.setId(source.id);
+        target.setProviderCode(source.providerCode);
+        target.setProviderName(source.providerName);
+        target.setBaseUrl(source.baseUrl);
+        target.setEnabled(source.enabled);
+        target.setRemark(null);
         return target;
     }
 
@@ -107,6 +99,8 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         target.setModelCode(source.getModelCode());
         target.setModelName(source.getModelName());
         target.setProviderCode(source.getProviderCode());
+        target.setProviderName(source.getProviderName());
+        target.setBaseUrl(source.getBaseUrl());
         target.setApiModel(source.getApiModel());
         target.setCapabilityTags(extText(source.getExtJson(), "capabilityTags"));
         target.setMaxContextTokens(extInteger(source.getExtJson(), "maxContextTokens"));
@@ -137,20 +131,16 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         return source != null && source.getApiKey() != null;
     }
 
-    private AiProviderModelOverviewDTO.ProviderItem toOverviewProviderItem(
-            ai.platform.aiassist.service.ai.meta.entity.dto.AiProviderConfigDTO source,
-            List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models) {
+    private AiProviderModelOverviewDTO.ProviderItem toOverviewProviderItem(ProviderAggregate source) {
         List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> safeModels =
-                models == null ? Collections.emptyList() : models;
+                source.models == null ? Collections.emptyList() : source.models;
         AiProviderModelOverviewDTO.ProviderItem target = new AiProviderModelOverviewDTO.ProviderItem();
-        target.setId(source.getId());
-        target.setProviderCode(source.getProviderCode());
-        target.setProviderName(source.getProviderName());
-        target.setBaseUrl(source.getBaseUrl());
-        target.setConnectTimeoutMs(source.getConnectTimeoutMs());
-        target.setReadTimeoutMs(source.getReadTimeoutMs());
-        target.setEnabled(source.getEnabled());
-        target.setRemark(source.getRemark());
+        target.setId(source.id);
+        target.setProviderCode(source.providerCode);
+        target.setProviderName(source.providerName);
+        target.setBaseUrl(source.baseUrl);
+        target.setEnabled(source.enabled);
+        target.setRemark(null);
         target.setModelCount(safeModels.size());
         target.setModels(safeModels.stream()
                 .map(this::toOverviewModelItem)
@@ -165,6 +155,8 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         target.setModelCode(source.getModelCode());
         target.setModelName(source.getModelName());
         target.setProviderCode(source.getProviderCode());
+        target.setProviderName(source.getProviderName());
+        target.setBaseUrl(source.getBaseUrl());
         target.setApiModel(source.getApiModel());
         target.setCapabilityTags(extText(source.getExtJson(), "capabilityTags"));
         target.setMaxContextTokens(extInteger(source.getExtJson(), "maxContextTokens"));
@@ -211,6 +203,31 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         return ext == null ? null : new LinkedHashMap<>(ext);
     }
 
+    private List<ProviderAggregate> groupProviders(List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models) {
+        Map<String, List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO>> grouped = models.stream()
+                .filter(Objects::nonNull)
+                .collect(Collectors.groupingBy(
+                        model -> String.valueOf(model.getProviderCode()),
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ));
+
+        return grouped.values().stream()
+                .map(items -> {
+                    ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO first = items.get(0);
+                    boolean enabled = items.stream().anyMatch(model -> Boolean.TRUE.equals(model.getEnabled()));
+                    return new ProviderAggregate(
+                            first.getId(),
+                            first.getProviderCode(),
+                            first.getProviderName(),
+                            first.getBaseUrl(),
+                            enabled,
+                            items
+                    );
+                })
+                .toList();
+    }
+
     private String maskApiKey(String apiKey) {
         if (apiKey == null || apiKey.isBlank()) {
             return null;
@@ -222,5 +239,29 @@ public class AiMetaQueryController implements AiMetaQueryApi {
             return trimmed.charAt(0) + "***" + trimmed.charAt(trimmed.length() - 1);
         }
         return trimmed.substring(0, visiblePrefix) + "****" + trimmed.substring(trimmed.length() - visibleSuffix);
+    }
+
+    private static final class ProviderAggregate {
+
+        private final Long id;
+        private final String providerCode;
+        private final String providerName;
+        private final String baseUrl;
+        private final Boolean enabled;
+        private final List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models;
+
+        private ProviderAggregate(Long id,
+                                  String providerCode,
+                                  String providerName,
+                                  String baseUrl,
+                                  Boolean enabled,
+                                  List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO> models) {
+            this.id = id;
+            this.providerCode = providerCode;
+            this.providerName = providerName;
+            this.baseUrl = baseUrl;
+            this.enabled = enabled;
+            this.models = models;
+        }
     }
 }

@@ -5,17 +5,11 @@ import { useAiPage } from '../service/ai'
 const {
   activeTab,
   loading,
-  providerFilters,
   modelFilters,
   kbFilters,
-  providerList,
   modelList,
   kbList,
   providerOptions,
-  providerDialogVisible,
-  providerDialogMode,
-  providerError,
-  providerForm,
   modelDialogVisible,
   modelDialogMode,
   modelError,
@@ -32,19 +26,14 @@ const {
   currentSize,
   pageSummary,
   totalPages,
-  openProviderEdit,
   openModelEdit,
   openKbEdit,
-  submitProviderForm,
   submitModelForm,
   submitKbForm,
-  toggleProviderStatus,
   toggleModelStatus,
   toggleKbStatus,
-  confirmDeleteProvider,
   confirmDeleteModel,
   confirmDeleteKb,
-  resetProviderFilters,
   resetModelFilters,
   resetKbFilters,
   handleSearch,
@@ -62,96 +51,23 @@ const {
       <div class="head-copy">
         <p class="crumb">系统设置 / AI 接入</p>
         <h1>AI 元数据维护</h1>
-        <p class="desc">页面统一维护 Provider、Model 与本地知识库主表配置，KB 管理直接对齐 ai_kb_store。</p>
+        <p class="desc">页面统一维护 Model 与本地知识库主表配置，Provider 信息直接收口到模型配置。</p>
       </div>
 
       <button class="create-pill" type="button" @click="openCreateByTab">
-        {{ activeTab === 'provider' ? '新增 Provider' : activeTab === 'model' ? '新增 Model' : '新增 KB' }}
+        {{ activeTab === 'model' ? '新增 Model' : '新增 KB' }}
       </button>
     </header>
 
     <section class="workspace-card">
       <div class="tab-strip">
-        <button class="tab-pill" :class="{ active: activeTab === 'provider' }" type="button" @click="activeTab = 'provider'">
-          Provider 管理
-        </button>
         <button class="tab-pill" :class="{ active: activeTab === 'model' }" type="button" @click="activeTab = 'model'">
           Model 管理
         </button>
         <button class="tab-pill" :class="{ active: activeTab === 'kb' }" type="button" @click="activeTab = 'kb'">Kb管理</button>
       </div>
 
-      <div v-if="activeTab === 'provider'" class="panel-shell">
-        <div class="toolbar-grid provider-toolbar">
-          <input
-            v-model="providerFilters.providerCode"
-            class="field-control"
-            type="text"
-            placeholder="按 Provider 编码检索"
-            @keyup.enter="handleSearch"
-          />
-
-          <select v-model="providerFilters.enabled" class="field-control">
-            <option v-for="item in enabledOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
-          </select>
-
-          <div class="toolbar-actions">
-            <button class="action-btn primary" type="button" @click="handleSearch">查询</button>
-            <button class="action-btn" type="button" @click="resetProviderFilters">重置</button>
-          </div>
-        </div>
-
-        <div class="table-card">
-          <div v-if="loading.provider" class="table-state">正在加载 Provider 列表...</div>
-
-          <template v-else>
-            <div class="table-scroll">
-              <table class="data-table">
-                <thead>
-                  <tr>
-                    <th>Provider 编码</th>
-                    <th>Provider 名称</th>
-                    <th>基础地址</th>
-                    <th>连接超时</th>
-                    <th>读取超时</th>
-                    <th>状态</th>
-                    <th>更新时间</th>
-                    <th>备注</th>
-                    <th>操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr v-for="row in providerList" :key="row.id">
-                    <td>{{ row.providerCode }}</td>
-                    <td>{{ row.providerName }}</td>
-                    <td class="ellipsis">{{ row.baseUrl }}</td>
-                    <td>{{ row.connectTimeoutMs }} ms</td>
-                    <td>{{ row.readTimeoutMs }} ms</td>
-                    <td>
-                      <button class="status-btn" :class="row.enabled ? 'is-on' : 'is-off'" type="button" @click="toggleProviderStatus(row)">
-                        {{ row.enabled ? '启用' : '停用' }}
-                      </button>
-                    </td>
-                    <td>{{ formatDateTime(row.updateTime) }}</td>
-                    <td class="ellipsis">{{ row.remark || '-' }}</td>
-                    <td>
-                      <div class="row-actions">
-                        <button class="link-btn" type="button" @click="openProviderEdit(row)">编辑</button>
-                        <button class="link-btn danger" type="button" @click="confirmDeleteProvider(row)">删除</button>
-                      </div>
-                    </td>
-                  </tr>
-                  <tr v-if="!providerList.length">
-                    <td colspan="9" class="empty-cell">暂无 Provider 数据</td>
-                  </tr>
-                </tbody>
-              </table>
-            </div>
-          </template>
-        </div>
-      </div>
-
-      <div v-else-if="activeTab === 'model'" class="panel-shell">
+      <div v-if="activeTab === 'model'" class="panel-shell">
         <div class="toolbar-grid model-toolbar">
           <input
             v-model="modelFilters.keyword"
@@ -189,6 +105,7 @@ const {
                     <th>模型编码</th>
                     <th>模型名称</th>
                     <th>Provider</th>
+                    <th>基础地址</th>
                     <th>API Model</th>
                     <th>能力标签</th>
                     <th>状态</th>
@@ -208,6 +125,7 @@ const {
                         <span>{{ row.providerCode }}</span>
                       </div>
                     </td>
+                    <td class="ellipsis">{{ row.baseUrl || '-' }}</td>
                     <td>{{ row.apiModel }}</td>
                     <td>
                       <div class="tag-list">
@@ -231,7 +149,7 @@ const {
                     </td>
                   </tr>
                   <tr v-if="!modelList.length">
-                    <td colspan="10" class="empty-cell">暂无 Model 数据</td>
+                    <td colspan="11" class="empty-cell">暂无 Model 数据</td>
                   </tr>
                 </tbody>
               </table>
@@ -329,55 +247,6 @@ const {
       </footer>
     </section>
 
-    <div v-if="providerDialogVisible" class="modal-mask" @click.self="providerDialogVisible = false">
-      <div class="modal-card">
-        <header class="modal-head">
-          <h3>{{ providerDialogMode === 'create' ? '新增 Provider' : '编辑 Provider' }}</h3>
-          <button class="close-btn" type="button" @click="providerDialogVisible = false">×</button>
-        </header>
-
-        <p v-if="providerError" class="error-banner">{{ providerError }}</p>
-
-        <div class="form-grid two-column">
-          <label class="field-block">
-            <span>Provider 编码</span>
-            <input v-model="providerForm.providerCode" class="field-control" type="text" :disabled="providerDialogMode === 'edit'" />
-          </label>
-          <label class="field-block">
-            <span>Provider 名称</span>
-            <input v-model="providerForm.providerName" class="field-control" type="text" />
-          </label>
-          <label class="field-block full-span">
-            <span>基础地址</span>
-            <input v-model="providerForm.baseUrl" class="field-control" type="text" placeholder="https://api.example.com/v1" />
-          </label>
-          <label class="field-block">
-            <span>连接超时(ms)</span>
-            <input v-model="providerForm.connectTimeoutMs" class="field-control" type="number" min="0" />
-          </label>
-          <label class="field-block">
-            <span>读取超时(ms)</span>
-            <input v-model="providerForm.readTimeoutMs" class="field-control" type="number" min="0" />
-          </label>
-          <label class="switch-block">
-            <input v-model="providerForm.enabled" type="checkbox" />
-            <span>启用 Provider</span>
-          </label>
-          <label class="field-block full-span">
-            <span>备注</span>
-            <textarea v-model="providerForm.remark" class="field-control textarea-control" rows="4" />
-          </label>
-        </div>
-
-        <footer class="modal-actions">
-          <button class="action-btn" type="button" @click="providerDialogVisible = false">取消</button>
-          <button class="action-btn primary" type="button" :disabled="loading.providerSaving" @click="submitProviderForm">
-            {{ loading.providerSaving ? '保存中...' : '保存' }}
-          </button>
-        </footer>
-      </div>
-    </div>
-
     <div v-if="modelDialogVisible" class="modal-mask" @click.self="modelDialogVisible = false">
       <div class="modal-card modal-large">
         <header class="modal-head">
@@ -403,13 +272,18 @@ const {
               <input v-model="modelForm.modelName" class="field-control" type="text" />
             </label>
             <label class="field-block">
-              <span>所属 Provider</span>
-              <select v-model="modelForm.providerCode" class="field-control">
-                <option value="">请选择 Provider</option>
-                <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
-                  {{ item.providerName }} ({{ item.providerCode }})
-                </option>
-              </select>
+              <span>Provider 编码</span>
+              <input v-model="modelForm.providerCode" class="field-control" type="text" list="provider-code-options" />
+            </label>
+
+            <label class="field-block">
+              <span>Provider 名称</span>
+              <input v-model="modelForm.providerName" class="field-control" type="text" list="provider-name-options" />
+            </label>
+
+            <label class="field-block">
+              <span>基础地址</span>
+              <input v-model="modelForm.baseUrl" class="field-control" type="text" placeholder="https://api.example.com/v1" />
             </label>
 
             <label class="field-block">
@@ -428,10 +302,17 @@ const {
                 v-model="modelForm.extJson"
                 class="field-control textarea-control code-textarea"
                 rows="8"
-                placeholder='{"maxContextTokens":32000,"maxOutputTokens":4096,"temperatureEnabled":1,"priority":100}'
+                placeholder='{"maxContextTokens":32000,"maxOutputTokens":4096,"temperatureEnabled":1,"priority":100,"connectTimeoutMs":3000,"readTimeoutMs":30000}'
               />
             </label>
           </div>
+
+          <datalist id="provider-code-options">
+            <option v-for="item in providerOptions" :key="`code-${item.providerCode}`" :value="item.providerCode" />
+          </datalist>
+          <datalist id="provider-name-options">
+            <option v-for="item in providerOptions" :key="`name-${item.providerCode}`" :value="item.providerName" />
+          </datalist>
         </section>
 
         <section class="dialog-section credential-section">

@@ -16,6 +16,10 @@ public class AiModelConfigDTO extends BaseDTO {
 
     private String providerCode;
 
+    private String providerName;
+
+    private String baseUrl;
+
     private String apiModel;
 
     private Boolean enabled;

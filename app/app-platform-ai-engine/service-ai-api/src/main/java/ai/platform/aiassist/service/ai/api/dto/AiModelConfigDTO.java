@@ -15,6 +15,10 @@ public class AiModelConfigDTO {
 
     private String providerCode;
 
+    private String providerName;
+
+    private String baseUrl;
+
     private String apiModel;
 
     private String capabilityTags;

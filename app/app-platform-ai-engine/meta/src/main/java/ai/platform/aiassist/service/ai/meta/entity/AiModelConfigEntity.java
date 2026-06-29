@@ -39,6 +39,16 @@ public class AiModelConfigEntity extends AuditableEntity {
     @TableField("provider_code")
     private String providerCode;
     /**
+     * 提供商名称。
+     */
+    @TableField("provider_name")
+    private String providerName;
+    /**
+     * 提供商请求基础地址。
+     */
+    @TableField("base_url")
+    private String baseUrl;
+    /**
      * 提供商侧模型标识。
      */
     @TableField("api_model")

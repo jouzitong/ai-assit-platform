@@ -18,6 +18,8 @@ public class AiModelManageDTO extends BaseDTO {
 
     private String providerName;
 
+    private String baseUrl;
+
     private String apiModel;
 
     private Boolean enabled;

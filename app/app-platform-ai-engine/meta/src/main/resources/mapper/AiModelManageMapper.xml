@@ -10,6 +10,7 @@
         <result property="modelName" column="model_name"/>
         <result property="providerCode" column="provider_code"/>
         <result property="providerName" column="provider_name"/>
+        <result property="baseUrl" column="base_url"/>
         <result property="apiModel" column="api_model"/>
         <result property="enabled" column="enabled"/>
         <result property="apiKeyMasked" column="api_key_masked"/>
@@ -26,7 +27,8 @@
         m.model_code,
         m.model_name,
         m.provider_code,
-        p.provider_name,
+        m.provider_name,
+        m.base_url,
         m.api_model,
         m.enabled,
         CASE
@@ -45,8 +47,6 @@
 
     <sql id="AggregateFrom">
         FROM ai_model_config m
-        LEFT JOIN ai_provider_config p
-            ON p.provider_code = m.provider_code
     </sql>
 
     <sql id="AggregateWhere">
@@ -66,7 +66,8 @@
                     OR m.model_name LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.api_model LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.provider_code LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR p.provider_name LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.provider_name LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR m.base_url LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.ext_json LIKE CONCAT('%', #{query.keyword}, '%')
                 )
             </if>
