@@ -4,6 +4,7 @@ import ai.platform.aiassist.service.ai.meta.domainservice.AiModelManageDomainSer
 import ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.meta.entity.dto.AiModelManageDTO;
 import ai.platform.aiassist.service.ai.meta.entity.req.AiModelManageQueryRequest;
+import ai.platform.aiassist.service.ai.meta.entity.vo.AiModelManageVO;
 import ai.platform.aiassist.service.ai.meta.mapper.AiModelManageMapper;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -30,31 +31,30 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
     }
 
     @Override
-    public PageResultVO<AiModelManageDTO> page(AiModelManageQueryRequest query) {
+    public PageResultVO<AiModelManageVO> page(AiModelManageQueryRequest query) {
         AiModelManageQueryRequest safeQuery = query == null ? new AiModelManageQueryRequest() : query;
-        Page<AiModelManageDTO> page = Page.of(safeQuery.page(), safeQuery.size());
-        List<AiModelManageDTO> records = aiModelManageMapper.pageAggregate(page, safeQuery);
+        Page<AiModelManageVO> page = Page.of(safeQuery.page(), safeQuery.size());
+        List<AiModelManageVO> records = aiModelManageMapper.pageAggregate(page, safeQuery);
         PageInfo pageInfo = new PageInfo(page.getTotal(), safeQuery.size(), safeQuery.page());
         return PageResultVO.of(records, pageInfo);
     }
 
     @Override
-    public AiModelManageDTO get(Long id) {
-        AiModelManageDTO dto = aiModelManageMapper.selectByModelId(id);
-        if (dto == null) {
+    public AiModelManageVO get(Long id) {
+        AiModelManageVO vo = aiModelManageMapper.selectByModelId(id);
+        if (vo == null) {
             throw new IllegalStateException("模型配置不存在");
         }
-        dto.setApiKeyInput(null);
-        if (dto.getApiKeyMasked() == null) {
+        if (vo.getApiKeyMasked() == null) {
             AiModelConfigDTO current = aiModelConfigService.get(id);
-            dto.setApiKeyMasked(current == null ? null : maskApiKey(current.getApiKey()));
+            vo.setApiKeyMasked(current == null ? null : maskApiKey(current.getApiKey()));
         }
-        return dto;
+        return vo;
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public AiModelManageDTO add(AiModelManageDTO dto) {
+    public AiModelManageVO add(AiModelManageDTO dto) {
         validateModelPayload(dto);
 
         AiModelConfigDTO createdModel = aiModelConfigService.add(toModelConfigDTO(dto, null, true));
@@ -66,8 +66,8 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public AiModelManageDTO update(Long id, AiModelManageDTO dto) {
-        AiModelManageDTO current = get(id);
+    public AiModelManageVO update(Long id, AiModelManageDTO dto) {
+        AiModelManageVO current = get(id);
         AiModelConfigDTO currentModel = requireModel(id);
         AiModelManageDTO payload = mergeForUpdate(current, dto, true);
         validateModelPayload(payload);
@@ -81,8 +81,8 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public AiModelManageDTO edit(Long id, AiModelManageDTO dto) {
-        AiModelManageDTO current = get(id);
+    public AiModelManageVO edit(Long id, AiModelManageDTO dto) {
+        AiModelManageVO current = get(id);
         AiModelConfigDTO currentModel = requireModel(id);
         AiModelManageDTO payload = mergeForUpdate(current, dto, false);
         validateModelPayload(payload);
@@ -110,7 +110,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         model.setBaseUrl(trimToNull(dto.getBaseUrl()));
         model.setApiModel(trimToNull(dto.getApiModel()));
         model.setEnabled(dto.getEnabled());
-        String apiKey = trimToNull(dto.getApiKeyInput());
+        String apiKey = trimToNull(dto.getApiKey());
         if (StringUtils.hasText(apiKey)) {
             model.setApiKey(apiKey);
         } else if (current != null) {
@@ -120,7 +120,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         return model;
     }
 
-    private AiModelManageDTO mergeForUpdate(AiModelManageDTO current, AiModelManageDTO incoming, boolean replaceNulls) {
+    private AiModelManageDTO mergeForUpdate(AiModelManageVO current, AiModelManageDTO incoming, boolean replaceNulls) {
         AiModelManageDTO merged = new AiModelManageDTO();
         merged.setId(current.getId());
         merged.setModelCode(chooseValue(trimToNull(incoming.getModelCode()), current.getModelCode(), replaceNulls));
@@ -130,8 +130,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         merged.setBaseUrl(chooseValue(trimToNull(incoming.getBaseUrl()), current.getBaseUrl(), replaceNulls));
         merged.setApiModel(chooseValue(trimToNull(incoming.getApiModel()), current.getApiModel(), replaceNulls));
         merged.setEnabled(chooseValue(incoming.getEnabled(), current.getEnabled(), replaceNulls));
-        merged.setApiKeyInput(trimToNull(incoming.getApiKeyInput()));
-        merged.setApiKeyMasked(current.getApiKeyMasked());
+        merged.setApiKey(trimToNull(incoming.getApiKey()));
         merged.setExtJson(chooseValue(copyMap(incoming.getExtJson()), copyMap(current.getExtJson()), replaceNulls));
         return merged;
     }
@@ -143,19 +142,10 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         if (!StringUtils.hasText(dto.getModelName())) {
             throw new IllegalArgumentException("模型名称不能为空");
         }
-        if (!StringUtils.hasText(dto.getProviderCode())) {
-            throw new IllegalArgumentException("所属 Provider 不能为空");
-        }
-        if (!StringUtils.hasText(dto.getProviderName())) {
-            throw new IllegalArgumentException("Provider 名称不能为空");
-        }
-        if (!StringUtils.hasText(dto.getBaseUrl())) {
-            throw new IllegalArgumentException("基础地址不能为空");
-        }
         if (!StringUtils.hasText(dto.getApiModel())) {
             throw new IllegalArgumentException("Provider 模型标识不能为空");
         }
-        if (dto.getId() == null && !StringUtils.hasText(dto.getApiKeyInput())) {
+        if (dto.getId() == null && !StringUtils.hasText(dto.getApiKey())) {
             throw new IllegalArgumentException("新增模型凭证时必须提供 API Key");
         }
     }

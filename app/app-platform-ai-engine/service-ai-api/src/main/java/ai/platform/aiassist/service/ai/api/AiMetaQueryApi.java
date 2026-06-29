@@ -3,7 +3,6 @@ package ai.platform.aiassist.service.ai.api;
 import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
-import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
 import org.athena.framework.web.annotation.IgnoredResultWrapper;
 import org.springframework.cloud.openfeign.FeignClient;
@@ -16,23 +15,21 @@ import java.util.List;
 @FeignClient(
         name = "aiEngine",
         contextId = "platformAiEngineClient",
-        path = "/aiEngine"
+        path = "/aiEngine/internal/v1/ai/meta"
 )
 public interface AiMetaQueryApi {
 
-    @PostMapping("/internal/v1/ai/meta/provider-model/overview")
+    @PostMapping("/provider-model/overview")
     @IgnoredResultWrapper
+    @Deprecated
     AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/internal/v1/ai/meta/provider/list")
-    @IgnoredResultWrapper
-    List<AiProviderConfigDTO> listProviders(@RequestBody(required = false) AiMetaQueryRequest request);
-
-    @PostMapping(value = "/internal/v1/ai/meta/model/list",produces = MediaType.APPLICATION_JSON_VALUE)
+    @PostMapping(value = "/model/list",produces = MediaType.APPLICATION_JSON_VALUE)
     @IgnoredResultWrapper
     List<AiModelConfigDTO> listModels(@RequestBody(required = false) AiMetaQueryRequest request);
 
-    @PostMapping("/internal/v1/ai/meta/credential/list")
+    @PostMapping("/credential/list")
     @IgnoredResultWrapper
+    @Deprecated
     List<AiModelCredentialDTO> listCredentials(@RequestBody(required = false) AiMetaQueryRequest request);
 }

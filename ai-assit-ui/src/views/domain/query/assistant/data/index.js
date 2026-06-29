@@ -4,7 +4,6 @@ import {
   detailAiChatConversation,
   listEnabledAiChatModels,
   listAiChatConversations,
-  listAiChatProviders,
   pinAiChatConversation,
   queryAiChat,
   queryAiChatStream,
@@ -24,10 +23,6 @@ export {
 
 export async function fetchAssistantModels() {
   return listEnabledAiChatModels()
-}
-
-export async function fetchAssistantProviders(payload = { enabled: true }) {
-  return listAiChatProviders(payload)
 }
 
 export async function fetchAssistantConversationList(payload = {}) {

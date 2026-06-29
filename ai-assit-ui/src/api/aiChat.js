@@ -72,23 +72,9 @@ export function deleteAiChatConversation(payload) {
   })
 }
 
-export function listAiChatModels(payload) {
-  return request(`${AI_META_API_PREFIX}/model/list`, {
-    method: 'POST',
-    body: JSON.stringify(payload ?? {})
-  })
-}
-
 export function listEnabledAiChatModels() {
   return request(`${AI_ENGINE_API_PREFIX}/models/enable`, {
     method: 'GET'
-  })
-}
-
-export function listAiChatProviders(payload) {
-  return request(`${AI_META_API_PREFIX}/provider/list`, {
-    method: 'POST',
-    body: JSON.stringify(payload ?? {})
   })
 }
 

@@ -4,7 +4,6 @@ import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
 import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
 import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiModelCredentialDTO;
-import ai.platform.aiassist.service.ai.api.dto.AiProviderConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.AiProviderModelOverviewDTO;
 import ai.platform.aiassist.service.ai.meta.service.AiModelConfigService;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -44,13 +43,6 @@ public class AiMetaQueryController implements AiMetaQueryApi {
     }
 
     @Override
-    public List<AiProviderConfigDTO> listProviders(@RequestBody(required = false) AiMetaQueryRequest request) {
-        return groupProviders(modelConfigService.queryAll(toInternalRequest(request))).stream()
-                .map(this::toProviderDto)
-                .toList();
-    }
-
-    @Override
     public List<AiModelConfigDTO> listModels(@RequestBody(required = false) AiMetaQueryRequest request) {
         return modelConfigService.queryAll(toInternalRequest(request)).stream()
                 .map(this::toModelDto)
@@ -79,17 +71,6 @@ public class AiMetaQueryController implements AiMetaQueryApi {
             target.setModelCode(request.getModelCode());
             target.setEnabled(request.getEnabled());
         }
-        return target;
-    }
-
-    private AiProviderConfigDTO toProviderDto(ProviderAggregate source) {
-        AiProviderConfigDTO target = new AiProviderConfigDTO();
-        target.setId(source.id);
-        target.setProviderCode(source.providerCode);
-        target.setProviderName(source.providerName);
-        target.setBaseUrl(source.baseUrl);
-        target.setEnabled(source.enabled);
-        target.setRemark(null);
         return target;
     }
 
@@ -207,7 +188,7 @@ public class AiMetaQueryController implements AiMetaQueryApi {
         Map<String, List<ai.platform.aiassist.service.ai.meta.entity.dto.AiModelConfigDTO>> grouped = models.stream()
                 .filter(Objects::nonNull)
                 .collect(Collectors.groupingBy(
-                        model -> String.valueOf(model.getProviderCode()),
+                        model -> Objects.toString(model.getProviderCode(), ""),
                         LinkedHashMap::new,
                         Collectors.toList()
                 ));

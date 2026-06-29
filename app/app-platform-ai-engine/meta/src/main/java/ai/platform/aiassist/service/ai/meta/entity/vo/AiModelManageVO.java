@@ -1,4 +1,4 @@
-package ai.platform.aiassist.service.ai.meta.entity.dto;
+package ai.platform.aiassist.service.ai.meta.entity.vo;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;
@@ -8,7 +8,7 @@ import java.util.Map;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class AiModelManageDTO extends BaseDTO {
+public class AiModelManageVO extends BaseDTO {
 
     private String modelCode;
 
@@ -24,7 +24,7 @@ public class AiModelManageDTO extends BaseDTO {
 
     private Boolean enabled;
 
-    private String apiKey;
+    private String apiKeyMasked;
 
     private Map<String, Object> extJson;
 }

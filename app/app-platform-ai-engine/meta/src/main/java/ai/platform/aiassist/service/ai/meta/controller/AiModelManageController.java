@@ -3,6 +3,7 @@ package ai.platform.aiassist.service.ai.meta.controller;
 import ai.platform.aiassist.service.ai.meta.domainservice.AiModelManageDomainService;
 import ai.platform.aiassist.service.ai.meta.entity.dto.AiModelManageDTO;
 import ai.platform.aiassist.service.ai.meta.entity.req.AiModelManageQueryRequest;
+import ai.platform.aiassist.service.ai.meta.entity.vo.AiModelManageVO;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -25,27 +26,27 @@ public class AiModelManageController {
     }
 
     @PostMapping("/_search")
-    public PageResultVO<AiModelManageDTO> page(@RequestBody(required = false) AiModelManageQueryRequest query) {
+    public PageResultVO<AiModelManageVO> page(@RequestBody(required = false) AiModelManageQueryRequest query) {
         return domainService.page(query);
     }
 
     @GetMapping("/{id}")
-    public AiModelManageDTO get(@PathVariable("id") Long id) {
+    public AiModelManageVO get(@PathVariable("id") Long id) {
         return domainService.get(id);
     }
 
     @PostMapping
-    public AiModelManageDTO add(@RequestBody AiModelManageDTO dto) {
+    public AiModelManageVO add(@RequestBody AiModelManageDTO dto) {
         return domainService.add(dto);
     }
 
     @PutMapping("/{id}")
-    public AiModelManageDTO update(@PathVariable("id") Long id, @RequestBody AiModelManageDTO dto) {
+    public AiModelManageVO update(@PathVariable("id") Long id, @RequestBody AiModelManageDTO dto) {
         return domainService.update(id, dto);
     }
 
     @PatchMapping("/{id}")
-    public AiModelManageDTO edit(@PathVariable("id") Long id, @RequestBody AiModelManageDTO dto) {
+    public AiModelManageVO edit(@PathVariable("id") Long id, @RequestBody AiModelManageDTO dto) {
         return domainService.edit(id, dto);
     }
 

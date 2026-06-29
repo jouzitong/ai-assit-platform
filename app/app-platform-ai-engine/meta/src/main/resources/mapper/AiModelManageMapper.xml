@@ -4,7 +4,7 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="ai.platform.aiassist.service.ai.meta.mapper.AiModelManageMapper">
 
-    <resultMap id="AiModelManageResultMap" type="ai.platform.aiassist.service.ai.meta.entity.dto.AiModelManageDTO">
+    <resultMap id="AiModelManageResultMap" type="ai.platform.aiassist.service.ai.meta.entity.vo.AiModelManageVO">
         <id property="id" column="id"/>
         <result property="modelCode" column="model_code"/>
         <result property="modelName" column="model_name"/>

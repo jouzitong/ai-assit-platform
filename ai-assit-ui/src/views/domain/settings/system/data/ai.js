@@ -46,18 +46,8 @@ export function createModelForm() {
     baseUrl: '',
     apiModel: '',
     enabled: true,
-    apiKeyInput: '',
-    apiKeyMasked: '',
-    extJson:
-      `{\n` +
-      `  "capabilityTags": "chat,reasoning",\n` +
-      `  "maxContextTokens": 32000,\n` +
-      `  "maxOutputTokens": 4096,\n` +
-      `  "temperatureEnabled": 1,\n` +
-      `  "priority": 100,\n` +
-      `  "connectTimeoutMs": 3000,\n` +
-      `  "readTimeoutMs": 30000\n` +
-      `}`
+    apiKey: '',
+    extJson: '{}'
   }
 }
 

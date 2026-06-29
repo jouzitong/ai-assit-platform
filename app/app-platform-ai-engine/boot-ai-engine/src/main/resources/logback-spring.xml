@@ -143,7 +143,6 @@
     </logger>
 
     <root level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="ALL_FILE"/>
     </root>
 </configuration>

@@ -7,7 +7,6 @@ import {
   editAiChatModelManage,
   editAiKbStore,
   getAiChatModelManage,
-  listAiChatProviders,
   searchAiChatModelManages,
   searchAiKbStores,
   updateAiChatModelManage,
@@ -58,7 +57,6 @@ export function useAiPage() {
 
   const modelList = ref([])
   const kbList = ref([])
-  const providerOptions = ref([])
 
   const modelDialogVisible = ref(false)
   const modelDialogMode = ref('create')
@@ -115,11 +113,11 @@ export function useAiPage() {
       await loadKbPage()
       return
     }
-    await Promise.all([loadModelPage(), ensureProviderOptions()])
+    await loadModelPage()
   })
 
   onMounted(async () => {
-    await Promise.all([loadModelPage(), loadKbPage(), ensureProviderOptions()])
+    await Promise.all([loadModelPage(), loadKbPage()])
   })
 
   function buildModelQuery() {
@@ -183,15 +181,6 @@ export function useAiPage() {
     }
   }
 
-  async function ensureProviderOptions() {
-    try {
-      const payload = unwrapPayload(await listAiChatProviders({}))
-      providerOptions.value = payload ?? []
-    } catch (error) {
-      showPopup.error(error.message || 'Provider 选项加载失败')
-    }
-  }
-
   function openModelCreate() {
     modelDialogMode.value = 'create'
     modelError.value = ''
@@ -205,7 +194,7 @@ export function useAiPage() {
     try {
       const detail = unwrapPayload(await getAiChatModelManage(row.id))
       Object.assign(modelForm, createModelForm(), detail, {
-        apiKeyInput: '',
+        apiKey: '',
         extJson: formatJsonField(detail?.extJson)
       })
       modelDialogVisible.value = true
@@ -239,23 +228,11 @@ export function useAiPage() {
       modelError.value = '请输入模型名称'
       return false
     }
-    if (!modelForm.providerCode.trim()) {
-      modelError.value = '请输入 Provider 编码'
-      return false
-    }
-    if (!modelForm.providerName.trim()) {
-      modelError.value = '请输入 Provider 名称'
-      return false
-    }
-    if (!modelForm.baseUrl.trim()) {
-      modelError.value = '请输入基础地址'
-      return false
-    }
     if (!modelForm.apiModel.trim()) {
       modelError.value = '请输入 Provider 模型标识'
       return false
     }
-    if (modelDialogMode.value === 'create' && !modelForm.apiKeyInput.trim()) {
+    if (modelDialogMode.value === 'create' && !modelForm.apiKey.trim()) {
       modelError.value = '新增模型时必须填写 API Key'
       return false
     }
@@ -302,7 +279,7 @@ export function useAiPage() {
         baseUrl: modelForm.baseUrl.trim(),
         apiModel: modelForm.apiModel.trim(),
         enabled: modelForm.enabled,
-        apiKeyInput: modelForm.apiKeyInput.trim() || undefined,
+        apiKey: modelForm.apiKey.trim() || undefined,
         extJson
       }
 
@@ -315,7 +292,7 @@ export function useAiPage() {
       }
 
       modelDialogVisible.value = false
-      await Promise.all([loadModelPage(), ensureProviderOptions()])
+      await loadModelPage()
     } catch (error) {
       modelError.value = error.message || 'Model 保存失败'
     } finally {
@@ -387,7 +364,7 @@ export function useAiPage() {
     try {
       await deleteAiChatModelManage(row.id)
       showPopup.success('Model 已删除')
-      await Promise.all([loadModelPage(), ensureProviderOptions()])
+      await loadModelPage()
     } catch (error) {
       showPopup.error(error.message || 'Model 删除失败')
     }
@@ -558,7 +535,6 @@ export function useAiPage() {
     kbFilters,
     modelList,
     kbList,
-    providerOptions,
     modelDialogVisible,
     modelDialogMode,
     modelError,

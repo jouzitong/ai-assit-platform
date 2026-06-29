@@ -9,7 +9,6 @@ const {
   kbFilters,
   modelList,
   kbList,
-  providerOptions,
   modelDialogVisible,
   modelDialogMode,
   modelError,
@@ -77,12 +76,7 @@ const {
             @keyup.enter="handleSearch"
           />
 
-          <select v-model="modelFilters.providerCode" class="field-control">
-            <option value="">全部 Provider</option>
-            <option v-for="item in providerOptions" :key="item.id" :value="item.providerCode">
-              {{ item.providerName }} ({{ item.providerCode }})
-            </option>
-          </select>
+          <input v-model="modelFilters.providerCode" class="field-control" type="text" placeholder="按 Provider 编码筛选" />
 
           <select v-model="modelFilters.enabled" class="field-control">
             <option v-for="item in enabledOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
@@ -273,17 +267,17 @@ const {
             </label>
             <label class="field-block">
               <span>Provider 编码</span>
-              <input v-model="modelForm.providerCode" class="field-control" type="text" list="provider-code-options" />
+              <input v-model="modelForm.providerCode" class="field-control" type="text" placeholder="可选，手动输入" />
             </label>
 
             <label class="field-block">
               <span>Provider 名称</span>
-              <input v-model="modelForm.providerName" class="field-control" type="text" list="provider-name-options" />
+              <input v-model="modelForm.providerName" class="field-control" type="text" placeholder="可选，手动输入" />
             </label>
 
             <label class="field-block">
               <span>基础地址</span>
-              <input v-model="modelForm.baseUrl" class="field-control" type="text" placeholder="https://api.example.com/v1" />
+              <input v-model="modelForm.baseUrl" class="field-control" type="text" placeholder="可选，例如 https://api.example.com/v1" />
             </label>
 
             <label class="field-block">
@@ -307,12 +301,6 @@ const {
             </label>
           </div>
 
-          <datalist id="provider-code-options">
-            <option v-for="item in providerOptions" :key="`code-${item.providerCode}`" :value="item.providerCode" />
-          </datalist>
-          <datalist id="provider-name-options">
-            <option v-for="item in providerOptions" :key="`name-${item.providerCode}`" :value="item.providerName" />
-          </datalist>
         </section>
 
         <section class="dialog-section credential-section">
@@ -325,15 +313,11 @@ const {
             <label class="field-block full-span">
               <span>API Key</span>
               <input
-                v-model="modelForm.apiKeyInput"
+                v-model="modelForm.apiKey"
                 class="field-control"
                 type="password"
                 :placeholder="modelDialogMode === 'edit' ? '留空表示不修改现有 API Key' : '请输入 API Key'"
               />
-            </label>
-            <label class="field-block">
-              <span>当前脱敏值</span>
-              <input class="field-control" type="text" :value="modelForm.apiKeyMasked || '-'" disabled />
             </label>
           </div>
         </section>
