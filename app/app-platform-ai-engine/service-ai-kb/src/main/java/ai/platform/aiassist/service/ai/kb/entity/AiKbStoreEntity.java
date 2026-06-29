@@ -1,7 +1,5 @@
 package ai.platform.aiassist.service.ai.kb.entity;
 
-import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -10,9 +8,9 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
-import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,22 +39,28 @@ public class AiKbStoreEntity extends AuditableEntity {
     private String kbName;
 
     /**
-     * 业务类型，例如 DB_DATA_SOURCE。
-     */
-    @TableField(value = "biz_type", typeHandler = DefaultEnumTypeHandler.class)
-    private AiKbBizType bizType;
-
-    /**
      * AI 侧真实知识库 ID。
      */
     @TableField("provider_kb_id")
     private String providerKbId;
 
     /**
-     * 状态，例如 INIT、ACTIVE、SYNCING、FAILED、DISABLED。
+     * 是否启用。
      */
-    @TableField(value = "status", typeHandler = DefaultEnumTypeHandler.class)
-    private AiKbStoreStatus status;
+    @TableField("enabled")
+    private Boolean enabled;
+
+    /**
+     * 知识库标签。
+     */
+    @TableField(value = "tags_json", typeHandler = JacksonTypeHandler.class)
+    private List<String> tags;
+
+    /**
+     * 知识库请求地址。
+     */
+    @TableField("url")
+    private String url;
 
     /**
      * 扩展信息。

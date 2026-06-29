@@ -102,10 +102,10 @@ Authorization: Bearer {{token}}
 {
   "kbCode": "{{kbCode}}",
   "kbName": "manual-http-test-kb",
-  "bizType": 1,
-  "sourceKey": "manual-http-test",
   "providerKbId": "{{kbId}}",
-  "status": 1,
+  "enabled": true,
+  "tags": ["manual", "codex"],
+  "url": "https://example.internal/api/kb/manual-http-test",
   "ext": {
     "traceId": "{{traceId}}-page-create",
     "scene": "{{scene}}",

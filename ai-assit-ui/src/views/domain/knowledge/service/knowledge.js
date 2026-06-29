@@ -196,17 +196,14 @@ export function useKnowledgePage() {
     createSubmitting.value = true
     try {
       const kb = selectedKnowledgeBase.value
-      if (!kb?.kbId || !kb?.sourceKey) {
+      if (!kb?.kbId) {
         throw new Error('请选择有效的知识库')
       }
       await upsertAiKnowledgeBaseDocument({
         kbId: kb.kbId,
         documentId: createForm.documentCode.trim(),
         documentName: createForm.documentName.trim() || createForm.documentCode.trim(),
-        content: createForm.content,
-        ext: {
-          sourceKey: kb.sourceKey
-        }
+        content: createForm.content
       })
       createDialogVisible.value = false
       showPopup.success('知识文档已保存')
@@ -354,7 +351,6 @@ function normalizeKnowledgeBases(payload) {
     .map(item => ({
       kbId: item?.kbId ? String(item.kbId) : '',
       kbName: item?.kbName ? String(item.kbName) : '',
-      sourceKey: item?.sourceKey ? String(item.sourceKey) : '',
       bizType: item?.bizType ?? null,
       providerKbId: item?.providerKbId ? String(item.providerKbId) : ''
     }))

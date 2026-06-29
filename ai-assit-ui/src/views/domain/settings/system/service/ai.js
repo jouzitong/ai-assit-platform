@@ -1,7 +1,7 @@
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   createAiChatModelManage,
-  createAiKbStore,
+  createAiKnowledgeBase,
   deleteAiChatModelManage,
   deleteAiKbStore,
   editAiChatModelManage,
@@ -16,8 +16,6 @@ import {
   createKbForm,
   createModelForm,
   enabledOptions,
-  kbBizTypeOptions,
-  kbStatusOptions,
   pageSizeOptions
 } from '../data/ai'
 import { showPopup } from '../../../../../utils/popup'
@@ -39,7 +37,6 @@ export function useAiPage() {
 
   const kbFilters = reactive({
     keyword: '',
-    status: '',
     enabled: ''
   })
 
@@ -135,7 +132,6 @@ export function useAiPage() {
       page: kbPagination.page,
       size: kbPagination.size,
       keyword: kbFilters.keyword || undefined,
-      status: kbFilters.status || undefined,
       enabled: parseBooleanFilter(kbFilters.enabled)
     }
   }
@@ -214,6 +210,7 @@ export function useAiPage() {
     kbDialogMode.value = 'edit'
     kbError.value = ''
     Object.assign(kbForm, createKbForm(), JSON.parse(JSON.stringify(row)), {
+      tags: joinTags(row.tags),
       extJson: formatJsonField(row.extJson)
     })
     kbDialogVisible.value = true
@@ -255,8 +252,16 @@ export function useAiPage() {
       kbError.value = '请输入 KB 名称'
       return false
     }
-    if (!kbForm.bizType) {
-      kbError.value = '请选择业务类型'
+    if (kbForm.extJson.trim()) {
+      try {
+        parseJsonField(kbForm.extJson, '扩展信息')
+      } catch (error) {
+        kbError.value = error.message || '扩展信息格式不正确'
+        return false
+      }
+    }
+    if (kbForm.url.trim() && !isValidUrl(kbForm.url)) {
+      kbError.value = '请求地址格式不正确'
       return false
     }
     kbError.value = ''
@@ -307,18 +312,23 @@ export function useAiPage() {
 
     loading.kbSaving = true
     try {
-      const extJson = parseJsonField(kbForm.extJson, '扩展信息')
+      const extraExt = parseJsonField(kbForm.extJson, '扩展信息')
+      const tags = splitTags(kbForm.tags)
       const payload = {
         kbCode: kbForm.kbCode.trim(),
         kbName: kbForm.kbName.trim(),
-        bizType: kbForm.bizType,
         providerKbId: kbForm.providerKbId.trim() || null,
-        status: kbForm.status,
-        extJson
+        enabled: kbForm.enabled,
+        tags,
+        url: kbForm.url.trim() || null,
+        extJson: extraExt
       }
 
       if (kbDialogMode.value === 'create') {
-        await createAiKbStore(payload)
+        await createAiKnowledgeBase({
+          ...payload,
+          ext: extraExt
+        })
         showPopup.success('KB 新增成功')
       } else {
         await updateAiKbStore(kbForm.id, payload)
@@ -346,11 +356,10 @@ export function useAiPage() {
   }
 
   async function toggleKbStatus(row) {
-    const nextStatus = row.status === 'DISABLED' ? 'ACTIVE' : 'DISABLED'
+    const nextEnabled = !row.enabled
     try {
-      await editAiKbStore(row.id, { status: nextStatus })
-      row.status = nextStatus
-      row.enabled = nextStatus !== 'DISABLED'
+      await editAiKbStore(row.id, { enabled: nextEnabled })
+      row.enabled = nextEnabled
       showPopup.success(`KB 已${row.enabled ? '启用' : '停用'}`)
     } catch (error) {
       showPopup.error(error.message || 'KB 状态更新失败')
@@ -393,7 +402,6 @@ export function useAiPage() {
 
   function resetKbFilters() {
     kbFilters.keyword = ''
-    kbFilters.status = ''
     kbFilters.enabled = ''
     kbPagination.page = 1
     loadKbPage()
@@ -440,11 +448,12 @@ export function useAiPage() {
   }
 
   function normalizeKbRow(row) {
-    const status = row?.status || 'INIT'
+    const extJson = row?.extJson && typeof row.extJson === 'object' ? row.extJson : {}
     return {
       ...row,
-      status,
-      enabled: status !== 'DISABLED'
+      extJson,
+      enabled: row?.enabled !== false,
+      tags: normalizeTags(row?.tags)
     }
   }
 
@@ -528,6 +537,35 @@ export function useAiPage() {
       .filter(Boolean)
   }
 
+  function normalizeTags(value) {
+    if (!Array.isArray(value)) {
+      return []
+    }
+    return value.map(item => String(item).trim()).filter(Boolean)
+  }
+
+  function joinTags(value) {
+    return normalizeTags(value).join(', ')
+  }
+
+  function splitTags(value) {
+    if (!value) {
+      return []
+    }
+    return String(value)
+      .split(',')
+      .map(item => item.trim())
+      .filter(Boolean)
+  }
+  function isValidUrl(value) {
+    try {
+      const url = new URL(value)
+      return Boolean(url.protocol && url.host)
+    } catch {
+      return false
+    }
+  }
+
   return {
     activeTab,
     loading,
@@ -544,8 +582,6 @@ export function useAiPage() {
     kbError,
     kbForm,
     enabledOptions,
-    kbBizTypeOptions,
-    kbStatusOptions,
     pageSizeOptions,
     currentPage,
     currentSize,

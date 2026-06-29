@@ -140,9 +140,7 @@
 
 .kb-toolbar {
   grid-template-columns:
-    minmax(240px, 1.5fr)
-    minmax(200px, 220px)
-    minmax(180px, 200px)
+    minmax(320px, 1.8fr)
     minmax(180px, 200px)
     auto;
 }
@@ -515,6 +513,19 @@
   font-size: 13px;
   color: #334155;
   font-weight: 600;
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 44px;
+}
+
+.checkbox-inline input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
 }
 
 .switch-block {

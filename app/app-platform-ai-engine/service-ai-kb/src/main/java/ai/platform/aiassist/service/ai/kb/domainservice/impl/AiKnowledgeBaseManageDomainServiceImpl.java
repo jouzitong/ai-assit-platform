@@ -20,7 +20,6 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbProviderSyncStatus;
-import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.core.service.AiExecutionDomainService;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbDeleteRequest;
 import ai.platform.aiassist.service.ai.kb.controller.req.AiKbSyncCheckRequest;
@@ -99,16 +98,9 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         List<AiKbStoreDTO> stores = storeService.list(request);
         List<AiKbInfoDTO> result = new ArrayList<>(stores.size());
         for (AiKbStoreDTO store : stores) {
-            AiKbInfoDTO dto = toKbInfo(store);
-            if (request != null && StringUtils.hasText(request.getSourceKey())
-                    && !Objects.equals(request.getSourceKey().trim(), dto.getSourceKey())) {
-                continue;
-            }
-            result.add(dto);
+            result.add(toKbInfo(store));
         }
-        log.info("ai kb list finish, bizType={}, sourceKey={}, enabled={}, resultSize={}",
-                request == null ? null : request.getBizType(),
-                request == null ? null : request.getSourceKey(),
+        log.info("ai kb list finish, enabled={}, resultSize={}",
                 request == null ? null : request.getEnabled(),
                 result.size());
         return result;
@@ -125,18 +117,18 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         }
 
         Map<String, Object> ext = normalizeExt(request.getExt());
-        ext.put("sourceKey", request.getSourceKey().trim());
 
         AiKbStoreDTO store = new AiKbStoreDTO();
         store.setKbCode(kbCode);
         store.setKbName(request.getKbName().trim());
-        store.setBizType(request.getBizType());
         store.setProviderKbId(trimToNull(request.getProviderKbId()));
-        store.setStatus(request.getStatus() == null ? AiKbStoreStatus.INIT : request.getStatus());
+        store.setEnabled(request.getEnabled() == null ? Boolean.TRUE : request.getEnabled());
+        store.setTags(normalizeTags(request.getTags()));
+        store.setUrl(trimToNull(request.getUrl()));
         store.setExtJson(ext);
         store = storeService.add(store);
-        log.info("ai kb store created, kbCode={}, kbName={}, bizType={}, sourceKey={}",
-                store.getKbCode(), store.getKbName(), request.getBizType(), request.getSourceKey());
+        log.info("ai kb store created, kbCode={}, kbName={}, enabled={}",
+                store.getKbCode(), store.getKbName(), store.getEnabled());
         return toKbInfo(store);
     }
 
@@ -195,18 +187,17 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         validateUpsertRequest(request);
         String kbId = request.getKbId().trim();
         AiKbStoreDTO store = requireStore(kbId);
-        AiKbDocumentType documentType = resolveDocumentType(request, store);
+        AiKbDocumentType documentType = resolveDocumentType(request);
         String documentId = request.getDocumentId().trim();
         String documentName = StringUtils.hasText(request.getDocumentName()) ? request.getDocumentName().trim() : documentId;
         Map<String, Object> ext = normalizeExt(request.getExt());
         AiKbBizType bizType = resolveBizType(documentType, request.getBizType());
         AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
         boolean created = existing == null;
-        String sourceKey = resolveUpsertSourceKey(ext, existing, store);
-        if (!StringUtils.hasText(sourceKey)) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_KEY);
+        String sourceKey = resolveUpsertSourceKey(ext, existing);
+        if (StringUtils.hasText(sourceKey)) {
+            ext.put("sourceKey", sourceKey);
         }
-        ext.put("sourceKey", sourceKey);
         String documentBizKey = documentId;
         String checksum = checksum(request.getContent());
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
@@ -214,7 +205,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, bizType={}, sourceKey={}, canUpdate={}",
                 kbId, documentId, documentType, bizType, sourceKey, canUpdate);
 
-        ensureStore(store, bizType);
         if (existing != null && !canUpdate) {
             log.info("ai kb document exists and update skipped, kbId={}, documentId={}, currentVersionNo={}",
                     kbId, documentId, existing.getDocumentVersionNo());
@@ -262,7 +252,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (created || updated) {
             document.setProviderSyncStatus(AiKbProviderSyncStatus.PENDING);
         }
-        if (store.getStatus() == AiKbStoreStatus.DISABLED) {
+        if (Boolean.FALSE.equals(store.getEnabled())) {
             document.setStatus(AiKbDocumentStatus.DISABLED);
         }
 
@@ -592,7 +582,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (providerKbId != null && !Objects.equals(providerKbId, store.getProviderKbId())) {
             store.setProviderKbId(providerKbId);
         }
-        store.setStatus(AiKbStoreStatus.ACTIVE);
+        store.setEnabled(Boolean.TRUE);
         storeService.update(store.getId(), store);
 
         Map<String, String> providerDocumentIds = upsertResponse.getDocumentIdMappings() == null
@@ -833,12 +823,6 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (!StringUtils.hasText(request.getKbName())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_NAME);
         }
-        if (request.getBizType() == null) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_TYPE);
-        }
-        if (!StringUtils.hasText(request.getSourceKey())) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_SOURCE_KEY);
-        }
     }
 
     private AiKbStoreDTO requireStore(String kbId) {
@@ -850,17 +834,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         return store;
     }
 
-    private void ensureStore(AiKbStoreDTO store, AiKbBizType bizType) {
-        // 上游只能向已存在的本地知识库写入当前文档，知识库创建由本系统管理流程负责。
-        if (store.getBizType() != null && bizType != null && store.getBizType() != bizType) {
-            log.warn("ai kb store biz type mismatch, kbId={}, expectBizType={}, actualBizType={}",
-                    store.getKbCode(), bizType, store.getBizType());
-            throw BizException.illegalParam(AiKbBizCodeConstant.INVALID_KB_SOURCE_TYPE,
-                    store.getKbCode(), bizType, store.getBizType());
-        }
-    }
-
-    private String resolveUpsertSourceKey(Map<String, Object> ext, AiKbDocumentDTO existing, AiKbStoreDTO store) {
+    private String resolveUpsertSourceKey(Map<String, Object> ext, AiKbDocumentDTO existing) {
         String extSourceKey = extText(ext, "sourceKey");
         if (StringUtils.hasText(extSourceKey)) {
             return extSourceKey;
@@ -869,24 +843,12 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         if (StringUtils.hasText(existingSourceKey)) {
             return existingSourceKey;
         }
-        return extText(store == null ? null : store.getExtJson(), "sourceKey");
+        return null;
     }
 
-    private AiKbDocumentType resolveDocumentType(AiKbDocumentUpsertRequest request, AiKbStoreDTO store) {
+    private AiKbDocumentType resolveDocumentType(AiKbDocumentUpsertRequest request) {
         if (request.getDocumentType() != null) {
             return request.getDocumentType();
-        }
-        if (store == null || store.getBizType() == null) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_TYPE);
-        }
-        List<AiKbDocumentType> matches = new ArrayList<>();
-        for (AiKbDocumentType item : AiKbDocumentType.values()) {
-            if (item.getBizType() == store.getBizType()) {
-                matches.add(item);
-            }
-        }
-        if (matches.size() == 1) {
-            return matches.get(0);
         }
         throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_TYPE);
     }
@@ -908,6 +870,17 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
 
     private Map<String, Object> normalizeExt(Map<String, Object> ext) {
         return ext == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ext);
+    }
+
+    private List<String> normalizeTags(List<String> tags) {
+        if (tags == null || tags.isEmpty()) {
+            return List.of();
+        }
+        return tags.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
     }
 
     private String trimToNull(String value) {
@@ -1003,12 +976,11 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         AiKbInfoDTO dto = new AiKbInfoDTO();
         dto.setKbId(store.getKbCode());
         dto.setKbName(store.getKbName());
-        dto.setBizType(store.getBizType());
         dto.setProviderKbId(store.getProviderKbId());
-        dto.setStatus(store.getStatus());
-        dto.setEnabled(store.getStatus() != AiKbStoreStatus.DISABLED);
+        dto.setEnabled(store.getEnabled());
+        dto.setTags(store.getTags());
+        dto.setUrl(store.getUrl());
         dto.setExt(store.getExtJson() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(store.getExtJson()));
-        dto.setSourceKey(extText(dto.getExt(), "sourceKey"));
         return dto;
     }
 

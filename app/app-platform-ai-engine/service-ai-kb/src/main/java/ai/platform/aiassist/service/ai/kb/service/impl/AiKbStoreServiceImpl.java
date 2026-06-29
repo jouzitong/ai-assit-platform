@@ -1,7 +1,6 @@
 package ai.platform.aiassist.service.ai.kb.service.impl;
 
 import ai.platform.aiassist.service.ai.api.dto.AiKbListRequest;
-import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import ai.platform.aiassist.service.ai.kb.convert.AiKbStoreConvert;
 import ai.platform.aiassist.service.ai.kb.entity.AiKbStoreEntity;
 import ai.platform.aiassist.service.ai.kb.entity.dto.AiKbStoreDTO;
@@ -59,7 +58,6 @@ public class AiKbStoreServiceImpl
         AiKbStoreQueryRequest query = new AiKbStoreQueryRequest();
         if (request != null) {
             query.setEnabled(request.getEnabled());
-            query.setBizType(request.getBizType());
         }
         query.setPage(1);
         query.setSize(Integer.MAX_VALUE);
@@ -71,11 +69,7 @@ public class AiKbStoreServiceImpl
         QueryWrapper<AiKbStoreEntity> wrapper = super.buildQuery(query);
         if (query instanceof AiKbStoreQueryRequest req) {
             if (req.getEnabled() != null) {
-                if (req.getEnabled()) {
-                    wrapper.lambda().ne(AiKbStoreEntity::getStatus, AiKbStoreStatus.ACTIVE);
-                } else {
-                    wrapper.lambda().eq(AiKbStoreEntity::getStatus, AiKbStoreStatus.DISABLED);
-                }
+                wrapper.lambda().eq(AiKbStoreEntity::getEnabled, req.getEnabled());
             }
             if (StringUtils.hasText(req.getKeyword())) {
                 String keyword = req.getKeyword().trim();
@@ -84,7 +78,9 @@ public class AiKbStoreServiceImpl
                         .or()
                         .like(AiKbStoreEntity::getKbName, keyword)
                         .or()
-                        .like(AiKbStoreEntity::getProviderKbId, keyword));
+                        .like(AiKbStoreEntity::getProviderKbId, keyword)
+                        .or()
+                        .like(AiKbStoreEntity::getUrl, keyword));
             }
             wrapper.lambda().orderByDesc(AiKbStoreEntity::getUpdateTime, AiKbStoreEntity::getId);
         }

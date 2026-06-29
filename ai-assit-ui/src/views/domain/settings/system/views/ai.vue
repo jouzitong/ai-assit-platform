@@ -18,8 +18,6 @@ const {
   kbError,
   kbForm,
   enabledOptions,
-  kbBizTypeOptions,
-  kbStatusOptions,
   pageSizeOptions,
   currentPage,
   currentSize,
@@ -158,13 +156,9 @@ const {
             v-model="kbFilters.keyword"
             class="field-control"
             type="text"
-            placeholder="搜索 KB 编码、名称、Provider KB"
+            placeholder="搜索 KB 编码、名称、来源标识、Provider KB、URL"
             @keyup.enter="handleSearch"
           />
-
-          <select v-model="kbFilters.status" class="field-control">
-            <option v-for="item in kbStatusOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
-          </select>
 
           <select v-model="kbFilters.enabled" class="field-control">
             <option v-for="item in enabledOptions" :key="item.label" :value="item.value">{{ item.label }}</option>
@@ -186,8 +180,9 @@ const {
                   <tr>
                     <th>KB 编码</th>
                     <th>KB 名称</th>
-                    <th>业务类型</th>
                     <th>Provider KB ID</th>
+                    <th>请求地址</th>
+                    <th>标签</th>
                     <th>状态</th>
                     <th>扩展信息</th>
                     <th>操作</th>
@@ -197,9 +192,15 @@ const {
                   <tr v-for="row in kbList" :key="row.id">
                     <td>{{ row.kbCode }}</td>
                     <td>{{ row.kbName }}</td>
-                    <td>{{ row.bizType || '-' }}</td>
                     <td class="ellipsis">{{ row.providerKbId || '-' }}</td>
-                    <td>{{ row.status || '-' }}</td>
+                    <td class="ellipsis">{{ row.url || '-' }}</td>
+                    <td>
+                      <div class="tag-list">
+                        <span v-for="tag in tagList(row.tags)" :key="tag" class="soft-tag">{{ tag }}</span>
+                        <span v-if="!tagList(row.tags).length">-</span>
+                      </div>
+                    </td>
+                    <td>{{ row.enabled ? '启用' : '停用' }}</td>
                     <td class="ellipsis">{{ row.extJson ? JSON.stringify(row.extJson) : '-' }}</td>
                     <td>
                       <div class="row-actions">
@@ -350,27 +351,36 @@ const {
             <input v-model="kbForm.kbName" class="field-control" type="text" />
           </label>
           <label class="field-block">
-            <span>业务类型</span>
-            <select v-model="kbForm.bizType" class="field-control">
-              <option v-for="item in kbBizTypeOptions" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
-          </label>
-
-          <label class="field-block">
             <span>Provider KB ID</span>
             <input v-model="kbForm.providerKbId" class="field-control" type="text" />
           </label>
 
           <label class="field-block">
+            <span>请求地址</span>
+            <input v-model="kbForm.url" class="field-control" type="text" placeholder="https://example.internal/api/kb" />
+          </label>
+
+          <label class="field-block">
             <span>状态</span>
-            <select v-model="kbForm.status" class="field-control">
-              <option v-for="item in kbStatusOptions.slice(1)" :key="item.value" :value="item.value">{{ item.label }}</option>
-            </select>
+            <label class="checkbox-inline">
+              <input v-model="kbForm.enabled" type="checkbox" />
+              <span>{{ kbForm.enabled ? '启用' : '停用' }}</span>
+            </label>
+          </label>
+
+          <label class="field-block full-span">
+            <span>标签</span>
+            <input v-model="kbForm.tags" class="field-control" type="text" placeholder="多个标签用英文逗号分隔" />
           </label>
 
           <label class="field-block full-span">
             <span>扩展信息 JSON</span>
-            <textarea v-model="kbForm.extJson" class="field-control textarea-control" rows="4" placeholder='{"owner":"ai-engine"}' />
+            <textarea
+              v-model="kbForm.extJson"
+              class="field-control textarea-control"
+              rows="4"
+              placeholder='{"owner":"ai-engine","workspaceId":"ws-demo"}'
+            />
           </label>
         </div>
 

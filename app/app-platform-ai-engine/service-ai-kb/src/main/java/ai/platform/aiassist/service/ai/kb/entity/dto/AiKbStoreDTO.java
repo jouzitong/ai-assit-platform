@@ -1,11 +1,10 @@
 package ai.platform.aiassist.service.ai.kb.entity.dto;
 
-import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbStoreStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
@@ -16,11 +15,13 @@ public class AiKbStoreDTO extends BaseDTO {
 
     private String kbName;
 
-    private AiKbBizType bizType;
-
     private String providerKbId;
 
-    private AiKbStoreStatus status;
+    private Boolean enabled;
+
+    private List<String> tags;
+
+    private String url;
 
     private Map<String, Object> extJson;
 }

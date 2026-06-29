@@ -2,9 +2,10 @@ CREATE TABLE IF NOT EXISTS ai_kb_store (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     kb_code VARCHAR(64) NOT NULL COMMENT '本地知识库编码',
     kb_name VARCHAR(128) NOT NULL COMMENT '知识库名称',
-    biz_type INT NOT NULL COMMENT '业务类型枚举编码：1=DB_DATA_SOURCE',
     provider_kb_id VARCHAR(128) DEFAULT NULL COMMENT 'AI 侧真实知识库 ID',
-    status INT NOT NULL DEFAULT 1 COMMENT '知识库状态枚举编码：1=INIT,2=ACTIVE,3=SYNCING,4=FAILED,5=DISABLED',
+    enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用：1=启用，0=禁用',
+    tags_json MEDIUMTEXT DEFAULT NULL COMMENT '知识库标签 JSON 数组',
+    url VARCHAR(512) DEFAULT NULL COMMENT '知识库请求地址',
     ext_json MEDIUMTEXT DEFAULT NULL COMMENT '扩展信息 JSON',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     created_by BIGINT NOT NULL DEFAULT -1 COMMENT '创建者',
@@ -12,7 +13,7 @@ CREATE TABLE IF NOT EXISTS ai_kb_store (
     updated_by BIGINT NOT NULL DEFAULT -1 COMMENT '更新者',
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_kb_code (kb_code),
-    KEY idx_kb_status (status),
+    KEY idx_kb_enabled (enabled),
     KEY idx_kb_update_time (update_time)
 ) COMMENT='AI知识库主表';
 

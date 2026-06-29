@@ -51,7 +51,7 @@ public interface AiKnowledgeApi {
     /**
      * 根据知识库条件获取本地知识库标识。
      *
-     * @param request 知识库查询条件；可按业务类型、来源唯一键、启用状态过滤
+     * @param request 知识库查询条件；可按启用状态过滤
      * @return 匹配到的本地知识库标识；无匹配时 data 为空
      */
     @PostMapping("/internal/v1/ai/kb/id")
