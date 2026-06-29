@@ -29,71 +29,105 @@ import java.util.Map;
 @TableName(value = "ai_kb_document", autoResultMap = true)
 public class AiKbDocumentEntity extends AuditableEntity {
 
-    /** 所属知识库编码。 */
+    /**
+     * 所属知识库编码。
+     */
     @TableField("kb_code")
     private String kbCode;
 
-    /** 文档编码，建议使用 sourceKey/tableName。 */
+    /**
+     * 文档编码，建议使用 sourceKey/tableName。
+     */
     @TableField("document_code")
     private String documentCode;
 
-    /** 文档名称。 */
+    /**
+     * 文档名称。
+     */
     @TableField("document_name")
     private String documentName;
 
-    /** 文档类型，例如 DB_TABLE。 */
+    /**
+     * 文档类型，例如 DB_TABLE。
+     */
     @TableField("document_type")
     private AiKbDocumentType documentType;
 
-    /** 业务类型。 */
+    /**
+     * 业务类型。
+     */
     @TableField("biz_type")
     private AiKbBizType bizType;
 
-    /** 业务唯一键。 */
+    /**
+     * 业务唯一键。
+     */
     @TableField("biz_key")
     private String bizKey;
 
-    /** 文档状态，例如 ACTIVE、DISABLED。 */
+    /**
+     * 文档状态，例如 ACTIVE、DISABLED。
+     */
     @TableField("status")
     private AiKbDocumentStatus status;
 
-    /** AI 侧远端文档 ID。 */
+    /**
+     * AI 侧远端文档 ID。
+     */
     @TableField("provider_document_id")
     private String providerDocumentId;
 
-    /** AI 侧同步状态。 */
+    /**
+     * AI 侧同步状态。
+     */
     @TableField("provider_sync_status")
     private AiKbProviderSyncStatus providerSyncStatus;
 
-    /** 当前文档版本号。 */
+    /**
+     * 当前文档版本号。
+     */
     @TableField("document_version_no")
     private Integer documentVersionNo;
 
-    /** 文档内容校验摘要。 */
+    /**
+     * 文档内容校验摘要。
+     */
     @TableField("content_checksum")
     private String contentChecksum;
 
-    /** 文档内容格式，例如 MARKDOWN。 */
+    /**
+     * 文档内容格式，例如 MARKDOWN。
+     */
     @TableField("content_format")
     private AiKbContentFormat contentFormat;
 
-    /** 文档内容大小，单位字节。 */
+    /**
+     * 文档内容大小，单位字节。
+     */
     @TableField("content_size")
     private Long contentSize;
 
-    /** 文档扩展元数据。 */
+    /**
+     * 文档扩展元数据。
+     */
     @TableField(value = "meta_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metaJson;
 
-    /** 最近一次生成时间。 */
+    /**
+     * 最近一次生成时间。
+     */
     @TableField("last_generated_at")
     private LocalDateTime lastGeneratedAt;
 
-    /** 最近一次错误信息。 */
+    /**
+     * 最近一次错误信息。
+     */
     @TableField("last_error")
     private String lastError;
 
-    /** 备注。 */
+    /**
+     * 备注。
+     */
     @TableField("remark")
     private String remark;
 }

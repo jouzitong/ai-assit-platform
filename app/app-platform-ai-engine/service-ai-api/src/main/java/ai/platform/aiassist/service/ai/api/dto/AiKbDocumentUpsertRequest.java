@@ -4,6 +4,7 @@ import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
 import lombok.Data;
 
+import javax.annotation.Nullable;
 import java.io.Serializable;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -41,6 +42,7 @@ public class AiKbDocumentUpsertRequest implements Serializable {
     /**
      * 来源对象唯一键。
      */
+    @Nullable
     private String sourceKey;
 
     /**
