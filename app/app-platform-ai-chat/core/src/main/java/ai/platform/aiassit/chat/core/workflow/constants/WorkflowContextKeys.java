@@ -273,5 +273,19 @@ public interface WorkflowContextKeys {
          */
         String RENDERED_ANSWER = "renderedAnswer";
 
+        /**
+         * 结构化 render json。
+         *
+         * @see Map
+         */
+        String RENDER_JSON = "renderJson";
+
+        /**
+         * render json 检查报告。
+         *
+         * @see String
+         */
+        String RENDER_CHECK_REPORT = "renderCheckReport";
+
     }
 }

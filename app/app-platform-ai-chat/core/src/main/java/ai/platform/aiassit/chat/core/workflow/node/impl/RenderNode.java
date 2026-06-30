@@ -1,17 +1,18 @@
 package ai.platform.aiassit.chat.core.workflow.node.impl;
 
 import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
-import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
-import ai.platform.aiassist.service.ai.api.dto.AiMetaQueryRequest;
-import ai.platform.aiassist.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassist.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassist.service.ai.api.dto.OutputItem;
 import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassist.service.ai.api.dto.ResponseFormat;
+import ai.platform.aiassist.service.ai.api.dto.ToolDefinition;
 import ai.platform.aiassist.service.ai.api.enums.MessageRole;
+import ai.platform.aiassist.service.ai.api.enums.OutputType;
 import ai.platform.aiassist.service.ai.api.enums.ProviderType;
+import ai.platform.aiassist.service.ai.api.enums.ResponseFormatType;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
@@ -27,33 +28,23 @@ import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.util.Locale;
-import java.util.Objects;
-import java.util.UUID;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
- * 渲染节点，负责组织最终回复、落库助手消息并结束轮次。
+ * 渲染节点，负责构建结构化 render json，并写入最终产物。
  *
- * <p>功能：</p>
- * <ul>
- *     <li>汇总用户问题、查询规划、知识上下文、预生成结果、伪 SQL、执行状态和执行结果。</li>
- *     <li>调用模型生成最终面向用户的回答，必要时回退到本地兜底文案。</li>
- *     <li>落库 assistant message 和最终回答快照 artifact。</li>
- *     <li>结束当前 round，并写入最终状态与实际使用模型。</li>
- * </ul>
- *
- * <p>边界描述：</p>
- * <ul>
- *     <li>只负责最终表达与收尾，不反向修改前序节点核心产物。</li>
- *     <li>不承担会话初始化、查询规划、知识检索、SQL 生成或执行职责。</li>
- *     <li>若前序结果不足，只能基于现有上下文兜底表达，不能伪造未发生的执行事实。</li>
- * </ul>
+ * <p>当前节点不再生成自然语言总结，而是消费前序规划、知识检索、SQL 预生成结果，调用 AI Agent
+ * 生成后续页面可消费的 render json。</p>
  *
  * @author zhouzhitong
  * @since 2026/6/9
@@ -64,32 +55,35 @@ public class RenderNode extends BaseWorkflowNode {
 
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
-    private static final String DEFAULT_SCENE = "ai-chat-render";
+    private static final String DEFAULT_SCENE = "ai-chat-render-json";
+    private static final String TOOL_RENDER_VALIDATE = "render_json_validate_tool";
     private static final String RENDER_PROMPT = """
-            你是智能问数工作流的最终渲染节点。
-            请基于用户问题、查询规划、知识上下文、预生成结果与伪 SQL，生成一段最终回复。
+            你是智能问数工作流的 Render JSON 构建节点。
+            你的任务不是总结回答，而是基于前序节点已经准备好的查询规划、知识上下文、SQL 预生成结果和伪 SQL，
+            直接构建一个可供后续渲染链路消费的 render json。
 
-            要求：
-            1. 用中文直接回答
-            2. 如果当前只有预生成结果或伪 SQL，需要明确说明尚未生成真实可执行 SQL
-            3. 回答里要尽量包含关键结论、主要假设和下一步建议
-            4. 不要输出 JSON
+            输出要求：
+            1. 最终只输出严格合法的 render json，不要输出 markdown、解释、代码块。
+            2. render json 根节点必须是一个对象，优先包含 component 或 type，并可包含 children。
+            3. 组件节点允许包含 props、style、events、slots、meta、children。
+            4. 如果数据仍不完整，可以输出占位说明组件，但不能伪造不存在的执行结果。
+            5. 应优先把“查询规划”“关键假设”“伪 SQL”“待确认事项”组织成结构化展示节点，而不是纯文本长段落。
+            6. 在最终输出前，请使用 render_json_validate_tool 做结构合法性检查，并根据错误进行修正。
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
-    private final AiMetaQueryApi aiMetaQueryApi;
     private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
+    private final ObjectMapper objectMapper;
 
-    @Autowired
     public RenderNode(AiChatExecutionApi aiChatExecutionApi,
-                      AiMetaQueryApi aiMetaQueryApi,
                       AiChatRoundService roundService,
-                      WorkflowHistoryRecorder historyRecorder) {
+                      WorkflowHistoryRecorder historyRecorder,
+                      ObjectMapper objectMapper) {
         this.aiChatExecutionApi = aiChatExecutionApi;
-        this.aiMetaQueryApi = aiMetaQueryApi;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -103,29 +97,43 @@ public class RenderNode extends BaseWorkflowNode {
         }
 
         try {
-            String answer = buildRenderedAnswer(command, context);
-            if (!StringUtils.hasText(answer)) {
-                answer = buildFallbackAnswer(context);
-            }
+            ChatRequest request = buildRenderRequest(command, context);
+            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setRequest(request);
 
-            context.setRenderedAnswer(answer);
+            ChatResponse response = aiChatExecutionApi.chat(request).getData();
+            context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setResponse(response);
+
+            Map<String, Object> renderJson = extractRenderJson(response);
+            validateRenderJson(renderJson);
+
+            String renderJsonText = toPrettyJson(renderJson);
+            String renderCheckReport = buildRenderCheckReport(renderJson);
+
+            context.setRenderJson(renderJson);
+            if (StringUtils.hasText(renderCheckReport)) {
+                context.setRenderCheckReport(renderCheckReport);
+                context.put(WorkflowContextKeys.Render.RENDER_CHECK_REPORT, renderCheckReport);
+            }
+            context.setRenderedAnswer(renderJsonText);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
-            context.put(WorkflowContextKeys.Render.RENDERED_ANSWER, answer);
-            context.publishEvent("answer-ready", "final answer rendered", answer, null, STATUS_SUCCESS);
-            persistAssistantMessage(context, answer);
+            context.put(WorkflowContextKeys.Render.RENDER_JSON, renderJson);
+            context.put(WorkflowContextKeys.Render.RENDERED_ANSWER, renderJsonText);
+            context.publishEvent("answer-ready", "render json generated", renderJsonText, null, STATUS_SUCCESS);
+
+            persistAssistantMessage(context, renderJsonText);
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.MODEL_RESPONSE_SNAPSHOT.name(),
                     AiChatArtifactStage.RENDER.name(),
-                    "最终回答快照",
-                    answer,
-                    AiChatContentFormat.MARKDOWN.name(),
+                    "Render JSON",
+                    renderJson,
+                    AiChatContentFormat.JSON.name(),
                     true,
                     STATUS_SUCCESS,
                     context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
-                    null
+                    response == null ? null : response.getRequestId()
             );
-            finishRound(context.getRound(), STATUS_SUCCESS, resolveActualModel(command.getApiModel()));
+            finishRound(context.getRound(), STATUS_SUCCESS, resolveAgentModel(command));
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("render node failed, roundCode={}", context.getRound().getRoundCode(), ex);
@@ -134,7 +142,7 @@ public class RenderNode extends BaseWorkflowNode {
                     context,
                     AiChatArtifactType.WORKFLOW_ERROR.name(),
                     AiChatArtifactStage.RENDER.name(),
-                    "最终渲染失败",
+                    "Render JSON 构建失败",
                     ex.getMessage(),
                     AiChatContentFormat.PLAIN_TEXT.name(),
                     true,
@@ -142,7 +150,7 @@ public class RenderNode extends BaseWorkflowNode {
                     context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     null
             );
-            finishRound(context.getRound(), STATUS_FAILED, resolveActualModel(command.getApiModel()));
+            finishRound(context.getRound(), STATUS_FAILED, resolveAgentModel(command));
             return NodeResult.fail(ex.getMessage());
         }
     }
@@ -157,23 +165,19 @@ public class RenderNode extends BaseWorkflowNode {
         return 700;
     }
 
-    private String buildRenderedAnswer(AiChatQueryCommand command, WorkflowContext context) {
+    private ChatRequest buildRenderRequest(AiChatQueryCommand command, WorkflowContext context) {
         ChatRequest request = new ChatRequest();
-        request.setProvider(resolveProviderType(command.getApiModel()));
-        request.setModel(resolveActualModel(command.getApiModel()));
-
-        ChatMessage systemMessage = new ChatMessage();
-        systemMessage.setRole(MessageRole.SYSTEM);
-        systemMessage.setContent(RENDER_PROMPT);
-
-        ChatMessage userMessage = new ChatMessage();
-        userMessage.setRole(MessageRole.USER);
-        userMessage.setContent(buildRenderInput(command, context));
-
-        request.setMessages(java.util.List.of(systemMessage, userMessage));
+        request.setProvider(ProviderType.AI_AGENT);
+        request.setModel(resolveAgentModel(command));
+        request.setMessages(List.of(
+                buildMessage(MessageRole.SYSTEM, RENDER_PROMPT),
+                buildMessage(MessageRole.USER, buildRenderInput(command, context))
+        ));
+        request.setTools(buildRenderTools());
+        request.setResponseFormat(buildRenderResponseFormat());
 
         ChatOptions options = new ChatOptions();
-        options.setMaxTokens(resolveMaxTokens(command.getApiModel()));
+        options.setMaxTokens(4096);
         options.setTimeoutMs(30_000);
         request.setOptions(options);
 
@@ -181,39 +185,232 @@ public class RenderNode extends BaseWorkflowNode {
         meta.setTraceId(command.getTraceId());
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : DEFAULT_SCENE);
         request.setMeta(meta);
-        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setRequest(request);
 
-        ChatResponse response = aiChatExecutionApi.chat(request).getData();
-        context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setResponse(response);
-        return extractAnswer(response);
+        Map<String, Object> ext = new LinkedHashMap<>();
+        ext.put("enabledTools", List.of(TOOL_RENDER_VALIDATE));
+        ext.put("task", "build_render_json");
+        ext.put("nodeCode", WorkflowNodeCodes.RENDER.getNodeCode());
+        request.setExt(ext);
+        return request;
+    }
+
+    private ChatMessage buildMessage(MessageRole role, String content) {
+        ChatMessage message = new ChatMessage();
+        message.setRole(role);
+        message.setContent(content);
+        return message;
+    }
+
+    private List<ToolDefinition> buildRenderTools() {
+        List<ToolDefinition> tools = new ArrayList<>();
+        tools.add(buildRenderTool(
+                TOOL_RENDER_VALIDATE,
+                "Validate render JSON syntax and base component tree structure."
+        ));
+        return tools;
+    }
+
+    private ToolDefinition buildRenderTool(String name, String description) {
+        ToolDefinition definition = new ToolDefinition();
+        definition.setName(name);
+        definition.setDescription(description);
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        Map<String, Object> properties = new LinkedHashMap<>();
+        Map<String, Object> renderJsonProperty = new LinkedHashMap<>();
+        renderJsonProperty.put("type", "string");
+        renderJsonProperty.put("description", "The render JSON string to inspect.");
+        properties.put("render_json", renderJsonProperty);
+        schema.put("properties", properties);
+        schema.put("required", List.of("render_json"));
+        definition.setInputSchema(schema);
+        return definition;
+    }
+
+    private ResponseFormat buildRenderResponseFormat() {
+        ResponseFormat responseFormat = new ResponseFormat();
+        responseFormat.setType(ResponseFormatType.JSON_SCHEMA);
+
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("description", "Render JSON root node.");
+
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("component", Map.of("type", "string"));
+        properties.put("type", Map.of("type", "string"));
+        properties.put("name", Map.of("type", "string"));
+        properties.put("props", buildFreeFormObjectSchema("Component props."));
+        properties.put("style", buildFreeFormObjectSchema("Component style object."));
+        properties.put("events", buildFreeFormObjectSchema("Component event bindings."));
+        properties.put("slots", buildFreeFormObjectSchema("Component slots."));
+        properties.put("meta", buildFreeFormObjectSchema("Render metadata."));
+
+        Map<String, Object> childrenSchema = new LinkedHashMap<>();
+        childrenSchema.put("type", "array");
+        Map<String, Object> childItem = new LinkedHashMap<>();
+        childItem.put("type", "object");
+        childItem.put("additionalProperties", true);
+        childrenSchema.put("items", childItem);
+        properties.put("children", childrenSchema);
+
+        schema.put("properties", properties);
+        schema.put("additionalProperties", true);
+        responseFormat.setSchema(schema);
+        return responseFormat;
+    }
+
+    private Map<String, Object> buildFreeFormObjectSchema(String description) {
+        Map<String, Object> schema = new LinkedHashMap<>();
+        schema.put("type", "object");
+        schema.put("description", description);
+        schema.put("additionalProperties", true);
+        return schema;
     }
 
     private String buildRenderInput(AiChatQueryCommand command, WorkflowContext context) {
-        StringBuilder builder = new StringBuilder();
-        builder.append("用户问题：\n").append(command.getMessage()).append("\n\n");
-        builder.append("查询规划：\n").append(defaultIfBlank(context.getAnalysisResult(), "无")).append("\n\n");
-        builder.append("Prompt 上下文：\n")
-                .append(defaultIfBlank(context.getPromptContext(WorkflowNodeCodes.RENDER.getNodeCode()), "无"))
-                .append("\n\n");
-        builder.append("知识上下文：\n").append(defaultIfBlank(context.getKnowledgeResult(), "无")).append("\n\n");
-        builder.append("预生成结果：\n").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
-        builder.append("伪 SQL：\n").append(defaultIfBlank(context.getGeneratedSql(), "无")).append("\n");
-        return builder.toString();
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("userQuery", command.getMessage());
+        payload.put("planningSummary", context.getAnalysisResult());
+        payload.put("planningResult", context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT));
+        payload.put("promptContext", context.getPromptContext(WorkflowNodeCodes.RENDER.getNodeCode()));
+        payload.put("knowledgeContext", context.getKnowledgeResult());
+        payload.put("knowledgeSearchResponse", context.get(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE));
+        payload.put("sqlPreGenerateResult", context.getSqlPreGenerateResult());
+        payload.put("pseudoSql", context.getGeneratedSql());
+        payload.put("renderRequirements", List.of(
+                "优先使用卡片、描述块、列表、表格、代码块等可解释节点表达结果",
+                "需要显式展示关键假设、未确认项和下一步建议",
+                "如果只有伪 SQL，不要伪造成真实查询结果"
+        ));
+        try {
+            return objectMapper.writeValueAsString(payload);
+        } catch (Exception ex) {
+            throw new IllegalStateException("failed to serialize render input", ex);
+        }
     }
 
-    private String buildFallbackAnswer(WorkflowContext context) {
-        StringBuilder builder = new StringBuilder();
-        if (StringUtils.hasText(context.getAnalysisResult())) {
-            builder.append("查询规划：").append(context.getAnalysisResult()).append("\n\n");
+    private Map<String, Object> extractRenderJson(ChatResponse response) {
+        if (response == null || CollectionUtils.isEmpty(response.getOutputs())) {
+            throw new IllegalArgumentException("render response is empty");
         }
-        if (context.getSqlPreGenerateResult() != null) {
-            builder.append("预生成结果：").append(String.valueOf(context.getSqlPreGenerateResult())).append("\n\n");
+        for (OutputItem item : response.getOutputs()) {
+            if (item == null) {
+                continue;
+            }
+            if (item.getType() == OutputType.JSON) {
+                if (StringUtils.hasText(item.getText())) {
+                    try {
+                        return objectMapper.readValue(item.getText(), new TypeReference<LinkedHashMap<String, Object>>() {
+                        });
+                    } catch (Exception ignored) {
+                        // Fall back to the json field below.
+                    }
+                }
+                if (item.getJson() != null && !item.getJson().isEmpty()) {
+                    return objectMapper.convertValue(item.getJson(), new TypeReference<LinkedHashMap<String, Object>>() {
+                    });
+                }
+            }
         }
-        if (StringUtils.hasText(context.getGeneratedSql())) {
-            builder.append("伪 SQL：\n").append(context.getGeneratedSql()).append("\n\n");
+        for (OutputItem item : response.getOutputs()) {
+            if (item == null || !StringUtils.hasText(item.getText())) {
+                continue;
+            }
+            try {
+                return objectMapper.readValue(item.getText(), new TypeReference<LinkedHashMap<String, Object>>() {
+                });
+            } catch (Exception ignored) {
+                // Try the next output item.
+            }
         }
-        builder.append("当前链路仅输出查询规划、知识上下文和 SQL 预生成结果。");
-        return builder.toString();
+        throw new IllegalArgumentException("render json output is missing");
+    }
+
+    private void validateRenderJson(Map<String, Object> renderJson) {
+        if (renderJson == null || renderJson.isEmpty()) {
+            throw new IllegalArgumentException("render json is empty");
+        }
+        if (!hasNodeIdentity(renderJson) && !(renderJson.get("children") instanceof List<?>)) {
+            throw new IllegalArgumentException("render json root must define component/type/name or children");
+        }
+        validateRenderNode(renderJson, "$");
+    }
+
+    private void validateRenderNode(Object node, String path) {
+        if (!(node instanceof Map<?, ?> nodeMap)) {
+            throw new IllegalArgumentException("render node at " + path + " must be an object");
+        }
+        Object children = nodeMap.get("children");
+        if (children == null) {
+            return;
+        }
+        if (!(children instanceof List<?> childList)) {
+            throw new IllegalArgumentException(path + ".children must be a list");
+        }
+        for (int i = 0; i < childList.size(); i++) {
+            Object child = childList.get(i);
+            if (!(child instanceof Map<?, ?> childMap)) {
+                throw new IllegalArgumentException(path + ".children[" + i + "] must be an object");
+            }
+            @SuppressWarnings("unchecked")
+            Map<String, Object> childNode = (Map<String, Object>) childMap;
+            if (!hasNodeIdentity(childNode) && !(childNode.get("children") instanceof List<?>)) {
+                throw new IllegalArgumentException(path + ".children[" + i + "] must define component/type/name or children");
+            }
+            validateRenderNode(childNode, path + ".children[" + i + "]");
+        }
+    }
+
+    private boolean hasNodeIdentity(Map<String, Object> node) {
+        return hasText(node.get("component"))
+                || hasText(node.get("type"))
+                || hasText(node.get("name"));
+    }
+
+    private boolean hasText(Object value) {
+        return value instanceof String str && StringUtils.hasText(str);
+    }
+
+    private String buildRenderCheckReport(Map<String, Object> renderJson) {
+        int componentCount = countComponents(renderJson);
+        String root = resolveNodeLabel(renderJson);
+        String report = "Render JSON 校验通过，root=" + root + "，componentCount=" + componentCount + "。";
+        return limitLength(report, 200);
+    }
+
+    private int countComponents(Object node) {
+        if (!(node instanceof Map<?, ?> nodeMap)) {
+            return 0;
+        }
+        int count = hasNodeIdentity(castNode(nodeMap)) ? 1 : 0;
+        Object children = nodeMap.get("children");
+        if (children instanceof List<?> childList) {
+            for (Object child : childList) {
+                count += countComponents(child);
+            }
+        }
+        return count;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> castNode(Map<?, ?> node) {
+        return (Map<String, Object>) node;
+    }
+
+    private String resolveNodeLabel(Map<String, Object> node) {
+        Object component = node.get("component");
+        if (hasText(component)) {
+            return String.valueOf(component);
+        }
+        Object type = node.get("type");
+        if (hasText(type)) {
+            return String.valueOf(type);
+        }
+        Object name = node.get("name");
+        if (hasText(name)) {
+            return String.valueOf(name);
+        }
+        return "anonymous-root";
     }
 
     private void persistAssistantMessage(WorkflowContext context, String answer) {
@@ -224,7 +421,7 @@ public class RenderNode extends BaseWorkflowNode {
                 AiChatActorType.AI.name(),
                 AiChatMessageType.FINAL_ANSWER.name(),
                 answer,
-                AiChatContentFormat.MARKDOWN.name(),
+                AiChatContentFormat.JSON.name(),
                 AiChatDisplayLevel.VISIBLE.name(),
                 STATUS_SUCCESS,
                 context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
@@ -244,65 +441,38 @@ public class RenderNode extends BaseWorkflowNode {
         roundService.edit(round.getId(), update);
     }
 
-    private String extractAnswer(ChatResponse response) {
-        if (response == null || CollectionUtils.isEmpty(response.getOutputs())) {
-            return "";
+    private String toPrettyJson(Map<String, Object> renderJson) {
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(renderJson);
+        } catch (Exception ex) {
+            throw new IllegalStateException("failed to serialize render json", ex);
         }
-        return response.getOutputs().stream()
-                .filter(Objects::nonNull)
-                .map(OutputItem::getText)
-                .filter(StringUtils::hasText)
-                .findFirst()
-                .orElse("");
     }
 
-    private ProviderType resolveProviderType(String apiModel) {
-        AiModelConfigDTO config = findModelConfigByApiModel(apiModel);
-        if (config != null && StringUtils.hasText(config.getProviderCode())) {
-            try {
-                return ProviderType.valueOf(config.getProviderCode().trim().toUpperCase(Locale.ROOT));
-            } catch (Exception ignored) {
-                return ProviderType.DASHSCOPE;
+    private String limitLength(String text, int maxLength) {
+        if (!StringUtils.hasText(text) || text.length() <= maxLength) {
+            return text;
+        }
+        if (maxLength <= 1) {
+            return text.substring(0, maxLength);
+        }
+        return text.substring(0, maxLength - 1) + "…";
+    }
+
+    private String resolveAgentModel(AiChatQueryCommand command) {
+        Object explicit = command == null || command.getExt() == null ? null : command.getExt().get("renderAgentModel");
+        if (!(explicit instanceof String) || !StringUtils.hasText((String) explicit)) {
+            explicit = command == null || command.getExt() == null ? null : command.getExt().get("aiAgentModel");
+        }
+        if (explicit instanceof String model && StringUtils.hasText(model)) {
+            return model.trim();
+        }
+        if (command != null && StringUtils.hasText(command.getApiModel())) {
+            String apiModel = command.getApiModel().trim();
+            if (apiModel.startsWith("gpt-")) {
+                return apiModel;
             }
         }
-        return ProviderType.DASHSCOPE;
-    }
-
-    private AiModelConfigDTO findModelConfigByApiModel(String apiModel) {
-        AiMetaQueryRequest request = new AiMetaQueryRequest();
-        request.setEnabled(Boolean.TRUE);
-        return aiMetaQueryApi.listModels(request).stream()
-                .filter(Objects::nonNull)
-                .filter(config -> StringUtils.hasText(config.getApiModel()))
-                .filter(config -> !StringUtils.hasText(apiModel) || apiModel.trim().equals(config.getApiModel().trim()))
-                .findFirst()
-                .orElse(null);
-    }
-
-    private int resolveMaxTokens(String apiModel) {
-        AiModelConfigDTO config = findModelConfigByApiModel(apiModel);
-        return config == null || config.getMaxOutputTokens() == null ? 1024 : config.getMaxOutputTokens();
-    }
-
-    private String resolveActualModel(String apiModel) {
-        if (StringUtils.hasText(apiModel)) {
-            return apiModel.trim();
-        }
-        AiModelConfigDTO config = findModelConfigByApiModel(null);
-        if (config != null && StringUtils.hasText(config.getApiModel())) {
-            return config.getApiModel().trim();
-        }
-        if (config != null && StringUtils.hasText(config.getModelCode())) {
-            return config.getModelCode().trim();
-        }
-        return "qwen-math-turbo";
-    }
-
-    private String defaultIfBlank(String value, String fallback) {
-        return StringUtils.hasText(value) ? value : fallback;
-    }
-
-    private String generateCode(String prefix) {
-        return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
+        return "gpt-5.5";
     }
 }

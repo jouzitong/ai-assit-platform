@@ -9,8 +9,6 @@ from agents import Agent, Runner
 
 from tools import (
     knowledge_base_search_tool,
-    render_json_dry_run_tool,
-    render_json_preview_tool,
     render_json_validate_tool,
 )
 
@@ -18,8 +16,6 @@ from tools import (
 TOOL_REGISTRY = {
     "knowledge_base_search_tool": knowledge_base_search_tool,
     "render_json_validate_tool": render_json_validate_tool,
-    "render_json_dry_run_tool": render_json_dry_run_tool,
-    "render_json_preview_tool": render_json_preview_tool,
 }
 
 
@@ -91,6 +87,39 @@ def _resolve_enabled_tools(payload: dict[str, Any]) -> tuple[list[str], list[Any
     return tool_names, [TOOL_REGISTRY[name] for name in tool_names]
 
 
+def _normalize_json_output(final_output: Any) -> tuple[dict[str, Any] | list[Any] | None, str | None]:
+    if isinstance(final_output, (dict, list)):
+        return final_output, json.dumps(final_output, ensure_ascii=False)
+    if isinstance(final_output, str):
+        text = final_output.strip()
+        if not text:
+            return None, ""
+        try:
+            normalized = json.loads(text)
+        except json.JSONDecodeError:
+            return None, text
+        if isinstance(normalized, (dict, list)):
+            return normalized, json.dumps(normalized, ensure_ascii=False)
+        return None, text
+    return None, json.dumps(final_output, ensure_ascii=False)
+
+
+def _build_outputs(final_output: Any, response_format: dict[str, Any] | None) -> list[dict[str, Any]]:
+    format_type = str((response_format or {}).get("type") or "").upper()
+    normalized_json, text_output = _normalize_json_output(final_output)
+    if format_type == "JSON_SCHEMA" and isinstance(normalized_json, (dict, list)):
+        return [{
+            "type": "JSON",
+            "text": text_output or "",
+            "json": normalized_json,
+        }]
+    return [{
+        "type": "TEXT",
+        "text": text_output or "",
+        "json": {},
+    }]
+
+
 async def _run(payload: dict[str, Any]) -> dict[str, Any]:
     messages = payload.get("messages") or []
     instructions, transcript = _build_transcript(messages)
@@ -105,8 +134,7 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
     )
     result = await Runner.run(agent, transcript or "USER: ")
     final_output = result.final_output
-    text_output = final_output if isinstance(final_output, str) else json.dumps(final_output, ensure_ascii=False)
-    outputs = [{"type": "TEXT", "text": text_output, "json": {}}]
+    outputs = _build_outputs(final_output, payload.get("responseFormat"))
     provider_meta = {
         "last_agent": getattr(getattr(result, "last_agent", None), "name", None),
         "raw_type": type(final_output).__name__,

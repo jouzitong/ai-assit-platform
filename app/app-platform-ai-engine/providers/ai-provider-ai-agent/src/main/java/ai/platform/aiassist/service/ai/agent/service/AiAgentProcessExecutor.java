@@ -49,6 +49,11 @@ public class AiAgentProcessExecutor {
     public JsonNode execute(AiAgentProperties properties, ProviderChatRequest request) {
         validate(properties);
         Path scriptPath = resolveScriptPath(properties);
+        long timeoutMs = resolveTimeoutMs(properties, request);
+        log.info("ai agent process preparing, scriptPath={}, pythonCommand={}, model={}, timeoutMs={}, workingDirectory={}",
+                scriptPath, properties.getPythonCommand(),
+                StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getDefaultModel(),
+                timeoutMs, properties.getWorkingDirectory());
         List<String> command = new ArrayList<>();
         command.add(properties.getPythonCommand());
         command.add(scriptPath.toString());
@@ -71,25 +76,39 @@ public class AiAgentProcessExecutor {
         }
 
         try {
+            log.info("ai agent process starting, command={}", command);
             Process process = processBuilder.start();
+            log.info("ai agent process started");
             try (Writer writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
                 objectMapper.writeValue(writer, buildPayload(properties, request));
             }
-            boolean finished = process.waitFor(resolveTimeoutMs(properties, request), TimeUnit.MILLISECONDS);
+            boolean finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
             if (!finished) {
+                log.warn("ai agent process timeout, timeoutMs={}, scriptPath={}", timeoutMs, scriptPath);
                 process.destroyForcibly();
                 throw new IllegalStateException("ai agent python process timeout");
             }
             String stdout = readAll(process.getInputStream());
             String stderr = readAll(process.getErrorStream());
-            if (process.exitValue() != 0) {
+            int exitValue = process.exitValue();
+            log.info("ai agent process finished, exitValue={}, stdoutLength={}, stderrLength={}",
+                    exitValue, stdout.length(), stderr.length());
+            if (exitValue != 0) {
+                log.error("ai agent process failed, exitValue={}, stderr={}", exitValue, safeError(stderr));
                 throw new IllegalStateException("ai agent python process failed: " + safeError(stderr));
             }
             if (!StringUtils.hasText(stdout)) {
+                log.error("ai agent process returned empty output, stderr={}", safeError(stderr));
                 throw new IllegalStateException("ai agent python process returned empty output");
             }
-            return objectMapper.readTree(stdout);
+            JsonNode result = objectMapper.readTree(stdout);
+            log.info("ai agent process parsed output successfully");
+            return result;
         } catch (Exception ex) {
+            log.error("ai agent provider execute failed, scriptPath={}, model={}",
+                    scriptPath,
+                    StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getDefaultModel(),
+                    ex);
             throw new IllegalStateException("ai agent provider execute failed", ex);
         }
     }
@@ -120,7 +139,7 @@ public class AiAgentProcessExecutor {
         if (configured != null && configured > 0) {
             return configured;
         }
-        return Duration.ofSeconds(60).toMillis();
+        return Duration.ofSeconds(120).toMillis();
     }
 
     private void validate(AiAgentProperties properties) {
@@ -134,10 +153,13 @@ public class AiAgentProcessExecutor {
 
     private Path resolveScriptPath(AiAgentProperties properties) {
         if (StringUtils.hasText(properties.getScriptPath())) {
-            return Path.of(properties.getScriptPath());
+            Path configuredPath = Path.of(properties.getScriptPath()).toAbsolutePath().normalize();
+            log.debug("ai agent script path resolved from configuration, scriptPath={}", configuredPath);
+            return configuredPath;
         }
         Path developmentPath = DEV_SCRIPT_PATH.toAbsolutePath().normalize();
         if (Files.exists(developmentPath)) {
+            log.debug("ai agent script path resolved from development path, scriptPath={}", developmentPath);
             return developmentPath;
         }
         throw new IllegalStateException(

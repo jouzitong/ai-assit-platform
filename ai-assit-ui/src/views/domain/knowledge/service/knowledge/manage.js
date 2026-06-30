@@ -5,11 +5,14 @@ import {
   listAiKnowledgeBaseDocuments,
   updateAiKnowledgeBaseDocumentContent
 } from '../../../../../api/aiChat'
+import { SERVICE_NAMES } from '../../../../../config/services'
+import { useEnumStore } from '../../../../../store/enums'
 import { showPopup } from '../../../../../utils/popup'
 
 export function useKnowledgeManagePage() {
   const route = useRoute()
   const router = useRouter()
+  const { getEnumLabel } = useEnumStore()
   const detail = ref(null)
   const documents = ref([])
   const loading = ref(false)
@@ -40,12 +43,12 @@ export function useKnowledgeManagePage() {
   const summaryInfo = computed(() => ({
     kbCode: detail.value?.kbCode || '-',
     documentCode: detail.value?.documentCode || '-',
-    documentType: detail.value?.documentType || '-',
+    documentType: getEnumText('aiKbDocumentType', detail.value?.documentType, getEnumLabel),
     bizKey: detail.value?.bizKey || '-',
     source: detail.value?.sourceSystem || '-',
-    status: detail.value?.status || '-',
+    status: getEnumText('aiKbDocumentStatus', detail.value?.status, getEnumLabel),
     providerDocumentId: detail.value?.providerDocumentId || '-',
-    providerSyncStatus: detail.value?.providerSyncStatus || '-',
+    providerSyncStatus: getEnumText('aiKbProviderSyncStatus', detail.value?.providerSyncStatus, getEnumLabel),
     currentVersionNo: detail.value?.currentVersionNo ?? '-',
     contentSize: formatContentSize(detail.value?.contentSize),
     lastGeneratedAt: formatDateTime(detail.value?.lastGeneratedAt)
@@ -172,6 +175,13 @@ export function useKnowledgeManagePage() {
     cancelEditContent,
     saveEditContent
   }
+}
+
+function getEnumText(enumName, value, getEnumLabel) {
+  if (value === null || value === undefined || value === '') {
+    return '-'
+  }
+  return getEnumLabel(enumName, value, SERVICE_NAMES.AI_ENGINE)
 }
 
 function safeDecodeRouteParam(value) {

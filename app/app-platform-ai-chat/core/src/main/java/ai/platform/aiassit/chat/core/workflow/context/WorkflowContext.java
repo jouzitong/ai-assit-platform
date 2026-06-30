@@ -331,6 +331,23 @@ public class WorkflowContext implements Serializable {
         putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer", renderedAnswer);
     }
 
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> getRenderJson() {
+        return getNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderJson");
+    }
+
+    public void setRenderJson(Map<String, Object> renderJson) {
+        putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderJson", renderJson);
+    }
+
+    public String getRenderCheckReport() {
+        return getNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderCheckReport");
+    }
+
+    public void setRenderCheckReport(String renderCheckReport) {
+        putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderCheckReport", renderCheckReport);
+    }
+
     /**
      * 推送默认运行中状态的工作流事件。
      *
