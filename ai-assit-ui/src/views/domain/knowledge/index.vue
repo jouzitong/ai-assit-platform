@@ -82,6 +82,13 @@ const filterSchema = computed(() => {
   })
 })
 
+const documentTypeOptions = computed(() => {
+  return getEnumOptions('aiKbDocumentType', SERVICE_NAMES.AI_ENGINE).map(item => ({
+    label: item.label,
+    value: String(item.value ?? '')
+  }))
+})
+
 const tableColumns = computed(() => {
   if (!batchMode.value) {
     return KNOWLEDGE_TABLE_COLUMNS
@@ -291,6 +298,15 @@ const pageRowsIndeterminate = computed(() => {
               <option value="" disabled>请选择知识库</option>
               <option v-for="item in knowledgeBaseOptions" :key="item.kbId" :value="item.kbId">
                 {{ item.kbId }}{{ item.kbName ? ` · ${item.kbName}` : '' }}
+              </option>
+            </select>
+          </label>
+          <label class="kb-create-field">
+            <span>文档类型</span>
+            <select v-model="createForm.documentType">
+              <option value="" disabled>请选择文档类型</option>
+              <option v-for="item in documentTypeOptions" :key="item.value" :value="item.value">
+                {{ item.label }}
               </option>
             </select>
           </label>

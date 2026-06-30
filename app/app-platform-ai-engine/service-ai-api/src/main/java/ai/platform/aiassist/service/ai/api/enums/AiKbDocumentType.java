@@ -6,7 +6,11 @@ import org.arthena.framework.common.enums.IEnum;
 
 @Getter
 public enum AiKbDocumentType implements IEnum {
-    DB_TABLE(1, "数据库表文档", AiKbBizType.DB_DATA_SOURCE),
+    DB_TABLE(1, "数据库表", AiKbBizType.DB_DATA_SOURCE),
+    BUSINESS_DOCUMENT(2, "常见业务", AiKbBizType.BUSINESS_ANALYSIS_SCENE),
+    USER_PROFILE_DOCUMENT(3, "用户画像/偏好", AiKbBizType.USER_PROFILE_SCENE),
+    RENDER_DOCUMENT(4, "渲染场景", AiKbBizType.RENDER_JSON_SCENE),
+    FAQ_DOCUMENT(5, "常见问题", AiKbBizType.FAQ_SCENE),
     ;
 
     @JsonValue

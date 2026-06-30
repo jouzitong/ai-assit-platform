@@ -939,6 +939,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         target.setContentFormat(source.getContentFormat());
         target.setContentSize(source.getContentSize());
         target.setLastGeneratedAt(source.getLastGeneratedAt());
+        target.setUpdateTime(source.getUpdateTime());
         return target;
     }
 
@@ -958,6 +959,7 @@ public class AiKnowledgeBaseManageDomainServiceImpl implements AiKnowledgeDomain
         target.setContentFormat(summary.getContentFormat());
         target.setContentSize(summary.getContentSize());
         target.setLastGeneratedAt(summary.getLastGeneratedAt());
+        target.setUpdateTime(summary.getUpdateTime());
         target.setContentChecksum(document.getContentChecksum());
         target.setMetaJson(copyMap(document.getMetaJson()));
         target.setLastError(document.getLastError());

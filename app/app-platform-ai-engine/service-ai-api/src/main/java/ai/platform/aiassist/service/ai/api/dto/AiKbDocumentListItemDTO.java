@@ -42,4 +42,6 @@ public class AiKbDocumentListItemDTO implements Serializable {
     private Long contentSize;
 
     private LocalDateTime lastGeneratedAt;
+
+    private LocalDateTime updateTime;
 }

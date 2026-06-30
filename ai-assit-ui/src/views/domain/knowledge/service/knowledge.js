@@ -107,7 +107,8 @@ export function useKnowledgePage() {
     router.push({
       path: `/knowledge/${encodeURIComponent(item.documentCode)}`,
       query: {
-        kbCode: item.kbCode || ''
+        kbCode: item.kbCode || '',
+        documentCode: item.documentCode || ''
       }
     })
   }
@@ -203,6 +204,7 @@ export function useKnowledgePage() {
         kbId: kb.kbId,
         documentId: createForm.documentCode.trim(),
         documentName: createForm.documentName.trim() || createForm.documentCode.trim(),
+        documentType: Number(createForm.documentType),
         content: createForm.content
       })
       createDialogVisible.value = false
@@ -326,6 +328,7 @@ function buildListRequestPayload({ keyword, bizTypeCode, tab, page, size }) {
 function createEmptyKbForm() {
   return {
     kbId: '',
+    documentType: '1',
     documentCode: '',
     documentName: '',
     content: ''
@@ -335,6 +338,9 @@ function createEmptyKbForm() {
 function validateCreateForm(form) {
   if (!form.kbId.trim()) {
     return '请选择知识库'
+  }
+  if (!form.documentType.trim()) {
+    return '请选择文档类型'
   }
   if (!form.documentCode.trim()) {
     return '请输入文档编码'
@@ -376,6 +382,7 @@ function mapDocumentItem(item) {
     contentFormat: item?.contentFormat ?? null,
     contentSize: formatContentSize(item?.contentSize),
     lastGeneratedAt: formatDateTime(item?.lastGeneratedAt),
+    updateTime: formatDateTime(item?.updateTime),
     raw: item
   }
 }

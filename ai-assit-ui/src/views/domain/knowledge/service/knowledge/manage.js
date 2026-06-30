@@ -19,7 +19,13 @@ export function useKnowledgeManagePage() {
   const editingContent = ref('')
 
   const kbCode = computed(() => String(route.query.kbCode ?? ''))
-  const documentCode = computed(() => String(route.params.sourceKey ?? ''))
+  const documentCode = computed(() => {
+    const queryValue = String(route.query.documentCode ?? '')
+    if (queryValue) {
+      return queryValue
+    }
+    return safeDecodeRouteParam(route.params.sourceKey)
+  })
   const documentList = computed(() => documents.value)
   const currentDocumentKey = computed(() => `${kbCode.value}::${documentCode.value}`)
   const contentText = computed(() => {
@@ -105,7 +111,8 @@ export function useKnowledgeManagePage() {
     router.push({
       path: `/knowledge/${encodeURIComponent(item.documentCode)}`,
       query: {
-        kbCode: item.kbCode
+        kbCode: item.kbCode,
+        documentCode: item.documentCode
       }
     })
   }
@@ -164,6 +171,21 @@ export function useKnowledgeManagePage() {
     startEditContent,
     cancelEditContent,
     saveEditContent
+  }
+}
+
+function safeDecodeRouteParam(value) {
+  if (value === null || value === undefined) {
+    return ''
+  }
+  const text = String(value)
+  if (!text) {
+    return ''
+  }
+  try {
+    return decodeURIComponent(text)
+  } catch {
+    return text
   }
 }
 

@@ -46,6 +46,8 @@ public class AiKbDocumentDTO extends BaseDTO {
 
     private LocalDateTime lastGeneratedAt;
 
+    private LocalDateTime updateTime;
+
     private String lastError;
 
     private String remark;
