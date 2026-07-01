@@ -4,9 +4,10 @@ import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
 import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
 import ai.platform.aiassist.service.ai.api.AiVectorExecutionApi;
-import org.springframework.cloud.openfeign.EnableFeignClients;
+import ai.platform.aiassit.render.api.RenderInternalApi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.cloud.openfeign.EnableFeignClients;
 
 import java.util.Map;
 
@@ -15,7 +16,8 @@ import java.util.Map;
         AiChatExecutionApi.class,
         AiMetaQueryApi.class,
         AiVectorExecutionApi.class,
-        AiKnowledgeApi.class
+        AiKnowledgeApi.class,
+        RenderInternalApi.class
 })
 public class PlatformAiChatApplication {
 

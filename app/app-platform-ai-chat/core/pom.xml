@@ -42,6 +42,11 @@
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>service-ai-api</artifactId>
         </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-render-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
     </dependencies>
 </project>

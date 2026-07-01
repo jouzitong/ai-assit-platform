@@ -28,6 +28,10 @@ import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
+import ai.platform.aiassit.render.api.RenderInternalApi;
+import ai.platform.aiassit.render.api.dto.RenderDetailDTO;
+import ai.platform.aiassit.render.api.dto.RenderUpsertRequest;
+import ai.platform.aiassit.render.api.enums.EffectiveStatus;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -36,9 +40,11 @@ import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * 渲染节点，负责构建结构化 render json，并写入最终产物。
@@ -56,6 +62,7 @@ public class RenderNode extends BaseWorkflowNode {
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
     private static final String DEFAULT_SCENE = "ai-chat-render-json";
+    private static final String DEFAULT_RENDER_PAGE_PREFIX = "ai-chat-render";
     private static final String TOOL_RENDER_VALIDATE = "render_json_validate_tool";
     private static final String RENDER_PROMPT = """
             你是智能问数工作流的 Render JSON 构建节点。
@@ -72,15 +79,18 @@ public class RenderNode extends BaseWorkflowNode {
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
+    private final RenderInternalApi renderInternalApi;
     private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
     private final ObjectMapper objectMapper;
 
     public RenderNode(AiChatExecutionApi aiChatExecutionApi,
+                      RenderInternalApi renderInternalApi,
                       AiChatRoundService roundService,
                       WorkflowHistoryRecorder historyRecorder,
                       ObjectMapper objectMapper) {
         this.aiChatExecutionApi = aiChatExecutionApi;
+        this.renderInternalApi = renderInternalApi;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
         this.objectMapper = objectMapper;
@@ -114,11 +124,16 @@ public class RenderNode extends BaseWorkflowNode {
                 context.setRenderCheckReport(renderCheckReport);
                 context.put(WorkflowContextKeys.Render.RENDER_CHECK_REPORT, renderCheckReport);
             }
+            RenderDetailDTO renderPage = persistRenderPage(context, renderJsonText);
             context.setRenderedAnswer(renderJsonText);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
             context.put(WorkflowContextKeys.Render.RENDER_JSON, renderJson);
             context.put(WorkflowContextKeys.Render.RENDERED_ANSWER, renderJsonText);
-            context.publishEvent("answer-ready", "render json generated", renderJsonText, null, STATUS_SUCCESS);
+            context.publishEvent("answer-ready",
+                    buildAnswerReadyMessage(renderPage),
+                    renderJsonText,
+                    null,
+                    STATUS_SUCCESS);
 
             persistAssistantMessage(context, renderJsonText);
             historyRecorder.saveArtifact(
@@ -411,6 +426,125 @@ public class RenderNode extends BaseWorkflowNode {
             return String.valueOf(name);
         }
         return "anonymous-root";
+    }
+
+    private RenderDetailDTO persistRenderPage(WorkflowContext context, String renderJsonText) {
+        RenderUpsertRequest request = new RenderUpsertRequest();
+        request.setCode(resolveRenderPageCode(context));
+        request.setName(resolveRenderPageName(context));
+        request.setCategoryCode(resolveRenderCategoryCode(context));
+        request.setStatus(EffectiveStatus.PUBLISHED);
+        request.setContent(renderJsonText);
+
+        RenderDetailDTO detail = renderInternalApi.upsert(request);
+        String pageCode = detail == null ? request.getCode() : detail.getCode();
+        context.put(WorkflowContextKeys.Render.RENDER_PAGE_CODE, pageCode);
+        context.put(WorkflowContextKeys.Render.RENDER_PAGE_DETAIL, detail);
+        context.putNodeMetadata(WorkflowNodeCodes.RENDER.getNodeCode(), WorkflowContextKeys.Render.RENDER_PAGE_CODE, pageCode);
+        log.info("render page persisted, roundCode={}, pageCode={}", context.getRound().getRoundCode(), pageCode);
+        return detail;
+    }
+
+    private String buildAnswerReadyMessage(RenderDetailDTO renderPage) {
+        if (renderPage == null || !StringUtils.hasText(renderPage.getCode())) {
+            return "render json generated and persisted";
+        }
+        return "render json generated and persisted, pageCode=" + renderPage.getCode();
+    }
+
+    private String resolveRenderPageCode(WorkflowContext context) {
+        AiChatQueryCommand command = context.getCommand();
+        String explicit = firstText(
+                readExt(command, "renderPageCode"),
+                readExt(command, "pageCode"),
+                readExt(command, "render_code")
+        );
+        if (StringUtils.hasText(explicit)) {
+            return sanitizePageCode(explicit);
+        }
+        List<String> segments = new ArrayList<>();
+        segments.add(DEFAULT_RENDER_PAGE_PREFIX);
+        if (context.getSession() != null && StringUtils.hasText(context.getSession().getSessionCode())) {
+            segments.add(context.getSession().getSessionCode().trim());
+        }
+        if (context.getRound() != null && StringUtils.hasText(context.getRound().getRoundCode())) {
+            segments.add(context.getRound().getRoundCode().trim());
+        }
+        return sanitizePageCode(String.join("-", segments));
+    }
+
+    private String resolveRenderPageName(WorkflowContext context) {
+        AiChatQueryCommand command = context.getCommand();
+        Object planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+        String explicit = firstText(
+                readExt(command, "renderPageName"),
+                readExt(command, "pageName"),
+                nestedText(planningResult, "ext", "renderPageName"),
+                nestedText(planningResult, "ext", "pageName"),
+                nestedText(planningResult, "title"),
+                command == null ? null : command.getSessionName(),
+                command == null ? null : command.getMessage()
+        );
+        return limitLength(explicit, 80);
+    }
+
+    private String resolveRenderCategoryCode(WorkflowContext context) {
+        AiChatQueryCommand command = context.getCommand();
+        Object planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+        return firstText(
+                readExt(command, "renderCategoryCode"),
+                readExt(command, "categoryCode"),
+                nestedText(planningResult, "ext", "renderCategoryCode"),
+                nestedText(planningResult, "ext", "categoryCode")
+        );
+    }
+
+    private Object readExt(AiChatQueryCommand command, String key) {
+        return command == null || command.getExt() == null ? null : command.getExt().get(key);
+    }
+
+    @SuppressWarnings("unchecked")
+    private String nestedText(Object root, String... path) {
+        Object current = root;
+        for (String key : path) {
+            if (!(current instanceof Map<?, ?>)) {
+                if (current == null) {
+                    return null;
+                }
+                current = objectMapper.convertValue(current, new TypeReference<Map<String, Object>>() {
+                });
+            }
+            if (!(current instanceof Map<?, ?> map)) {
+                return null;
+            }
+            current = ((Map<String, Object>) map).get(key);
+        }
+        return current instanceof String str && StringUtils.hasText(str) ? str.trim() : null;
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            if (value instanceof String str && StringUtils.hasText(str)) {
+                return str.trim();
+            }
+        }
+        return null;
+    }
+
+    private String sanitizePageCode(String value) {
+        if (!StringUtils.hasText(value)) {
+            return DEFAULT_RENDER_PAGE_PREFIX;
+        }
+        String normalized = value.trim().toLowerCase()
+                .replaceAll("[^a-z0-9-_]+", "-")
+                .replaceAll("-{2,}", "-")
+                .replaceAll("^-+|-+$", "");
+        if (normalized.isEmpty()) {
+            return DEFAULT_RENDER_PAGE_PREFIX;
+        }
+        Set<String> segments = new LinkedHashSet<>(List.of(normalized.split("-")));
+        String collapsed = String.join("-", segments);
+        return collapsed.length() > 128 ? collapsed.substring(0, 128) : collapsed;
     }
 
     private void persistAssistantMessage(WorkflowContext context, String answer) {

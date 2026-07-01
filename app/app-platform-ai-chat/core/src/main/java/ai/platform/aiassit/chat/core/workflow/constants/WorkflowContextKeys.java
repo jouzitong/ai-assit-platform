@@ -287,5 +287,17 @@ public interface WorkflowContextKeys {
          */
         String RENDER_CHECK_REPORT = "renderCheckReport";
 
+        /**
+         * render 模块页面编码。
+         *
+         * @see String
+         */
+        String RENDER_PAGE_CODE = "renderPageCode";
+
+        /**
+         * render 模块页面详情。
+         */
+        String RENDER_PAGE_DETAIL = "renderPageDetail";
+
     }
 }
