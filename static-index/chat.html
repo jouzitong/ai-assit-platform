@@ -251,17 +251,54 @@
             text-overflow: ellipsis;
         }
 
+        .chat-group {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
+        }
+
         .history-title {
-            font-size: 12px;
+            width: 100%;
+            border: none;
+            background: transparent;
             color: var(--text-muted);
             padding: 8px 8px 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 12px;
+            cursor: pointer;
             white-space: nowrap;
+        }
+
+        .history-title:hover {
+            color: var(--text-main);
+        }
+
+        .history-title-text {
+            min-width: 0;
+        }
+
+        .history-title-arrow {
+            font-size: 12px;
+            transition: transform 0.2s ease;
+        }
+
+        .chat-group.collapsed .history-title-arrow {
+            transform: rotate(-90deg);
         }
 
         .chat-list {
             flex: 1;
+            min-height: 0;
             overflow-y: auto;
             padding-right: 2px;
+        }
+
+        .chat-group.collapsed .chat-list {
+            display: none;
         }
 
         .chat-item {
@@ -348,8 +385,11 @@
         .sidebar.collapsed .btn-text,
         .sidebar.collapsed .tool-text,
         .sidebar.collapsed .chat-title,
-        .sidebar.collapsed .history-title,
         .sidebar.collapsed .user-info {
+            display: none;
+        }
+
+        .sidebar.collapsed .chat-group {
             display: none;
         }
 
@@ -374,6 +414,7 @@
 
         .sidebar.collapsed .sidebar-footer {
             justify-content: center;
+            margin-top: auto;
         }
 
         /* =========================
@@ -458,6 +499,13 @@
 
         .small-btn:hover {
             background: var(--bg-hover);
+        }
+
+        .chat-stage {
+            flex: 1;
+            min-height: 0;
+            display: flex;
+            flex-direction: column;
         }
 
         .chat-scroll {
@@ -669,6 +717,31 @@
             color: var(--text-muted);
         }
 
+        .main.is-empty .chat-stage {
+            justify-content: center;
+            padding: 24px 0 40px;
+        }
+
+        .main.is-empty .chat-scroll {
+            flex: 0 0 auto;
+            min-height: auto;
+            overflow: visible;
+            padding: 0 18px 24px;
+        }
+
+        .main.is-empty .welcome {
+            margin: 0 auto 20px;
+        }
+
+        .main.is-empty .composer-area {
+            padding-top: 0;
+            padding-bottom: 0;
+        }
+
+        .main.is-empty .suggestions {
+            margin: 20px auto 0;
+        }
+
         /* =========================
            移动端
         ========================= */
@@ -803,8 +876,8 @@
 
         <div class="side-tools">
             <button class="side-tool active" title="聊天">
-                <span class="tool-icon">💬</span>
-                <span class="tool-text">聊天</span>
+                <span class="tool-icon">📚</span>
+                <span class="tool-text">知识库</span>
             </button>
 
             <button class="side-tool" title="搜索">
@@ -812,38 +885,38 @@
                 <span class="tool-text">搜索</span>
             </button>
 
-            <button class="side-tool" title="项目">
-                <span class="tool-icon">📁</span>
-                <span class="tool-text">项目</span>
-            </button>
-
-            <button class="side-tool" title="收藏">
-                <span class="tool-icon">⭐</span>
-                <span class="tool-text">收藏</span>
+            <button class="side-tool" title="我的应用">
+                <span class="tool-icon">🧩</span>
+                <span class="tool-text">我的应用</span>
             </button>
         </div>
 
-        <div class="history-title">今天</div>
+        <div class="chat-group" id="chatGroup">
+            <button class="history-title" id="chatGroupToggle" type="button" title="收起聊天列表">
+                <span class="history-title-text">聊天</span>
+                <span class="history-title-arrow">⌄</span>
+            </button>
 
-        <div class="chat-list">
-            <div class="chat-item active" title="智能问数平台设计">
-                <span class="chat-icon">📄</span>
-                <span class="chat-title">智能问数平台设计</span>
-            </div>
+            <div class="chat-list">
+                <div class="chat-item active" title="智能问数平台设计">
+                    <span class="chat-icon">📄</span>
+                    <span class="chat-title">智能问数平台设计</span>
+                </div>
 
-            <div class="chat-item" title="低代码 JSON 渲染方案">
-                <span class="chat-icon">📄</span>
-                <span class="chat-title">低代码 JSON 渲染方案</span>
-            </div>
+                <div class="chat-item" title="低代码 JSON 渲染方案">
+                    <span class="chat-icon">📄</span>
+                    <span class="chat-title">低代码 JSON 渲染方案</span>
+                </div>
 
-            <div class="chat-item" title="数据权限设计">
-                <span class="chat-icon">📄</span>
-                <span class="chat-title">数据权限设计</span>
-            </div>
+                <div class="chat-item" title="数据权限设计">
+                    <span class="chat-icon">📄</span>
+                    <span class="chat-title">数据权限设计</span>
+                </div>
 
-            <div class="chat-item" title="AI Agent 节点编排">
-                <span class="chat-icon">📄</span>
-                <span class="chat-title">AI Agent 节点编排</span>
+                <div class="chat-item" title="AI Agent 节点编排">
+                    <span class="chat-icon">📄</span>
+                    <span class="chat-title">AI Agent 节点编排</span>
+                </div>
             </div>
         </div>
 
@@ -859,7 +932,7 @@
     <div class="overlay" id="overlay"></div>
 
     <!-- 主区域 -->
-    <main class="main">
+    <main class="main is-empty" id="mainContent">
         <header class="topbar">
             <div class="topbar-left">
                 <button class="icon-btn menu-btn" id="menuBtn" title="打开侧边栏">
@@ -879,75 +952,81 @@
             </div>
         </header>
 
-        <section class="chat-scroll" id="chatScroll">
-            <div id="welcomeArea">
-                <div class="welcome">
-                    <h1>今天想聊点什么？</h1>
-                    <p>这是一个仿 ChatGPT Web 风格的聊天页面。</p>
-                </div>
-
-                <div class="suggestions">
-                    <button class="suggestion-card">
-                        <strong>生成 SQL 查询方案</strong>
-                        <span>根据自然语言拆解查询主体、条件和展示字段。</span>
-                    </button>
-
-                    <button class="suggestion-card">
-                        <strong>设计低代码页面</strong>
-                        <span>用 JSON 描述列表、详情、表单、看板页面。</span>
-                    </button>
-
-                    <button class="suggestion-card">
-                        <strong>优化系统架构</strong>
-                        <span>梳理服务拆分、节点流程、工具调用边界。</span>
-                    </button>
-
-                    <button class="suggestion-card">
-                        <strong>写一个前端页面</strong>
-                        <span>生成一个可以直接运行的 HTML 页面。</span>
-                    </button>
-                </div>
-            </div>
-
-            <div class="message-list" id="messageList"></div>
-        </section>
-
-        <footer class="composer-area">
-            <div class="composer">
-          <textarea
-                  id="messageInput"
-                  placeholder="给 AI 助手发送消息..."
-                  rows="1"
-          ></textarea>
-
-                <div class="composer-bottom">
-                    <div class="composer-tools">
-                        <button class="small-btn">＋ 附件</button>
-                        <button class="small-btn">工具</button>
+        <div class="chat-stage">
+            <section class="chat-scroll" id="chatScroll">
+                <div id="welcomeArea">
+                    <div class="welcome">
+                        <h1>今天想聊点什么？</h1>
+                        <p>这是一个仿 ChatGPT Web 风格的聊天页面。</p>
                     </div>
-
-                    <button class="send-btn" id="sendBtn" disabled title="发送">
-                        ↑
-                    </button>
                 </div>
-            </div>
 
-            <div class="hint">Enter 发送，Shift + Enter 换行</div>
-        </footer>
+                <div class="message-list" id="messageList"></div>
+            </section>
+
+            <footer class="composer-area">
+                <div class="composer">
+              <textarea
+                      id="messageInput"
+                      placeholder="给 AI 助手发送消息..."
+                      rows="1"
+              ></textarea>
+
+                    <div class="composer-bottom">
+                        <div class="composer-tools">
+                            <button class="small-btn">＋ 附件</button>
+                            <button class="small-btn">工具</button>
+                        </div>
+
+                        <button class="send-btn" id="sendBtn" disabled title="发送">
+                            ↑
+                        </button>
+                    </div>
+                </div>
+
+                <div class="hint">Enter 发送，Shift + Enter 换行</div>
+            </footer>
+
+            <div class="suggestions" id="suggestionsArea">
+                <button class="suggestion-card">
+                    <strong>生成 SQL 查询方案</strong>
+                    <span>根据自然语言拆解查询主体、条件和展示字段。</span>
+                </button>
+
+                <button class="suggestion-card">
+                    <strong>设计低代码页面</strong>
+                    <span>用 JSON 描述列表、详情、表单、看板页面。</span>
+                </button>
+
+                <button class="suggestion-card">
+                    <strong>优化系统架构</strong>
+                    <span>梳理服务拆分、节点流程、工具调用边界。</span>
+                </button>
+
+                <button class="suggestion-card">
+                    <strong>写一个前端页面</strong>
+                    <span>生成一个可以直接运行的 HTML 页面。</span>
+                </button>
+            </div>
+        </div>
     </main>
 </div>
 
 <script>
+    const mainContent = document.getElementById("mainContent");
     const sidebar = document.getElementById("sidebar");
     const collapseBtn = document.getElementById("collapseBtn");
     const menuBtn = document.getElementById("menuBtn");
     const overlay = document.getElementById("overlay");
     const themeBtn = document.getElementById("themeBtn");
     const newChatBtn = document.getElementById("newChatBtn");
+    const chatGroup = document.getElementById("chatGroup");
+    const chatGroupToggle = document.getElementById("chatGroupToggle");
 
     const chatScroll = document.getElementById("chatScroll");
     const welcomeArea = document.getElementById("welcomeArea");
     const messageList = document.getElementById("messageList");
+    const suggestionsArea = document.getElementById("suggestionsArea");
 
     const messageInput = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
@@ -997,12 +1076,18 @@
         themeBtn.textContent = isDark ? "☀ 主题" : "☾ 主题";
     });
 
+    chatGroupToggle.addEventListener("click", () => {
+        chatGroup.classList.toggle("collapsed");
+        const collapsed = chatGroup.classList.contains("collapsed");
+        chatGroupToggle.title = collapsed ? "展开聊天列表" : "收起聊天列表";
+    });
+
     newChatBtn.addEventListener("click", () => {
         messageList.innerHTML = "";
-        welcomeArea.style.display = "block";
         messageInput.value = "";
         sendBtn.disabled = true;
         autoResizeTextarea();
+        syncEmptyState();
 
         if (isMobile()) {
             closeMobileSidebar();
@@ -1036,6 +1121,13 @@
     function autoResizeTextarea() {
         messageInput.style.height = "auto";
         messageInput.style.height = Math.min(messageInput.scrollHeight, 160) + "px";
+    }
+
+    function syncEmptyState() {
+        const isEmpty = messageList.children.length === 0;
+        mainContent.classList.toggle("is-empty", isEmpty);
+        welcomeArea.style.display = isEmpty ? "block" : "none";
+        suggestionsArea.style.display = isEmpty ? "grid" : "none";
     }
 
     function appendMessage(role, text) {
@@ -1073,9 +1165,8 @@
         const text = messageInput.value.trim();
         if (!text) return;
 
-        welcomeArea.style.display = "none";
-
         appendMessage("user", text);
+        syncEmptyState();
 
         messageInput.value = "";
         sendBtn.disabled = true;
@@ -1092,6 +1183,8 @@
             overlay.classList.remove("show");
         }
     });
+
+    syncEmptyState();
 </script>
 </body>
 </html>
