@@ -41,7 +41,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
             你必须只返回严格合法的 JSON，不允许输出 markdown、解释、代码块。
             输出结构固定如下：
             {
-              "intentType": "意图类型，例如 DATA_QUERY/TREND_ANALYSIS/DIAGNOSTIC_QUERY",
+              "intentType": "意图类型，仅允许 SIMPLE_CHAT 或 QUERY_RENDER",
               "rewrittenQuery": "归一化后的问题",
               "summary": "简明分析摘要",
               "intentLabels": ["标签1"],
@@ -59,7 +59,11 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
             2. 所有数组字段必须返回 JSON 数组，可为空数组
             3. clarificationNeeded 必须为布尔值
             4. timeRange 必须返回 JSON 对象，可为空对象
-            5. 不要输出任何额外字段
+            5. intentType 取值规则：
+               - SIMPLE_CHAT：普通闲聊、解释、问答、建议，不需要进入查数渲染链路
+               - QUERY_RENDER：用户核心目标是查数据、分析数据、生成报表、做指标解释或需要进入查询渲染链路
+            6. 如果无法绝对确认，但问题明显偏向数据查询/分析，优先返回 QUERY_RENDER
+            7. 不要输出任何额外字段
             """;
 
     private final AiExecutionDomainService aiExecutionDomainService;
@@ -162,7 +166,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
 
     private IntentAnalyzeResponse fallbackIntentAnalyzeResponse(IntentAnalyzeRequest request, String rawOutput) {
         IntentAnalyzeResponse response = new IntentAnalyzeResponse();
-        response.setIntentType("DATA_QUERY");
+        response.setIntentType("QUERY_RENDER");
         response.setRewrittenQuery(request.getQuery());
         response.setSummary(StringUtils.hasText(rawOutput) ? rawOutput.trim() : request.getQuery());
         return response;
@@ -170,8 +174,13 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
 
     private void normalizeIntentResponse(IntentAnalyzeResponse response, IntentAnalyzeRequest request) {
         if (!StringUtils.hasText(response.getIntentType())) {
-            response.setIntentType("DATA_QUERY");
+            response.setIntentType("QUERY_RENDER");
         }
+        String normalizedIntentType = response.getIntentType().trim().toUpperCase(java.util.Locale.ROOT);
+        if (!"SIMPLE_CHAT".equals(normalizedIntentType) && !"QUERY_RENDER".equals(normalizedIntentType)) {
+            normalizedIntentType = "QUERY_RENDER";
+        }
+        response.setIntentType(normalizedIntentType);
         if (!StringUtils.hasText(response.getRewrittenQuery())) {
             response.setRewrittenQuery(request.getQuery());
         }
@@ -198,6 +207,9 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
         }
         if (response.getClarificationQuestions() == null) {
             response.setClarificationQuestions(new ArrayList<>());
+        }
+        if (response.getImportantInfos() == null) {
+            response.setImportantInfos(new ArrayList<>());
         }
         if (response.getTimeRange() == null) {
             response.setTimeRange(new java.util.HashMap<>());

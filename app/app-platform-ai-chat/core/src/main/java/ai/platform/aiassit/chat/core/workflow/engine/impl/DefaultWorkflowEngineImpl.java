@@ -11,6 +11,7 @@ import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
 import ai.platform.aiassit.chat.core.workflow.node.IWorkflowNode;
+import ai.platform.aiassit.chat.core.workflow.planning.service.WorkflowIntentAnalyzeService;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -29,6 +30,7 @@ import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.arthena.framework.common.thread.AsyncTaskManager;
 import org.arthena.framework.common.constant.ParamBizCodeConstant;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.auth.core.context.SecurityContextHolder;
@@ -63,13 +65,17 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     private final AiChatArtifactService artifactService;
     private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
+    private final AsyncTaskManager asyncTaskManager;
+    private final WorkflowIntentAnalyzeService workflowIntentAnalyzeService;
 
     public DefaultWorkflowEngineImpl(List<IWorkflowNode> nodes,
                                      AiChatSessionService sessionService,
                                      AiChatMessageService messageService,
                                      AiChatArtifactService artifactService,
                                      AiChatRoundService roundService,
-                                     WorkflowHistoryRecorder historyRecorder) {
+                                     WorkflowHistoryRecorder historyRecorder,
+                                     AsyncTaskManager asyncTaskManager,
+                                     WorkflowIntentAnalyzeService workflowIntentAnalyzeService) {
         nodeRegistry = new HashMap<>();
         for (IWorkflowNode node : nodes) {
             nodeRegistry.put(node.code(), node);
@@ -79,12 +85,41 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         this.artifactService = artifactService;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
+        this.asyncTaskManager = asyncTaskManager;
+        this.workflowIntentAnalyzeService = workflowIntentAnalyzeService;
     }
 
     @Override
     public void run(WorkflowContext context) {
+        if (context != null && context.getEmitter() != null) {
+            asyncTaskManager.submit(() -> runAsync(context));
+            return;
+        }
+        executeWorkflow(context);
+    }
+
+    private void runAsync(WorkflowContext context) {
+        try {
+            executeWorkflow(context);
+            String error = context.get(WorkflowContextKeys.Common.ERROR);
+            if (StringUtils.isNotBlank(error)) {
+                throw new IllegalStateException(error);
+            }
+            sendCompleteEvent(context);
+            context.getEmitter().complete();
+        } catch (Exception ex) {
+            log.error("workflow query stream failed", ex);
+            sendErrorEvent(context, ex);
+            if (context != null && context.getEmitter() != null) {
+                context.getEmitter().completeWithError(ex);
+            }
+        }
+    }
+
+    private void executeWorkflow(WorkflowContext context) {
         prepareConversationContext(context);
         sendInitEvent(context);
+        prepareBaseIntentAnalysis(context);
 
         WorkflowDefinition definition = context.getWorkflowDefinition();
         if (definition == null) {
@@ -130,6 +165,60 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             } else {
                 currentNodeId = workflowNodeConfig.getNextNodeId();
             }
+        }
+    }
+
+    private void prepareBaseIntentAnalysis(WorkflowContext context) {
+        try {
+            if (context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE) != null) {
+                return;
+            }
+            var response = workflowIntentAnalyzeService.analyze(context);
+            if (response == null) {
+                return;
+            }
+            context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
+            context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "intentAnalyzeResponse", response);
+            context.publishEvent("base-intent-analysis-ready", "base intent analysis prepared");
+        } catch (Exception ex) {
+            log.warn("base intent analyze failed, sessionCode={}, roundCode={}",
+                    context.getSession() == null ? null : context.getSession().getSessionCode(),
+                    context.getRound() == null ? null : context.getRound().getRoundCode(),
+                    ex);
+            context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_ERROR, ex.getMessage());
+            context.publishEvent("base-intent-analysis-skipped", "base intent analysis skipped");
+        }
+    }
+
+    private void sendCompleteEvent(WorkflowContext context) throws IOException {
+        if (context == null || context.getEmitter() == null) {
+            return;
+        }
+        AiChatQueryStreamEvent completeEvent = new AiChatQueryStreamEvent();
+        completeEvent.setEventType("complete");
+        completeEvent.setRequestId(context.getCommand() == null ? null : context.getCommand().getTraceId());
+        completeEvent.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
+        completeEvent.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
+        completeEvent.setAnswer(context.getRenderedAnswer());
+        completeEvent.setStatus(STATUS_SUCCESS);
+        context.getEmitter().send(SseEmitter.event().name("complete").data(completeEvent, MediaType.APPLICATION_JSON));
+    }
+
+    private void sendErrorEvent(WorkflowContext context, Exception ex) {
+        if (context == null || context.getEmitter() == null) {
+            return;
+        }
+        AiChatQueryStreamEvent errorEvent = new AiChatQueryStreamEvent();
+        errorEvent.setEventType("error");
+        errorEvent.setRequestId(context.getCommand() == null ? null : context.getCommand().getTraceId());
+        errorEvent.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
+        errorEvent.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
+        errorEvent.setStatus("FAILED");
+        errorEvent.setMessage(ex.getMessage());
+        try {
+            context.getEmitter().send(SseEmitter.event().name("error").data(errorEvent, MediaType.APPLICATION_JSON));
+        } catch (IOException ioException) {
+            log.warn("failed to send workflow error event", ioException);
         }
     }
 

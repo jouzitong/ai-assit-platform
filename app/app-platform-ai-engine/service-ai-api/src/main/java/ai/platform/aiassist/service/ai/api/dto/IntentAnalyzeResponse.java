@@ -12,6 +12,14 @@ import java.util.Map;
 public class IntentAnalyzeResponse implements Serializable {
 
     /**
+     * 预留业务类型字段。
+     *
+     * <p>当前阶段仅作为 AI 给出的候选业务域参考，不应直接作为最终业务判断或路由依据；
+     * 后续真正消费该字段时，必须结合核心业务定义重新核对。</p>
+     */
+    private String businessType;
+
+    /**
      * 请求唯一标识，用于链路追踪和日志排查。
      */
     private String requestId;
@@ -22,7 +30,11 @@ public class IntentAnalyzeResponse implements Serializable {
     private String model;
 
     /**
-     * 意图类型，例如：查询、统计、分析、对比、生成报表等。
+     * 意图类型。
+     *
+     * <p>当前约定仅支持：
+     * SIMPLE_CHAT：普通聊天/解释/建议类诉求；
+     * QUERY_RENDER：需要进入查询、分析、渲染链路的数据类诉求。</p>
      */
     private String intentType;
 
@@ -75,6 +87,11 @@ public class IntentAnalyzeResponse implements Serializable {
      * 需要向用户追问的问题列表。
      */
     private List<String> clarificationQuestions = new ArrayList<>();
+
+    /**
+     * 其他重要信息列表，用于补充后续规划和执行时需要关注的关键点。
+     */
+    private List<String> importantInfos = new ArrayList<>();
 
     /**
      * 时间范围信息，支持存放开始时间、结束时间、相对时间描述等结构化内容。

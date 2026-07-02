@@ -113,6 +113,13 @@ public interface WorkflowContextKeys {
         String INTENT_ANALYZE_RESPONSE = "intentAnalyzeResponse";
 
         /**
+         * 基础意图分析失败消息。
+         *
+         * @see String
+         */
+        String INTENT_ANALYZE_ERROR = "intentAnalyzeError";
+
+        /**
          * 关键词检索原始响应。
          *
          * @see HybridSearchResponse
