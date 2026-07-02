@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref, watch } from 'vue'
-import { Connection, Microphone, Picture, Promotion, Setting } from '@element-plus/icons-vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { Promotion, Pointer, Warning, Share, Plus, Grid, FullScreen, Download, Star } from '@element-plus/icons-vue'
+import { buildAssistantQueryViewModel } from '../data'
 import { useQueryAssistantPage } from '../service'
 
 const {
@@ -19,300 +20,376 @@ const {
   resultRows,
   placeholder,
   submitQuery,
+  createConversation,
   resizeComposer
 } = useQueryAssistantPage()
 
 const processExpanded = ref(true)
+const selectedBizType = ref('')
+const pieSegmentList = computed(() => (Array.isArray(pieSegments) ? pieSegments : []))
+const barSeriesList = computed(() => (Array.isArray(barSeries) ? barSeries : []))
+const resultRowList = computed(() => (Array.isArray(resultRows) ? resultRows : []))
+const placeholderText = computed(() => (typeof placeholder === 'string' ? placeholder : ''))
+const bizTypeOptions = [
+  { value: 'query', label: '智能问数' },
+  { value: 'report', label: '报告分析' },
+  { value: 'app', label: '应用生成' }
+]
 
-const activeConversation = computed(() =>
-  filteredHistoryList.value.find((item) => item.active) || filteredHistoryList.value[0] || null
+const suggestionCards = [
+  {
+    title: '部门成本波动',
+    desc: '分析最近 30 天各部门人力成本变化，定位异常上涨原因。'
+  },
+  {
+    title: '组织编制变化',
+    desc: '对比研发、销售团队编制变化和预算偏差，输出重点风险。'
+  },
+  {
+    title: '绩效与离职率',
+    desc: '观察绩效分布变化与离职率联动，找出高风险团队。'
+  },
+  {
+    title: '夜班补贴排查',
+    desc: '检查客服团队夜班补贴规则、发放范围与异常人员。'
+  }
+]
+
+const pageModel = computed(() =>
+  buildAssistantQueryViewModel({
+    conversations: filteredHistoryList.value,
+    stages: stages.value,
+    executions: executions.value,
+    resultRows: resultRowList.value,
+    selectedModel: selectedModel.value,
+    prompt: prompt.value,
+    placeholder: placeholderText.value
+  })
 )
 
-const activeExecution = computed(() =>
-  executions.value.find((item) => item.active) || executions.value[0] || null
-)
-
-const completedStageCount = computed(() =>
-  stages.value.filter((item) => item.status === 'done').length
-)
-
-const isProcessing = computed(() =>
-  stages.value.some((item) => item.status === 'running') || executions.value.some((item) => item.active)
-)
+const currentRound = computed(() => pageModel.value.currentRound)
+const activeConversation = computed(() => pageModel.value.session)
+const showWelcome = computed(() => !currentRound.value?.userInput)
+const activeExecution = computed(() => executions.value.find((item) => item.active) || executions.value[0] || null)
+const modelLabel = computed(() => {
+  const target = models.value.find((item) => item.value === selectedModel.value)
+  return target?.label || selectedModel.value || '智能问数'
+})
+const resultTotalText = computed(() => `${resultRowList.value.length} 条结果`)
 
 watch(
-  isProcessing,
+  () => pageModel.value.currentRound?.progress?.isProcessing,
   (running) => {
-    processExpanded.value = running
+    processExpanded.value = Boolean(running)
   },
   { immediate: true }
 )
+
+watch(previewFullscreen, (value) => {
+  document.body.classList.toggle('canvas-fullscreen', Boolean(value))
+})
+
+onMounted(() => {
+  resizeComposer()
+})
+
+onBeforeUnmount(() => {
+  document.body.classList.remove('canvas-fullscreen')
+})
+
+function stageStatusLabel(status) {
+  if (status === 'done') return '已完成'
+  if (status === 'running') return '进行中'
+  return '待执行'
+}
+
+function executionToneLabel(tone) {
+  if (tone === 'success') return '完成'
+  if (tone === 'warning') return '异常'
+  if (tone === 'user') return '输入'
+  return '处理中'
+}
+
+function handleComposerKeydown(event) {
+  if (event.shiftKey || event.isComposing) {
+    return
+  }
+  event.preventDefault()
+  submitQuery()
+}
+
+function handleSelectSuggestion(text) {
+  prompt.value = text
+  nextTick(() => {
+    resizeComposer()
+    composerInput.value?.focus?.()
+  })
+}
+
+function handleSubmit() {
+  submitQuery()
+}
+
+function handleNewConversation() {
+  createConversation()
+}
+
+function handleUploadAttachment() {
+  window.alert('附件上传入口待接入')
+}
+
+function handleResultAction(action) {
+  const actionTextMap = {
+    like: '已记录正向反馈',
+    dislike: '已记录改进反馈',
+    feedback: '已打开结果反馈入口',
+    branch: '已创建基于本次结果的新分支任务'
+  }
+  window.alert(actionTextMap[action] || '操作已触发')
+}
+
+function handleCanvasAction(action) {
+  if (action === 'fullscreen') {
+    togglePreviewFullscreen()
+    return
+  }
+  const actionTextMap = {
+    export: '导出能力待接入',
+    share: '分享能力待接入',
+    favorite: '收藏能力待接入'
+  }
+  window.alert(actionTextMap[action] || '操作已触发')
+}
+
+function togglePreviewFullscreen() {
+  previewFullscreen.value = !previewFullscreen.value
+}
 </script>
 
 <template>
   <main class="page query-page">
-    <section class="query-shell">
-      <div class="query-main">
-        <section class="conversation-stage">
-          <article class="conversation-hero">
-            <div class="conversation-hero-copy">
-              <p class="panel-eyebrow">当前会话</p>
-              <h1>{{ activeConversation?.title || '智能问数' }}</h1>
-              <p class="conversation-summary">
-                {{ activeConversation?.summary || '继续输入问题，系统会沿用当前会话上下文继续分析。' }}
-              </p>
-            </div>
-
-            <div class="conversation-hero-actions">
-              <span class="conversation-tag">{{ activeConversation?.tag || '智能问数' }}</span>
-              <button class="inline-toggle" type="button" @click="processExpanded = !processExpanded">
-                {{ processExpanded ? '收起过程' : '查看过程' }}
-              </button>
-            </div>
-          </article>
-
-          <section class="result-stage">
-            <div class="result-stage-head">
-              <div>
-                <p class="panel-eyebrow">执行结果</p>
-                <h2>AI 执行结果预览</h2>
-                <p class="result-stage-summary">先看结论，需要时再展开过程和完整图表。</p>
-              </div>
-              <button class="inline-action" type="button" @click="previewFullscreen = true">全屏查看</button>
-            </div>
-
-            <section class="result-overview-grid">
-              <article class="result-overview-card">
-                <span class="result-overview-label">已完成阶段</span>
-                <strong>{{ completedStageCount }}/{{ stages.length }}</strong>
-              </article>
-              <article class="result-overview-card">
-                <span class="result-overview-label">结果记录数</span>
-                <strong>{{ resultRows.length }}</strong>
-              </article>
-              <article class="result-overview-card">
-                <span class="result-overview-label">当前模型</span>
-                <strong>{{ selectedModel }}</strong>
-              </article>
+    <div class="app query-app-shell">
+      <section class="main" :class="{ 'is-empty': showWelcome }">
+        <div class="chat-stage">
+          <div class="chat-scroll">
+            <section v-if="showWelcome" class="welcome">
+              <h1>让 AI 直接帮你完成问数分析</h1>
+              <p>{{ placeholderText }}</p>
             </section>
 
-            <section class="result-block">
-              <div class="result-table-shell">
-                <div class="result-table-headline">
-                  <strong>结果列表</strong>
-                  <span>主回答摘要</span>
+            <section v-if="showWelcome" class="suggestions">
+              <button
+                v-for="item in suggestionCards"
+                :key="item.title"
+                class="suggestion-card"
+                type="button"
+                @click="handleSelectSuggestion(item.desc)"
+              >
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.desc }}</span>
+              </button>
+            </section>
+
+            <div v-else class="message-list">
+              <article class="message user-message">
+                <div class="message-body">
+                  <div class="message-text">{{ currentRound?.userInput }}</div>
                 </div>
-                <div class="result-table">
-                  <div class="result-row result-head">
-                    <span>部门</span>
-                    <span>人力成本</span>
-                    <span>环比</span>
-                    <span>说明</span>
-                  </div>
-                  <div v-for="row in resultRows" :key="row.dept" class="result-row">
-                    <span>{{ row.dept }}</span>
-                    <span>{{ row.cost }}</span>
-                    <span>{{ row.change }}</span>
-                    <span>{{ row.risk }}</span>
-                  </div>
-                </div>
-              </div>
+              </article>
 
-              <details class="process-fold" :open="processExpanded">
-                <summary class="process-summary">
-                  <div class="process-summary-main">
-                    <span class="process-summary-label">AI思考过程</span>
-                    <strong>{{ activeExecution?.title || '执行计划生成' }}</strong>
-                    <span class="process-summary-text">
-                      {{ activeExecution?.detail || '系统正在整理分析步骤。' }}
-                    </span>
-                  </div>
-                  <span class="process-summary-meta">{{ stageSummary }}</span>
-                </summary>
-
-                <div class="process-body">
-                  <div class="composer-status-chips">
-                    <article
-                      v-for="(stage, index) in stages"
-                      :key="stage.name"
-                      class="stage-chip compact"
-                      :class="`status-${stage.status}`"
-                      :title="`${stage.name}：${stage.desc}`"
-                    >
-                      <span class="stage-chip-index">{{ index + 1 }}</span>
-                      <span class="stage-chip-text">{{ stage.name }}</span>
-                      <span class="stage-chip-state" :class="`state-${stage.status}`"></span>
-                    </article>
-                  </div>
-
-                  <div class="execution-list compact">
-                    <article
-                      v-for="(item, index) in executions"
-                      :key="`${item.title}-${index}`"
-                      class="execution-item"
-                      :class="`tone-${item.tone}`"
-                    >
-                      <div class="execution-dot" :class="{ active: item.active }"></div>
-                      <div>
-                        <h3>{{ item.title }}</h3>
-                        <p>{{ item.detail }}</p>
+              <article class="message">
+                <div class="message-avatar ai">AI</div>
+                <div class="message-body">
+                  <div class="message-name">{{ modelLabel }}</div>
+                  <div class="ai-response">
+                    <section class="ai-section ai-summary">
+                      <div class="ai-section-title">分析摘要</div>
+                      <div class="ai-section-body">
+                        {{ activeConversation.summary || activeExecution?.detail || '系统正在整理查询结论。' }}
                       </div>
-                    </article>
-                  </div>
+                    </section>
 
-                  <section class="charts-inline">
-                    <article class="chart-inline-card">
-                      <div class="chart-inline-head">
-                        <strong>饼图</strong>
-                      </div>
-                      <div class="pie-chart" :style="{ background: pieBackground }"></div>
-                      <div class="chart-legend">
-                        <div v-for="item in pieSegments" :key="item.label" class="legend-item">
-                          <span class="legend-dot" :style="{ background: item.color }"></span>
-                          <span>{{ item.label }} {{ item.value }}%</span>
+                    <details class="ai-section ai-thoughts" :open="processExpanded">
+                      <summary>
+                        <div class="ai-thoughts-head">
+                          <div class="ai-section-title">分析过程</div>
+                          <span class="ai-processing-time">{{ stageSummary }}</span>
                         </div>
-                      </div>
-                    </article>
-
-                    <article class="chart-inline-card">
-                      <div class="chart-inline-head">
-                        <strong>柱状图</strong>
-                      </div>
-                      <div class="bar-chart compact">
-                        <div v-for="item in barSeries" :key="item.label" class="bar-item">
-                          <div class="bar-track">
-                            <div class="bar-fill" :style="{ height: `${item.value}%` }"></div>
+                      </summary>
+                      <div class="ai-thoughts-body">
+                        <div class="ai-progress">
+                          <div v-for="stage in stages" :key="stage.name" class="ai-progress-item">
+                            <span class="ai-progress-dot" :class="stage.status" />
+                            <div class="ai-progress-content">
+                              <div class="ai-progress-label">
+                                {{ stage.name }} · {{ stageStatusLabel(stage.status) }}
+                              </div>
+                              <div class="ai-progress-desc">{{ stage.desc }}</div>
+                            </div>
                           </div>
-                          <strong>{{ item.label }}</strong>
                         </div>
                       </div>
-                    </article>
-                  </section>
+                    </details>
+
+                    <section class="ai-result" :class="{ 'is-fullscreen': previewFullscreen }">
+                      <div class="result-canvas-header">
+                        <div>
+                          <div class="result-canvas-title">{{ currentRound?.result?.title || 'AI 执行结果预览' }}</div>
+                          <div class="result-canvas-summary">{{ resultTotalText }}</div>
+                        </div>
+                        <div class="result-canvas-actions">
+                          <button class="result-canvas-btn" type="button" @click="handleCanvasAction('fullscreen')">
+                            <el-icon><FullScreen /></el-icon>
+                            <span>{{ previewFullscreen ? '退出全屏' : '全屏' }}</span>
+                          </button>
+                          <button class="result-canvas-btn" type="button" @click="handleCanvasAction('export')">
+                            <el-icon><Download /></el-icon>
+                            <span>导出</span>
+                          </button>
+                          <button class="result-canvas-btn" type="button" @click="handleCanvasAction('share')">
+                            <el-icon><Share /></el-icon>
+                            <span>分享</span>
+                          </button>
+                          <button class="result-canvas-btn" type="button" @click="handleCanvasAction('favorite')">
+                            <el-icon><Star /></el-icon>
+                            <span>收藏</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div class="result-canvas-grid">
+                        <div class="ai-result-card canvas-list">
+                          <strong>明细结果</strong>
+                          <div class="result-list">
+                            <div class="result-list-row header">
+                              <span>部门</span>
+                              <span>成本</span>
+                              <span>变动</span>
+                              <span>风险</span>
+                            </div>
+                            <div v-for="row in resultRowList" :key="row.dept" class="result-list-row">
+                              <span>{{ row.dept }}</span>
+                              <span>{{ row.cost }}</span>
+                              <span>{{ row.change }}</span>
+                              <span>{{ row.risk }}</span>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="ai-result-card canvas-bar">
+                          <strong>部门趋势对比</strong>
+                          <div class="bar-chart">
+                            <div v-for="item in barSeriesList" :key="item.label" class="bar-item">
+                              <div class="bar-value">{{ item.value }}</div>
+                              <div class="bar-track">
+                                <div class="bar-fill" :style="{ height: `${item.value}%` }" />
+                              </div>
+                              <div class="bar-label">{{ item.label }}</div>
+                            </div>
+                          </div>
+                        </div>
+
+                        <div class="ai-result-card canvas-pie">
+                          <strong>成本占比</strong>
+                          <div class="pie-wrap">
+                            <div class="pie-chart" :style="{ background: pieBackground }" />
+                            <div class="pie-legend">
+                              <div v-for="item in pieSegmentList" :key="item.label" class="pie-legend-item">
+                                <div class="pie-legend-main">
+                                  <span class="pie-dot" :style="{ background: item.color }" />
+                                  <span>{{ item.label }}</span>
+                                </div>
+                                <span class="pie-legend-value">{{ item.value }}%</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <div class="ai-actions">
+                      <button class="ai-action-btn icon-only" type="button" title="点赞" @click="handleResultAction('like')">
+                        <el-icon><Pointer /></el-icon>
+                      </button>
+                      <button class="ai-action-btn icon-only" type="button" title="反馈" @click="handleResultAction('feedback')">
+                        <el-icon><Warning /></el-icon>
+                      </button>
+                      <button class="ai-action-btn icon-only" type="button" title="分叉" @click="handleResultAction('branch')">
+                        <el-icon><Share /></el-icon>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            </div>
+          </div>
+
+        </div>
+
+        <footer class="composer-area">
+          <div class="composer">
+            <section v-if="currentRound?.progress?.isProcessing" class="progress-dock">
+              <details class="progress-dock-inner" :open="processExpanded">
+                <summary class="progress-dock-header" @click.prevent="processExpanded = !processExpanded">
+                  <div>
+                    <div class="ai-section-title">处理中</div>
+                    <div class="result-canvas-summary">{{ stageSummary }}</div>
+                  </div>
+                  <span class="progress-dock-toggle">⌄</span>
+                </summary>
+                <div class="progress-dock-body">
+                  <div class="ai-progress">
+                    <div v-for="stage in stages" :key="stage.name" class="ai-progress-item">
+                      <span class="ai-progress-dot" :class="stage.status" />
+                      <div class="ai-progress-content">
+                        <div class="ai-progress-label">{{ stage.name }}</div>
+                        <div class="ai-progress-desc">{{ stage.desc }}</div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </details>
             </section>
-          </section>
-        </section>
 
-        <section class="composer-status">
-          <div class="composer-status-head">
-            <div>
-              <p class="panel-eyebrow">执行状态</p>
-              <strong>{{ activeExecution?.title || '执行计划生成' }}</strong>
-            </div>
-            <span class="panel-status">{{ stageSummary }}</span>
-          </div>
-          <p class="composer-status-detail">
-            {{ activeExecution?.detail || '系统正在整理分析步骤。' }}
-          </p>
-        </section>
-
-        <section class="query-composer">
-          <form class="composer-form" @submit.prevent="submitQuery">
             <textarea
               ref="composerInput"
               v-model="prompt"
-              class="composer-input"
-              :placeholder="placeholder"
-              rows="2"
+              :placeholder="placeholderText"
               @input="resizeComposer"
+              @keydown.enter="handleComposerKeydown"
             />
-
-            <div class="composer-toolbar">
-              <div class="toolbar-left">
-                <button class="toolbar-icon-btn" type="button" aria-label="工具">
-                  <Setting class="toolbar-svg" />
+            <div class="composer-bottom">
+              <div class="composer-tools">
+                <button class="composer-icon-btn" type="button" title="上传附件" @click="handleUploadAttachment">
+                  <el-icon><Plus /></el-icon>
                 </button>
-                <button class="toolbar-icon-btn" type="button" aria-label="上传文件">
-                  <Picture class="toolbar-svg" />
-                </button>
-              </div>
-
-              <div class="toolbar-right">
-                <button class="toolbar-icon-btn" type="button" aria-label="语音输入">
-                  <Microphone class="toolbar-svg" />
-                </button>
-                <select id="model-select" v-model="selectedModel" class="model-select">
+                <label class="composer-select-shell" title="业务类型">
+                  <span class="composer-select-icon">
+                    <el-icon><Grid /></el-icon>
+                  </span>
+                  <select v-model="selectedBizType" class="composer-select biz-select">
+                    <option value=""> </option>
+                    <option v-for="item in bizTypeOptions" :key="item.value" :value="item.value">
+                      {{ item.label }}
+                    </option>
+                  </select>
+                </label>
+                <select v-model="selectedModel" class="model-select">
                   <option v-for="model in models" :key="model.value" :value="model.value">
                     {{ model.label }}
                   </option>
                 </select>
-                <button class="toolbar-icon-btn" type="button" aria-label="模型连接">
-                  <Connection class="toolbar-svg" />
-                </button>
-                <button class="composer-submit icon-submit" type="submit" aria-label="发送">
-                  <Promotion class="toolbar-svg submit-svg" />
-                </button>
               </div>
+              <span class="composer-hint">Enter 发送，Shift + Enter 换行</span>
+              <button class="send-btn" type="button" :disabled="!prompt.trim()" @click="handleSubmit">
+                <el-icon><Promotion /></el-icon>
+              </button>
             </div>
-          </form>
-        </section>
-      </div>
-    </section>
-
-    <div v-if="previewFullscreen" class="preview-modal">
-      <div class="preview-modal-mask" @click="previewFullscreen = false"></div>
-      <section class="preview-modal-card">
-        <div class="preview-modal-head">
-          <div>
-            <p class="panel-eyebrow">结果预览</p>
-            <h2>AI 执行结果预览</h2>
           </div>
-          <button class="panel-action" type="button" @click="previewFullscreen = false">退出全屏</button>
-        </div>
-
-        <div class="preview-modal-body">
-          <section class="preview-block">
-            <div class="preview-block-head">
-              <h3>结果列表</h3>
-              <span class="preview-hint">全屏视图</span>
-            </div>
-            <div class="result-table">
-              <div class="result-row result-head">
-                <span>部门</span>
-                <span>人力成本</span>
-                <span>环比</span>
-                <span>说明</span>
-              </div>
-              <div v-for="row in resultRows" :key="`modal-${row.dept}`" class="result-row">
-                <span>{{ row.dept }}</span>
-                <span>{{ row.cost }}</span>
-                <span>{{ row.change }}</span>
-                <span>{{ row.risk }}</span>
-              </div>
-            </div>
-          </section>
-
-          <section class="charts-grid modal-charts-grid">
-            <article class="preview-block chart-card">
-              <div class="preview-block-head">
-                <h3>饼图</h3>
-              </div>
-              <div class="pie-chart large" :style="{ background: pieBackground }"></div>
-              <div class="chart-legend">
-                <div v-for="item in pieSegments" :key="`modal-${item.label}`" class="legend-item">
-                  <span class="legend-dot" :style="{ background: item.color }"></span>
-                  <span>{{ item.label }} {{ item.value }}%</span>
-                </div>
-              </div>
-            </article>
-
-            <article class="preview-block chart-card">
-              <div class="preview-block-head">
-                <h3>柱状图</h3>
-              </div>
-              <div class="bar-chart large">
-                <div v-for="item in barSeries" :key="`modal-${item.label}`" class="bar-item">
-                  <div class="bar-track">
-                    <div class="bar-fill" :style="{ height: `${item.value}%` }"></div>
-                  </div>
-                  <strong>{{ item.label }}</strong>
-                </div>
-              </div>
-            </article>
-          </section>
-        </div>
+        </footer>
       </section>
     </div>
+
+    <div class="canvas-backdrop" :class="{ show: previewFullscreen }" @click="togglePreviewFullscreen" />
   </main>
 </template>

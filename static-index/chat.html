@@ -622,6 +622,530 @@
             word-break: break-word;
         }
 
+        .ai-response {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        .ai-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding-left: 4px;
+            flex-wrap: wrap;
+        }
+
+        .ai-action-btn {
+            height: 30px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: transparent;
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0 12px;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+        }
+
+        .ai-action-btn:hover {
+            background: var(--bg-hover);
+            color: var(--text-main);
+        }
+
+        .ai-section {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--bg-main) 92%, var(--primary) 8%);
+            padding: 14px 16px;
+        }
+
+        .ai-summary {
+            border: none;
+            background: transparent;
+            padding: 0 0 6px;
+        }
+
+        .ai-summary .ai-section-title {
+            margin-bottom: 6px;
+            color: var(--text-muted);
+            font-size: 13px;
+            letter-spacing: 0;
+            font-weight: 700;
+        }
+
+        .ai-summary .ai-section-body {
+            color: var(--text-main);
+        }
+
+        .ai-section-title {
+            font-size: 12px;
+            font-weight: 700;
+            letter-spacing: 0.04em;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .ai-section-body {
+            font-size: 14px;
+            line-height: 1.75;
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .ai-thoughts {
+            border: none;
+            background: transparent;
+            padding: 0 0 4px;
+        }
+
+        .ai-thoughts summary {
+            list-style: none;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 10px;
+            width: 100%;
+            padding: 0;
+        }
+
+        .ai-thoughts summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .ai-thoughts summary::after {
+            content: "⌄";
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+            margin-left: auto;
+            flex-shrink: 0;
+        }
+
+        .ai-thoughts[open] summary::after {
+            transform: rotate(180deg);
+        }
+
+        .ai-thoughts-head {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            min-width: 0;
+        }
+
+        .ai-thoughts .ai-section-title {
+            margin-bottom: 0;
+            color: var(--text-muted);
+            font-size: 13px;
+            letter-spacing: 0;
+        }
+
+        .ai-processing-time {
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .ai-thoughts-body {
+            margin-top: 8px;
+            padding-left: 2px;
+            font-size: 14px;
+            line-height: 1.75;
+            color: var(--text-muted);
+            white-space: pre-wrap;
+            word-break: break-word;
+        }
+
+        .ai-progress {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+
+        .ai-progress-item {
+            display: flex;
+            align-items: flex-start;
+            gap: 10px;
+        }
+
+        .ai-progress-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-top: 8px;
+            flex-shrink: 0;
+            background: #d1d5db;
+        }
+
+        .ai-progress-dot.done {
+            background: #10b981;
+        }
+
+        .ai-progress-dot.running {
+            background: #f59e0b;
+            box-shadow: 0 0 0 4px rgba(245, 158, 11, 0.16);
+        }
+
+        .ai-progress-content {
+            flex: 1;
+            min-width: 0;
+        }
+
+        .ai-progress-label {
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .ai-progress-desc {
+            margin-top: 2px;
+            font-size: 13px;
+            color: var(--text-muted);
+            line-height: 1.6;
+        }
+
+        .ai-result {
+            border-radius: 18px;
+            border: 1px solid color-mix(in srgb, var(--border) 82%, var(--primary) 18%);
+            background:
+                linear-gradient(180deg, rgba(255, 255, 255, 0.12), rgba(255, 255, 255, 0.02)),
+                linear-gradient(90deg, rgba(16, 163, 127, 0.04) 1px, transparent 1px),
+                linear-gradient(rgba(16, 163, 127, 0.04) 1px, transparent 1px),
+                color-mix(in srgb, var(--bg-main) 95%, var(--primary) 5%);
+            background-size: auto, 24px 24px, 24px 24px, auto;
+            background-position: 0 0, 0 0, 0 0, 0 0;
+            padding: 16px;
+        }
+
+        .result-canvas-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 14px;
+            flex-wrap: wrap;
+        }
+
+        .result-canvas-title {
+            font-size: 13px;
+            font-weight: 700;
+        }
+
+        .result-canvas-actions {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            flex-wrap: wrap;
+        }
+
+        .result-canvas-btn {
+            height: 30px;
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            background: rgba(255, 255, 255, 0.82);
+            color: var(--text-muted);
+            cursor: pointer;
+            padding: 0 12px;
+            font-size: 12px;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .result-canvas-btn:hover {
+            background: var(--bg-main);
+            color: var(--text-main);
+        }
+
+        .result-canvas-grid {
+            display: grid;
+            grid-template-columns: repeat(12, minmax(0, 1fr));
+            gap: 12px;
+        }
+
+        .ai-result.is-fullscreen {
+            position: fixed;
+            inset: 24px;
+            z-index: 80;
+            overflow: auto;
+            padding: 20px;
+            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.24);
+        }
+
+        body.canvas-fullscreen {
+            overflow: hidden;
+        }
+
+        .canvas-backdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 70;
+            background: rgba(15, 23, 42, 0.38);
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 0.2s ease;
+        }
+
+        .canvas-backdrop.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .ai-result-card {
+            border-radius: 14px;
+            background: var(--bg-main);
+            border: 1px solid var(--border);
+            padding: 14px;
+            box-shadow: 0 12px 24px rgba(15, 23, 42, 0.04);
+        }
+
+        .ai-result-card strong {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 6px;
+        }
+
+        .ai-result-card.canvas-list {
+            grid-column: span 12;
+        }
+
+        .ai-result-card.canvas-bar,
+        .ai-result-card.canvas-pie {
+            grid-column: span 6;
+        }
+
+        .result-list {
+            display: grid;
+            gap: 10px;
+        }
+
+        .result-list-row {
+            display: grid;
+            grid-template-columns: 1.2fr 0.8fr 0.8fr;
+            gap: 12px;
+            align-items: center;
+            padding: 10px 12px;
+            border-radius: 12px;
+            background: color-mix(in srgb, var(--bg-main) 94%, var(--primary) 6%);
+            font-size: 13px;
+        }
+
+        .result-list-row.header {
+            font-size: 12px;
+            font-weight: 700;
+            color: var(--text-muted);
+            background: transparent;
+            padding: 0 2px 4px;
+        }
+
+        .result-list-row span:last-child,
+        .result-list-row span:nth-child(2) {
+            text-align: right;
+        }
+
+        .bar-chart {
+            display: flex;
+            align-items: flex-end;
+            justify-content: space-between;
+            gap: 12px;
+            min-height: 180px;
+            padding-top: 14px;
+        }
+
+        .bar-item {
+            flex: 1;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .bar-value {
+            font-size: 12px;
+            color: var(--text-muted);
+        }
+
+        .bar-track {
+            width: 100%;
+            height: 120px;
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+        }
+
+        .bar-fill {
+            width: 100%;
+            max-width: 52px;
+            border-radius: 12px 12px 6px 6px;
+            background: linear-gradient(180deg, #34d399 0%, #10a37f 100%);
+            box-shadow: inset 0 -8px 0 rgba(255, 255, 255, 0.12);
+        }
+
+        .bar-label {
+            font-size: 12px;
+            text-align: center;
+            color: var(--text-main);
+        }
+
+        .pie-wrap {
+            display: flex;
+            align-items: center;
+            gap: 18px;
+            flex-wrap: wrap;
+        }
+
+        .pie-chart {
+            width: 156px;
+            height: 156px;
+            border-radius: 50%;
+            flex-shrink: 0;
+            border: 10px solid rgba(255, 255, 255, 0.5);
+        }
+
+        .pie-legend {
+            display: grid;
+            gap: 10px;
+            flex: 1;
+            min-width: 220px;
+        }
+
+        .pie-legend-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            font-size: 13px;
+        }
+
+        .pie-legend-main {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .pie-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        .pie-legend-value {
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
+        .progress-dock-inner {
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            background: color-mix(in srgb, var(--bg-main) 90%, var(--primary) 10%);
+            padding: 10px 14px;
+            margin: 0 auto;
+            width: 75%;
+            position: relative;
+            z-index: 2;
+            box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+        }
+
+        .progress-dock {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: calc(100% - 16px);
+            z-index: 3;
+            pointer-events: none;
+        }
+
+        .progress-dock[hidden] {
+            display: none;
+        }
+
+        .progress-dock > * {
+            pointer-events: auto;
+        }
+
+        .progress-dock-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            cursor: pointer;
+            user-select: none;
+        }
+
+        .progress-dock-header::-webkit-details-marker {
+            display: none;
+        }
+
+        .progress-dock-header::marker {
+            content: "";
+        }
+
+        .progress-dock-toggle {
+            flex-shrink: 0;
+            font-size: 12px;
+            color: var(--text-muted);
+            transition: transform 0.2s ease;
+        }
+
+        .progress-dock-inner[open] .progress-dock-toggle {
+            transform: rotate(180deg);
+        }
+
+        .progress-dock .ai-section-title {
+            margin-bottom: 0;
+        }
+
+        .progress-dock-body {
+            margin-top: 8px;
+        }
+
+        .progress-dock .ai-progress {
+            gap: 6px;
+        }
+
+        .progress-dock .ai-progress-item {
+            align-items: center;
+            gap: 8px;
+            min-height: 24px;
+        }
+
+        .progress-dock .ai-progress-dot {
+            width: 8px;
+            height: 8px;
+            margin-top: 0;
+        }
+
+        .progress-dock .ai-progress-dot.running {
+            box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.12);
+        }
+
+        .progress-dock .ai-progress-content {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .progress-dock .ai-progress-label {
+            flex-shrink: 0;
+            font-size: 13px;
+        }
+
+        .progress-dock .ai-progress-desc {
+            margin-top: 0;
+            font-size: 12px;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
         .message.user-message {
             justify-content: flex-end;
         }
@@ -657,6 +1181,7 @@
             background: var(--bg-input);
             box-shadow: var(--shadow);
             padding: 10px;
+            position: relative;
         }
 
         .composer textarea {
@@ -689,6 +1214,15 @@
             min-width: 0;
         }
 
+        .composer-hint {
+            flex: 1;
+            min-width: 0;
+            text-align: center;
+            font-size: 12px;
+            color: var(--text-muted);
+            white-space: nowrap;
+        }
+
         .send-btn {
             width: 36px;
             height: 36px;
@@ -707,14 +1241,6 @@
         .send-btn:disabled {
             background: #9ca3af;
             cursor: not-allowed;
-        }
-
-        .hint {
-            max-width: 860px;
-            margin: 8px auto 0;
-            text-align: center;
-            font-size: 12px;
-            color: var(--text-muted);
         }
 
         .main.is-empty .chat-stage {
@@ -847,6 +1373,37 @@
             .composer-tools .small-btn:nth-child(2) {
                 display: none;
             }
+
+            .composer-bottom {
+                align-items: flex-end;
+            }
+
+            .composer-hint {
+                font-size: 11px;
+                text-align: left;
+            }
+
+            .progress-dock .ai-progress-content {
+                gap: 6px;
+            }
+
+            .progress-dock-inner {
+                width: 92%;
+            }
+
+            .progress-dock {
+                bottom: calc(100% - 12px);
+            }
+
+            .result-canvas-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .ai-result-card.canvas-list,
+            .ai-result-card.canvas-bar,
+            .ai-result-card.canvas-pie {
+                grid-column: span 1;
+            }
         }
     </style>
 </head>
@@ -966,6 +1523,10 @@
 
             <footer class="composer-area">
                 <div class="composer">
+                    <section class="progress-dock" id="progressDock" hidden>
+                        <details class="progress-dock-inner" id="progressDockInner" open></details>
+                    </section>
+
               <textarea
                       id="messageInput"
                       placeholder="给 AI 助手发送消息..."
@@ -978,13 +1539,13 @@
                             <button class="small-btn">工具</button>
                         </div>
 
+                        <div class="composer-hint">Enter 发送，Shift + Enter 换行</div>
+
                         <button class="send-btn" id="sendBtn" disabled title="发送">
                             ↑
                         </button>
                     </div>
                 </div>
-
-                <div class="hint">Enter 发送，Shift + Enter 换行</div>
             </footer>
 
             <div class="suggestions" id="suggestionsArea">
@@ -1011,6 +1572,7 @@
         </div>
     </main>
 </div>
+<div class="canvas-backdrop" id="canvasBackdrop"></div>
 
 <script>
     const mainContent = document.getElementById("mainContent");
@@ -1027,22 +1589,76 @@
     const welcomeArea = document.getElementById("welcomeArea");
     const messageList = document.getElementById("messageList");
     const suggestionsArea = document.getElementById("suggestionsArea");
+    const progressDock = document.getElementById("progressDock");
+    const progressDockInner = document.getElementById("progressDockInner");
+    const canvasBackdrop = document.getElementById("canvasBackdrop");
 
     const messageInput = document.getElementById("messageInput");
     const sendBtn = document.getElementById("sendBtn");
 
-    const mockReply = `这是一个模拟回复。
-
-当前页面已经支持：
-
-1. 侧边栏展开 / 最小化
-2. 最小化后只显示图标
-3. 主聊天区域自动适配宽度
-4. 底部输入框固定在主区域底部
-5. 明暗主题切换
-6. 移动端抽屉侧边栏
-
-后续你可以把这个模拟回复替换成真实接口调用。`;
+    function buildMockReply(question) {
+        return {
+            processingTime: "1.8s",
+            summary: `你想让 AI 回答区从单一摘要，升级为完整的四段式消息展示：保留“问题总结”，并补上可折叠的思考过程、执行进度，以及问数最终结果渲染。`,
+            thoughts: [
+                `先识别用户问题的核心目标，提炼成简短摘要，避免回答一上来就铺陈细节。`,
+                `把推理过程放进可折叠区域，默认收起，既保留可解释性，也不干扰主阅读流。`,
+                `将执行过程拆成阶段化进度，让用户看到“理解问题、生成 SQL、执行查询、整理结果”的状态变化。`,
+                `最终结果单独渲染成结果卡片，适合后续替换成真实图表、表格或指标区块。`,
+                `当前演示消息基于你的输入“${question}”生成，后续可直接替换为接口返回的结构化 JSON。`
+            ],
+            progress: [
+                {
+                    status: "done",
+                    label: "理解用户问题",
+                    description: "已完成问题归纳。"
+                },
+                {
+                    status: "done",
+                    label: "组织思考过程",
+                    description: "已生成可折叠思考内容。"
+                },
+                {
+                    status: "running",
+                    label: "渲染结果区块",
+                    description: "正在组装结果卡片。"
+                }
+            ],
+            result: [
+                {
+                    type: "list",
+                    title: "列表",
+                    columns: ["渠道", "成交额", "占比"],
+                    rows: [
+                        ["现货交易", "1,280 万", "42%"],
+                        ["合约交易", "1,040 万", "34%"],
+                        ["策略跟单", "720 万", "24%"]
+                    ]
+                },
+                {
+                    type: "bar",
+                    title: "柱状图",
+                    unit: "万",
+                    items: [
+                        { label: "周一", value: 82 },
+                        { label: "周二", value: 116 },
+                        { label: "周三", value: 96 },
+                        { label: "周四", value: 138 },
+                        { label: "周五", value: 124 }
+                    ]
+                },
+                {
+                    type: "pie",
+                    title: "饼图",
+                    items: [
+                        { label: "新客", value: 46, color: "#10a37f" },
+                        { label: "老客复购", value: 34, color: "#34d399" },
+                        { label: "活动转化", value: 20, color: "#f59e0b" }
+                    ]
+                }
+            ]
+        };
+    }
 
     function isMobile() {
         return window.innerWidth <= 768;
@@ -1128,9 +1744,13 @@
         mainContent.classList.toggle("is-empty", isEmpty);
         welcomeArea.style.display = isEmpty ? "block" : "none";
         suggestionsArea.style.display = isEmpty ? "grid" : "none";
+        if (isEmpty) {
+            progressDock.hidden = true;
+            progressDockInner.innerHTML = "";
+        }
     }
 
-    function appendMessage(role, text) {
+    function appendMessage(role, payload) {
         const message = document.createElement("div");
         message.className = role === "user" ? "message user-message" : "message";
 
@@ -1144,11 +1764,17 @@
 
         const name = document.createElement("div");
         name.className = "message-name";
-        name.textContent = role === "user" ? "你" : "AI 助手";
+        name.textContent = role === "user" ? "你" : "";
 
         const content = document.createElement("div");
-        content.className = "message-text";
-        content.textContent = text;
+
+        if (role === "user") {
+            content.className = "message-text";
+            content.textContent = payload;
+        } else {
+            content.className = "ai-response";
+            renderAiResponse(content, payload);
+        }
 
         body.appendChild(name);
         body.appendChild(content);
@@ -1159,6 +1785,389 @@
         messageList.appendChild(message);
 
         chatScroll.scrollTop = chatScroll.scrollHeight;
+    }
+
+    function createSectionTitle(text) {
+        const title = document.createElement("div");
+        title.className = "ai-section-title";
+        title.textContent = text;
+        return title;
+    }
+
+    function createSectionBody(text) {
+        const body = document.createElement("div");
+        body.className = "ai-section-body";
+        body.textContent = text;
+        return body;
+    }
+
+    function getCanvasSnapshotMarkup(canvas) {
+        const styles = Array.from(document.querySelectorAll("style"))
+            .map((style) => style.textContent)
+            .join("\n");
+        return `
+            <!DOCTYPE html>
+            <html lang="zh-CN">
+            <head>
+                <meta charset="UTF-8" />
+                <title>结果画布导出</title>
+                <style>${styles}</style>
+                <style>
+                    body {
+                        margin: 0;
+                        padding: 24px;
+                        background: #f3f4f6;
+                    }
+                    .export-wrap {
+                        max-width: 1400px;
+                        margin: 0 auto;
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="export-wrap">${canvas.outerHTML}</div>
+            </body>
+            </html>
+        `;
+    }
+
+    function toggleCanvasFullscreen(canvas, button) {
+        const isFullscreen = canvas.classList.toggle("is-fullscreen");
+        document.body.classList.toggle("canvas-fullscreen", isFullscreen);
+        canvasBackdrop.classList.toggle("show", isFullscreen);
+        button.textContent = isFullscreen ? "退出全屏" : "全屏展示";
+    }
+
+    function exportCanvasAsImage(canvas) {
+        const rect = canvas.getBoundingClientRect();
+        const styles = Array.from(document.querySelectorAll("style"))
+            .map((style) => style.textContent)
+            .join("\n");
+        const markup = `
+            <svg xmlns="http://www.w3.org/2000/svg" width="${Math.ceil(rect.width)}" height="${Math.ceil(rect.height)}">
+                <foreignObject width="100%" height="100%">
+                    <div xmlns="http://www.w3.org/1999/xhtml">
+                        <style>${styles}</style>
+                        ${canvas.outerHTML}
+                    </div>
+                </foreignObject>
+            </svg>
+        `;
+        const blob = new Blob([markup], { type: "image/svg+xml;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        const img = new Image();
+        img.onload = () => {
+            const exportCanvas = document.createElement("canvas");
+            exportCanvas.width = Math.ceil(rect.width) * 2;
+            exportCanvas.height = Math.ceil(rect.height) * 2;
+            const ctx = exportCanvas.getContext("2d");
+            ctx.scale(2, 2);
+            ctx.fillStyle = "#f3f4f6";
+            ctx.fillRect(0, 0, rect.width, rect.height);
+            ctx.drawImage(img, 0, 0);
+            URL.revokeObjectURL(url);
+            const link = document.createElement("a");
+            link.download = "result-canvas.png";
+            link.href = exportCanvas.toDataURL("image/png");
+            link.click();
+        };
+        img.src = url;
+    }
+
+    function exportCanvasAsPdf(canvas) {
+        const exportWindow = window.open("", "_blank", "noopener,noreferrer,width=1280,height=900");
+        if (!exportWindow) return;
+        exportWindow.document.write(getCanvasSnapshotMarkup(canvas));
+        exportWindow.document.close();
+        exportWindow.focus();
+        setTimeout(() => exportWindow.print(), 250);
+    }
+
+    function createResultCard(title, type) {
+        const card = document.createElement("div");
+        card.className = "ai-result-card";
+        if (type) {
+            card.classList.add(`canvas-${type}`);
+        }
+
+        const heading = document.createElement("strong");
+        heading.textContent = title || "";
+        card.appendChild(heading);
+
+        return card;
+    }
+
+    function renderResultList(card, item) {
+        const list = document.createElement("div");
+        list.className = "result-list";
+
+        const header = document.createElement("div");
+        header.className = "result-list-row header";
+        (item.columns || []).forEach((column) => {
+            const span = document.createElement("span");
+            span.textContent = column;
+            header.appendChild(span);
+        });
+        list.appendChild(header);
+
+        (item.rows || []).forEach((row) => {
+            const rowEl = document.createElement("div");
+            rowEl.className = "result-list-row";
+            row.forEach((value) => {
+                const span = document.createElement("span");
+                span.textContent = value;
+                rowEl.appendChild(span);
+            });
+            list.appendChild(rowEl);
+        });
+
+        card.appendChild(list);
+    }
+
+    function renderBarChart(card, item) {
+        const values = (item.items || []).map((entry) => entry.value || 0);
+        const max = Math.max(...values, 1);
+        const chart = document.createElement("div");
+        chart.className = "bar-chart";
+
+        (item.items || []).forEach((entry) => {
+            const barItem = document.createElement("div");
+            barItem.className = "bar-item";
+
+            const value = document.createElement("div");
+            value.className = "bar-value";
+            value.textContent = `${entry.value}${item.unit || ""}`;
+
+            const track = document.createElement("div");
+            track.className = "bar-track";
+
+            const fill = document.createElement("div");
+            fill.className = "bar-fill";
+            fill.style.height = `${Math.max((entry.value / max) * 100, 12)}%`;
+
+            const label = document.createElement("div");
+            label.className = "bar-label";
+            label.textContent = entry.label || "";
+
+            track.appendChild(fill);
+            barItem.appendChild(value);
+            barItem.appendChild(track);
+            barItem.appendChild(label);
+            chart.appendChild(barItem);
+        });
+
+        card.appendChild(chart);
+    }
+
+    function renderPieChart(card, item) {
+        const entries = item.items || [];
+        const total = entries.reduce((sum, entry) => sum + (entry.value || 0), 0) || 1;
+        let cursor = 0;
+        const segments = entries.map((entry) => {
+            const portion = ((entry.value || 0) / total) * 100;
+            const segment = `${entry.color} ${cursor}% ${cursor + portion}%`;
+            cursor += portion;
+            return segment;
+        });
+
+        const wrap = document.createElement("div");
+        wrap.className = "pie-wrap";
+
+        const pie = document.createElement("div");
+        pie.className = "pie-chart";
+        pie.style.background = `conic-gradient(${segments.join(", ")})`;
+
+        const legend = document.createElement("div");
+        legend.className = "pie-legend";
+
+        entries.forEach((entry) => {
+            const legendItem = document.createElement("div");
+            legendItem.className = "pie-legend-item";
+
+            const main = document.createElement("div");
+            main.className = "pie-legend-main";
+
+            const dot = document.createElement("span");
+            dot.className = "pie-dot";
+            dot.style.background = entry.color;
+
+            const label = document.createElement("span");
+            label.textContent = entry.label || "";
+
+            const value = document.createElement("span");
+            value.className = "pie-legend-value";
+            value.textContent = `${entry.value}%`;
+
+            main.appendChild(dot);
+            main.appendChild(label);
+            legendItem.appendChild(main);
+            legendItem.appendChild(value);
+            legend.appendChild(legendItem);
+        });
+
+        wrap.appendChild(pie);
+        wrap.appendChild(legend);
+        card.appendChild(wrap);
+    }
+
+    function renderAiResponse(container, payload) {
+        const thoughtSection = document.createElement("details");
+        thoughtSection.className = "ai-section ai-thoughts";
+        const thoughtSummary = document.createElement("summary");
+        const thoughtHead = document.createElement("div");
+        thoughtHead.className = "ai-thoughts-head";
+        thoughtHead.appendChild(createSectionTitle("AI 思考过程"));
+
+        const processingTime = document.createElement("span");
+        processingTime.className = "ai-processing-time";
+        processingTime.textContent = `处理时间 ${payload.processingTime || "--"}`;
+
+        thoughtHead.appendChild(processingTime);
+        thoughtSummary.appendChild(thoughtHead);
+        thoughtSection.appendChild(thoughtSummary);
+
+        const thoughtBody = document.createElement("div");
+        thoughtBody.className = "ai-thoughts-body";
+        thoughtBody.textContent = (payload.thoughts || []).join("\n\n");
+        thoughtSection.appendChild(thoughtBody);
+        container.appendChild(thoughtSection);
+
+        const summarySection = document.createElement("section");
+        summarySection.className = "ai-section ai-summary";
+        summarySection.appendChild(createSectionTitle("对用户提问的总结"));
+        summarySection.appendChild(createSectionBody(payload.summary || ""));
+        container.appendChild(summarySection);
+
+        const resultSection = document.createElement("section");
+        resultSection.className = "ai-section";
+        resultSection.appendChild(createSectionTitle("问数最终结果"));
+        const resultGrid = document.createElement("div");
+        resultGrid.className = "ai-result";
+
+        const canvasHeader = document.createElement("div");
+        canvasHeader.className = "result-canvas-header";
+
+        const canvasTitle = document.createElement("div");
+        canvasTitle.className = "result-canvas-title";
+        canvasTitle.textContent = "结果画布";
+
+        const canvasActions = document.createElement("div");
+        canvasActions.className = "result-canvas-actions";
+
+        const fullscreenBtn = document.createElement("button");
+        fullscreenBtn.type = "button";
+        fullscreenBtn.className = "result-canvas-btn";
+        fullscreenBtn.textContent = "全屏展示";
+
+        const exportImageBtn = document.createElement("button");
+        exportImageBtn.type = "button";
+        exportImageBtn.className = "result-canvas-btn";
+        exportImageBtn.textContent = "导出图片";
+
+        const exportPdfBtn = document.createElement("button");
+        exportPdfBtn.type = "button";
+        exportPdfBtn.className = "result-canvas-btn";
+        exportPdfBtn.textContent = "导出 PDF";
+
+        canvasActions.appendChild(fullscreenBtn);
+        canvasActions.appendChild(exportImageBtn);
+        canvasActions.appendChild(exportPdfBtn);
+
+        canvasHeader.appendChild(canvasTitle);
+        canvasHeader.appendChild(canvasActions);
+        resultGrid.appendChild(canvasHeader);
+
+        const canvasGrid = document.createElement("div");
+        canvasGrid.className = "result-canvas-grid";
+        (payload.result || []).forEach((item) => {
+            const card = createResultCard(item.title, item.type);
+            if (item.type === "list") {
+                renderResultList(card, item);
+            } else if (item.type === "bar") {
+                renderBarChart(card, item);
+            } else if (item.type === "pie") {
+                renderPieChart(card, item);
+            }
+            canvasGrid.appendChild(card);
+        });
+        resultGrid.appendChild(canvasGrid);
+        fullscreenBtn.addEventListener("click", () => toggleCanvasFullscreen(resultGrid, fullscreenBtn));
+        exportImageBtn.addEventListener("click", () => exportCanvasAsImage(resultGrid));
+        exportPdfBtn.addEventListener("click", () => exportCanvasAsPdf(resultGrid));
+        resultSection.appendChild(resultGrid);
+        container.appendChild(resultSection);
+
+        const actions = document.createElement("div");
+        actions.className = "ai-actions";
+        [
+            "复制",
+            "点赞",
+            "点踩",
+            "反馈",
+            "分支"
+        ].forEach((label) => {
+            const button = document.createElement("button");
+            button.type = "button";
+            button.className = "ai-action-btn";
+            button.textContent = label;
+            actions.appendChild(button);
+        });
+        container.appendChild(actions);
+    }
+
+    function renderProgressDock(progressItems) {
+        if (!progressItems || progressItems.length === 0) {
+            progressDock.hidden = true;
+            progressDockInner.innerHTML = "";
+            return;
+        }
+
+        progressDockInner.innerHTML = "";
+
+        const header = document.createElement("summary");
+        header.className = "progress-dock-header";
+        header.appendChild(createSectionTitle("AI 执行进度"));
+
+        const toggle = document.createElement("span");
+        toggle.className = "progress-dock-toggle";
+        toggle.textContent = "⌃";
+        header.appendChild(toggle);
+
+        progressDockInner.appendChild(header);
+
+        const body = document.createElement("div");
+        body.className = "progress-dock-body";
+        const progressList = document.createElement("div");
+        progressList.className = "ai-progress";
+        progressItems.forEach((item) => {
+            const row = document.createElement("div");
+            row.className = "ai-progress-item";
+
+            const dot = document.createElement("span");
+            dot.className = `ai-progress-dot ${item.status || ""}`;
+
+            const rowContent = document.createElement("div");
+            rowContent.className = "ai-progress-content";
+
+            const label = document.createElement("div");
+            label.className = "ai-progress-label";
+            label.textContent = item.label || "";
+
+            const desc = document.createElement("div");
+            desc.className = "ai-progress-desc";
+            desc.textContent = item.description || "";
+
+            rowContent.appendChild(label);
+            rowContent.appendChild(desc);
+            row.appendChild(dot);
+            row.appendChild(rowContent);
+            progressList.appendChild(row);
+        });
+
+        body.appendChild(progressList);
+        progressDockInner.appendChild(body);
+        progressDockInner.open = true;
+        progressDock.hidden = false;
     }
 
     function sendMessage() {
@@ -1173,7 +2182,9 @@
         autoResizeTextarea();
 
         setTimeout(() => {
-            appendMessage("ai", mockReply);
+            const reply = buildMockReply(text);
+            renderProgressDock(reply.progress || []);
+            appendMessage("ai", reply);
         }, 500);
     }
 
@@ -1181,6 +2192,18 @@
         if (!isMobile()) {
             sidebar.classList.remove("open");
             overlay.classList.remove("show");
+        }
+    });
+
+    canvasBackdrop.addEventListener("click", () => {
+        const activeCanvas = document.querySelector(".ai-result.is-fullscreen");
+        if (!activeCanvas) return;
+        activeCanvas.classList.remove("is-fullscreen");
+        document.body.classList.remove("canvas-fullscreen");
+        canvasBackdrop.classList.remove("show");
+        const toggle = activeCanvas.querySelector(".result-canvas-btn");
+        if (toggle) {
+            toggle.textContent = "全屏展示";
         }
     });
 

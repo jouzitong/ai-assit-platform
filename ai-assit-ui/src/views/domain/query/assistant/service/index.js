@@ -131,7 +131,7 @@ function mapSessionToHistoryItem(session, activeSessionCode) {
   return {
     id: sessionCode,
     title: session?.sessionName || '未命名会话',
-    summary: session?.businessType ? `业务类型：${session.businessType}` : '等待首个问题',
+    summary: '这个是分析摘要汇总',
     tag: session?.businessType || '智能问数',
     time: formatHistoryTime(session?.updateTime || session?.createTime),
     active: sessionCode === activeSessionCode,
@@ -242,7 +242,7 @@ export function useQueryAssistantPage() {
   const historyMenuOpenId = ref(null)
   const composerInput = ref(null)
   const activeSessionCode = ref('')
-  const minInputHeight = 48
+  const minInputHeight = 40
   const maxInputHeight = 320
 
   const stageSummary = computed(() => {
