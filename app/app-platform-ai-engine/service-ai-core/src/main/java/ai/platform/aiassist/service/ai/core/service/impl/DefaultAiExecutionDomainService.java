@@ -81,12 +81,12 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
             CompletableFuture.runAsync(() -> chatStream(request, observer));
             return;
         }
-        AtomicReference<Long> taskIdRef = new AtomicReference<>();
-        Long taskId = scheduleMonitor.schedule(() -> {
+        AtomicReference<String> taskIdRef = new AtomicReference<>();
+        String taskId = scheduleMonitor.schedule(() -> {
             try {
                 chatStream(request, observer);
             } finally {
-                Long id = taskIdRef.get();
+                String id = taskIdRef.get();
                 if (id != null) {
                     scheduleMonitor.cancel(id);
                 }
