@@ -56,6 +56,7 @@ import java.util.UUID;
  */
 @Service
 @Slf4j
+@Deprecated(forRemoval = true)
 public class ChatMessageNode extends BaseWorkflowNode {
 
     private static final String DEFAULT_SESSION_NAME = "新会话";

@@ -1,7 +1,9 @@
 package ai.platform.aiassit.chat.core.workflow.sql.contract;
 
 import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
+import lombok.AllArgsConstructor;
 import lombok.Data;
+import lombok.NoArgsConstructor;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -15,6 +17,8 @@ import java.util.List;
  * @since 2026/6/23
  */
 @Data
+@NoArgsConstructor
+@AllArgsConstructor
 public class SqlPreGenerateResult {
 
     /**

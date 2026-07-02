@@ -7,7 +7,7 @@ import { showPopup } from '../utils/popup'
 
 const route = useRoute()
 const router = useRouter()
-const showShell = computed(() => !route.meta?.plainLayout)
+const showShell = computed(() => !route.meta?.standaloneLayout)
 const isDarkTheme = ref(false)
 
 const pageTitle = computed(() => route.meta?.title || 'AI 助手')

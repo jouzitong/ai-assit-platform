@@ -11,6 +11,8 @@ public class AiChatQueryStreamEvent {
 
     private String sessionCode;
 
+    private String sessionName;
+
     private String roundCode;
 
     private String delta;

@@ -2,7 +2,6 @@ import { createRouter, createWebHistory } from 'vue-router'
 import { clearSession, getToken, isTokenPastHalfLife, setSession } from './utils/session'
 import { getCurrentUser, refreshAuth } from './api/auth'
 import HomePage from './views/domain/home/overview/index.vue'
-import QueryPage from './views/domain/query/assistant/index.vue'
 import AttendancePage from './views/domain/emp/attendance/index.vue'
 import PerformancePage from './views/domain/emp/performance/index.vue'
 import CostPage from './views/domain/emp/cost/index.vue'
@@ -25,7 +24,7 @@ import LoginPage from './views/domain/auth/login/index.vue'
 
 const routes = [
   { path: '/', component: HomePage, meta: { title: '首页' } },
-  { path: '/login', component: LoginPage, meta: { title: '登录', public: true, plainLayout: true } },
+  { path: '/login', component: LoginPage, meta: { title: '登录', public: true, standaloneLayout: true } },
   { path: '/home', redirect: '/' },
   {
     path: '/query',
@@ -34,7 +33,7 @@ const routes = [
       return sessionCode ? `/c/${sessionCode}` : '/'
     }
   },
-  { path: '/c/:sessionCode', component: QueryPage, meta: { title: '智能问数' } },
+  { path: '/c/:sessionCode', component: HomePage, meta: { title: '智能问数' } },
   { path: '/knowledge', component: KnowledgePage, meta: { title: '知识库' } },
   { path: '/knowledge/:sourceKey', component: KnowledgeManagePage, meta: { title: '知识库详情' } },
   { path: '/preview/lowcode', component: SystemLowcodePage, meta: { title: '低代码预览' } },
@@ -45,7 +44,7 @@ const routes = [
   {
     path: '/settings/system',
     component: SystemPage,
-    meta: { title: '系统管理' },
+    meta: { title: '系统管理', standaloneLayout: true },
     redirect: '/settings/system/overview',
     children: [
       { path: 'overview', component: SystemOverviewPage, meta: { title: '系统总览' } },
