@@ -104,6 +104,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
         } else {
             session = loadSession(sessionCode, userId);
             if (session == null) {
+                log.warn("session not found, sessionCode={}, userId={}", sessionCode, userId);
                 return NodeResult.fail("session not found");
             }
             sessionMessages = loadSessionMessages(sessionCode, userId);
@@ -202,7 +203,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
     }
 
     private AiChatBusinessType resolveBusinessType(AiChatBusinessType businessType) {
-        return businessType == null ? AiChatBusinessType.GENERAL : businessType;
+        return businessType == null ? AiChatBusinessType.CUSTOM : businessType;
     }
 
     private String resolveSessionName(AiChatQueryCommand command) {

@@ -37,6 +37,13 @@ export function listAiChatConversations(payload) {
   })
 }
 
+export function searchAiChatSessions(payload) {
+  return request(`/aiChat/api/v1/ai/chat/history/session/_search`, {
+    method: 'POST',
+    body: JSON.stringify(payload ?? {})
+  })
+}
+
 export function detailAiChatConversation(payload) {
   return request(`${AI_CHAT_API_PREFIX}/conversation/detail`, {
     method: 'POST',

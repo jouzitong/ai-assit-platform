@@ -12,7 +12,7 @@ server:
 ai:
   provider:
     qwen:
-      apiKey: "sk-50239c760667494297501c8688ae8483"
+      apiKey: "sk-ws-H.RPLMXYI.q5RF.MEYCIQChOKAmX5uYZP_6XhfymP0Dtd3tatODu2-hh0dsSdg_qQIhAMda0zDEciLMcX6bOx1OTxWQIxsovQjsxw8qVyGHuPXU"
       enabled: true
       #      base-url: "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
       # Spring AI OpenAI client will append `/v1/chat/completions` automatically.

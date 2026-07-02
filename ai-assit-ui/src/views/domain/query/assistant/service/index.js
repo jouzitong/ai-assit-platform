@@ -1,7 +1,7 @@
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import {
   barSeries,
-  createAssistantConversation,
   deleteAssistantConversation,
   fetchAssistantConversationDetail,
   fetchAssistantConversationList,
@@ -228,6 +228,8 @@ async function consumeSseResponse(response, handlers) {
 }
 
 export function useQueryAssistantPage() {
+  const route = useRoute()
+  const router = useRouter()
   const models = ref(defaultModels.map((item) => ({ ...item })))
   const selectedModel = ref(models.value[0]?.value || '')
   const prompt = ref('')
@@ -326,8 +328,10 @@ export function useQueryAssistantPage() {
       const response = unwrapResponse(await fetchAssistantConversationList({ userId: parseStoredUserId() }))
       const list = Array.isArray(response) ? response : []
       if (Array.isArray(list) && list.length > 0) {
-        historyList.value = list.map((session) => mapSessionToHistoryItem(session, activeSessionCode.value))
-        const firstCode = firstConversationCode(historyList.value)
+        const routeSessionCode = typeof route.params?.sessionCode === 'string' ? route.params.sessionCode.trim() : ''
+        const preferredCode = routeSessionCode || activeSessionCode.value
+        historyList.value = list.map((session) => mapSessionToHistoryItem(session, preferredCode))
+        const firstCode = preferredCode || firstConversationCode(historyList.value)
         syncSelectedConversation(firstCode)
         return
       }
@@ -420,6 +424,24 @@ export function useQueryAssistantPage() {
       if (index === 2) return { ...item, status: 'running' }
       return { ...item, status: 'pending' }
     })
+  }
+
+  function clearDraftConversationState() {
+    activeSessionCode.value = ''
+    prompt.value = ''
+    historyMenuOpenId.value = null
+    executions.value = initialExecutions.map((item) => ({ ...item }))
+    stages.value = initialStages.map((item) => ({ ...item }))
+    historyList.value = historyList.value.map((item) => ({
+      ...item,
+      active: false
+    }))
+    nextTick(resizeComposer)
+  }
+
+  function resetDraftConversation() {
+    clearDraftConversationState()
+    router.replace({ path: '/' })
   }
 
   async function submitQuery() {
@@ -559,56 +581,12 @@ export function useQueryAssistantPage() {
   }
 
   async function createConversation() {
-    historyMenuOpenId.value = null
-
-    try {
-      const response = unwrapResponse(await createAssistantConversation({
-        userId: parseStoredUserId(),
-        sessionName: '未命名会话',
-        businessType: 'GENERAL'
-      }))
-      const session = response?.session || null
-      if (!session?.sessionCode) {
-        throw new Error('创建会话失败')
-      }
-
-      upsertConversationItem({
-        ...mapSessionToHistoryItem(session, session.sessionCode),
-        title: session.sessionName || '未命名会话',
-        summary: '等待首个问题，完成后会自动生成摘要。',
-        tag: session.businessType || '待命',
-        time: '刚刚',
-        active: true
-      })
-      syncSelectedConversation(session.sessionCode)
-      await loadConversationDetail(session.sessionCode)
-    } catch (error) {
-      historyList.value = historyList.value.map((item) => ({ ...item, active: false }))
-      historyList.value.unshift({
-        id: `history-${Date.now()}`,
-        title: `未命名会话 ${historyList.value.length + 1}`,
-        summary: '等待首个问题，完成后会自动生成摘要。',
-        tag: '待命',
-        time: '刚刚',
-        active: true,
-        pinned: false
-      })
-      syncSelectedConversation(historyList.value[0]?.id || '')
-      if (error instanceof Error) {
-        executions.value.unshift({
-          title: '会话创建失败',
-          detail: error.message,
-          tone: 'warning',
-          active: false
-        })
-      }
-    }
+    resetDraftConversation()
   }
 
   async function activateConversation(id) {
-    syncSelectedConversation(id)
+    await router.push(`/c/${id}`)
     historyMenuOpenId.value = null
-    await loadConversationDetail(id)
   }
 
   function toggleHistoryMenu(id) {
@@ -697,14 +675,29 @@ export function useQueryAssistantPage() {
     document.documentElement.classList.add('query-lock-scroll')
     document.body.classList.add('query-lock-scroll')
     document.addEventListener('click', closeHistoryMenuByOutsideClick)
+    window.addEventListener('ai-chat-reset-session', clearDraftConversationState)
     await Promise.all([loadModels(), loadConversations()])
     nextTick(resizeComposer)
   })
+
+  watch(
+    () => route.params?.sessionCode,
+    async (sessionCode) => {
+      const nextCode = typeof sessionCode === 'string' ? sessionCode.trim() : ''
+      if (!nextCode || activeSessionCode.value === nextCode) {
+        return
+      }
+      syncSelectedConversation(nextCode)
+      await loadConversationDetail(nextCode)
+    },
+    { immediate: true }
+  )
 
   onBeforeUnmount(() => {
     document.documentElement.classList.remove('query-lock-scroll')
     document.body.classList.remove('query-lock-scroll')
     document.removeEventListener('click', closeHistoryMenuByOutsideClick)
+    window.removeEventListener('ai-chat-reset-session', clearDraftConversationState)
   })
 
   return {

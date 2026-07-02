@@ -15,7 +15,7 @@ export async function submitLogin(form, route, router) {
     throw new Error('登录接口未返回 token')
   }
 
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/home'
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
   setSession({
     token: loginToken,
     user: loginUser

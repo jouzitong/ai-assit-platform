@@ -2,7 +2,9 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ArrowLeft, ArrowRight, Document, Files, FolderOpened, Plus, Search } from '@element-plus/icons-vue'
+import { searchAiChatSessions } from '../api/aiChat'
 import { clearSession, getToken } from '../utils/session'
+import { USER_STORAGE_KEY } from '../utils/session'
 import { logoutAuth } from '../api/auth'
 import { showPopup } from '../utils/popup'
 
@@ -12,6 +14,13 @@ const navRoot = ref(null)
 const workspaceOpen = ref(false)
 const sidebarCollapsed = ref(false)
 const chatGroupCollapsed = ref(false)
+const developerModeEnabled = ref(false)
+const chatItems = ref([])
+const chatPagination = ref({ page: 1, size: 10, total: 0 })
+const chatListLoading = ref(false)
+const chatListLoadingMore = ref(false)
+const chatListError = ref('')
+const DEVELOPER_MODE_KEY = 'emp-console:developer-mode'
 
 const primaryMenus = [
   { key: 'knowledge', label: '知识库', icon: FolderOpened, type: 'route', path: '/knowledge' },
@@ -19,23 +28,38 @@ const primaryMenus = [
   { key: 'apps', label: '我的应用', icon: Files, type: 'plan' }
 ]
 
-const chatItems = [
-  { key: 'chat-1', title: '智能问数平台设计' },
-  { key: 'chat-2', title: '低代码 JSON 渲染方案' },
-  { key: 'chat-3', title: '数据权限设计' },
-  { key: 'chat-4', title: 'AI Agent 节点编排' }
-]
-
 const workspaceMenus = [
   { key: 'profile', label: '个人设置', path: '/settings/profile', type: 'route' },
-  { key: 'query', label: '智能问数（临时）', path: '/query', type: 'route' }
+  { key: 'query', label: '智能问数（临时）', path: '/', type: 'route' }
 ]
 
 const workspaceActive = computed(() =>
   workspaceMenus.some((item) => isActivePath(item.path)) || workspaceOpen.value
 )
+const activeChatSessionCode = computed(() => {
+  const routeValue = typeof route.params?.sessionCode === 'string' ? route.params.sessionCode.trim() : ''
+  return routeValue || ''
+})
+const hasMoreChatItems = computed(() => chatItems.value.length < chatPagination.value.total)
+
+function parseStoredUserId() {
+  try {
+    const raw = window.localStorage.getItem(USER_STORAGE_KEY)
+    if (!raw) {
+      return 0
+    }
+    const user = JSON.parse(raw)
+    const value = Number(user?.id ?? user?.userId ?? 0)
+    return Number.isFinite(value) ? value : 0
+  } catch {
+    return 0
+  }
+}
 
 function isActivePath(targetPath) {
+  if (targetPath === '/') {
+    return route.path === '/' || route.path.startsWith('/c/')
+  }
   return route.path === targetPath || route.path.startsWith(`${targetPath}/`)
 }
 
@@ -57,6 +81,14 @@ function handleDocumentClick(event) {
   }
 }
 
+function handleChatSessionUpdated() {
+  loadChatSessions()
+}
+
+function syncDeveloperMode() {
+  developerModeEnabled.value = window.localStorage.getItem(DEVELOPER_MODE_KEY) === 'true'
+}
+
 function toggleSidebar() {
   sidebarCollapsed.value = !sidebarCollapsed.value
   closeWorkspace()
@@ -66,8 +98,13 @@ function toggleChatGroup() {
   chatGroupCollapsed.value = !chatGroupCollapsed.value
 }
 
-function handleNewChat() {
-  showPopup.info('规划中')
+async function handleNewChat() {
+  closeWorkspace()
+  await router.push({
+    path: '/',
+    query: {}
+  })
+  window.dispatchEvent(new CustomEvent('ai-chat-reset-session'))
 }
 
 function handlePrimaryMenu(item) {
@@ -79,13 +116,23 @@ function handlePrimaryMenu(item) {
   showPopup.info('规划中')
 }
 
-function handleChatItemClick() {
-  showPopup.info('规划中')
+function handleChatItemClick(item) {
+  if (!item?.sessionCode) {
+    return
+  }
+  router.push(`/c/${item.sessionCode}`)
 }
 
 function handleWorkspaceMenu(item) {
   workspaceOpen.value = false
   router.push(item.path)
+}
+
+function toggleDeveloperMode() {
+  developerModeEnabled.value = !developerModeEnabled.value
+  window.localStorage.setItem(DEVELOPER_MODE_KEY, String(developerModeEnabled.value))
+  showPopup.success(`开发者模式已${developerModeEnabled.value ? '开启' : '关闭'}`)
+  workspaceOpen.value = false
 }
 
 async function handleLogout() {
@@ -104,12 +151,108 @@ async function handleLogout() {
   }
 }
 
+function normalizeChatSessionList(payload) {
+  if (Array.isArray(payload)) {
+    return {
+      list: payload,
+      total: payload.length
+    }
+  }
+  if (Array.isArray(payload?.list)) {
+    return {
+      list: payload.list,
+      total: resolvePageTotal(payload?.pageInfo?.total, payload.list.length)
+    }
+  }
+  if (Array.isArray(payload?.data)) {
+    return {
+      list: payload.data,
+      total: payload.data.length
+    }
+  }
+  return {
+    list: [],
+    total: 0
+  }
+}
+
+function resolvePageTotal(total, fallback) {
+  const numericTotal = Number(total)
+  return Number.isFinite(numericTotal) ? numericTotal : fallback
+}
+
+function formatChatTime(value) {
+  if (!value) {
+    return ''
+  }
+  return String(value).replace('T', ' ').slice(0, 16)
+}
+
+function mapChatSessionItem(item) {
+  const sessionCode = item?.sessionCode || ''
+  return {
+    key: sessionCode || `${item?.id || ''}-${item?.sessionName || ''}`,
+    sessionCode,
+    title: item?.sessionName || '未命名会话',
+    pinned: Boolean(item?.pinned),
+    businessType: item?.businessType || '',
+    time: formatChatTime(item?.updateTime || item?.createTime)
+  }
+}
+
+async function loadChatSessions(options = {}) {
+  const { append = false } = options
+  const nextPage = append ? chatPagination.value.page + 1 : 1
+  const userId = parseStoredUserId()
+
+  if (append) {
+    chatListLoadingMore.value = true
+  } else {
+    chatListLoading.value = true
+    chatListError.value = ''
+  }
+
+  try {
+    const payload = await searchAiChatSessions({
+      page: nextPage,
+      size: chatPagination.value.size,
+      createdBy: userId > 0 ? userId : undefined,
+      businessType: 2
+    })
+    const normalized = normalizeChatSessionList(payload)
+    const nextItems = normalized.list.map(mapChatSessionItem).filter((item) => item.sessionCode)
+    chatItems.value = append ? [...chatItems.value, ...nextItems] : nextItems
+    chatPagination.value = {
+      ...chatPagination.value,
+      page: nextPage,
+      total: normalized.total
+    }
+  } catch (error) {
+    chatListError.value = error instanceof Error ? error.message : '聊天列表加载失败'
+    if (!append) {
+      chatItems.value = []
+      chatPagination.value = {
+        ...chatPagination.value,
+        page: 1,
+        total: 0
+      }
+    }
+  } finally {
+    chatListLoading.value = false
+    chatListLoadingMore.value = false
+  }
+}
+
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('ai-chat-session-updated', handleChatSessionUpdated)
+  syncDeveloperMode()
+  loadChatSessions()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('ai-chat-session-updated', handleChatSessionUpdated)
 })
 
 watch(
@@ -124,7 +267,7 @@ watch(
   <aside ref="navRoot" class="shell-sidebar" :class="{ collapsed: sidebarCollapsed }">
     <div class="sidebar-top">
       <div class="brand" title="AI Assist Platform">
-        <RouterLink to="/home" class="brand-link">
+        <RouterLink to="/" class="brand-link">
           <span class="brand-logo">AI</span>
           <div class="brand-copy">
             <strong>AI 助手</strong>
@@ -178,14 +321,32 @@ watch(
           v-for="item in chatItems"
           :key="item.key"
           class="chat-item"
+          :class="{ active: item.sessionCode === activeChatSessionCode }"
           type="button"
           :title="item.title"
-          @click="handleChatItemClick"
+          @click="handleChatItemClick(item)"
         >
           <span class="chat-item-icon">
             <Document class="shell-icon shell-icon-sm" />
           </span>
-          <span class="chat-item-title">{{ item.title }}</span>
+          <span class="chat-item-title">
+            <span class="chat-item-name">{{ item.title }}</span>
+            <span v-if="item.time" class="chat-item-time">{{ item.time }}</span>
+          </span>
+        </button>
+
+        <div v-if="chatListLoading" class="chat-list-state">加载中...</div>
+        <div v-else-if="chatListError" class="chat-list-state">{{ chatListError }}</div>
+        <div v-else-if="!chatItems.length" class="chat-list-state">暂无聊天记录</div>
+
+        <button
+          v-if="hasMoreChatItems"
+          class="chat-load-more"
+          type="button"
+          :disabled="chatListLoadingMore"
+          @click="loadChatSessions({ append: true })"
+        >
+          {{ chatListLoadingMore ? '加载中...' : '加载更多' }}
         </button>
       </div>
     </section>
@@ -215,6 +376,10 @@ watch(
           @click="handleWorkspaceMenu(item)"
         >
           {{ item.label }}
+        </button>
+
+        <button class="workspace-action" :class="{ active: developerModeEnabled }" type="button" @click="toggleDeveloperMode">
+          {{ developerModeEnabled ? '退出开发者模式' : '开发者模式' }}
         </button>
 
         <button class="workspace-action danger" type="button" @click="handleLogout">
@@ -422,10 +587,54 @@ watch(
   margin-bottom: 4px;
 }
 
+.chat-item.active {
+  background: color-mix(in srgb, var(--theme-bg-surface-muted) 78%, var(--theme-brand-primary) 22%);
+}
+
 .chat-item-title {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.chat-item-name {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.chat-item-time {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.chat-list-state {
+  padding: 10px 12px;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.chat-load-more {
+  width: 100%;
+  min-height: 36px;
+  margin-top: 6px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chat-load-more:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.chat-load-more:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--theme-bg-surface-muted) 78%, white 22%);
 }
 
 .sidebar-footer {

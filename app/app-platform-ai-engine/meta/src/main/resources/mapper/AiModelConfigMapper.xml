@@ -13,8 +13,7 @@
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxOutputTokens')) AS SIGNED) AS maxOutputTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED) AS priority
         FROM ai_model_config m
-        WHERE m.deleted = 0
-          AND m.enabled = TRUE
+        WHERE m.enabled = TRUE
         ORDER BY
             COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED), 100) ASC,
             m.update_time DESC,

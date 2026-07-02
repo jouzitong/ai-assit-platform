@@ -15,7 +15,7 @@ const pageSubtitle = computed(() => {
   if (route.path.startsWith('/knowledge')) return '知识资产工作台'
   if (route.path.startsWith('/settings/system')) return '系统设置'
   if (route.path.startsWith('/settings/profile')) return '个人设置'
-  if (route.path.startsWith('/query')) return '智能问数'
+  if (route.path.startsWith('/c/')) return '智能问数'
   return '聊天页面完整示例'
 })
 

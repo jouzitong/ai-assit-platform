@@ -24,10 +24,17 @@ import SystemDataSourceManagePage from './views/domain/settings/system/views/dat
 import LoginPage from './views/domain/auth/login/index.vue'
 
 const routes = [
-  { path: '/', redirect: '/home' },
+  { path: '/', component: HomePage, meta: { title: '首页' } },
   { path: '/login', component: LoginPage, meta: { title: '登录', public: true, plainLayout: true } },
-  { path: '/home', component: HomePage, meta: { title: '首页' } },
-  { path: '/query', component: QueryPage, meta: { title: '智能问数' } },
+  { path: '/home', redirect: '/' },
+  {
+    path: '/query',
+    redirect: (to) => {
+      const sessionCode = typeof to.query?.sessionCode === 'string' ? to.query.sessionCode.trim() : ''
+      return sessionCode ? `/c/${sessionCode}` : '/'
+    }
+  },
+  { path: '/c/:sessionCode', component: QueryPage, meta: { title: '智能问数' } },
   { path: '/knowledge', component: KnowledgePage, meta: { title: '知识库' } },
   { path: '/knowledge/:sourceKey', component: KnowledgeManagePage, meta: { title: '知识库详情' } },
   { path: '/preview/lowcode', component: SystemLowcodePage, meta: { title: '低代码预览' } },
@@ -94,7 +101,7 @@ router.beforeEach(async (to) => {
       try {
         await refreshTokenIfNeeded(token)
         await getCurrentUser()
-        return { path: '/home' }
+        return { path: '/' }
       } catch {
         clearSession()
       }
