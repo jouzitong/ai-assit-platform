@@ -216,8 +216,14 @@ async function loadChatSessions(options = {}) {
     const payload = await searchAiChatSessions({
       page: nextPage,
       size: chatPagination.value.size,
-      createdBy: userId > 0 ? userId : undefined,
-      businessType: 2
+      userId: userId > 0 ? userId : undefined,
+      businessType: 2,
+      sorts: [
+        {
+          column: 'updateTime',
+          sort: 'desc'
+        }
+      ]
     })
     const normalized = normalizeChatSessionList(payload)
     const nextItems = normalized.list.map(mapChatSessionItem).filter((item) => item.sessionCode)
