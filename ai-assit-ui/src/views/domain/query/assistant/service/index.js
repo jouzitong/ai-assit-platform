@@ -522,6 +522,14 @@ export function useQueryAssistantPage() {
 
           if (eventType === 'complete') {
             finalResult = payload
+            executions.value = executions.value.map((item) => ({
+              ...item,
+              active: false
+            }))
+            stages.value = stages.value.map((item) => ({
+              ...item,
+              status: 'done'
+            }))
             const sessionCode = payload?.sessionCode || request.sessionCode || activeSessionCode.value
             if (sessionCode) {
               activeSessionCode.value = sessionCode
@@ -548,6 +556,10 @@ export function useQueryAssistantPage() {
           }
 
           if (eventType === 'error') {
+            executions.value = executions.value.map((item) => ({
+              ...item,
+              active: false
+            }))
             setExecutionStatus('error', payload?.message || '请求 ai-chat 失败')
           }
         }

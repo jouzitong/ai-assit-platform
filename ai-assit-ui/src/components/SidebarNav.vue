@@ -270,7 +270,7 @@ watch(
 </script>
 
 <template>
-  <aside ref="navRoot" class="shell-sidebar" :class="{ collapsed: sidebarCollapsed }">
+  <div ref="navRoot" class="shell-sidebar" :class="{ collapsed: sidebarCollapsed }">
     <div class="sidebar-top">
       <div class="brand" title="AI Assist Platform">
         <RouterLink to="/" class="brand-link">
@@ -393,13 +393,13 @@ watch(
         </button>
       </div>
     </div>
-  </aside>
+  </div>
 </template>
 
 <style scoped>
 .shell-sidebar {
   width: 288px;
-  height: 100vh;
+  height: 100%;
   padding: 12px;
   border-right: 1px solid var(--color-border);
   background: color-mix(in srgb, var(--theme-bg-surface) 96%, white 4%);

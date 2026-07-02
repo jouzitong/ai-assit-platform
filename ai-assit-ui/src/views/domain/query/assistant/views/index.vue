@@ -1,4 +1,5 @@
 <script setup>
+import { computed, ref, watch } from 'vue'
 import { Connection, Microphone, Picture, Promotion, Setting } from '@element-plus/icons-vue'
 import { useQueryAssistantPage } from '../service'
 
@@ -8,11 +9,8 @@ const {
   prompt,
   executions,
   stages,
-  historyCollapsed,
   previewFullscreen,
-  historyKeyword,
   filteredHistoryList,
-  historyMenuOpenId,
   composerInput,
   stageSummary,
   pieSegments,
@@ -21,148 +19,88 @@ const {
   resultRows,
   placeholder,
   submitQuery,
-  createConversation,
-  activateConversation,
-  toggleHistoryMenu,
-  renameConversation,
-  pinConversation,
-  deleteConversation,
   resizeComposer
 } = useQueryAssistantPage()
+
+const processExpanded = ref(true)
+
+const activeConversation = computed(() =>
+  filteredHistoryList.value.find((item) => item.active) || filteredHistoryList.value[0] || null
+)
+
+const activeExecution = computed(() =>
+  executions.value.find((item) => item.active) || executions.value[0] || null
+)
+
+const completedStageCount = computed(() =>
+  stages.value.filter((item) => item.status === 'done').length
+)
+
+const isProcessing = computed(() =>
+  stages.value.some((item) => item.status === 'running') || executions.value.some((item) => item.active)
+)
+
+watch(
+  isProcessing,
+  (running) => {
+    processExpanded.value = running
+  },
+  { immediate: true }
+)
 </script>
 
 <template>
   <main class="page query-page">
-    <section class="query-shell" :class="{ collapsed: historyCollapsed }">
-      <aside class="history-panel" :class="{ collapsed: historyCollapsed }">
-        <div class="history-head">
-          <button class="panel-action history-toggle" type="button" @click="historyCollapsed = !historyCollapsed">
-            {{ historyCollapsed ? '展开' : '收起' }}
-          </button>
-
-          <div v-if="!historyCollapsed" class="history-title">
-            <p class="panel-eyebrow">历史对话</p>
-            <h2>会话列表</h2>
-          </div>
-
-          <div v-if="historyCollapsed" class="history-head-actions">
-            <button class="panel-action icon-only" type="button" @click="createConversation" aria-label="新增对话">新建</button>
-            <button class="panel-action icon-only" type="button" aria-label="搜索对话">搜索</button>
-          </div>
-        </div>
-
-        <div v-if="!historyCollapsed" class="history-toolbar">
-          <button class="history-primary-btn" type="button" @click="createConversation">+ 新增对话</button>
-          <input v-model="historyKeyword" class="history-search" placeholder="搜索历史对话" />
-        </div>
-
-        <div v-if="!historyCollapsed" class="history-list">
-          <article
-            v-for="item in filteredHistoryList"
-            :key="item.id"
-            class="history-item"
-            :class="{ active: item.active }"
-            :title="`${item.title} · ${item.summary}`"
-          >
-            <button class="history-item-main" type="button" @click="activateConversation(item.id)">
-              <div class="history-item-title-row">
-                <strong>{{ item.title }}</strong>
-                <em v-if="item.pinned" class="history-item-pin">置顶</em>
-              </div>
-              <p class="history-item-summary">{{ item.summary }}</p>
-              <div class="history-item-meta">
-                <span>{{ item.time }}</span>
-                <span class="history-item-tag">{{ item.tag }}</span>
-              </div>
-            </button>
-
-            <div class="history-item-actions">
-              <button
-                class="history-item-menu"
-                type="button"
-                :aria-expanded="historyMenuOpenId === item.id"
-                aria-label="更多操作"
-                @click.stop="toggleHistoryMenu(item.id)"
-              >
-                ...
-              </button>
-
-              <div v-if="historyMenuOpenId === item.id" class="history-item-dropdown">
-                <button type="button" @click.stop="renameConversation(item.id)">编辑标题</button>
-                <button type="button" @click.stop="pinConversation(item.id)">
-                  {{ item.pinned ? '取消顶置' : '顶置' }}
-                </button>
-                <button type="button" class="danger" @click.stop="deleteConversation(item.id)">删除</button>
-              </div>
-            </div>
-          </article>
-        </div>
-      </aside>
-
+    <section class="query-shell">
       <div class="query-main">
-        <section class="query-workbench">
-          <article class="panel-card execution-panel">
-            <div class="panel-head">
-              <div>
-                <p class="panel-eyebrow">执行内容</p>
-                <h2>AI 执行轨迹</h2>
-              </div>
-              <span class="panel-status">实时</span>
+        <section class="conversation-stage">
+          <article class="conversation-hero">
+            <div class="conversation-hero-copy">
+              <p class="panel-eyebrow">当前会话</p>
+              <h1>{{ activeConversation?.title || '智能问数' }}</h1>
+              <p class="conversation-summary">
+                {{ activeConversation?.summary || '继续输入问题，系统会沿用当前会话上下文继续分析。' }}
+              </p>
             </div>
 
-            <div class="execution-panel-body">
-              <div class="execution-list">
-                <article
-                  v-for="(item, index) in executions"
-                  :key="`${item.title}-${index}`"
-                  class="execution-item"
-                  :class="`tone-${item.tone}`"
-                >
-                  <div class="execution-dot" :class="{ active: item.active }"></div>
-                  <div>
-                    <h3>{{ item.title }}</h3>
-                    <p>{{ item.detail }}</p>
-                  </div>
-                </article>
-              </div>
-
-              <div class="stage-strip">
-                <div class="stage-strip-head">
-                  <p class="panel-eyebrow">阶段任务</p>
-                  <span class="panel-status stage-summary">{{ stageSummary }}</span>
-                </div>
-
-                <div class="stage-mini-list">
-                  <article
-                    v-for="(stage, index) in stages"
-                    :key="stage.name"
-                    class="stage-mini"
-                    :class="`status-${stage.status}`"
-                    :title="`${stage.name}：${stage.desc}`"
-                  >
-                    <span class="stage-mini-index">{{ index + 1 }}</span>
-                    <span class="stage-mini-text">{{ stage.name }}：{{ stage.desc }}</span>
-                    <span class="stage-mini-dot" :class="`state-${stage.status}`" :aria-label="stage.status"></span>
-                  </article>
-                </div>
-              </div>
+            <div class="conversation-hero-actions">
+              <span class="conversation-tag">{{ activeConversation?.tag || '智能问数' }}</span>
+              <button class="inline-toggle" type="button" @click="processExpanded = !processExpanded">
+                {{ processExpanded ? '收起过程' : '查看过程' }}
+              </button>
             </div>
           </article>
 
-          <article class="panel-card preview-panel">
-            <div class="panel-head">
+          <section class="result-stage">
+            <div class="result-stage-head">
               <div>
-                <p class="panel-eyebrow">结果预览</p>
+                <p class="panel-eyebrow">执行结果</p>
                 <h2>AI 执行结果预览</h2>
+                <p class="result-stage-summary">先看结论，需要时再展开过程和完整图表。</p>
               </div>
-              <button class="panel-action" type="button" @click="previewFullscreen = true">全屏</button>
+              <button class="inline-action" type="button" @click="previewFullscreen = true">全屏查看</button>
             </div>
 
-            <div class="preview-stack">
-              <section class="preview-block">
-                <div class="preview-block-head">
-                  <h3>结果列表</h3>
-                  <span class="preview-hint">默认预览</span>
+            <section class="result-overview-grid">
+              <article class="result-overview-card">
+                <span class="result-overview-label">已完成阶段</span>
+                <strong>{{ completedStageCount }}/{{ stages.length }}</strong>
+              </article>
+              <article class="result-overview-card">
+                <span class="result-overview-label">结果记录数</span>
+                <strong>{{ resultRows.length }}</strong>
+              </article>
+              <article class="result-overview-card">
+                <span class="result-overview-label">当前模型</span>
+                <strong>{{ selectedModel }}</strong>
+              </article>
+            </section>
+
+            <section class="result-block">
+              <div class="result-table-shell">
+                <div class="result-table-headline">
+                  <strong>结果列表</strong>
+                  <span>主回答摘要</span>
                 </div>
                 <div class="result-table">
                   <div class="result-row result-head">
@@ -178,38 +116,95 @@ const {
                     <span>{{ row.risk }}</span>
                   </div>
                 </div>
-              </section>
+              </div>
 
-              <section class="charts-grid">
-                <article class="preview-block chart-card">
-                  <div class="preview-block-head">
-                    <h3>饼图</h3>
+              <details class="process-fold" :open="processExpanded">
+                <summary class="process-summary">
+                  <div class="process-summary-main">
+                    <span class="process-summary-label">AI思考过程</span>
+                    <strong>{{ activeExecution?.title || '执行计划生成' }}</strong>
+                    <span class="process-summary-text">
+                      {{ activeExecution?.detail || '系统正在整理分析步骤。' }}
+                    </span>
                   </div>
-                  <div class="pie-chart" :style="{ background: pieBackground }"></div>
-                  <div class="chart-legend">
-                    <div v-for="item in pieSegments" :key="item.label" class="legend-item">
-                      <span class="legend-dot" :style="{ background: item.color }"></span>
-                      <span>{{ item.label }} {{ item.value }}%</span>
-                    </div>
-                  </div>
-                </article>
+                  <span class="process-summary-meta">{{ stageSummary }}</span>
+                </summary>
 
-                <article class="preview-block chart-card">
-                  <div class="preview-block-head">
-                    <h3>柱状图</h3>
+                <div class="process-body">
+                  <div class="composer-status-chips">
+                    <article
+                      v-for="(stage, index) in stages"
+                      :key="stage.name"
+                      class="stage-chip compact"
+                      :class="`status-${stage.status}`"
+                      :title="`${stage.name}：${stage.desc}`"
+                    >
+                      <span class="stage-chip-index">{{ index + 1 }}</span>
+                      <span class="stage-chip-text">{{ stage.name }}</span>
+                      <span class="stage-chip-state" :class="`state-${stage.status}`"></span>
+                    </article>
                   </div>
-                  <div class="bar-chart">
-                    <div v-for="item in barSeries" :key="item.label" class="bar-item">
-                      <div class="bar-track">
-                        <div class="bar-fill" :style="{ height: `${item.value}%` }"></div>
+
+                  <div class="execution-list compact">
+                    <article
+                      v-for="(item, index) in executions"
+                      :key="`${item.title}-${index}`"
+                      class="execution-item"
+                      :class="`tone-${item.tone}`"
+                    >
+                      <div class="execution-dot" :class="{ active: item.active }"></div>
+                      <div>
+                        <h3>{{ item.title }}</h3>
+                        <p>{{ item.detail }}</p>
                       </div>
-                      <strong>{{ item.label }}</strong>
-                    </div>
+                    </article>
                   </div>
-                </article>
-              </section>
+
+                  <section class="charts-inline">
+                    <article class="chart-inline-card">
+                      <div class="chart-inline-head">
+                        <strong>饼图</strong>
+                      </div>
+                      <div class="pie-chart" :style="{ background: pieBackground }"></div>
+                      <div class="chart-legend">
+                        <div v-for="item in pieSegments" :key="item.label" class="legend-item">
+                          <span class="legend-dot" :style="{ background: item.color }"></span>
+                          <span>{{ item.label }} {{ item.value }}%</span>
+                        </div>
+                      </div>
+                    </article>
+
+                    <article class="chart-inline-card">
+                      <div class="chart-inline-head">
+                        <strong>柱状图</strong>
+                      </div>
+                      <div class="bar-chart compact">
+                        <div v-for="item in barSeries" :key="item.label" class="bar-item">
+                          <div class="bar-track">
+                            <div class="bar-fill" :style="{ height: `${item.value}%` }"></div>
+                          </div>
+                          <strong>{{ item.label }}</strong>
+                        </div>
+                      </div>
+                    </article>
+                  </section>
+                </div>
+              </details>
+            </section>
+          </section>
+        </section>
+
+        <section class="composer-status">
+          <div class="composer-status-head">
+            <div>
+              <p class="panel-eyebrow">执行状态</p>
+              <strong>{{ activeExecution?.title || '执行计划生成' }}</strong>
             </div>
-          </article>
+            <span class="panel-status">{{ stageSummary }}</span>
+          </div>
+          <p class="composer-status-detail">
+            {{ activeExecution?.detail || '系统正在整理分析步骤。' }}
+          </p>
         </section>
 
         <section class="query-composer">

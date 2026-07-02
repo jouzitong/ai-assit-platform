@@ -59,11 +59,13 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div v-if="showShell" class="app-shell">
-    <SidebarNav />
+  <el-container v-if="showShell" class="shell-layout">
+    <el-aside class="shell-aside">
+      <SidebarNav />
+    </el-aside>
 
-    <section class="shell-main">
-      <header class="shell-topbar">
+    <el-container class="shell-main" direction="vertical">
+      <el-header class="shell-topbar">
         <div class="shell-title">
           <h1>{{ pageTitle }}</h1>
           <p>{{ pageSubtitle }}</p>
@@ -80,30 +82,37 @@ onBeforeUnmount(() => {
             设置
           </button>
         </div>
-      </header>
+      </el-header>
 
-      <section class="content-shell">
-        <section class="content">
-          <RouterView />
-        </section>
-      </section>
-    </section>
-  </div>
+      <el-main class="content">
+        <RouterView />
+      </el-main>
+    </el-container>
+  </el-container>
 
   <RouterView v-else />
 </template>
 
 <style scoped>
-.app-shell {
+.shell-layout {
+  width: 100%;
   min-height: 100vh;
-  display: flex;
+  height: 100vh;
   background: var(--theme-bg-canvas);
+}
+
+.shell-aside {
+  width: auto;
+  flex: 0 0 auto;
+  overflow: visible;
+  background: transparent;
 }
 
 .shell-main {
   flex: 1;
   min-width: 0;
-  min-height: 100vh;
+  min-height: 0;
+  height: 100%;
   display: flex;
   flex-direction: column;
 }
@@ -118,6 +127,7 @@ onBeforeUnmount(() => {
   justify-content: space-between;
   gap: 16px;
   flex-shrink: 0;
+  box-sizing: border-box;
 }
 
 .shell-title {
@@ -157,18 +167,13 @@ onBeforeUnmount(() => {
   background: color-mix(in srgb, var(--theme-bg-surface-muted) 78%, white 22%);
 }
 
-.content-shell {
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
-}
-
 .content {
-  width: 100%;
-  height: 100%;
+  flex: 1;
   min-width: 0;
   min-height: 0;
   overflow: auto;
+  padding: 0;
+  background: transparent;
 }
 
 .content > :deep(*) {
