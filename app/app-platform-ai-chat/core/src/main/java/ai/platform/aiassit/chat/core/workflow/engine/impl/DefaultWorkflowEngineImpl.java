@@ -45,7 +45,6 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 
@@ -174,6 +173,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         try {
             IntentAnalyzeResponse existingResponse = context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
             if (existingResponse != null) {
+                refreshRoundType(context, existingResponse);
                 rebindWorkflowDefinitionByIntent(context, existingResponse);
                 return;
             }
@@ -183,6 +183,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             }
             context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
             context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "intentAnalyzeResponse", response);
+            refreshRoundType(context, response);
             rebindWorkflowDefinitionByIntent(context, response);
             context.publishEvent("base-intent-analysis-ready", "base intent analysis prepared");
         } catch (Exception ex) {
@@ -204,6 +205,21 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         }
         context.setWorkflowDefinition(buildQueryRenderWorkflowDefinition());
         context.setWorkflowCode("ai-chat-query-render-workflow");
+    }
+
+    private void refreshRoundType(WorkflowContext context, IntentAnalyzeResponse response) {
+        AiChatRoundDTO round = context == null ? null : context.getRound();
+        if (round == null || round.getId() == null) {
+            return;
+        }
+        AiChatRoundType roundType = AiChatRoundType.fromIntentType(response == null ? null : response.getIntentType());
+        if (roundType.name().equals(round.getRoundType())) {
+            return;
+        }
+        AiChatRoundDTO update = new AiChatRoundDTO();
+        update.setRoundType(roundType.name());
+        roundService.edit(round.getId(), update);
+        round.setRoundType(roundType.name());
     }
 
     private WorkflowDefinition buildSimpleChatWorkflowDefinition() {
@@ -371,7 +387,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                                        Long userId) {
         AiChatRoundDTO round = new AiChatRoundDTO();
         round.setRoundCode(generateCode("round"));
-        round.setRoundType(resolveRoundType(command, sessionMessages).name());
+        round.setRoundType(resolveRoundType(command).name());
         round.setParentRoundCode(resolveParentRoundCode(session.getSessionCode(), userId));
         round.setSessionCode(session.getSessionCode());
         round.setUserId(userId);
@@ -403,29 +419,19 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         return content.length() > 20 ? content.substring(0, 20) : content;
     }
 
-    private AiChatRoundType resolveRoundType(AiChatQueryCommand command, List<AiChatMessageDTO> sessionMessages) {
+    private AiChatRoundType resolveRoundType(AiChatQueryCommand command) {
         Object extValue = command == null || command.getExt() == null ? null : command.getExt().get("roundType");
         if (extValue instanceof String str && org.springframework.util.StringUtils.hasText(str)) {
-            try {
-                return AiChatRoundType.valueOf(str.trim().toUpperCase(Locale.ROOT));
-            } catch (Exception ignored) {
-                // fall through to inference
-            }
+            return AiChatRoundType.fromIntentType(str);
         }
-        if (CollectionUtils.isEmpty(sessionMessages)) {
-            return AiChatRoundType.USER_QUERY;
+        Object intentTypeValue = command == null || command.getExt() == null ? null : command.getExt().get("intentType");
+        if (intentTypeValue instanceof String str && org.springframework.util.StringUtils.hasText(str)) {
+            return AiChatRoundType.fromIntentType(str);
         }
-        AiChatMessageDTO lastMessage = sessionMessages.get(sessionMessages.size() - 1);
-        if (AiChatMessageType.ASSISTANT_QUESTION.name().equals(lastMessage.getMessageType())) {
-            return AiChatRoundType.CLARIFICATION;
-        }
-        return AiChatRoundType.FOLLOW_UP;
+        return AiChatRoundType.QUERY_RENDER;
     }
 
     private String resolveUserMessageType(String roundType) {
-        if (AiChatRoundType.CLARIFICATION.name().equals(roundType)) {
-            return AiChatMessageType.USER_CLARIFICATION.name();
-        }
         return AiChatMessageType.USER_INPUT.name();
     }
 

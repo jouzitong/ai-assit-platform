@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_session (
 CREATE TABLE IF NOT EXISTS ai_chat_round (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     round_code VARCHAR(64) NOT NULL COMMENT '轮次编码',
-    round_type VARCHAR(32) NOT NULL DEFAULT 'USER_QUERY' COMMENT '轮次类型',
+    round_type INT NOT NULL DEFAULT 1 COMMENT '轮次类型',
     parent_round_code VARCHAR(64) DEFAULT NULL COMMENT '父轮次编码',
     session_code VARCHAR(64) NOT NULL COMMENT '会话编码',
     user_id BIGINT NOT NULL DEFAULT 0 COMMENT '用户ID',

@@ -4,15 +4,15 @@ import com.fasterxml.jackson.annotation.JsonValue;
 import lombok.Getter;
 import org.arthena.framework.common.enums.IEnum;
 
+import java.util.Locale;
+
 /**
- * 会话轮次类型。
+ * 会话轮次业务类型。
  */
 @Getter
 public enum AiChatRoundType implements IEnum {
-    USER_QUERY(1, "用户查询"),
-    CLARIFICATION(2, "澄清"),
-    FOLLOW_UP(3, "跟进"),
-    RETRY(4, "重试"),
+    QUERY_RENDER(1, "用户智能问数"),
+    SIMPLE_CHAT(2, "普通对话"),
     ;
 
     @JsonValue
@@ -23,5 +23,16 @@ public enum AiChatRoundType implements IEnum {
     AiChatRoundType(int code, String name) {
         this.code = code;
         this.name = name;
+    }
+
+    public static AiChatRoundType fromIntentType(String intentType) {
+        if (!org.springframework.util.StringUtils.hasText(intentType)) {
+            return QUERY_RENDER;
+        }
+        String normalized = intentType.trim().toUpperCase(Locale.ROOT);
+        if (SIMPLE_CHAT.name().equals(normalized)) {
+            return SIMPLE_CHAT;
+        }
+        return QUERY_RENDER;
     }
 }

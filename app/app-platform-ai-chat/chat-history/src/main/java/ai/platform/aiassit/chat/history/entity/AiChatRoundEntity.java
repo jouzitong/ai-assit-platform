@@ -1,5 +1,6 @@
 package ai.platform.aiassit.chat.history.entity;
 
+import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.AllArgsConstructor;
@@ -31,7 +32,7 @@ public class AiChatRoundEntity extends LogicalDeleteEntity {
      * 轮次类型，用于区分普通问答、重试、追问、工具执行、流程节点执行等不同轮次场景。
      */
     @TableField("round_type")
-    private String roundType;
+    private AiChatRoundType roundType;
 
     /**
      * 父轮次编码，用于建立轮次之间的上下文或派生关系。
