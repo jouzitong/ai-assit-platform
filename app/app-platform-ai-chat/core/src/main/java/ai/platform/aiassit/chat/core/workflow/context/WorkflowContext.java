@@ -324,11 +324,21 @@ public class WorkflowContext implements Serializable {
     }
 
     public String getRenderedAnswer() {
-        return getNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer");
+        String answer = getNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer");
+        if (hasText(answer)) {
+            return answer;
+        }
+        return getNodeOutput(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), "renderedAnswer");
     }
 
     public void setRenderedAnswer(String renderedAnswer) {
-        putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer", renderedAnswer);
+        String existingRenderAnswer = getNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer");
+        if (hasText(existingRenderAnswer)
+                || getOrCreateResultContext().getNodeResults().containsKey(WorkflowNodeCodes.RENDER.getNodeCode())) {
+            putNodeOutput(WorkflowNodeCodes.RENDER.getNodeCode(), "renderedAnswer", renderedAnswer);
+            return;
+        }
+        putNodeOutput(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), "renderedAnswer", renderedAnswer);
     }
 
     @SuppressWarnings("unchecked")

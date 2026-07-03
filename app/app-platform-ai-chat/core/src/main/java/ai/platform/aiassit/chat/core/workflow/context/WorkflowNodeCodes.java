@@ -16,6 +16,7 @@ import org.arthena.framework.common.enums.IEnum;
 public enum WorkflowNodeCodes implements IEnum {
 
     CHAT_MESSAGE(1, "消息准备", "chat-message", "负责准备会话、轮次与当前用户消息上下文"),
+    SIMPLE_CHAT(6, "简单对话", "simple-chat", "负责直接生成自然语言回答，不进入问数渲染链路"),
     QUERY_PLANNING(2, "查询规划", "query-planning", "负责识别用户查询主体、条件、意图与歧义"),
     KNOWLEDGE_SEARCH(3, "知识检索", "knowledge-search", "负责补充知识库背景、术语口径和业务规则"),
     SQL_PRE_GENERATE(4, "SQL 预生成", "sql-pre-generate", "负责基于规划和知识上下文生成预生成结果与伪 SQL"),

@@ -63,7 +63,7 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
         AiChatConversationDetailResponse response = new AiChatConversationDetailResponse();
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(request.getSessionCode());
-        query.setCreatedBy(request.getUserId());
+//        query.setCreatedBy(request.getUserId());
 
         response.setSession(sessionService.get(query));
         response.setRounds(roundService.queryAll(query));

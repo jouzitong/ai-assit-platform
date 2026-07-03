@@ -3,6 +3,7 @@ package ai.platform.aiassit.chat.core.workflow.engine.impl;
 import ai.platform.aiassit.chat.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassist.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
@@ -42,6 +43,7 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -170,15 +172,18 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
 
     private void prepareBaseIntentAnalysis(WorkflowContext context) {
         try {
-            if (context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE) != null) {
+            IntentAnalyzeResponse existingResponse = context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
+            if (existingResponse != null) {
+                rebindWorkflowDefinitionByIntent(context, existingResponse);
                 return;
             }
-            var response = workflowIntentAnalyzeService.analyze(context);
+            IntentAnalyzeResponse response = workflowIntentAnalyzeService.analyze(context);
             if (response == null) {
                 return;
             }
             context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
             context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "intentAnalyzeResponse", response);
+            rebindWorkflowDefinitionByIntent(context, response);
             context.publishEvent("base-intent-analysis-ready", "base intent analysis prepared");
         } catch (Exception ex) {
             log.warn("base intent analyze failed, sessionCode={}, roundCode={}",
@@ -188,6 +193,35 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_ERROR, ex.getMessage());
             context.publishEvent("base-intent-analysis-skipped", "base intent analysis skipped");
         }
+    }
+
+    private void rebindWorkflowDefinitionByIntent(WorkflowContext context, IntentAnalyzeResponse response) {
+        String intentType = response == null ? null : response.getIntentType();
+        if ("SIMPLE_CHAT".equalsIgnoreCase(intentType)) {
+            context.setWorkflowDefinition(buildSimpleChatWorkflowDefinition());
+            context.setWorkflowCode("ai-chat-simple-chat-workflow");
+            return;
+        }
+        context.setWorkflowDefinition(buildQueryRenderWorkflowDefinition());
+        context.setWorkflowCode("ai-chat-query-render-workflow");
+    }
+
+    private WorkflowDefinition buildSimpleChatWorkflowDefinition() {
+        Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
+        nodes.put(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(),
+                new WorkflowNodeConfig(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), null, List.of()));
+        return new WorkflowDefinition("ai-chat-simple-chat-workflow", nodes, WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode());
+    }
+
+    private WorkflowDefinition buildQueryRenderWorkflowDefinition() {
+        Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
+        nodes.put(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(),
+                new WorkflowNodeConfig(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), List.of()));
+        nodes.put(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                new WorkflowNodeConfig(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeCode(), List.of()));
+        nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(),
+                new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), null, List.of()));
+        return new WorkflowDefinition("ai-chat-query-render-workflow", nodes, WorkflowNodeCodes.QUERY_PLANNING.getNodeCode());
     }
 
     private void sendCompleteEvent(WorkflowContext context) throws IOException {
