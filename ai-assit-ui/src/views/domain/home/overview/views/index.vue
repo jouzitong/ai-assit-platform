@@ -73,7 +73,8 @@ const pageModel = computed(() =>
 
 const currentRound = computed(() => pageModel.value.currentRound)
 const activeConversation = computed(() => pageModel.value.session)
-const showWelcome = computed(() => !routeSessionCode.value)
+const showWelcome = computed(() => !routeSessionCode.value && !activeConversationRound.value)
+const submitMode = computed(() => (routeSessionCode.value ? 'emit' : 'create-conversation'))
 const activeExecution = computed(() => executions.value.find((item) => item.active) || executions.value[0] || null)
 const detailUserInput = computed(() => activeConversationUserInput.value || currentRound.value?.userInput || '')
 const detailSummary = computed(() => activeConversationSummary.value || activeConversation.value.summary || activeExecution.value?.detail || '系统正在整理查询结论。')
@@ -163,7 +164,7 @@ function togglePreviewFullscreen() {
           v-model="prompt"
           :show-welcome="showWelcome"
           :placeholder="placeholderText"
-          submit-mode="emit"
+          :submit-mode="submitMode"
           @submit="handleSubmit"
         >
           <template #welcome>
