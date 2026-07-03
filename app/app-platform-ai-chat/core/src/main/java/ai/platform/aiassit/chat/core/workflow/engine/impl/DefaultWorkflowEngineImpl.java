@@ -10,6 +10,7 @@ import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
+import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeResult;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
 import ai.platform.aiassit.chat.core.workflow.node.IWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.planning.service.WorkflowIntentAnalyzeService;
@@ -59,6 +60,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
 
     private static final String STATUS_RUNNING = "RUNNING";
     private static final String STATUS_SUCCESS = "SUCCESS";
+    private static final String STATUS_FAILED = "FAILED";
 
     private final Map<String, IWorkflowNode> nodeRegistry;
     private final AiChatSessionService sessionService;
@@ -118,55 +120,79 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     }
 
     private void executeWorkflow(WorkflowContext context) {
-        prepareConversationContext(context);
-        sendInitEvent(context);
-        prepareBaseIntentAnalysis(context);
+        try {
+            prepareConversationContext(context);
+            sendInitEvent(context);
+            prepareBaseIntentAnalysis(context);
 
-        WorkflowDefinition definition = context.getWorkflowDefinition();
-        if (definition == null) {
-            context.put(WorkflowContextKeys.Common.ERROR, "workflow definition is required");
-            context.publishEvent("workflow-error", "workflow definition is required");
-            return;
+            WorkflowDefinition definition = context.getWorkflowDefinition();
+            if (definition == null) {
+                failWorkflow(context, "workflow definition is required", "workflow-error", "workflow definition is required");
+                return;
+            }
+            String currentNodeId = definition.getStartNodeId();
+            while (currentNodeId != null) {
+                WorkflowNodeConfig workflowNodeConfig = definition.getNodes().get(currentNodeId);
+                if (workflowNodeConfig == null) {
+                    failWorkflow(context,
+                            "workflow node config not found: " + currentNodeId,
+                            "workflow-error",
+                            "workflow node config not found: " + currentNodeId);
+                    return;
+                }
+                IWorkflowNode currentNode = nodeRegistry.get(workflowNodeConfig.getNodeId());
+                if (currentNode == null) {
+                    failWorkflow(context,
+                            "workflow node not found: " + workflowNodeConfig.getNodeId(),
+                            "workflow-error",
+                            "workflow node not found: " + workflowNodeConfig.getNodeId());
+                    return;
+                }
+                context.publishEvent("node-start",
+                        "start node: " + workflowNodeConfig.getNodeId());
+                NodeResult result;
+                try {
+                    result = currentNode.execute(context, workflowNodeConfig);
+                } catch (Exception e) {
+                    log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
+                    failWorkflow(context,
+                            "Error executing node: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage(),
+                            "node-failed",
+                            "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
+                    return;
+                }
+                if (!result.isSuccess()) {
+                    failWorkflow(context,
+                            result.getErrorMessage(),
+                            "node-failed",
+                            "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + result.getErrorMessage());
+                    return;
+                }
+                context.publishEvent("node-complete",
+                        "complete node: " + workflowNodeConfig.getNodeId());
+                if (StringUtils.isNotBlank(result.getNextNodeId())) {
+                    currentNodeId = result.getNextNodeId();
+                } else {
+                    currentNodeId = workflowNodeConfig.getNextNodeId();
+                }
+            }
+            finishRound(context, STATUS_SUCCESS);
+        } catch (Exception ex) {
+            log.error("workflow execution failed before completion, sessionCode={}, roundCode={}",
+                    context.getSession() == null ? null : context.getSession().getSessionCode(),
+                    context.getRound() == null ? null : context.getRound().getRoundCode(),
+                    ex);
+            failWorkflow(context,
+                    ex.getMessage(),
+                    "workflow-error",
+                    "workflow execution failed: " + ex.getMessage());
         }
-        String currentNodeId = definition.getStartNodeId();
-        while (currentNodeId != null) {
-            WorkflowNodeConfig workflowNodeConfig = definition.getNodes().get(currentNodeId);
-            if (workflowNodeConfig == null) {
-                context.put(WorkflowContextKeys.Common.ERROR, "workflow node config not found: " + currentNodeId);
-                context.publishEvent("workflow-error", "workflow node config not found: " + currentNodeId);
-                return;
-            }
-            IWorkflowNode currentNode = nodeRegistry.get(workflowNodeConfig.getNodeId());
-            if (currentNode == null) {
-                context.put(WorkflowContextKeys.Common.ERROR, "workflow node not found: " + workflowNodeConfig.getNodeId());
-                context.publishEvent("workflow-error", "workflow node not found: " + workflowNodeConfig.getNodeId());
-                return;
-            }
-            context.publishEvent("node-start",
-                    "start node: " + workflowNodeConfig.getNodeId());
-            NodeResult result;
-            try {
-                result = currentNode.execute(context, workflowNodeConfig);
-            } catch (Exception e) {
-                log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
-                context.put(WorkflowContextKeys.Common.ERROR, "Error executing node: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
-                context.publishEvent("node-failed", "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
-                return;
-            }
-            if (!result.isSuccess()) {
-                context.put(WorkflowContextKeys.Common.ERROR, result.getErrorMessage());
-                context.publishEvent("node-failed",
-                        "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + result.getErrorMessage());
-                return;
-            }
-            context.publishEvent("node-complete",
-                    "complete node: " + workflowNodeConfig.getNodeId());
-            if (StringUtils.isNotBlank(result.getNextNodeId())) {
-                currentNodeId = result.getNextNodeId();
-            } else {
-                currentNodeId = workflowNodeConfig.getNextNodeId();
-            }
-        }
+    }
+
+    private void failWorkflow(WorkflowContext context, String errorMessage, String eventName, String eventMessage) {
+        context.put(WorkflowContextKeys.Common.ERROR, errorMessage);
+        context.publishEvent(eventName, eventMessage);
+        finishRound(context, STATUS_FAILED);
     }
 
     private void prepareBaseIntentAnalysis(WorkflowContext context) {
@@ -208,18 +234,95 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     }
 
     private void refreshRoundType(WorkflowContext context, IntentAnalyzeResponse response) {
+        if (hasExplicitRoundType(context == null ? null : context.getCommand())) {
+            return;
+        }
         AiChatRoundDTO round = context == null ? null : context.getRound();
         if (round == null || round.getId() == null) {
             return;
         }
         AiChatRoundType roundType = AiChatRoundType.fromIntentType(response == null ? null : response.getIntentType());
-        if (roundType.name().equals(round.getRoundType())) {
+        if (roundType == round.getRoundType()) {
             return;
         }
         AiChatRoundDTO update = new AiChatRoundDTO();
-        update.setRoundType(roundType.name());
+        update.setRoundType(roundType);
         roundService.edit(round.getId(), update);
-        round.setRoundType(roundType.name());
+        round.setRoundType(roundType);
+    }
+
+    private void finishRound(WorkflowContext context, String status) {
+        AiChatRoundDTO round = context == null ? null : context.getRound();
+        if (round == null || round.getId() == null) {
+            return;
+        }
+        AiChatRoundDTO update = new AiChatRoundDTO();
+        update.setStatus(status);
+        String actualModel = resolveRoundActualModel(context);
+        if (org.springframework.util.StringUtils.hasText(actualModel)) {
+            update.setActualModel(actualModel);
+            round.setActualModel(actualModel);
+        }
+        String modelCode = resolveRoundModelCode(context);
+        if (org.springframework.util.StringUtils.hasText(modelCode)) {
+            update.setModelCode(modelCode);
+            round.setModelCode(modelCode);
+        }
+        roundService.edit(round.getId(), update);
+        round.setStatus(status);
+    }
+
+    private String resolveRoundActualModel(WorkflowContext context) {
+        WorkflowNodeResult nodeResult = resolveRoundModelNodeResult(context);
+        if (nodeResult != null && nodeResult.getResponse() != null
+                && org.springframework.util.StringUtils.hasText(nodeResult.getResponse().getModel())) {
+            return nodeResult.getResponse().getModel().trim();
+        }
+        if (nodeResult != null && nodeResult.getRequest() != null
+                && org.springframework.util.StringUtils.hasText(nodeResult.getRequest().getModel())) {
+            return nodeResult.getRequest().getModel().trim();
+        }
+        AiChatRoundDTO round = context == null ? null : context.getRound();
+        return round == null ? null : round.getActualModel();
+    }
+
+    private String resolveRoundModelCode(WorkflowContext context) {
+        WorkflowNodeResult nodeResult = resolveRoundModelNodeResult(context);
+        if (nodeResult != null && nodeResult.getRequest() != null
+                && org.springframework.util.StringUtils.hasText(nodeResult.getRequest().getModel())) {
+            return nodeResult.getRequest().getModel().trim();
+        }
+        if (nodeResult != null && nodeResult.getResponse() != null
+                && org.springframework.util.StringUtils.hasText(nodeResult.getResponse().getModel())) {
+            return nodeResult.getResponse().getModel().trim();
+        }
+        AiChatRoundDTO round = context == null ? null : context.getRound();
+        return round == null ? null : round.getModelCode();
+    }
+
+    private WorkflowNodeResult resolveRoundModelNodeResult(WorkflowContext context) {
+        if (context == null || context.getOrCreateResultContext().getNodeResults() == null) {
+            return null;
+        }
+        List<String> candidateNodeCodes = List.of(
+                WorkflowNodeCodes.RENDER.getNodeCode(),
+                WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(),
+                WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()
+        );
+        for (String nodeCode : candidateNodeCodes) {
+            WorkflowNodeResult nodeResult = context.getOrCreateResultContext().getNodeResults().get(nodeCode);
+            if (nodeResult == null) {
+                continue;
+            }
+            if (nodeResult.getResponse() != null && org.springframework.util.StringUtils.hasText(nodeResult.getResponse().getModel())) {
+                return nodeResult;
+            }
+            if (nodeResult.getRequest() != null && org.springframework.util.StringUtils.hasText(nodeResult.getRequest().getModel())) {
+                return nodeResult;
+            }
+        }
+        return null;
     }
 
     private WorkflowDefinition buildSimpleChatWorkflowDefinition() {
@@ -306,7 +409,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         context.setSessionArtifacts(sessionArtifacts);
         context.getOrCreateUserMessageContext().setSessionMessages(sessionMessages);
 
-        AiChatRoundDTO round = createRound(session, sessionMessages, command, userId);
+        AiChatRoundDTO round = createRound(session, command, userId);
         context.setRound(round);
 
         AiChatMessageDTO lastMessage = sessionMessages.isEmpty() ? null : sessionMessages.get(sessionMessages.size() - 1);
@@ -382,12 +485,11 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     }
 
     private AiChatRoundDTO createRound(AiChatSessionDTO session,
-                                       List<AiChatMessageDTO> sessionMessages,
                                        AiChatQueryCommand command,
                                        Long userId) {
         AiChatRoundDTO round = new AiChatRoundDTO();
         round.setRoundCode(generateCode("round"));
-        round.setRoundType(resolveRoundType(command).name());
+        round.setRoundType(resolveRoundType(command));
         round.setParentRoundCode(resolveParentRoundCode(session.getSessionCode(), userId));
         round.setSessionCode(session.getSessionCode());
         round.setUserId(userId);
@@ -420,18 +522,26 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     }
 
     private AiChatRoundType resolveRoundType(AiChatQueryCommand command) {
-        Object extValue = command == null || command.getExt() == null ? null : command.getExt().get("roundType");
-        if (extValue instanceof String str && org.springframework.util.StringUtils.hasText(str)) {
-            return AiChatRoundType.fromIntentType(str);
-        }
-        Object intentTypeValue = command == null || command.getExt() == null ? null : command.getExt().get("intentType");
-        if (intentTypeValue instanceof String str && org.springframework.util.StringUtils.hasText(str)) {
-            return AiChatRoundType.fromIntentType(str);
+        String explicitRoundType = readExtText(command, "roundType");
+        if (explicitRoundType != null) {
+            return AiChatRoundType.fromIntentType(explicitRoundType);
         }
         return AiChatRoundType.QUERY_RENDER;
     }
 
-    private String resolveUserMessageType(String roundType) {
+    private boolean hasExplicitRoundType(AiChatQueryCommand command) {
+        return readExtText(command, "roundType") != null || readExtText(command, "intentType") != null;
+    }
+
+    private String readExtText(AiChatQueryCommand command, String key) {
+        Object value = command == null || command.getExt() == null ? null : command.getExt().get(key);
+        if (value instanceof String str && org.springframework.util.StringUtils.hasText(str)) {
+            return str.trim();
+        }
+        return null;
+    }
+
+    private String resolveUserMessageType(AiChatRoundType roundType) {
         return AiChatMessageType.USER_INPUT.name();
     }
 

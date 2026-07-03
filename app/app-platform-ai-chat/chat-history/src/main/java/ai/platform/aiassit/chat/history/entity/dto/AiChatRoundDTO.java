@@ -1,5 +1,6 @@
 package ai.platform.aiassit.chat.history.entity.dto;
 
+import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
@@ -10,7 +11,7 @@ public class AiChatRoundDTO extends BaseDTO {
 
     private String roundCode;
 
-    private String roundType;
+    private AiChatRoundType roundType;
 
     private String parentRoundCode;
 

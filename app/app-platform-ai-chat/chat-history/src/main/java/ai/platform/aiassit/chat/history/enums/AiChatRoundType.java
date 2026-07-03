@@ -27,7 +27,7 @@ public enum AiChatRoundType implements IEnum {
 
     public static AiChatRoundType fromIntentType(String intentType) {
         if (!org.springframework.util.StringUtils.hasText(intentType)) {
-            return QUERY_RENDER;
+            return SIMPLE_CHAT;
         }
         String normalized = intentType.trim().toUpperCase(Locale.ROOT);
         if (SIMPLE_CHAT.name().equals(normalized)) {

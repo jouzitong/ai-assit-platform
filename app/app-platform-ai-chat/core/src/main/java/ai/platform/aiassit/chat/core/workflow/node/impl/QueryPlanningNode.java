@@ -31,7 +31,6 @@ import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.athena.framework.web.vo.IR;
@@ -177,7 +176,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private final AiChatExecutionApi aiChatExecutionApi;
     private final AiMetaQueryApi aiMetaQueryApi;
-    private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
     private final ObjectMapper objectMapper;
     private final WorkflowProperties workflowProperties;
@@ -185,14 +183,12 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
                              AiMetaQueryApi aiMetaQueryApi,
-                             AiChatRoundService roundService,
                              WorkflowHistoryRecorder historyRecorder,
                              ObjectMapper objectMapper,
                              WorkflowProperties workflowProperties,
                              QueryPlanningSkillExecutor queryPlanningSkillExecutor) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.aiMetaQueryApi = aiMetaQueryApi;
-        this.roundService = roundService;
         this.historyRecorder = historyRecorder;
         this.objectMapper = objectMapper;
         this.workflowProperties = workflowProperties;
@@ -322,10 +318,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     null
             );
             context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).setStatus(STATUS_FAILED);
-            finishRound(context.getRound(),
-                    context.getOrCreateNodeResult(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode()).getRequest(),
-                    null,
-                    STATUS_FAILED);
             return NodeResult.fail(ex.getMessage());
         }
     }
@@ -993,24 +985,6 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String defaultText(String value) {
         return value == null ? "" : value;
-    }
-
-    private void finishRound(AiChatRoundDTO round, ChatRequest request, String actualModel, String status) {
-        if (round == null || round.getId() == null) {
-            return;
-        }
-        AiChatRoundDTO update = new AiChatRoundDTO();
-        update.setStatus(status);
-        update.setActualModel(actualModel);
-        if (request != null) {
-            update.setModelCode(request.getModel());
-        }
-        log.info("finish query planning round, roundCode={}, status={}, modelCode={}, actualModel={}",
-                round.getRoundCode(),
-                status,
-                update.getModelCode(),
-                actualModel);
-        roundService.edit(round.getId(), update);
     }
 
     private String extractAnswer(ChatResponse response) {

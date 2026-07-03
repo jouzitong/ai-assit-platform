@@ -187,7 +187,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
                                        Long userId) {
         AiChatRoundDTO round = new AiChatRoundDTO();
         round.setRoundCode(generateRoundCode());
-        round.setRoundType(resolveRoundType(command).name());
+        round.setRoundType(resolveRoundType(command));
         round.setParentRoundCode(resolveParentRoundCode(session.getSessionCode(), userId));
         round.setSessionCode(session.getSessionCode());
         round.setUserId(userId);
@@ -229,7 +229,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
         return AiChatRoundType.QUERY_RENDER;
     }
 
-    private String resolveUserMessageType(String roundType) {
+    private String resolveUserMessageType(AiChatRoundType roundType) {
         return AiChatMessageType.USER_INPUT.name();
     }
 

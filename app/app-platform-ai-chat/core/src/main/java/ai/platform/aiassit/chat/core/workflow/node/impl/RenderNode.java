@@ -27,7 +27,6 @@ import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.render.api.RenderInternalApi;
 import ai.platform.aiassit.render.api.dto.RenderDetailDTO;
 import ai.platform.aiassit.render.api.dto.RenderUpsertRequest;
@@ -80,18 +79,15 @@ public class RenderNode extends BaseWorkflowNode {
 
     private final AiChatExecutionApi aiChatExecutionApi;
     private final RenderInternalApi renderInternalApi;
-    private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
     private final ObjectMapper objectMapper;
 
     public RenderNode(AiChatExecutionApi aiChatExecutionApi,
                       RenderInternalApi renderInternalApi,
-                      AiChatRoundService roundService,
                       WorkflowHistoryRecorder historyRecorder,
                       ObjectMapper objectMapper) {
         this.aiChatExecutionApi = aiChatExecutionApi;
         this.renderInternalApi = renderInternalApi;
-        this.roundService = roundService;
         this.historyRecorder = historyRecorder;
         this.objectMapper = objectMapper;
     }
@@ -148,7 +144,6 @@ public class RenderNode extends BaseWorkflowNode {
                     context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     response == null ? null : response.getRequestId()
             );
-            finishRound(context.getRound(), STATUS_SUCCESS, resolveAgentModel(command));
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("render node failed, roundCode={}", context.getRound().getRoundCode(), ex);
@@ -165,7 +160,6 @@ public class RenderNode extends BaseWorkflowNode {
                     context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     null
             );
-            finishRound(context.getRound(), STATUS_FAILED, resolveAgentModel(command));
             return NodeResult.fail(ex.getMessage());
         }
     }
@@ -562,17 +556,6 @@ public class RenderNode extends BaseWorkflowNode {
                 context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                 null
         );
-    }
-
-    private void finishRound(AiChatRoundDTO round, String status, String actualModel) {
-        if (round == null || round.getId() == null) {
-            return;
-        }
-        AiChatRoundDTO update = new AiChatRoundDTO();
-        update.setStatus(status);
-        update.setActualModel(actualModel);
-        update.setModelCode(actualModel);
-        roundService.edit(round.getId(), update);
     }
 
     private String toPrettyJson(Map<String, Object> renderJson) {

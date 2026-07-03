@@ -17,12 +17,10 @@ import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatActorType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -50,14 +48,11 @@ public class SimpleChatNode extends BaseWorkflowNode {
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
-    private final AiChatRoundService roundService;
     private final WorkflowHistoryRecorder historyRecorder;
 
     public SimpleChatNode(AiChatExecutionApi aiChatExecutionApi,
-                          AiChatRoundService roundService,
                           WorkflowHistoryRecorder historyRecorder) {
         this.aiChatExecutionApi = aiChatExecutionApi;
-        this.roundService = roundService;
         this.historyRecorder = historyRecorder;
     }
 
@@ -89,11 +84,9 @@ public class SimpleChatNode extends BaseWorkflowNode {
             context.publishEvent("answer-ready", "simple chat answer prepared", answer, null, STATUS_SUCCESS);
 
             persistAssistantMessage(context, answer);
-            finishRound(context.getRound(), STATUS_SUCCESS, response == null ? request.getModel() : response.getModel(), request);
             return NodeResult.success(null);
         } catch (Exception ex) {
             context.getOrCreateNodeResult(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode()).setStatus(STATUS_FAILED);
-            finishRound(context.getRound(), STATUS_FAILED, null, null);
             return NodeResult.fail(ex.getMessage());
         }
     }
@@ -240,16 +233,4 @@ public class SimpleChatNode extends BaseWorkflowNode {
         );
     }
 
-    private void finishRound(AiChatRoundDTO round, String status, String actualModel, ChatRequest request) {
-        if (round == null || round.getId() == null) {
-            return;
-        }
-        AiChatRoundDTO update = new AiChatRoundDTO();
-        update.setStatus(status);
-        update.setActualModel(actualModel);
-        if (request != null) {
-            update.setModelCode(request.getModel());
-        }
-        roundService.edit(round.getId(), update);
-    }
 }
