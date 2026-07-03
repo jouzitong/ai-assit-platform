@@ -132,7 +132,7 @@ function mapSessionToHistoryItem(session, activeSessionCode) {
   return {
     id: sessionCode,
     title: session?.sessionName || '未命名会话',
-    summary: '这个是分析摘要汇总',
+    summary: '',
     tag: session?.businessType || '智能问数',
     time: formatHistoryTime(session?.updateTime || session?.createTime),
     active: sessionCode === activeSessionCode,
@@ -627,6 +627,10 @@ export function useHomeOverviewPage() {
           if (eventType === 'init') {
             if (sessionCode) {
               activeSessionCode.value = sessionCode
+              const currentRouteSessionCode = typeof route.params?.sessionCode === 'string' ? route.params.sessionCode.trim() : ''
+              if (currentRouteSessionCode !== sessionCode) {
+                router.replace(`/c/${sessionCode}`)
+              }
             }
             upsertConversationItem({
               id: sessionCode || `local-${Date.now()}`,
@@ -867,7 +871,8 @@ export function useHomeOverviewPage() {
     () => route.params?.sessionCode,
     async (sessionCode) => {
       const nextCode = typeof sessionCode === 'string' ? sessionCode.trim() : ''
-      if (!nextCode || activeSessionCode.value === nextCode) {
+      const currentDetailSessionCode = activeConversationDetail.value?.session?.sessionCode || ''
+      if (!nextCode || currentDetailSessionCode === nextCode) {
         return
       }
       syncSelectedConversation(nextCode)
