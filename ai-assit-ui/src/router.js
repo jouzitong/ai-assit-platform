@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { clearSession, getToken, isTokenPastHalfLife, setSession } from './utils/session'
+import { clearSession, getStoredUser, getToken, isTokenPastHalfLife, setSession } from './utils/session'
 import { getCurrentUser, refreshAuth } from './api/auth'
 import HomePage from './views/domain/home/overview/index.vue'
 import AttendancePage from './views/domain/emp/attendance/index.vue'
@@ -78,7 +78,7 @@ async function refreshTokenIfNeeded(token) {
 
   const response = await refreshAuth()
   const nextToken = response?.token ?? response?.data?.token
-  const nextUser = response?.user ?? response?.data?.user
+  const nextUser = response?.user ?? response?.data?.user ?? getStoredUser()
 
   if (!nextToken) {
     throw new Error('刷新接口未返回 token')
@@ -92,6 +92,25 @@ async function refreshTokenIfNeeded(token) {
   return nextToken
 }
 
+async function ensureCurrentUserLoaded() {
+  const storedUser = getStoredUser()
+  if (storedUser) {
+    return storedUser
+  }
+
+  const response = await getCurrentUser()
+  const currentUser = response?.user ?? response?.data?.user ?? response?.data ?? response
+  if (!currentUser) {
+    throw new Error('用户信息获取失败')
+  }
+
+  setSession({
+    token: getToken(),
+    user: currentUser
+  })
+  return currentUser
+}
+
 router.beforeEach(async (to) => {
   const token = getToken()
 
@@ -99,7 +118,7 @@ router.beforeEach(async (to) => {
     if (token && to.path === '/login') {
       try {
         await refreshTokenIfNeeded(token)
-        await getCurrentUser()
+        await ensureCurrentUserLoaded()
         return { path: '/' }
       } catch {
         clearSession()
@@ -117,7 +136,7 @@ router.beforeEach(async (to) => {
 
   try {
     await refreshTokenIfNeeded(token)
-    await getCurrentUser()
+    await ensureCurrentUserLoaded()
     return true
   } catch {
     clearSession()

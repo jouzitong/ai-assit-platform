@@ -172,6 +172,130 @@ function unwrapResponse(payload) {
   return payload?.data ?? payload
 }
 
+function normalizeConversationDetail(payload) {
+  const detail = payload && typeof payload === 'object' ? payload : {}
+  const rounds = Array.isArray(detail.rounds) ? detail.rounds : []
+  return {
+    session: detail.session || null,
+    rounds: rounds.map((item) => ({
+      round: item?.round || null,
+      messages: Array.isArray(item?.messages) ? item.messages : [],
+      artifacts: Array.isArray(item?.artifacts) ? item.artifacts : [],
+      renderType: item?.renderType || '',
+      // TODO: 后续基于 round.artifacts 识别 render json 等业务产物，并切换对应渲染组件。
+      pendingArtifactRenderer: Array.isArray(item?.artifacts) && item.artifacts.length > 0
+    }))
+  }
+}
+
+function sortByNumberField(items, field) {
+  return [...items].sort((a, b) => {
+    const left = Number(a?.[field] ?? 0)
+    const right = Number(b?.[field] ?? 0)
+    return left - right
+  })
+}
+
+function formatMessageContent(content) {
+  const text = normalizeText(content)
+  if (!text) {
+    return ''
+  }
+  return text.length > 240 ? `${text.slice(0, 240).trimEnd()}…` : text
+}
+
+function buildExecutionTimeline(roundDetail) {
+  if (!roundDetail) {
+    return initialExecutions.map((item) => ({ ...item }))
+  }
+
+  const messages = sortByNumberField(roundDetail.messages || [], 'sortNo')
+  const artifacts = sortByNumberField(roundDetail.artifacts || [], 'seqNo')
+  const items = []
+
+  for (const message of messages) {
+    const content = formatMessageContent(message?.content)
+    if (!content) {
+      continue
+    }
+    if (String(message?.role || '').toUpperCase() === 'USER') {
+      continue
+    }
+    items.push({
+      title: message?.messageType || '消息',
+      detail: content,
+      tone: String(message?.status || '').toUpperCase() === 'FAILED' ? 'warning' : 'info',
+      active: false
+    })
+  }
+
+  for (const artifact of artifacts) {
+    const summary = artifact?.title || artifact?.artifactType || '产物'
+    items.push({
+      title: '产物',
+      detail: `${summary} 待接入业务渲染`,
+      tone: 'success',
+      active: false
+    })
+  }
+
+  return items.length > 0 ? items : initialExecutions.map((item) => ({ ...item }))
+}
+
+function buildArtifactStages(roundDetail) {
+  if (!roundDetail || !Array.isArray(roundDetail.artifacts) || roundDetail.artifacts.length === 0) {
+    return initialStages.map((item) => ({ ...item }))
+  }
+
+  return sortByNumberField(roundDetail.artifacts, 'seqNo').map((artifact) => ({
+    name: artifact?.title || artifact?.artifactType || '产物',
+    desc: artifact?.renderType
+      ? `检测到 ${artifact.renderType} 产物，前端业务渲染待实现`
+      : '检测到结构化产物，前端业务渲染待实现',
+    status: String(artifact?.status || '').toUpperCase() === 'FAILED' ? 'pending' : 'done'
+  }))
+}
+
+function resolveActiveRoundDetail(detail) {
+  const rounds = Array.isArray(detail?.rounds) ? detail.rounds : []
+  if (rounds.length === 0) {
+    return null
+  }
+  return rounds[rounds.length - 1] || null
+}
+
+function resolveRoundUserInput(roundDetail, session) {
+  const messages = sortByNumberField(roundDetail?.messages || [], 'sortNo')
+  const userMessage = messages.find((item) => String(item?.role || '').toUpperCase() === 'USER')
+  if (userMessage?.content) {
+    return normalizeText(userMessage.content)
+  }
+  return extractUserInput(session?.summary || '')
+}
+
+function resolveRoundSummary(roundDetail, session) {
+  const messages = sortByNumberField(roundDetail?.messages || [], 'sortNo')
+  const assistantMessages = messages.filter((item) => String(item?.role || '').toUpperCase() !== 'USER')
+  const finalMessage = [...assistantMessages].reverse().find((item) => formatMessageContent(item?.content))
+  const text = formatMessageContent(finalMessage?.content)
+  if (text) {
+    return text
+  }
+  return session?.summary || '系统正在整理查询结论。'
+}
+
+function buildArtifactNotice(roundDetail) {
+  const artifacts = Array.isArray(roundDetail?.artifacts) ? roundDetail.artifacts : []
+  if (artifacts.length === 0) {
+    return ''
+  }
+  const renderArtifact = artifacts.find((item) => item?.renderType)
+  if (renderArtifact?.renderType) {
+    return `检测到 ${renderArtifact.renderType} 产物，前端业务渲染待实现`
+  }
+  return `检测到 ${artifacts.length} 个产物，前端业务渲染待实现`
+}
+
 function resolveRouteSessionCode(route) {
   return typeof route.params?.sessionCode === 'string' ? route.params.sessionCode.trim() : ''
 }
@@ -246,6 +370,11 @@ export function useHomeOverviewPage() {
   const historyList = ref([])
   const historyMenuOpenId = ref(null)
   const activeSessionCode = ref('')
+  const activeConversationDetail = ref(null)
+  const activeConversationRound = ref(null)
+  const activeConversationUserInput = ref('')
+  const activeConversationSummary = ref('')
+  const activeArtifactNotice = ref('')
   const pageReady = ref(false)
   const routeSessionCode = computed(() => resolveRouteSessionCode(route))
 
@@ -348,6 +477,11 @@ export function useHomeOverviewPage() {
 
   async function loadConversationDetail(sessionCode) {
     if (!sessionCode) {
+      activeConversationDetail.value = null
+      activeConversationRound.value = null
+      activeConversationUserInput.value = ''
+      activeConversationSummary.value = ''
+      activeArtifactNotice.value = ''
       return null
     }
 
@@ -356,8 +490,22 @@ export function useHomeOverviewPage() {
         userId: parseStoredUserId(),
         sessionCode
       }))
-      return response
+      const detail = normalizeConversationDetail(response)
+      activeConversationDetail.value = detail
+      const roundDetail = resolveActiveRoundDetail(detail)
+      activeConversationRound.value = roundDetail
+      activeConversationUserInput.value = resolveRoundUserInput(roundDetail, detail?.session)
+      activeConversationSummary.value = resolveRoundSummary(roundDetail, detail?.session)
+      activeArtifactNotice.value = buildArtifactNotice(roundDetail)
+      executions.value = buildExecutionTimeline(roundDetail)
+      stages.value = buildArtifactStages(roundDetail)
+      return detail
     } catch {
+      activeConversationDetail.value = null
+      activeConversationRound.value = null
+      activeConversationUserInput.value = ''
+      activeConversationSummary.value = ''
+      activeArtifactNotice.value = ''
       return null
     }
   }
@@ -422,6 +570,11 @@ export function useHomeOverviewPage() {
 
   function clearDraftConversationState() {
     activeSessionCode.value = ''
+    activeConversationDetail.value = null
+    activeConversationRound.value = null
+    activeConversationUserInput.value = ''
+    activeConversationSummary.value = ''
+    activeArtifactNotice.value = ''
     prompt.value = ''
     historyMenuOpenId.value = null
     clearPendingAiChatDraft()
@@ -747,6 +900,11 @@ export function useHomeOverviewPage() {
     historyList,
     historyMenuOpenId,
     routeSessionCode,
+    activeConversationDetail,
+    activeConversationRound,
+    activeConversationUserInput,
+    activeConversationSummary,
+    activeArtifactNotice,
     stageSummary,
     filteredHistoryList,
     pieSegments,

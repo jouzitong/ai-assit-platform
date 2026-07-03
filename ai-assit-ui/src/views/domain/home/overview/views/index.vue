@@ -14,6 +14,10 @@ const {
   previewFullscreen,
   filteredHistoryList,
   routeSessionCode,
+  activeConversationRound,
+  activeConversationUserInput,
+  activeConversationSummary,
+  activeArtifactNotice,
   stageSummary,
   pieSegments,
   pieBackground,
@@ -71,11 +75,14 @@ const currentRound = computed(() => pageModel.value.currentRound)
 const activeConversation = computed(() => pageModel.value.session)
 const showWelcome = computed(() => !routeSessionCode.value)
 const activeExecution = computed(() => executions.value.find((item) => item.active) || executions.value[0] || null)
+const detailUserInput = computed(() => activeConversationUserInput.value || currentRound.value?.userInput || '')
+const detailSummary = computed(() => activeConversationSummary.value || activeConversation.value.summary || activeExecution.value?.detail || '系统正在整理查询结论。')
+const artifactNotice = computed(() => activeArtifactNotice.value || '')
 const modelLabel = computed(() => {
   const target = models.value.find((item) => item.value === selectedModel.value)
   return target?.label || selectedModel.value || '智能问数'
 })
-const resultTotalText = computed(() => `${resultRowList.value.length} 条结果`)
+const resultTotalText = computed(() => artifactNotice.value || `${resultRowList.value.length} 条结果`)
 
 watch(
   () => pageModel.value.currentRound?.progress?.isProcessing,
@@ -181,9 +188,9 @@ function togglePreviewFullscreen() {
 
           <template #conversation>
             <div class="message-list">
-              <article class="message user-message">
+                  <article class="message user-message">
                 <div class="message-body">
-                  <div class="message-text">{{ currentRound?.userInput }}</div>
+                  <div class="message-text">{{ detailUserInput }}</div>
                 </div>
               </article>
 
@@ -195,7 +202,7 @@ function togglePreviewFullscreen() {
                     <section class="ai-section ai-summary">
                       <div class="ai-section-title">分析摘要</div>
                       <div class="ai-section-body">
-                        {{ activeConversation.summary || activeExecution?.detail || '系统正在整理查询结论。' }}
+                        {{ detailSummary }}
                       </div>
                     </section>
 
@@ -248,6 +255,15 @@ function togglePreviewFullscreen() {
                       </div>
 
                       <div class="result-canvas-grid">
+                        <div v-if="artifactNotice" class="ai-result-card canvas-list">
+                          <strong>业务产物</strong>
+                          <div class="result-list">
+                            <div class="result-list-row">
+                              <span>{{ artifactNotice }}</span>
+                            </div>
+                          </div>
+                        </div>
+
                         <div class="ai-result-card canvas-list">
                           <strong>明细结果</strong>
                           <div class="result-list">

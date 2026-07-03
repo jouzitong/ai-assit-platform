@@ -6,6 +6,18 @@ export function getToken() {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY)
 }
 
+export function getStoredUser() {
+  const raw = window.localStorage.getItem(USER_STORAGE_KEY)
+  if (!raw) {
+    return null
+  }
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
 function decodeBase64Url(value) {
   const normalized = value.replace(/-/g, '+').replace(/_/g, '/')
   const padding = normalized.length % 4
@@ -47,6 +59,13 @@ export function isTokenPastHalfLife(token, nowSeconds = Math.floor(Date.now() / 
 
 export function setSession(session) {
   window.localStorage.setItem(TOKEN_STORAGE_KEY, session.token)
+  if (session.user === undefined) {
+    return
+  }
+  if (session.user === null) {
+    window.localStorage.removeItem(USER_STORAGE_KEY)
+    return
+  }
   window.localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(session.user))
 }
 

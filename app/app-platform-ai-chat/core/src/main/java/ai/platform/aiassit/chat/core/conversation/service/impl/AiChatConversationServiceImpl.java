@@ -2,12 +2,14 @@ package ai.platform.aiassit.chat.core.conversation.service.impl;
 
 import ai.platform.aiassit.chat.core.conversation.service.AiChatConversationService;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationDetailResponse;
+import ai.platform.aiassit.chat.core.query.dto.AiChatConversationRoundDetailVO;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationPinRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationRenameRequest;
 import ai.platform.aiassit.chat.core.query.req.AiChatConversationCreateRequest;
 import ai.platform.aiassit.chat.core.query.req.AiChatConversationDeleteRequest;
 import ai.platform.aiassit.chat.core.query.req.AiChatConversationDetailRequest;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
@@ -20,7 +22,10 @@ import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 @Service
@@ -66,9 +71,11 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
 //        query.setCreatedBy(request.getUserId());
 
         response.setSession(sessionService.get(query));
-        response.setRounds(roundService.queryAll(query));
-        response.setMessages(messageService.queryAll(query));
-        response.setArtifacts(artifactService.queryAll(query));
+        response.setRounds(buildRoundDetails(
+                roundService.queryAll(query),
+                messageService.queryAll(query),
+                artifactService.queryAll(query)
+        ));
         return response;
     }
 
@@ -174,5 +181,50 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
 
     private String generateCode(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private List<AiChatConversationRoundDetailVO> buildRoundDetails(List<AiChatRoundDTO> rounds,
+                                                                    List<AiChatMessageDTO> messages,
+                                                                    List<AiChatArtifactDTO> artifacts) {
+        Map<String, AiChatConversationRoundDetailVO> detailMap = new LinkedHashMap<>();
+
+        rounds.stream()
+                .sorted(Comparator.comparing(AiChatRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
+                .forEach(round -> {
+                    AiChatConversationRoundDetailVO detail = new AiChatConversationRoundDetailVO();
+                    detail.setRound(round);
+                    detailMap.put(round.getRoundCode(), detail);
+                });
+
+        messages.stream()
+                .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                .forEach(message -> detailMap
+                        .computeIfAbsent(message.getRoundCode(), key -> new AiChatConversationRoundDetailVO())
+                        .getMessages()
+                        .add(message));
+
+        artifacts.stream()
+                .sorted(Comparator.comparing(AiChatArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .forEach(artifact -> detailMap
+                        .computeIfAbsent(artifact.getRoundCode(), key -> new AiChatConversationRoundDetailVO())
+                        .getArtifacts()
+                        .add(artifact));
+
+        return detailMap.values().stream()
+                .peek(this::markPendingRenderType)
+                .toList();
+    }
+
+    private void markPendingRenderType(AiChatConversationRoundDetailVO detail) {
+        if (detail == null) {
+            return;
+        }
+        boolean hasRenderableArtifact = detail.getArtifacts().stream()
+                .anyMatch(artifact -> artifact != null
+                        && StringUtils.hasText(artifact.getArtifactType())
+                        && StringUtils.hasText(artifact.getContentFormat()));
+        if (hasRenderableArtifact) {
+            detail.setRenderType("TODO");
+        }
     }
 }
