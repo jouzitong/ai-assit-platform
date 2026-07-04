@@ -1,0 +1,4 @@
+ALTER TABLE ai_model_config
+    MODIFY COLUMN provider_code VARCHAR(64) DEFAULT NULL COMMENT '所属提供商编码',
+    MODIFY COLUMN provider_name VARCHAR(128) DEFAULT NULL COMMENT '提供商名称',
+    MODIFY COLUMN base_url VARCHAR(512) DEFAULT NULL COMMENT '提供商请求基础地址';
