@@ -22,6 +22,7 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/ai/chat")
 @AllArgsConstructor
+@Deprecated
 public class AiChatQueryController implements AiChatQueryApi {
 
     private static final String DEFAULT_SCENE = "ai-chat-query";

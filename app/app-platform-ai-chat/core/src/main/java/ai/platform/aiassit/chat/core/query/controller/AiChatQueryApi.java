@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 @RequestMapping("/api/v1/ai/chat")
+@Deprecated
 public interface AiChatQueryApi {
 
     @PostMapping("/query")
