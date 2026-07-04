@@ -1,0 +1,41 @@
+services:
+  ai-chat-python:
+    build:
+      context: ../../app/app-platform-ai-chat-python
+    container_name: ai-chat-python-phase-a
+    environment:
+      CHAT_SERVICE_API_KEY: ${CHAT_SERVICE_API_KEY:-phase-a-dev-key}
+      CHAT_SERVICE_REQUIRE_API_KEY: ${CHAT_SERVICE_REQUIRE_API_KEY:-true}
+      CHAT_SERVICE_PORT: 13103
+      AI_ENGINE_BASE_URL: ${AI_ENGINE_BASE_URL:-http://host.docker.internal:13101/aiEngine}
+      CHAT_SERVICE_REQUEST_TIMEOUT_MS: ${CHAT_SERVICE_REQUEST_TIMEOUT_MS:-60000}
+      CHAT_SERVICE_SCENE: ${CHAT_SERVICE_SCENE:-open-webui-phase-a}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "13103:13103"
+    restart: unless-stopped
+
+  open-webui:
+    build:
+      context: ../../open-webui
+      dockerfile: Dockerfile
+    container_name: open-webui-phase-a
+    depends_on:
+      - ai-chat-python
+    environment:
+      WEBUI_NAME: ${WEBUI_NAME:-AI Assist Open WebUI}
+      ENABLE_SIGNUP: ${ENABLE_SIGNUP:-false}
+      ENABLE_PERSISTENT_CONFIG: ${ENABLE_PERSISTENT_CONFIG:-false}
+      OPENAI_API_BASE_URLS: ${OPENAI_API_BASE_URLS:-http://ai-chat-python:13103/v1}
+      OPENAI_API_KEYS: ${OPENAI_API_KEYS:-phase-a-dev-key}
+      DEFAULT_MODELS: ${DEFAULT_MODELS:-}
+      ENABLE_FORWARD_USER_INFO_HEADERS: ${ENABLE_FORWARD_USER_INFO_HEADERS:-true}
+    ports:
+      - "3000:8080"
+    volumes:
+      - open-webui-phase-a-data:/app/backend/data
+    restart: unless-stopped
+
+volumes:
+  open-webui-phase-a-data:

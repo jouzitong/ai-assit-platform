@@ -1,0 +1,42 @@
+### Open WebUI Phase A - Python chat service
+@host = http://127.0.0.1:13103
+@apiKey = phase-a-dev-key
+
+### Health
+GET {{host}}/healthz
+
+### Model list
+GET {{host}}/v1/models
+Authorization: Bearer {{apiKey}}
+
+### Chat completion
+POST {{host}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "model": "qwen-math-turbo",
+  "messages": [
+    {
+      "role": "user",
+      "content": "请分三点介绍上海。"
+    }
+  ]
+}
+
+### Stream chat completion
+POST {{host}}/v1/chat/completions
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+Accept: text/event-stream
+
+{
+  "model": "qwen-math-turbo",
+  "stream": true,
+  "messages": [
+    {
+      "role": "user",
+      "content": "请分三点介绍上海。"
+    }
+  ]
+}
