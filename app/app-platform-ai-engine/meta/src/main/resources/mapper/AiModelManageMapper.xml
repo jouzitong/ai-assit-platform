@@ -2,9 +2,9 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="ai.platform.aiassist.service.ai.meta.mapper.AiModelManageMapper">
+<mapper namespace="mapper.meta.ai.platform.assit.service.ai.AiModelManageMapper">
 
-    <resultMap id="AiModelManageResultMap" type="ai.platform.aiassist.service.ai.meta.entity.vo.AiModelManageVO">
+    <resultMap id="AiModelManageResultMap" type="vo.entity.meta.ai.platform.assit.service.ai.AiModelManageVO">
         <id property="id" column="id"/>
         <result property="modelCode" column="model_code"/>
         <result property="modelName" column="model_name"/>

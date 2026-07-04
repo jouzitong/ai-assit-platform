@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat.core.workflow.planning.skill.impl;
 
-import ai.platform.aiassist.service.ai.api.dto.IntentAnalyzeResponse;
-import ai.platform.aiassist.service.ai.api.enums.MessageRole;
+import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
+import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
@@ -14,7 +14,6 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
-import java.util.List;
 import java.util.Map;
 
 /**

@@ -1,0 +1,30 @@
+spring:
+  application:
+    name: chat
+  profiles:
+    active: dev
+    include: common, lib
+  main:
+    allow-bean-definition-overriding: true
+server:
+  port: 13103
+  servlet:
+    context-path: /chat
+
+ai:
+  provider:
+    qwen:
+      apiKey: ${AI_PROVIDER_QWEN_API_KEY:}
+      enabled: true
+      base-url: ${AI_PROVIDER_QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode}
+      default-model: ${AI_PROVIDER_QWEN_DEFAULT_MODEL:qwen-math-turbo}
+      workspaceId: ${AI_PROVIDER_QWEN_WORKSPACE_ID:}
+      accessKeyId: ${AI_PROVIDER_QWEN_ACCESS_KEY_ID:}
+      accessKeySecret: ${AI_PROVIDER_QWEN_ACCESS_KEY_SECRET:}
+
+mybatis-plus:
+  configuration:
+    default-enum-type-handler: org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler
+
+database:
+  name: "ai_assist_chat"

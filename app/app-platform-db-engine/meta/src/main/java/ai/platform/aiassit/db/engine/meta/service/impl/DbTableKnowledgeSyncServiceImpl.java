@@ -1,10 +1,10 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
-import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertRequest;
-import ai.platform.aiassist.service.ai.api.dto.AiKbDocumentUpsertResponse;
-import ai.platform.aiassist.service.ai.api.enums.AiKbBizType;
-import ai.platform.aiassist.service.ai.api.enums.AiKbDocumentType;
+import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgePreviewDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgeSyncDTO;

@@ -1,6 +1,6 @@
 package ai.platform.aiassit.db.engine;
 
-import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
+import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

@@ -90,6 +90,11 @@
                 <artifactId>app-platform-chat-provider-ai-agent</artifactId>
                 <version>${app.platform.chat.version}</version>
             </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-render-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

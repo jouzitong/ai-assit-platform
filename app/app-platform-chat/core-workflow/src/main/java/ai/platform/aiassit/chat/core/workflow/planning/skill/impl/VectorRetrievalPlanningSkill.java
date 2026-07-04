@@ -1,11 +1,11 @@
 package ai.platform.aiassit.chat.core.workflow.planning.skill.impl;
 
-import ai.platform.aiassist.service.ai.api.AiRetrievalExecutionApi;
-import ai.platform.aiassist.service.ai.api.dto.HybridSearchHit;
-import ai.platform.aiassist.service.ai.api.dto.HybridSearchRequest;
-import ai.platform.aiassist.service.ai.api.dto.HybridSearchResponse;
-import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
-import ai.platform.aiassist.service.ai.api.enums.MessageRole;
+import ai.platform.aiassit.service.ai.api.AiRetrievalExecutionApi;
+import ai.platform.aiassit.service.ai.api.dto.HybridSearchHit;
+import ai.platform.aiassit.service.ai.api.dto.HybridSearchRequest;
+import ai.platform.aiassit.service.ai.api.dto.HybridSearchResponse;
+import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;

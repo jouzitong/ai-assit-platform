@@ -1,8 +1,8 @@
 package ai.platform.aiassit.chat.core.workflow.constants;
 
-import ai.platform.aiassist.service.ai.api.dto.HybridSearchResponse;
-import ai.platform.aiassist.service.ai.api.dto.IntentAnalyzeResponse;
-import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
+import ai.platform.aiassit.service.ai.api.dto.HybridSearchResponse;
+import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
+import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.chat.core.workflow.planning.contract.IntentEvidence;

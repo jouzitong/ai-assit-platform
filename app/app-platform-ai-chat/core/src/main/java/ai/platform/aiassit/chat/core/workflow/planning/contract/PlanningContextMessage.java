@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.core.workflow.planning.contract;
 
-import ai.platform.aiassist.service.ai.api.enums.MessageRole;
+import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import lombok.Data;
 
 /**

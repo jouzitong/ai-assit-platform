@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat.core.workflow.context;
 
-import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
-import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
+import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
+import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import lombok.Data;
 
 import java.io.Serial;

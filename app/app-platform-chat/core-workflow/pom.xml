@@ -30,6 +30,10 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-api</artifactId>
         </dependency>
         <dependency>
@@ -43,6 +47,10 @@
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-data-meta</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-render-api</artifactId>
         </dependency>
     </dependencies>
 </project>

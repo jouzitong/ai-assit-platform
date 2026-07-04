@@ -1,0 +1,35 @@
+package ai.platform.aiassit.service.ai.api;
+
+import ai.platform.aiassit.service.ai.api.dto.AiMetaQueryRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiModelConfigDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiModelCredentialDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiProviderModelOverviewDTO;
+import org.athena.framework.web.annotation.IgnoredResultWrapper;
+import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+
+import java.util.List;
+
+@FeignClient(
+        name = "aiEngine",
+        contextId = "platformAiEngineClient",
+        path = "/aiEngine/internal/v1/ai/meta"
+)
+public interface AiMetaQueryApi {
+
+    @PostMapping("/provider-model/overview")
+    @IgnoredResultWrapper
+    @Deprecated
+    AiProviderModelOverviewDTO providerModelOverview(@RequestBody(required = false) AiMetaQueryRequest request);
+
+    @PostMapping(value = "/model/list",produces = MediaType.APPLICATION_JSON_VALUE)
+    @IgnoredResultWrapper
+    List<AiModelConfigDTO> listModels(@RequestBody(required = false) AiMetaQueryRequest request);
+
+    @PostMapping("/credential/list")
+    @IgnoredResultWrapper
+    @Deprecated
+    List<AiModelCredentialDTO> listCredentials(@RequestBody(required = false) AiMetaQueryRequest request);
+}

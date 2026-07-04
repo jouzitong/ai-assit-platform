@@ -1,6 +1,6 @@
 package ai.platform.aiassit.chat.core.workflow.sql.contract;
 
-import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
+import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;

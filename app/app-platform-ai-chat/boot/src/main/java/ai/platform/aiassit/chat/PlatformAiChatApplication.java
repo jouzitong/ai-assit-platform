@@ -1,9 +1,9 @@
 package ai.platform.aiassit.chat;
 
-import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
-import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassist.service.ai.api.AiMetaQueryApi;
-import ai.platform.aiassist.service.ai.api.AiVectorExecutionApi;
+import ai.platform.aiassit.service.ai.api.AiChatExecutionApi;
+import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
+import ai.platform.aiassit.service.ai.api.AiMetaQueryApi;
+import ai.platform.aiassit.service.ai.api.AiVectorExecutionApi;
 import ai.platform.aiassit.render.api.RenderInternalApi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;

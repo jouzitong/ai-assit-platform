@@ -3,7 +3,7 @@ package ai.platform.aiassit.chat.core.workflow.engine.impl;
 import ai.platform.aiassit.chat.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
-import ai.platform.aiassist.service.ai.api.dto.IntentAnalyzeResponse;
+import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;

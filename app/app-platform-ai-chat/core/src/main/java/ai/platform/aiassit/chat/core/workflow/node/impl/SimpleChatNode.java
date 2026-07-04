@@ -1,14 +1,14 @@
 package ai.platform.aiassit.chat.core.workflow.node.impl;
 
-import ai.platform.aiassist.service.ai.api.AiChatExecutionApi;
-import ai.platform.aiassist.service.ai.api.dto.ChatMessage;
-import ai.platform.aiassist.service.ai.api.dto.ChatOptions;
-import ai.platform.aiassist.service.ai.api.dto.ChatRequest;
-import ai.platform.aiassist.service.ai.api.dto.ChatResponse;
-import ai.platform.aiassist.service.ai.api.dto.IntentAnalyzeResponse;
-import ai.platform.aiassist.service.ai.api.dto.OutputItem;
-import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
-import ai.platform.aiassist.service.ai.api.enums.MessageRole;
+import ai.platform.aiassit.service.ai.api.AiChatExecutionApi;
+import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
+import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
+import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
+import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
+import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
+import ai.platform.aiassit.service.ai.api.dto.OutputItem;
+import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;

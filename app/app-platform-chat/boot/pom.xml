@@ -21,6 +21,22 @@
             <artifactId>app-platform-chat-core</artifactId>
         </dependency>
         <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-ai-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-ai-chat</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-workflow</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-render-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.athena</groupId>
             <artifactId>athena-framework-starter-log</artifactId>
         </dependency>

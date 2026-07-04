@@ -1,10 +1,10 @@
 package ai.platform.aiassit.chat.core.workflow.capability.impl;
 
-import ai.platform.aiassist.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassist.service.ai.api.dto.KbSearchItem;
-import ai.platform.aiassist.service.ai.api.dto.KbSearchRequest;
-import ai.platform.aiassist.service.ai.api.dto.KbSearchResponse;
-import ai.platform.aiassist.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
+import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
+import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
+import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
+import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.query.dto.AiChatToolDTO;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeCapabilityConfig;

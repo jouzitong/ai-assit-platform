@@ -2,9 +2,9 @@
 <!DOCTYPE mapper
         PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN"
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="ai.platform.aiassist.service.ai.meta.mapper.AiModelConfigMapper">
+<mapper namespace="mapper.meta.ai.platform.assit.service.ai.AiModelConfigMapper">
 
-    <select id="selectEnabledModels" resultType="ai.platform.aiassist.service.ai.api.dto.AiEnabledModelDTO">
+    <select id="selectEnabledModels" resultType="dto.api.ai.platform.assit.service.ai.AiEnabledModelDTO">
         SELECT
             m.api_model AS apiModel,
             m.provider_code AS providerCode,
