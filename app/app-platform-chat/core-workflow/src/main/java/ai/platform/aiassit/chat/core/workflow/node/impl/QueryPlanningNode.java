@@ -1,9 +1,6 @@
 package ai.platform.aiassit.chat.core.workflow.node.impl;
 
 import ai.platform.aiassit.service.ai.api.AiChatExecutionApi;
-import ai.platform.aiassit.service.ai.api.AiMetaQueryApi;
-import ai.platform.aiassit.service.ai.api.dto.AiMetaQueryRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiModelConfigDTO;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
@@ -174,20 +171,17 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             """;
 
     private final AiChatExecutionApi aiChatExecutionApi;
-    private final AiMetaQueryApi aiMetaQueryApi;
     private final WorkflowHistoryRecorder historyRecorder;
     private final ObjectMapper objectMapper;
     private final WorkflowProperties workflowProperties;
     private final QueryPlanningSkillExecutor queryPlanningSkillExecutor;
 
     public QueryPlanningNode(AiChatExecutionApi aiChatExecutionApi,
-                             AiMetaQueryApi aiMetaQueryApi,
                              WorkflowHistoryRecorder historyRecorder,
                              ObjectMapper objectMapper,
                              WorkflowProperties workflowProperties,
                              QueryPlanningSkillExecutor queryPlanningSkillExecutor) {
         this.aiChatExecutionApi = aiChatExecutionApi;
-        this.aiMetaQueryApi = aiMetaQueryApi;
         this.historyRecorder = historyRecorder;
         this.objectMapper = objectMapper;
         this.workflowProperties = workflowProperties;
@@ -999,9 +993,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     private ProviderType resolveProviderType(AiChatQueryCommand command) {
-        AiModelConfigDTO config = findModelConfigByApiModel(command == null ? null : command.getApiModel());
-        if (config != null && StringUtils.hasText(config.getProviderCode())) {
-            return resolveProviderType(config.getProviderCode());
+        String apiModel = command == null ? null : command.getApiModel();
+        if (StringUtils.hasText(apiModel) && apiModel.toLowerCase(Locale.ROOT).contains("qwen")) {
+            return ProviderType.DASHSCOPE;
         }
         return ProviderType.DASHSCOPE;
     }
@@ -1017,32 +1011,13 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         }
     }
 
-    private AiModelConfigDTO findModelConfigByApiModel(String apiModel) {
-        AiMetaQueryRequest request = new AiMetaQueryRequest();
-        request.setEnabled(Boolean.TRUE);
-        return aiMetaQueryApi.listModels(request).stream()
-                .filter(Objects::nonNull)
-                .filter(config -> StringUtils.hasText(config.getApiModel()))
-                .filter(config -> !StringUtils.hasText(apiModel) || apiModel.trim().equals(config.getApiModel().trim()))
-                .findFirst()
-                .orElse(null);
-    }
-
     private int resolveMaxTokens(String apiModel) {
-        AiModelConfigDTO config = findModelConfigByApiModel(apiModel);
-        return config == null || config.getMaxOutputTokens() == null ? 1024 : config.getMaxOutputTokens();
+        return 1024;
     }
 
     private String resolveActualModel(String apiModel) {
         if (StringUtils.hasText(apiModel)) {
             return apiModel.trim();
-        }
-        AiModelConfigDTO config = findModelConfigByApiModel(null);
-        if (config != null && StringUtils.hasText(config.getApiModel())) {
-            return config.getApiModel().trim();
-        }
-        if (config != null && StringUtils.hasText(config.getModelCode())) {
-            return config.getModelCode().trim();
         }
         return "qwen-math-turbo";
     }

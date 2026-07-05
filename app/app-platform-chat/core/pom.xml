@@ -49,6 +49,10 @@
             <artifactId>app-platform-chat-data-workflow</artifactId>
         </dependency>
         <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-data-kb</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>

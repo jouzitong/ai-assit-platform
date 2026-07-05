@@ -3,7 +3,6 @@ package ai.platform.aiassit.chat;
 import ai.platform.aiassit.render.api.RenderInternalApi;
 import ai.platform.aiassit.service.ai.api.AiChatExecutionApi;
 import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassit.service.ai.api.AiMetaQueryApi;
 import ai.platform.aiassit.service.ai.api.AiRetrievalExecutionApi;
 import ai.platform.aiassit.service.ai.api.AiVectorExecutionApi;
 import org.mybatis.spring.annotation.MapperScan;
@@ -22,7 +21,6 @@ import java.util.Map;
 @EnableFeignClients(basePackageClasses = {
         AiChatExecutionApi.class,
         AiKnowledgeApi.class,
-        AiMetaQueryApi.class,
         AiRetrievalExecutionApi.class,
         AiVectorExecutionApi.class,
         RenderInternalApi.class

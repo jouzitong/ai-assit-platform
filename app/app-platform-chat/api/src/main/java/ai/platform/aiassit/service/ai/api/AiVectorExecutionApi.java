@@ -18,9 +18,9 @@ import org.springframework.web.bind.annotation.RequestBody;
  * <p>当前接口通常用于知识库检索、语义召回、候选结果重排等 AI 问答场景。</p>
  */
 @FeignClient(
-        name = "app-platform-ai-engine",
-        contextId = "platformAiEngineClient",
-        path = "/aiEngine"
+        name = "chat",
+        contextId = "platformChatVectorClient",
+        path = "/chat"
 )
 public interface AiVectorExecutionApi {
 

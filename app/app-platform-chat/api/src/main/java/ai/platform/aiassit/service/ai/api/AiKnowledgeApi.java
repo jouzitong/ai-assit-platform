@@ -21,9 +21,9 @@ import org.springframework.web.bind.annotation.RequestBody;
  * 删除和检索保留执行面能力，直接委托底层知识库服务。</p>
  */
 @FeignClient(
-        name = "aiEngine",
-        contextId = "platformAiKnowledgeClient",
-        path = "/aiEngine"
+        name = "chat",
+        contextId = "platformChatKnowledgeClient",
+        path = "/chat"
 )
 public interface AiKnowledgeApi {
 

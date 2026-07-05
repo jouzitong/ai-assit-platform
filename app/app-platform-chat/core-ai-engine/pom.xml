@@ -38,6 +38,10 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-data-kb</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-provider-qwen-public</artifactId>
         </dependency>
         <dependency>

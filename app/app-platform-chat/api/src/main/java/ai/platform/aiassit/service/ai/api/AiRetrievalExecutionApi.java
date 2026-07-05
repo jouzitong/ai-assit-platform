@@ -12,9 +12,9 @@ import org.springframework.web.bind.annotation.RequestBody;
  * AI 检索执行 API（HTTP/Feign）。
  */
 @FeignClient(
-        name = "aiEngine",
-        contextId = "platformAiRetrievalEngineClient",
-        path = "/aiEngine")
+        name = "chat",
+        contextId = "platformChatRetrievalClient",
+        path = "/chat")
 @Deprecated // AiKnowledgeApi
 public interface AiRetrievalExecutionApi {
 

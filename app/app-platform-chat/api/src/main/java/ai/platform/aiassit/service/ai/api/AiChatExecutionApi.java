@@ -18,9 +18,9 @@ import java.util.List;
  * AI 对话执行 API（HTTP/Feign）。
  */
 @FeignClient(
-        name = "aiEngine",
-        contextId = "platformAiEngineClient",
-        path = "/aiEngine"
+        name = "chat",
+        contextId = "platformChatExecutionClient",
+        path = "/chat"
 )
 public interface AiChatExecutionApi {
 
