@@ -2,7 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SidebarNav from './SidebarNav.vue'
-import { applyTheme as setTheme, getSavedTheme } from '../assets/style/themes/theme-manager'
+import { applyTheme as setTheme, getSavedTheme } from '../themes'
 import { showPopup } from '../utils/popup'
 
 const route = useRoute()
