@@ -20,6 +20,7 @@ public enum WorkflowNodeCodes implements IEnum {
     QUERY_PLANNING(2, "查询规划", "query-planning", "负责识别用户查询主体、条件、意图与歧义"),
     KNOWLEDGE_SEARCH(3, "知识检索", "knowledge-search", "负责补充知识库背景、术语口径和业务规则"),
     SQL_PRE_GENERATE(4, "SQL 预生成", "sql-pre-generate", "负责基于规划和知识上下文生成预生成结果与伪 SQL"),
+    RESULT_EVALUATE(5, "结果评估", "result-evaluate", "负责判断当前规划与 SQL 预生成结果是否满足进入渲染阶段的条件"),
     RENDER(7, "结果渲染", "render", "负责组织最终回答并落库助手消息");
 
     @JsonValue

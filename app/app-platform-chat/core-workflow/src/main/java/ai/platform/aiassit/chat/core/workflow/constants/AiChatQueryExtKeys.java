@@ -1,4 +1,4 @@
-package ai.platform.aiassit.chat.core.query.contract;
+package ai.platform.aiassit.chat.core.workflow.constants;
 
 /**
  * AI 对话查询扩展参数 key 常量。

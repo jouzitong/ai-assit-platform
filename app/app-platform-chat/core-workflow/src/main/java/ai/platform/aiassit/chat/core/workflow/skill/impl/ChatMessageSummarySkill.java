@@ -9,7 +9,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
-import ai.platform.aiassit.chat.core.query.contract.AiChatQueryExtKeys;
+import ai.platform.aiassit.chat.core.workflow.constants.AiChatQueryExtKeys;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;

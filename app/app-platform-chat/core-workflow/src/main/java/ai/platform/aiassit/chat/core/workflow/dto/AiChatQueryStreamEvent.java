@@ -1,4 +1,4 @@
-package ai.platform.aiassit.chat.core.query.dto;
+package ai.platform.aiassit.chat.core.workflow.dto;
 
 import lombok.Data;
 

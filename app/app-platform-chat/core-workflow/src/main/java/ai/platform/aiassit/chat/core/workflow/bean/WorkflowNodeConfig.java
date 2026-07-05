@@ -20,6 +20,10 @@ public class WorkflowNodeConfig implements Serializable {
 
     private String nodeId;
 
+    private String name;
+
+    private WorkflowNodeType type = WorkflowNodeType.SYSTEM;
+
     private String nextNodeId;
 
     private List<WorkflowNodeSkillConfig> skills = new ArrayList<>();
@@ -34,6 +38,7 @@ public class WorkflowNodeConfig implements Serializable {
                               String nextNodeId,
                               List<WorkflowNodeSkillConfig> skills) {
         this.nodeId = nodeId;
+        this.name = nodeId;
         this.nextNodeId = nextNodeId;
         this.skills = skills == null ? new ArrayList<>() : new ArrayList<>(skills);
         this.capabilities = new ArrayList<>();
@@ -44,6 +49,7 @@ public class WorkflowNodeConfig implements Serializable {
                               List<WorkflowNodeSkillConfig> skills,
                               List<WorkflowNodeCapabilityConfig> capabilities) {
         this.nodeId = nodeId;
+        this.name = nodeId;
         this.nextNodeId = nextNodeId;
         this.skills = skills == null ? new ArrayList<>() : new ArrayList<>(skills);
         this.capabilities = capabilities == null ? new ArrayList<>() : new ArrayList<>(capabilities);

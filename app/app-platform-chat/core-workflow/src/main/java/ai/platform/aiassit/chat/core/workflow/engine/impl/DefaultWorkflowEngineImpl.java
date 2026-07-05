@@ -2,16 +2,26 @@ package ai.platform.aiassit.chat.core.workflow.engine.impl;
 
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
-import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassit.chat.core.workflow.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassit.chat.core.workflow.bean.DecisionSource;
+import ai.platform.aiassit.chat.core.workflow.bean.NodeExecutionResult;
 import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.chat.core.workflow.bean.NodeResult;
+import ai.platform.aiassit.chat.core.workflow.bean.TransitionAction;
+import ai.platform.aiassit.chat.core.workflow.bean.TransitionDecision;
+import ai.platform.aiassit.chat.core.workflow.bean.TransitionProposal;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowExecutionState;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeConfig;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowNodeType;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowPolicy;
+import ai.platform.aiassit.chat.core.workflow.bean.WorkflowTransitionEdge;
 import ai.platform.aiassit.chat.core.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.chat.core.workflow.context.WorkflowNodeResult;
 import ai.platform.aiassit.chat.core.workflow.engine.IWorkflowEngine;
+import ai.platform.aiassit.chat.core.workflow.engine.transition.TransitionResolver;
 import ai.platform.aiassit.chat.core.workflow.node.IWorkflowNode;
 import ai.platform.aiassit.chat.core.workflow.planning.service.WorkflowIntentAnalyzeService;
 import ai.platform.aiassit.chat.core.workflow.support.WorkflowHistoryRecorder;
@@ -70,6 +80,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     private final WorkflowHistoryRecorder historyRecorder;
     private final AsyncTaskManager asyncTaskManager;
     private final WorkflowIntentAnalyzeService workflowIntentAnalyzeService;
+    private final TransitionResolver transitionResolver;
 
     public DefaultWorkflowEngineImpl(List<IWorkflowNode> nodes,
                                      AiChatSessionService sessionService,
@@ -78,7 +89,8 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                                      AiChatRoundService roundService,
                                      WorkflowHistoryRecorder historyRecorder,
                                      AsyncTaskManager asyncTaskManager,
-                                     WorkflowIntentAnalyzeService workflowIntentAnalyzeService) {
+                                     WorkflowIntentAnalyzeService workflowIntentAnalyzeService,
+                                     TransitionResolver transitionResolver) {
         nodeRegistry = new HashMap<>();
         for (IWorkflowNode node : nodes) {
             nodeRegistry.put(node.code(), node);
@@ -90,6 +102,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         this.historyRecorder = historyRecorder;
         this.asyncTaskManager = asyncTaskManager;
         this.workflowIntentAnalyzeService = workflowIntentAnalyzeService;
+        this.transitionResolver = transitionResolver;
     }
 
     @Override
@@ -130,8 +143,12 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 failWorkflow(context, "workflow definition is required", "workflow-error", "workflow definition is required");
                 return;
             }
+            WorkflowExecutionState state = createExecutionState(definition);
             String currentNodeId = definition.getStartNodeId();
             while (currentNodeId != null) {
+                state.setCurrentNodeId(currentNodeId);
+                state.setTotalSteps(state.getTotalSteps() + 1);
+                state.incrementNodeAttempt(currentNodeId);
                 WorkflowNodeConfig workflowNodeConfig = definition.getNodes().get(currentNodeId);
                 if (workflowNodeConfig == null) {
                     failWorkflow(context,
@@ -150,9 +167,9 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 }
                 context.publishEvent("node-start",
                         "start node: " + workflowNodeConfig.getNodeId());
-                NodeResult result;
+                NodeExecutionResult result;
                 try {
-                    result = currentNode.execute(context, workflowNodeConfig);
+                    result = adaptNodeResult(currentNode.execute(context, workflowNodeConfig), workflowNodeConfig);
                 } catch (Exception e) {
                     log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
                     failWorkflow(context,
@@ -161,7 +178,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                             "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
                     return;
                 }
-                if (!result.isSuccess()) {
+                if (result == null || !result.isSuccess()) {
                     failWorkflow(context,
                             result.getErrorMessage(),
                             "node-failed",
@@ -170,11 +187,33 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 }
                 context.publishEvent("node-complete",
                         "complete node: " + workflowNodeConfig.getNodeId());
-                if (StringUtils.isNotBlank(result.getNextNodeId())) {
-                    currentNodeId = result.getNextNodeId();
-                } else {
-                    currentNodeId = workflowNodeConfig.getNextNodeId();
+                TransitionDecision decision = transitionResolver.resolve(definition, state, workflowNodeConfig, result);
+                if (decision == null) {
+                    failWorkflow(context,
+                            "workflow transition decision is required",
+                            "workflow-error",
+                            "workflow transition decision is required");
+                    return;
                 }
+                publishTransitionDecision(context, workflowNodeConfig, decision);
+                if (decision.getAction() == TransitionAction.FAIL) {
+                    failWorkflow(context,
+                            StringUtils.defaultIfBlank(decision.getReason(), "workflow transition failed"),
+                            "workflow-error",
+                            "workflow transition failed: " + decision.getReason());
+                    return;
+                }
+                if (decision.getAction() == TransitionAction.WAIT || decision.getAction() == TransitionAction.CLARIFY) {
+                    context.publishEvent(decision.getAction() == TransitionAction.WAIT ? "workflow-wait" : "workflow-clarify",
+                            StringUtils.defaultIfBlank(decision.getReason(), "workflow paused"));
+                    currentNodeId = null;
+                    continue;
+                }
+                if (decision.getAction() == TransitionAction.COMPLETE) {
+                    currentNodeId = null;
+                    continue;
+                }
+                currentNodeId = decision.getTargetNodeId();
             }
             finishRound(context, STATUS_SUCCESS);
         } catch (Exception ex) {
@@ -327,20 +366,172 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
 
     private WorkflowDefinition buildSimpleChatWorkflowDefinition() {
         Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
-        nodes.put(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(),
-                new WorkflowNodeConfig(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), null, List.of()));
-        return new WorkflowDefinition("ai-chat-simple-chat-workflow", nodes, WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode());
+        WorkflowNodeConfig simpleChatNode = new WorkflowNodeConfig(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), null, List.of());
+        simpleChatNode.setName("Simple Chat");
+        simpleChatNode.setType(WorkflowNodeType.AGENT);
+        nodes.put(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), simpleChatNode);
+        return new WorkflowDefinition(
+                "ai-chat-simple-chat-workflow",
+                "1.0",
+                nodes,
+                WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(),
+                List.of(
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(),
+                                null,
+                                TransitionAction.COMPLETE,
+                                true,
+                                null,
+                                new LinkedHashMap<>()
+                        )
+                ),
+                WorkflowPolicy.defaultPolicy()
+        );
     }
 
     private WorkflowDefinition buildQueryRenderWorkflowDefinition() {
         Map<String, WorkflowNodeConfig> nodes = new LinkedHashMap<>();
-        nodes.put(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(),
-                new WorkflowNodeConfig(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), List.of()));
-        nodes.put(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
-                new WorkflowNodeConfig(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), WorkflowNodeCodes.RENDER.getNodeCode(), List.of()));
-        nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(),
-                new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), null, List.of()));
-        return new WorkflowDefinition("ai-chat-query-render-workflow", nodes, WorkflowNodeCodes.QUERY_PLANNING.getNodeCode());
+        WorkflowNodeConfig queryPlanningNode = new WorkflowNodeConfig(
+                WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(),
+                WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                List.of()
+        );
+        queryPlanningNode.setName("Query Planning");
+        queryPlanningNode.setType(WorkflowNodeType.AGENT);
+        nodes.put(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), queryPlanningNode);
+
+        WorkflowNodeConfig sqlPreGenerateNode = new WorkflowNodeConfig(
+                WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(),
+                List.of()
+        );
+        sqlPreGenerateNode.setName("Sql Pre Generate");
+        sqlPreGenerateNode.setType(WorkflowNodeType.AGENT);
+        nodes.put(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), sqlPreGenerateNode);
+
+        WorkflowNodeConfig resultEvaluateNode = new WorkflowNodeConfig(
+                WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(),
+                WorkflowNodeCodes.RENDER.getNodeCode(),
+                List.of()
+        );
+        resultEvaluateNode.setName("Result Evaluate");
+        resultEvaluateNode.setType(WorkflowNodeType.HYBRID);
+        nodes.put(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), resultEvaluateNode);
+
+        WorkflowNodeConfig renderNode = new WorkflowNodeConfig(WorkflowNodeCodes.RENDER.getNodeCode(), null, List.of());
+        renderNode.setName("Render");
+        renderNode.setType(WorkflowNodeType.HYBRID);
+        nodes.put(WorkflowNodeCodes.RENDER.getNodeCode(), renderNode);
+
+        return new WorkflowDefinition(
+                "ai-chat-query-render-workflow",
+                "1.0",
+                nodes,
+                WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(),
+                List.of(
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(),
+                                WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                                TransitionAction.CONTINUE,
+                                true,
+                                null,
+                                new LinkedHashMap<>()
+                        ),
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                                WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(),
+                                TransitionAction.CONTINUE,
+                                true,
+                                null,
+                                new LinkedHashMap<>()
+                        ),
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(),
+                                WorkflowNodeCodes.RENDER.getNodeCode(),
+                                TransitionAction.CONTINUE,
+                                true,
+                                null,
+                                new LinkedHashMap<>()
+                        ),
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(),
+                                WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(),
+                                TransitionAction.GOTO,
+                                false,
+                                "sql-pre-generate-retry",
+                                new LinkedHashMap<>()
+                        ),
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(),
+                                WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(),
+                                TransitionAction.GOTO,
+                                false,
+                                "query-planning-retry",
+                                new LinkedHashMap<>()
+                        ),
+                        new WorkflowTransitionEdge(
+                                WorkflowNodeCodes.RENDER.getNodeCode(),
+                                null,
+                                TransitionAction.COMPLETE,
+                                true,
+                                null,
+                                new LinkedHashMap<>()
+                        )
+                ),
+                WorkflowPolicy.defaultPolicy()
+        );
+    }
+
+    private WorkflowExecutionState createExecutionState(WorkflowDefinition definition) {
+        WorkflowExecutionState state = new WorkflowExecutionState();
+        state.setWorkflowCode(definition == null ? null : definition.getWorkflowCode());
+        return state;
+    }
+
+    private NodeExecutionResult adaptNodeResult(NodeResult nodeResult, WorkflowNodeConfig workflowNodeConfig) {
+        String nodeId = workflowNodeConfig == null ? null : workflowNodeConfig.getNodeId();
+        if (nodeResult == null) {
+            return NodeExecutionResult.fail(nodeId, "node result is null");
+        }
+        if (!nodeResult.isSuccess()) {
+            return NodeExecutionResult.fail(nodeId, nodeResult.getErrorMessage());
+        }
+        NodeExecutionResult result = NodeExecutionResult.success(nodeId, STATUS_SUCCESS);
+        result.setSummary("node execute success");
+        TransitionProposal proposal = new TransitionProposal();
+        if (StringUtils.isNotBlank(nodeResult.getNextNodeId())) {
+            proposal.setAction(TransitionAction.GOTO);
+            proposal.setTargetNodeId(nodeResult.getNextNodeId());
+            proposal.setReasonCode("LEGACY_NEXT_NODE");
+            proposal.setReason("use legacy node result nextNodeId");
+        } else {
+            proposal.setAction(TransitionAction.CONTINUE);
+            proposal.setTargetNodeId(workflowNodeConfig == null ? null : workflowNodeConfig.getNextNodeId());
+            proposal.setReasonCode("LEGACY_DEFAULT_NEXT");
+            proposal.setReason("use workflow node default nextNodeId");
+        }
+        result.setTransitionProposal(proposal);
+        result.getMetadata().put("legacyNodeResult", true);
+        return result;
+    }
+
+    private void publishTransitionDecision(WorkflowContext context,
+                                           WorkflowNodeConfig workflowNodeConfig,
+                                           TransitionDecision decision) {
+        if (context == null || workflowNodeConfig == null || decision == null) {
+            return;
+        }
+        String source = decision.getDecisionSource() == null ? DecisionSource.DEFAULT_EDGE.name() : decision.getDecisionSource().name();
+        String targetNodeId = StringUtils.defaultIfBlank(decision.getTargetNodeId(), "END");
+        String reason = StringUtils.defaultIfBlank(decision.getReason(), "no reason");
+        context.publishEvent(
+                "transition-decided",
+                "transition node: " + workflowNodeConfig.getNodeId()
+                        + " -> " + targetNodeId
+                        + ", action=" + decision.getAction()
+                        + ", source=" + source
+                        + ", reason=" + reason
+        );
     }
 
     private void sendCompleteEvent(WorkflowContext context) throws IOException {

@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat.core.workflow.context;
 
 import ai.platform.aiassit.chat.core.query.dto.AiChatQueryCommand;
-import ai.platform.aiassit.chat.core.query.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassit.chat.core.workflow.dto.AiChatQueryStreamEvent;
 import ai.platform.aiassit.chat.core.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;

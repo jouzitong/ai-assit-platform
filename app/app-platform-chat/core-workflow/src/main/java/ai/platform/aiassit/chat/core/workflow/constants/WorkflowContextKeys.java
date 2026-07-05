@@ -307,4 +307,26 @@ public interface WorkflowContextKeys {
         String RENDER_PAGE_DETAIL = "renderPageDetail";
 
     }
+
+    /**
+     * 结果评估域上下文键。
+     */
+    interface Evaluation {
+
+        /**
+         * AI evaluator 结构化结果。
+         */
+        String RESULT_EVALUATION_RESPONSE = "resultEvaluationResponse";
+
+        /**
+         * 结果评估摘要。
+         */
+        String RESULT_EVALUATION_SUMMARY = "resultEvaluationSummary";
+
+        /**
+         * AI evaluator 失败信息。
+         */
+        String RESULT_EVALUATION_ERROR = "resultEvaluationError";
+
+    }
 }
