@@ -8,7 +8,7 @@ import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;

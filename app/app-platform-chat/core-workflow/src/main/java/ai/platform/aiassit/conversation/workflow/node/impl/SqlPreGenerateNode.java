@@ -10,7 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;

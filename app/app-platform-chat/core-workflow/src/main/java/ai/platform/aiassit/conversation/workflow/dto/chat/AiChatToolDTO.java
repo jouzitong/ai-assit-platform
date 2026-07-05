@@ -1,4 +1,4 @@
-package ai.platform.aiassit.conversation.dto.chat;
+package ai.platform.aiassit.conversation.workflow.dto.chat;
 
 import lombok.Data;
 

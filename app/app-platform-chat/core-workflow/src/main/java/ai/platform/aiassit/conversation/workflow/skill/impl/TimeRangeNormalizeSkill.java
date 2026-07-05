@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.skill.impl;
 
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;

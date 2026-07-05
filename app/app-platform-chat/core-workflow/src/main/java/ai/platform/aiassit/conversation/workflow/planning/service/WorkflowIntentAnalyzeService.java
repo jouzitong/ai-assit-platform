@@ -12,7 +12,7 @@ import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;

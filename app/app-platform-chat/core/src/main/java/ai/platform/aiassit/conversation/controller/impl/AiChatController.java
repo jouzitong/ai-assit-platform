@@ -3,7 +3,7 @@ package ai.platform.aiassit.conversation.controller.impl;
 import ai.platform.aiassit.conversation.service.AiChatConversationService;
 import ai.platform.aiassit.conversation.controller.IAiChatController;
 import ai.platform.aiassit.conversation.dto.conversation.AiChatConversationDetailResponse;
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.dto.chat.AiChatQueryRequest;
 import ai.platform.aiassit.conversation.dto.chat.AiChatQueryResponse;
 import ai.platform.aiassit.conversation.dto.chat.AiChatStreamReconnectRequest;

@@ -1,5 +1,7 @@
 package ai.platform.aiassit.conversation.dto.chat;
 
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatAttachmentDTO;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatToolDTO;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;

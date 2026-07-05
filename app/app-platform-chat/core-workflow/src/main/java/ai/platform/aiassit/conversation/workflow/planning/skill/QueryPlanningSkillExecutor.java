@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.planning.skill;
 
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;

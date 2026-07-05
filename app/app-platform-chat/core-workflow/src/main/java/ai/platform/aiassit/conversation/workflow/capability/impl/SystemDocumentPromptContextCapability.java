@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.capability.impl;
 
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextCapability;

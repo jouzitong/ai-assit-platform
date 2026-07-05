@@ -1,7 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.engine.impl;
 
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.dto.AiChatQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.bean.DecisionSource;
 import ai.platform.aiassit.conversation.workflow.bean.NodeExecutionResult;

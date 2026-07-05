@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.evaluate.service;
 
-import ai.platform.aiassit.conversation.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
