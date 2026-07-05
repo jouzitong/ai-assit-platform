@@ -1,0 +1,35 @@
+@use './variables';
+@use './reset';
+@use './transition';
+
+body {
+  color: var(--color-text);
+  background:
+    radial-gradient(circle at top, rgba(45, 212, 191, 0.18), transparent 38%),
+    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+  font-family:
+    'Helvetica Neue',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+.module-page {
+  padding: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 24px;
+  background: var(--color-surface);
+  box-shadow: var(--shadow-card);
+}
+
+.module-page__tag {
+  margin: 0 0 12px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  color: #0f766e;
+}
