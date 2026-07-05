@@ -7,6 +7,7 @@
         <RouterLink to="/system/users">Users</RouterLink>
         <RouterLink to="/">AI Chat</RouterLink>
         <RouterLink to="/data/query">Data Query</RouterLink>
+        <RouterLink to="/test/list">Test List</RouterLink>
       </nav>
     </aside>
     <main class="default-layout__content">

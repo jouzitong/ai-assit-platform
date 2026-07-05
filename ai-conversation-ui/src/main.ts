@@ -6,7 +6,10 @@ import router from './router'
 import { registerLoadingDirective } from './directives/loading'
 import { registerPermissionDirective } from './directives/permission'
 import { preloadServiceEnums } from './stores/enums'
+import { initTheme } from './stores/theme'
 import './styles/index.scss'
+
+initTheme()
 
 const app = createApp(App)
 

@@ -6,6 +6,7 @@ import { setupRouterGuards } from './guards'
 import { aiRoutes } from './routes/ai'
 import { dataRoutes } from './routes/data'
 import { systemRoutes } from './routes/system'
+import { testRoutes } from './routes/test'
 
 const routes: RouteRecordRaw[] = [
   {
@@ -46,7 +47,7 @@ const routes: RouteRecordRaw[] = [
   {
     path: '/',
     component: DefaultLayout,
-    children: [...systemRoutes, ...dataRoutes],
+    children: [...systemRoutes, ...dataRoutes, ...testRoutes],
   },
   {
     path: '/:pathMatch(.*)*',

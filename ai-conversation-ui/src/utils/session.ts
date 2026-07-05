@@ -1,5 +1,6 @@
 export const TOKEN_STORAGE_KEY = 'ai-conversation-ui-token'
 export const USER_STORAGE_KEY = 'ai-conversation-ui-user'
+export const THEME_STORAGE_KEY = 'ai-conversation-ui-theme'
 
 export function getToken() {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY)

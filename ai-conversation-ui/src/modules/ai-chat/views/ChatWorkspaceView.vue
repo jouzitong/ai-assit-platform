@@ -25,6 +25,7 @@ import {
 } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
 import { clearSession } from '../../../utils/session'
 import {
@@ -329,6 +330,10 @@ function toggleUserMenu(target: 'topbar' | 'sidebar') {
   activeUserMenu.value = activeUserMenu.value === target ? null : target
 }
 
+function selectTheme(theme: 'dark' | 'light') {
+  activeTheme.value = applyTheme(theme)
+}
+
 function syncDeveloperModeStorage() {
   window.localStorage.setItem(DEVELOPER_MODE_STORAGE_KEY, developerModeEnabled.value ? '1' : '0')
 }
@@ -376,6 +381,7 @@ function handleDocumentClick(event: MouseEvent) {
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
   developerModeEnabled.value = window.localStorage.getItem(DEVELOPER_MODE_STORAGE_KEY) === '1'
+  activeTheme.value = getSavedTheme()
   void loadEnabledModelList()
   void loadConversationList()
 })
@@ -529,14 +535,14 @@ watch(route, () => {
                 <button
                   :class="['chat-home-user-menu__theme-option', { 'is-active': activeTheme === 'dark' }]"
                   type="button"
-                  @click="activeTheme = 'dark'"
+                  @click="selectTheme('dark')"
                 >
                   暗色
                 </button>
                 <button
                   :class="['chat-home-user-menu__theme-option', { 'is-active': activeTheme === 'light' }]"
                   type="button"
-                  @click="activeTheme = 'light'"
+                  @click="selectTheme('light')"
                 >
                   浅色
                 </button>
@@ -622,14 +628,14 @@ watch(route, () => {
                   <button
                     :class="['chat-home-user-menu__theme-option', { 'is-active': activeTheme === 'dark' }]"
                     type="button"
-                    @click="activeTheme = 'dark'"
+                    @click="selectTheme('dark')"
                   >
                     暗色
                   </button>
                   <button
                     :class="['chat-home-user-menu__theme-option', { 'is-active': activeTheme === 'light' }]"
                     type="button"
-                    @click="activeTheme = 'light'"
+                    @click="selectTheme('light')"
                   >
                     浅色
                   </button>
@@ -803,7 +809,7 @@ watch(route, () => {
   display: grid;
   grid-template-columns: 210px minmax(0, 1fr);
   min-height: 100vh;
-  background: #fff;
+  background: var(--chat-shell-bg);
   transition: grid-template-columns 0.2s ease;
 }
 
@@ -816,8 +822,8 @@ watch(route, () => {
   flex-direction: column;
   gap: 14px;
   padding: 12px 10px;
-  border-right: 1px solid #f1f3f5;
-  background: #fafafa;
+  border-right: 1px solid var(--chat-sidebar-border);
+  background: var(--chat-sidebar-bg);
   overflow: visible;
 }
 
@@ -848,13 +854,13 @@ watch(route, () => {
 
 .chat-home-sidebar__toggle :deep(.el-icon),
 .chat-home-topbar__sidebar-button :deep(.el-icon) {
-  color: #70757a;
+  color: var(--chat-icon-muted);
   font-size: 14px;
 }
 
 .chat-home-brand h1 {
   margin: 0;
-  color: #333;
+  color: var(--chat-text-primary);
   font-size: 13px;
   font-weight: 600;
 }
@@ -874,7 +880,7 @@ watch(route, () => {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: #3f3f46;
+  color: var(--chat-text-secondary);
   text-align: left;
   cursor: pointer;
   transition:
@@ -892,24 +898,24 @@ watch(route, () => {
 
 .chat-home-nav__leading :deep(.el-icon) {
   flex: none;
-  color: #4b5563;
+  color: var(--chat-icon-secondary);
   font-size: 14px;
 }
 
 .chat-home-nav__item:hover,
 .chat-home-thread:hover {
-  background: #f2f3f5;
+  background: var(--chat-hover-bg);
 }
 
 .chat-home-nav__item.is-active,
 .chat-home-thread.is-current {
-  background: #f2f3f5;
-  color: #111827;
+  background: var(--chat-hover-bg);
+  color: var(--chat-text-strong);
   box-shadow: none;
 }
 
 .chat-home-nav__item.is-active .chat-home-nav__leading :deep(.el-icon) {
-  color: #111827;
+  color: var(--chat-text-strong);
 }
 
 .chat-home-sidebar__section {
@@ -922,7 +928,7 @@ watch(route, () => {
   align-items: center;
   justify-content: flex-start;
   padding: 6px 6px 2px;
-  color: #71717a;
+  color: var(--chat-text-muted);
   font-size: 11px;
   letter-spacing: 0.08em;
 }
@@ -936,7 +942,7 @@ watch(route, () => {
   align-items: center;
   gap: 8px;
   padding: 2px 8px 6px;
-  color: #3f3f46;
+  color: var(--chat-text-secondary);
   font-size: 13px;
 }
 
@@ -944,18 +950,18 @@ watch(route, () => {
   width: 6px;
   height: 6px;
   border-radius: 50%;
-  background: #111827;
+  background: var(--chat-accent-strong);
 }
 
 .chat-home-group-label {
   padding: 4px 8px 2px;
-  color: #52525b;
+  color: var(--chat-text-tertiary);
   font-size: 12px;
   font-weight: 600;
 }
 
 .chat-home-group-label--muted {
-  color: #71717a;
+  color: var(--chat-text-muted);
   font-weight: 500;
 }
 
@@ -976,7 +982,7 @@ watch(route, () => {
 
 .chat-home-thread__icon {
   flex: none;
-  color: #6b7280;
+  color: var(--chat-icon);
   font-size: 13px;
 }
 
@@ -989,7 +995,7 @@ watch(route, () => {
 .chat-home-thread strong {
   display: block;
   overflow: hidden;
-  color: #27272a;
+  color: var(--chat-text-primary);
   font-size: 12px;
   font-weight: 600;
   text-overflow: ellipsis;
@@ -1001,12 +1007,12 @@ watch(route, () => {
   right: 22px;
   top: 50%;
   transform: translateY(-50%);
-  color: #9ca3af;
+  color: var(--chat-text-subtle);
   font-size: 10px;
 }
 
 .chat-home-thread.is-current .chat-home-thread__icon {
-  color: #111827;
+  color: var(--chat-text-strong);
 }
 
 .chat-home-thread__more {
@@ -1022,13 +1028,13 @@ watch(route, () => {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: #71717a;
+  color: var(--chat-text-muted);
   cursor: pointer;
 }
 
 .chat-home-thread-empty {
   padding: 6px 8px 2px;
-  color: #a1a1aa;
+  color: var(--chat-text-faint);
   font-size: 12px;
 }
 
@@ -1059,15 +1065,15 @@ watch(route, () => {
   width: 24px;
   height: 24px;
   border-radius: 50%;
-  background: #f59e0b;
-  color: #fff;
+  background: var(--chat-accent-warm);
+  color: var(--chat-shell-bg);
   font-size: 11px;
   font-weight: 700;
 }
 
 .chat-home-user__copy strong {
   display: block;
-  color: #27272a;
+  color: var(--chat-text-primary);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1077,7 +1083,7 @@ watch(route, () => {
   flex-direction: column;
   min-width: 0;
   padding: 0;
-  background: #fff;
+  background: var(--chat-main-bg);
 }
 
 .chat-home-topbar {
@@ -1100,20 +1106,20 @@ watch(route, () => {
   display: flex;
   align-items: center;
   gap: 6px;
-  color: #3f3f46;
+  color: var(--chat-text-secondary);
   font-size: 14px;
   font-weight: 600;
 }
 
 .chat-home-model-switcher__caret {
-  color: #9ca3af;
+  color: var(--chat-text-subtle);
   font-size: 12px;
 }
 
 .chat-home-model-switcher__plus {
   border: none;
   background: transparent;
-  color: #6b7280;
+  color: var(--chat-icon);
   font-size: 18px;
   line-height: 1;
   cursor: pointer;
@@ -1127,7 +1133,7 @@ watch(route, () => {
   height: 26px;
   border: none;
   background: transparent;
-  color: #71717a;
+  color: var(--chat-text-muted);
   cursor: pointer;
 }
 
@@ -1151,10 +1157,10 @@ watch(route, () => {
   z-index: 20;
   width: 264px;
   padding: 12px;
-  border: 1px solid #eceef2;
+  border: 1px solid var(--chat-panel-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.98);
-  box-shadow: 0 16px 42px rgba(15, 23, 42, 0.14);
+  background: var(--chat-panel-bg);
+  box-shadow: var(--chat-panel-shadow);
 }
 
 .chat-home-user-menu--sidebar {
@@ -1177,8 +1183,8 @@ watch(route, () => {
   width: 44px;
   height: 44px;
   border-radius: 50%;
-  background: #f59e0b;
-  color: #fff;
+  background: var(--chat-accent-warm);
+  color: var(--chat-shell-bg);
   font-size: 18px;
   font-weight: 700;
 }
@@ -1188,7 +1194,7 @@ watch(route, () => {
 }
 
 .chat-home-user-menu__name {
-  color: #111827;
+  color: var(--chat-text-strong);
   font-size: 14px;
   font-weight: 700;
 }
@@ -1198,7 +1204,7 @@ watch(route, () => {
   align-items: center;
   gap: 6px;
   margin-top: 3px;
-  color: #111827;
+  color: var(--chat-text-strong);
   font-size: 12px;
 }
 
@@ -1206,7 +1212,7 @@ watch(route, () => {
   width: 8px;
   height: 8px;
   border-radius: 50%;
-  background: #22c55e;
+  background: var(--chat-status-online);
 }
 
 .chat-home-user-menu__status-action,
@@ -1220,7 +1226,7 @@ watch(route, () => {
   border: none;
   border-radius: 12px;
   background: transparent;
-  color: #111827;
+  color: var(--chat-text-strong);
   font-size: 14px;
   text-align: left;
   cursor: pointer;
@@ -1229,14 +1235,14 @@ watch(route, () => {
 .chat-home-user-menu__status-action {
   justify-content: center;
   margin-top: 12px;
-  background: #f4f5f7;
+  background: var(--chat-soft-bg);
   font-size: 13px;
 }
 
 .chat-home-user-menu__status-action :deep(.el-icon),
 .chat-home-user-menu__item :deep(.el-icon),
 .chat-home-user-menu__section-title :deep(.el-icon) {
-  color: #111827;
+  color: var(--chat-text-strong);
   font-size: 16px;
 }
 
@@ -1249,7 +1255,7 @@ watch(route, () => {
   align-items: center;
   gap: 10px;
   padding: 0 6px;
-  color: #111827;
+  color: var(--chat-text-strong);
   font-size: 14px;
   font-weight: 500;
 }
@@ -1257,7 +1263,7 @@ watch(route, () => {
 .chat-home-user-menu__theme-label {
   margin-top: 8px;
   padding: 0 6px;
-  color: #a1a1aa;
+  color: var(--chat-text-faint);
   font-size: 12px;
 }
 
@@ -1272,16 +1278,16 @@ watch(route, () => {
   height: 38px;
   border: none;
   border-radius: 14px;
-  background: #f4f5f7;
-  color: #3f3f46;
+  background: var(--chat-soft-bg);
+  color: var(--chat-text-secondary);
   font-size: 14px;
   font-weight: 600;
   cursor: pointer;
 }
 
 .chat-home-user-menu__theme-option.is-active {
-  background: #171717;
-  color: #fff;
+  background: var(--chat-accent-strong);
+  color: var(--chat-shell-bg);
 }
 
 .chat-home-user-menu__list {
@@ -1292,7 +1298,7 @@ watch(route, () => {
 
 .chat-home-user-menu__item:hover,
 .chat-home-user-menu__item--logout:hover {
-  background: #f4f5f7;
+  background: var(--chat-soft-bg);
 }
 
 .chat-home-user-menu__item--logout {
@@ -1306,7 +1312,7 @@ watch(route, () => {
   flex-direction: column;
   min-height: 0;
   position: relative;
-  background: #fff;
+  background: var(--chat-main-bg);
 }
 
 .chat-home-welcome {
@@ -1341,16 +1347,16 @@ watch(route, () => {
   justify-content: center;
   width: 34px;
   height: 34px;
-  border: 1px solid #eceef2;
+  border: 1px solid var(--chat-panel-border);
   border-radius: 50%;
-  background: #fff;
-  color: #111827;
+  background: var(--chat-panel-bg);
+  color: var(--chat-text-strong);
   font-size: 13px;
   font-weight: 600;
 }
 
 .chat-home-welcome-model__name {
-  color: #3f3f46;
+  color: var(--chat-text-secondary);
   font-size: 28px;
   font-weight: 700;
   letter-spacing: -0.02em;
@@ -1373,8 +1379,8 @@ watch(route, () => {
   width: 26px;
   height: 26px;
   border-radius: 50%;
-  background: #f1f5f9;
-  color: #64748b;
+  background: var(--chat-assistant-avatar-bg);
+  color: var(--chat-text-soft);
   font-size: 11px;
   font-weight: 700;
 }
@@ -1389,20 +1395,20 @@ watch(route, () => {
 }
 
 .chat-home-assistant__title {
-  color: #1f2937;
+  color: var(--chat-text-title);
   font-size: 14px;
   font-weight: 700;
 }
 
 .chat-home-assistant__meta {
   margin-top: 2px;
-  color: #9ca3af;
+  color: var(--chat-text-subtle);
   font-size: 12px;
 }
 
 .chat-home-assistant__text {
   margin-top: 6px;
-  color: #374151;
+  color: var(--chat-text-body);
   font-size: 14px;
   line-height: 1.7;
 }
@@ -1427,7 +1433,7 @@ watch(route, () => {
 .ghost-inline-icon span {
   width: 12px;
   height: 12px;
-  border: 1px solid #9ca3af;
+  border: 1px solid var(--chat-text-subtle);
   border-radius: 50%;
 }
 
@@ -1436,9 +1442,9 @@ watch(route, () => {
   width: 100%;
   padding: 10px 0;
   border: none;
-  border-top: 1px solid #f3f4f6;
+  border-top: 1px solid var(--chat-followup-border);
   background: transparent;
-  color: #9ca3af;
+  color: var(--chat-text-subtle);
   font-size: 13px;
   text-align: left;
   cursor: pointer;
@@ -1455,18 +1461,18 @@ watch(route, () => {
   padding: 0 10px;
   height: 22px;
   border-radius: 999px;
-  background: #f4f4f5;
-  color: #71717a;
+  background: var(--chat-soft-bg-alt);
+  color: var(--chat-text-muted);
   font-size: 11px;
 }
 
 .chat-home-composer {
   width: min(880px, calc(100% - 96px));
   padding: 10px 14px 10px;
-  border: 1px solid #f2f3f5;
+  border: 1px solid var(--chat-composer-border);
   border-radius: 24px;
-  background: #fff;
-  box-shadow: 0 6px 24px rgba(15, 23, 42, 0.08);
+  background: var(--chat-panel-bg);
+  box-shadow: var(--chat-composer-shadow);
 }
 
 .chat-home-composer textarea {
@@ -1478,13 +1484,13 @@ watch(route, () => {
   outline: none;
   resize: none;
   background: transparent;
-  color: #111827;
+  color: var(--chat-text-strong);
   font-size: 14px;
   line-height: 24px;
 }
 
 .chat-home-composer textarea::placeholder {
-  color: #a1a1aa;
+  color: var(--chat-text-faint);
 }
 
 .chat-home-composer__footer {
@@ -1515,22 +1521,22 @@ watch(route, () => {
 .composer-tool-button {
   width: 20px;
   height: 20px;
-  color: #71717a;
+  color: var(--chat-text-muted);
   font-size: 18px;
 }
 
 .composer-icon-button {
   width: 26px;
   height: 26px;
-  color: #71717a;
+  color: var(--chat-text-muted);
 }
 
 .composer-send-button {
   width: 28px;
   height: 28px;
   border-radius: 50%;
-  background: #111827;
-  color: #fff;
+  background: var(--chat-accent-strong);
+  color: var(--chat-shell-bg);
 }
 
 .composer-send-button:disabled {
@@ -1562,8 +1568,8 @@ watch(route, () => {
   align-items: center;
   padding: 0 14px;
   border-radius: 999px;
-  background: #f8fafc;
-  color: #52525b;
+  background: var(--chat-bubble-bg);
+  color: var(--chat-text-tertiary);
   font-size: 13px;
 }
 
@@ -1585,14 +1591,14 @@ watch(route, () => {
 }
 
 .chat-home-message__assistant-name {
-  color: #1f2937;
+  color: var(--chat-text-title);
   font-size: 14px;
   font-weight: 700;
 }
 
 .chat-home-message__assistant-text {
   margin-top: 8px;
-  color: #374151;
+  color: var(--chat-text-body);
   font-size: 14px;
   line-height: 1.8;
 }
@@ -1603,8 +1609,8 @@ watch(route, () => {
 }
 
 .chat-home-message.is-user .chat-home-user-bubble {
-  background: #f8fafc;
-  color: #52525b;
+  background: var(--chat-bubble-bg);
+  color: var(--chat-text-tertiary);
   height: auto;
   min-height: 38px;
   padding: 9px 14px;
@@ -1617,7 +1623,7 @@ watch(route, () => {
 
 .chat-home-feedback {
   margin-top: 18px;
-  color: #71717a;
+  color: var(--chat-text-muted);
   font-size: 13px;
 }
 
@@ -1634,7 +1640,7 @@ watch(route, () => {
 }
 
 .chat-home-welcome-suggestions__header {
-  color: #71717a;
+  color: var(--chat-text-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1651,14 +1657,14 @@ watch(route, () => {
 }
 
 .chat-home-welcome-suggestion strong {
-  color: #3f3f46;
+  color: var(--chat-text-secondary);
   font-size: 15px;
   font-weight: 700;
   line-height: 1.3;
 }
 
 .chat-home-welcome-suggestion span {
-  color: #a1a1aa;
+  color: var(--chat-text-faint);
   font-size: 12px;
   line-height: 1.4;
 }
