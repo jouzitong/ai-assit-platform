@@ -30,7 +30,7 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>service-ai-api</artifactId>
+            <artifactId>app-platform-chat-api</artifactId>
             <version>${project.version}</version>
         </dependency>
         <dependency>
