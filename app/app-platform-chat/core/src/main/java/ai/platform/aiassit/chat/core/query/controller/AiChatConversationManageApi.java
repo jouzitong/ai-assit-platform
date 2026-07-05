@@ -1,14 +1,9 @@
 package ai.platform.aiassit.chat.core.query.controller;
 
-import ai.platform.aiassit.chat.core.query.dto.AiChatConversationArchiveRequest;
-import ai.platform.aiassit.chat.core.query.dto.AiChatConversationCopyResponse;
-import ai.platform.aiassit.chat.core.query.dto.AiChatConversationDownloadResponse;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationPinRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationQueryRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationRenameRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatConversationSearchRequest;
-import ai.platform.aiassit.chat.core.query.dto.AiChatConversationShareResponse;
-import ai.platform.aiassit.chat.core.query.dto.AiChatConversationSimpleRequest;
 import ai.platform.aiassit.chat.core.query.dto.AiChatSessionVO;
 import ai.platform.aiassit.chat.core.query.req.AiChatConversationDeleteRequest;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -36,18 +31,6 @@ public interface AiChatConversationManageApi {
     List<AiChatSessionVO> search(@RequestBody AiChatConversationSearchRequest request);
 
     /**
-     * 分享会话。
-     */
-    @PostMapping("/share")
-    AiChatConversationShareResponse share(@RequestBody AiChatConversationSimpleRequest request);
-
-    /**
-     * 下载会话内容。
-     */
-    @PostMapping("/download")
-    AiChatConversationDownloadResponse download(@RequestBody AiChatConversationSimpleRequest request);
-
-    /**
      * 重命名会话。
      */
     @PostMapping("/rename")
@@ -58,18 +41,6 @@ public interface AiChatConversationManageApi {
      */
     @PostMapping("/pin")
     AiChatSessionVO pin(@RequestBody AiChatConversationPinRequest request);
-
-    /**
-     * 复制会话。
-     */
-    @PostMapping("/copy")
-    AiChatConversationCopyResponse copy(@RequestBody AiChatConversationSimpleRequest request);
-
-    /**
-     * 归档或取消归档会话。
-     */
-    @PostMapping("/archive")
-    AiChatSessionVO archive(@RequestBody AiChatConversationArchiveRequest request);
 
     /**
      * 删除会话。
