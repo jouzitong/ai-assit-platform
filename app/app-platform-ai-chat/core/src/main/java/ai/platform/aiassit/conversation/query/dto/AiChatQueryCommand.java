@@ -1,4 +1,4 @@
-package ai.platform.aiassit.chat.core.query.dto;
+package ai.platform.aiassit.conversation.query.dto;
 
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import lombok.Data;
