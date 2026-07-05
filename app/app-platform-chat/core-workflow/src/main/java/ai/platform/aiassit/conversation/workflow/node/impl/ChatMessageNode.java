@@ -177,7 +177,7 @@ public class ChatMessageNode extends BaseWorkflowNode {
     private List<AiChatArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         return artifactService.queryAll(query);
     }
 

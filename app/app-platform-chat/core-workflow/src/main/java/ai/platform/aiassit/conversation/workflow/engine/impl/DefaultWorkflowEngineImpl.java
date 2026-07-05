@@ -655,14 +655,14 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         return sessionService.get(query);
     }
 
     private List<AiChatMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
@@ -671,7 +671,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     private List<AiChatArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         return artifactService.queryAll(query);
     }
 
@@ -739,7 +739,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     private String resolveParentRoundCode(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         List<AiChatRoundDTO> rounds = roundService.queryAll(query);
         if (CollectionUtils.isEmpty(rounds)) {
             return null;

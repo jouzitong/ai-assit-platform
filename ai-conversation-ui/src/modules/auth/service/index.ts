@@ -25,6 +25,6 @@ export async function submitLogin(
     user: loginUser,
   })
 
-  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/ai/chat'
+  const redirect = typeof route.query.redirect === 'string' ? route.query.redirect : '/'
   await router.push(redirect)
 }

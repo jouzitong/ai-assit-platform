@@ -21,9 +21,22 @@ const routes: RouteRecordRaw[] = [
     ],
   },
   {
-    path: '/',
-    component: DefaultLayout,
-    children: [...systemRoutes, ...dataRoutes],
+    path: '/settings',
+    component: BlankLayout,
+    children: [
+      {
+        path: 'system/system-params/add',
+        name: 'system-params-add',
+        meta: { title: '新增系统参数' },
+        component: () => import('../modules/system/views/SystemParamAddView.vue'),
+      },
+      {
+        path: 'system/:section?',
+        name: 'system-settings',
+        meta: { title: '系统设置' },
+        component: () => import('../modules/system/views/SystemSettingsView.vue'),
+      },
+    ],
   },
   {
     path: '/',
@@ -31,8 +44,13 @@ const routes: RouteRecordRaw[] = [
     children: [...aiRoutes],
   },
   {
+    path: '/',
+    component: DefaultLayout,
+    children: [...systemRoutes, ...dataRoutes],
+  },
+  {
     path: '/:pathMatch(.*)*',
-    redirect: '/auth/login',
+    redirect: '/',
   },
 ]
 

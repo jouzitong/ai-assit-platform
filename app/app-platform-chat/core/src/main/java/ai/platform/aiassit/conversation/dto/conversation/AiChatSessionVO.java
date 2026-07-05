@@ -3,6 +3,8 @@ package ai.platform.aiassit.conversation.dto.conversation;
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import lombok.Data;
 
+import java.time.LocalDateTime;
+
 @Data
 public class AiChatSessionVO {
 
@@ -15,4 +17,6 @@ public class AiChatSessionVO {
     private String sessionName;
 
     private Boolean pinned = Boolean.FALSE;
+
+    private LocalDateTime updateTime;
 }

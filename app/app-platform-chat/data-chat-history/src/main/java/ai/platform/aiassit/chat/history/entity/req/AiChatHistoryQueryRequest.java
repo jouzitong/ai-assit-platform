@@ -13,7 +13,10 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
 
     private String roundCode;
 
+    @Deprecated
     private Long createdBy;
+
+    private Long userId;
 
     private String role;
 

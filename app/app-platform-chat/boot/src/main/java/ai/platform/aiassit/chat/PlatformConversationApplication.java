@@ -14,6 +14,7 @@ import java.util.Map;
 @MapperScan({
         "ai.platform.aiassit.chat.history.mapper",
         "ai.platform.aiassit.chat.workflow.data.mapper",
+        "ai.platform.aiassit.knowledge.manage.mapper",
         "ai.platform.aiassit.model.mapper"
 })
 @SpringBootApplication(scanBasePackages = "ai.platform.aiassit")
@@ -23,10 +24,10 @@ import java.util.Map;
         AiVectorExecutionApi.class,
         RenderInternalApi.class
 })
-public class PlatformChatApplication {
+public class PlatformConversationApplication {
 
     public static void main(String[] args) {
-        SpringApplication application = new SpringApplication(PlatformChatApplication.class);
+        SpringApplication application = new SpringApplication(PlatformConversationApplication.class);
         application.setDefaultProperties(Map.of("athena.log.dir", "./logs/ai-assit/chat"));
         application.run(args);
     }

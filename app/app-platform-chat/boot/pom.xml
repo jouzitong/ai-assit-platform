@@ -59,7 +59,7 @@
                 <artifactId>spring-boot-maven-plugin</artifactId>
                 <version>3.2.5</version>
                 <configuration>
-                    <mainClass>ai.platform.aiassit.chat.PlatformChatApplication</mainClass>
+                    <mainClass>ai.platform.aiassit.chat.PlatformConversationApplication</mainClass>
                 </configuration>
             </plugin>
         </plugins>

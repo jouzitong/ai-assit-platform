@@ -5,7 +5,7 @@
       <nav>
         <RouterLink to="/auth/login">Login</RouterLink>
         <RouterLink to="/system/users">Users</RouterLink>
-        <RouterLink to="/ai/chat">AI Chat</RouterLink>
+        <RouterLink to="/">AI Chat</RouterLink>
         <RouterLink to="/data/query">Data Query</RouterLink>
       </nav>
     </aside>

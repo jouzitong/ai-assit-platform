@@ -19,9 +19,9 @@ spring:
             predicates:
               - Path=/user/**
           - id: ai-chat-service-route
-            uri: lb://aiChat
+            uri: lb://chat
             predicates:
-              - Path=/aiChat/**
+              - Path=/chat/**
             metadata:
               response-timeout: -1
           - id: ai-engine-service-route

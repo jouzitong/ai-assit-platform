@@ -52,7 +52,7 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
     public List<AiChatSessionDTO> listConversations(AiChatConversationQueryRequest request) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         if (request != null) {
-            query.setCreatedBy(request.getUserId());
+            query.setUserId(request.getUserId());
             query.setSessionCode(request.getSessionCode());
             query.setBusinessType(request.getBusinessType());
         }
@@ -127,7 +127,7 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
         }
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(resolveUserId(userId));
+        query.setUserId(userId);
         AiChatSessionDTO session = sessionService.get(query);
         if (session == null) {
             throw new IllegalArgumentException("conversation not found");
@@ -157,7 +157,7 @@ public class AiChatConversationServiceImpl implements AiChatConversationService 
     private AiChatHistoryQueryRequest buildHistoryQuery(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         return query;
     }
 
