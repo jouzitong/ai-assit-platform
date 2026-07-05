@@ -42,8 +42,32 @@ export interface RendererFilter {
   key: string
   label: string
   type?: 'text' | 'select' | 'date' | 'daterange'
+  component?: string
   placeholder?: string
-  options?: Array<{ label: string; value: string | number | boolean }>
+  list?: Array<{ key: string; value: string | number | boolean; disabled?: boolean }>
+  selector?: {
+    model: string
+    fieldKey: string
+    fieldValue: string
+  }
+  enums?: string
+  options?: {
+    filterable?: boolean
+    multiple?: boolean
+    hidden?: boolean
+    labelPosition?: 'left' | 'inner'
+    clearable?: boolean
+    disabled?: boolean
+    collapseTags?: boolean
+    teleported?: boolean
+    checkStrictly?: boolean
+    renderAfterExpand?: boolean
+    styles?: Record<string, string | number>
+    className?: string
+    [key: string]: unknown
+  }
+  data?: RendererTreeNode[]
+  componentProps?: Record<string, unknown>
 }
 
 export interface RendererFieldOptions {

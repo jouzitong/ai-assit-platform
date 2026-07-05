@@ -63,7 +63,24 @@ const baseSchema: ListRendererSchema = {
     {
       key: 'title',
       label: '标题',
-      type: 'text',
+      component: 'zg-input',
+    },
+    {
+      key: 'owner',
+      label: '负责人',
+      component: 'zg-selector',
+      list: [
+        { key: 'zhou', value: 'zhou' },
+        { key: 'amy', value: 'amy' },
+      ],
+      options: {
+        multiple: true,
+        filterable: true,
+        clearable: true,
+        styles: {
+          width: '240px',
+        },
+      },
     },
   ],
   fields: [
@@ -234,6 +251,7 @@ const queryState = reactive<RendererQueryState>({
   activeTab: 'all',
   filters: {
     title: '',
+    owner: [],
   },
   page: 1,
   pageSize: 5,
@@ -244,10 +262,12 @@ const filteredRecords = computed(() => {
   const keyword = String(queryState.filters.title ?? '').trim().toLowerCase()
 
   return records.filter((item) => {
+    const selectedOwners = Array.isArray(queryState.filters.owner) ? queryState.filters.owner : []
     const matchTab = queryState.activeTab === 'all' || item.owner === 'zhou'
     const matchKeyword = !keyword || item.title.toLowerCase().includes(keyword) || item.id.toLowerCase().includes(keyword)
     const matchTree = !queryState.selectedTreeKey || queryState.selectedTreeKey === 'all' || item.categoryKey === queryState.selectedTreeKey
-    return matchTab && matchKeyword && matchTree
+    const matchOwner = selectedOwners.length === 0 || selectedOwners.includes(item.owner)
+    return matchTab && matchKeyword && matchTree && matchOwner
   })
 })
 

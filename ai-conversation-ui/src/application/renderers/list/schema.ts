@@ -1,6 +1,7 @@
 import type {
   ListRendererSchema,
   RendererField,
+  RendererFilter,
   RendererQueryState,
 } from './types'
 
@@ -37,7 +38,7 @@ export function normalizeSchema(schema: ListRendererSchema): ListRendererSchema 
 export function createDefaultQueryState(schema: ListRendererSchema): RendererQueryState {
   const normalized = normalizeSchema(schema)
   const filters = normalized.filters?.reduce<Record<string, unknown>>((acc, filter) => {
-    acc[filter.key] = ''
+    acc[filter.key] = getDefaultFilterValue(filter)
     return acc
   }, {}) || {}
 
@@ -48,6 +49,22 @@ export function createDefaultQueryState(schema: ListRendererSchema): RendererQue
     pageSize: normalized.list_config?.pagination?.pageSize || DEFAULT_PAGE_SIZE,
     selectedTreeKey: null,
   }
+}
+
+export function getDefaultFilterValue(filter: RendererFilter) {
+  if (filter.options?.multiple) {
+    return []
+  }
+
+  if (filter.component === 'zg-selector-tree' && filter.options?.multiple) {
+    return []
+  }
+
+  if (filter.type === 'daterange') {
+    return []
+  }
+
+  return ''
 }
 
 export function shouldShowTree(schema: ListRendererSchema) {
