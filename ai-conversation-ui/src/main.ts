@@ -5,11 +5,14 @@ import App from './App.vue'
 import router from './router'
 import { registerLoadingDirective } from './directives/loading'
 import { registerPermissionDirective } from './directives/permission'
+import { preloadServiceEnums } from './stores/enums'
 import './styles/index.scss'
 
 const app = createApp(App)
 
 registerPermissionDirective(app)
 registerLoadingDirective(app)
+
+void preloadServiceEnums()
 
 app.use(router).use(ElementPlus).mount('#app')

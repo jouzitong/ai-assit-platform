@@ -31,7 +31,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../modules/system/views/SystemParamAddView.vue'),
       },
       {
-        path: 'system/:section?',
+        path: 'system/:section?/:sourceKey?',
         name: 'system-settings',
         meta: { title: '系统设置' },
         component: () => import('../modules/system/views/SystemSettingsView.vue'),

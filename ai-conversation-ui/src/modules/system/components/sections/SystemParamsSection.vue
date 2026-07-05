@@ -1,78 +1,55 @@
 <script setup lang="ts">
-import { Plus, RefreshRight, Search } from '@element-plus/icons-vue'
-import { computed, reactive, ref } from 'vue'
+import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
+import {
+  createSystemSetting,
+  deleteSystemSetting,
+  editSystemSetting,
+  searchSystemSettings,
+  type SystemSettingItem,
+  updateSystemSetting,
+} from '../../api/systemSettings'
 
 const keyword = ref('')
 const pageSize = ref(20)
 const currentPage = ref(1)
 const addDialogVisible = ref(false)
+const loading = ref(false)
+const saving = ref(false)
+const errorMessage = ref('')
+const parameterRecords = ref<SystemSettingItem[]>([])
+const dialogMode = ref<'create' | 'edit'>('create')
+const editingId = ref<string | number | null>(null)
 
 const pageSizeOptions = [10, 20, 50, 100, 200, 500]
 const addForm = reactive({
   key: '',
   value: '',
-  type: 'string',
+  type: 'STRING',
   desc: '',
   enabled: true,
   tags: '',
 })
 const typeOptions = [
-  { label: '字符串', value: 'string' },
-  { label: '数字', value: 'number' },
-  { label: '布尔值', value: 'boolean' },
-  { label: 'JSON', value: 'json' },
-  { label: '富文本', value: 'rich-text' },
-]
-
-const parameterRecords = [
-  {
-    key: 'app.theme.default',
-    desc: '控制系统默认主题，影响首次进入时的界面风格。',
-    value: 'light',
-    tags: ['界面配置', '默认值'],
-    enabled: true,
-  },
-  {
-    key: 'app.trace.enabled',
-    desc: '控制是否开启全链路追踪日志，用于排查跨服务调用问题。',
-    value: 'true',
-    tags: ['系统能力', '日志'],
-    enabled: true,
-  },
-  {
-    key: 'chat.default.model',
-    desc: '指定聊天模块默认模型，未显式选择模型时会自动使用该参数。',
-    value: 'qwen3.6-plus',
-    tags: ['AI 配置', '模型'],
-    enabled: true,
-  },
-  {
-    key: 'render.cache.ttl',
-    desc: '控制渲染缓存有效期，单位秒，用于页面二次加载时的性能优化。',
-    value: '300',
-    tags: ['渲染配置', '缓存'],
-    enabled: false,
-  },
-  {
-    key: 'system.dashboard.notice',
-    desc: '系统首页公告文案配置，用于展示版本提示、维护说明或运营通知。',
-    value: '当前系统将于周五晚间进行配置发布，请提前完成数据源校验并确认组件版本一致性。',
-    tags: ['运营配置', '公告'],
-    enabled: true,
-  },
+  { label: '字符串', value: 'STRING' },
+  { label: '数字', value: 'NUMBER' },
+  { label: '布尔值', value: 'BOOLEAN' },
+  { label: 'JSON', value: 'JSON' },
+  { label: '密码', value: 'PASSWORD' },
 ]
 
 const filteredParameterRecords = computed(() => {
-  const normalizedKeyword = keyword.value.trim().toLowerCase()
-  if (!normalizedKeyword) {
-    return parameterRecords
-  }
-
-  return parameterRecords.filter((record) =>
-    record.key.toLowerCase().includes(normalizedKeyword)
-    || record.desc.toLowerCase().includes(normalizedKeyword)
-    || record.tags.some((tag) => tag.toLowerCase().includes(normalizedKeyword)),
-  )
+  return parameterRecords.value.map((record) => ({
+    id: record.id,
+    key: record.settingKey || '-',
+    desc: record.description || '暂无说明',
+    value: formatPreviewValue(record.settingValue, record.valueType),
+    rawValue: record.settingValue || '',
+    rawType: record.valueType || 'STRING',
+    tags: buildTags(record),
+    enabled: record.enabled !== false,
+  }))
 })
 const parsedTags = computed(() =>
   addForm.tags
@@ -84,7 +61,7 @@ const parsedTags = computed(() =>
 function resetAddForm() {
   addForm.key = ''
   addForm.value = ''
-  addForm.type = 'string'
+  addForm.type = 'STRING'
   addForm.desc = ''
   addForm.enabled = true
   addForm.tags = ''
@@ -93,6 +70,218 @@ function resetAddForm() {
 function closeAddDialog() {
   addDialogVisible.value = false
 }
+
+function openCreateDialog() {
+  dialogMode.value = 'create'
+  editingId.value = null
+  resetAddForm()
+  addDialogVisible.value = true
+}
+
+function openEditDialog(record: {
+  id: string | number
+  key: string
+  desc: string
+  rawValue: string
+  rawType: string
+  enabled: boolean
+}) {
+  dialogMode.value = 'edit'
+  editingId.value = record.id
+  addForm.key = record.key
+  addForm.value = record.rawValue
+  addForm.type = record.rawType
+  addForm.desc = record.desc === '暂无说明' ? '' : record.desc
+  addForm.enabled = record.enabled
+  addForm.tags = ''
+  addDialogVisible.value = true
+}
+
+function buildTags(record: SystemSettingItem) {
+  const tags: string[] = []
+  if (record.valueType) {
+    tags.push(record.valueType)
+  }
+  if (record.lastModifiedBy || record.updatedBy || record.createdBy) {
+    tags.push(String(record.lastModifiedBy || record.updatedBy || record.createdBy))
+  }
+  return tags
+}
+
+function formatPreviewValue(value?: string, type?: string) {
+  if (value === null || value === undefined || value === '') {
+    return '未配置'
+  }
+  if (type === 'PASSWORD') {
+    return '••••••••'
+  }
+  if (type === 'BOOLEAN') {
+    return String(value).toLowerCase() === 'true' ? 'true / 开启' : 'false / 关闭'
+  }
+  const text = String(value)
+  return text.length > 88 ? `${text.slice(0, 88)}...` : text
+}
+
+function resolveTotal(payloadTotal?: number) {
+  const numericTotal = Number(payloadTotal)
+  return Number.isFinite(numericTotal) ? numericTotal : parameterRecords.value.length
+}
+
+const total = ref(0)
+
+async function loadSystemSettings() {
+  loading.value = true
+  errorMessage.value = ''
+  try {
+    const payload = await searchSystemSettings({
+      page: currentPage.value,
+      size: pageSize.value,
+      keyword: keyword.value.trim() || undefined,
+    })
+    parameterRecords.value = payload?.list ?? []
+    total.value = resolveTotal(payload?.pageInfo?.total)
+  }
+  catch (error) {
+    parameterRecords.value = []
+    total.value = 0
+    errorMessage.value = error instanceof Error ? error.message : '系统参数加载失败'
+  }
+  finally {
+    loading.value = false
+  }
+}
+
+async function handleRefresh() {
+  await loadSystemSettings()
+}
+
+async function handleSearch() {
+  currentPage.value = 1
+  await loadSystemSettings()
+}
+
+async function handleCurrentPageChange(page: number) {
+  currentPage.value = page
+  await loadSystemSettings()
+}
+
+async function handlePageSizeChange(size: number) {
+  pageSize.value = size
+  currentPage.value = 1
+  await loadSystemSettings()
+}
+
+async function handleToggleEnabled(record: { id: string | number, enabled: boolean }) {
+  const nextEnabled = !record.enabled
+  try {
+    await editSystemSetting(record.id, { enabled: nextEnabled })
+    record.enabled = nextEnabled
+    const target = parameterRecords.value.find(item => item.id === record.id)
+    if (target) {
+      target.enabled = nextEnabled
+    }
+    ElMessage.success(`参数已${nextEnabled ? '启用' : '停用'}`)
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '状态更新失败')
+  }
+}
+
+function validateAddForm() {
+  if (!addForm.key.trim()) {
+    return '请输入参数 Key'
+  }
+  if (!addForm.type) {
+    return '请选择参数类型'
+  }
+  if (addForm.type === 'JSON' && addForm.value.trim()) {
+    try {
+      JSON.parse(addForm.value)
+    }
+    catch {
+      return 'JSON 类型的参数值必须是合法 JSON'
+    }
+  }
+  if (addForm.type === 'BOOLEAN') {
+    const normalized = addForm.value.trim().toLowerCase()
+    if (normalized && normalized !== 'true' && normalized !== 'false') {
+      return 'BOOLEAN 类型的参数值只能是 true 或 false'
+    }
+  }
+  return ''
+}
+
+async function handleSubmitAddForm() {
+  const validationError = validateAddForm()
+  if (validationError) {
+    ElMessage.error(validationError)
+    return
+  }
+
+  saving.value = true
+  try {
+    const payload = {
+      settingKey: addForm.key.trim(),
+      description: addForm.desc.trim() || undefined,
+      settingValue: addForm.value,
+      valueType: addForm.type,
+      enabled: addForm.enabled,
+    }
+
+    if (dialogMode.value === 'create') {
+      await createSystemSetting(payload)
+      ElMessage.success('系统参数新增成功')
+    }
+    else if (editingId.value !== null) {
+      await updateSystemSetting(editingId.value, payload)
+      ElMessage.success('系统参数更新成功')
+    }
+
+    addDialogVisible.value = false
+    currentPage.value = 1
+    await loadSystemSettings()
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : `系统参数${dialogMode.value === 'create' ? '新增' : '更新'}失败`)
+  }
+  finally {
+    saving.value = false
+  }
+}
+
+async function handleDelete(record: { id: string | number, key: string }) {
+  try {
+    await ElMessageBox.confirm(
+      `确认删除系统参数「${record.key}」吗？删除后不可恢复。`,
+      '删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+        draggable: true,
+        overflow: true,
+      },
+    )
+
+    await deleteSystemSetting(record.id)
+    ElMessage.success('系统参数已删除')
+
+    if (filteredParameterRecords.value.length === 1 && currentPage.value > 1) {
+      currentPage.value -= 1
+    }
+    await loadSystemSettings()
+  }
+  catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    ElMessage.error(error instanceof Error ? error.message : '系统参数删除失败')
+  }
+}
+
+onMounted(() => {
+  void loadSystemSettings()
+})
 </script>
 
 <template>
@@ -104,16 +293,16 @@ function closeAddDialog() {
           <p>维护系统级参数、默认开关和全局配置。</p>
         </div>
         <div class="system-params-layout__tools">
-          <el-input v-model="keyword" placeholder="搜索参数名称 / 参数组 / 参数键" clearable>
+          <el-input v-model="keyword" placeholder="搜索参数名称 / 参数组 / 参数键" clearable @keyup.enter="handleSearch">
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button plain>
+          <el-button plain @click="handleRefresh">
             <el-icon><RefreshRight /></el-icon>
             刷新
           </el-button>
-          <el-button type="primary" @click="addDialogVisible = true">
+          <el-button type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>
             新增参数
           </el-button>
@@ -121,19 +310,27 @@ function closeAddDialog() {
       </el-header>
 
       <el-main class="system-params-layout__main">
+        <div v-if="loading" class="system-params-state">系统参数加载中...</div>
+        <div v-else-if="errorMessage" class="system-params-state system-params-state--error">
+          {{ errorMessage }}
+        </div>
+        <div v-else-if="!filteredParameterRecords.length" class="system-params-state">
+          暂无系统参数
+        </div>
         <div
+          v-else
           v-for="record in filteredParameterRecords"
           :key="record.key"
           class="system-params-card"
         >
           <div class="system-params-card__head">
             <div class="system-params-card__key">{{ record.key }}</div>
-            <el-switch :model-value="record.enabled" size="small" />
+            <el-switch :model-value="record.enabled" size="small" @change="handleToggleEnabled(record)" />
           </div>
 
           <div class="system-params-card__desc">{{ record.desc }}</div>
 
-          <div class="system-params-card__value" :title="record.value">
+          <div class="system-params-card__value" :title="record.rawValue">
             {{ record.value }}
           </div>
 
@@ -148,9 +345,18 @@ function closeAddDialog() {
                 {{ tag }}
               </el-tag>
             </div>
-            <span :class="['system-params-card__enabled', { 'is-off': !record.enabled }]">
-              {{ record.enabled ? '已启用' : '未启用' }}
-            </span>
+            <div class="system-params-card__actions">
+              <el-tooltip content="编辑" placement="top">
+                <el-button circle plain type="primary" @click="openEditDialog(record)">
+                  <el-icon><EditPen /></el-icon>
+                </el-button>
+              </el-tooltip>
+              <el-tooltip content="删除" placement="top">
+                <el-button circle plain type="danger" @click="handleDelete(record)">
+                  <el-icon><Delete /></el-icon>
+                </el-button>
+              </el-tooltip>
+            </div>
           </div>
         </div>
       </el-main>
@@ -162,14 +368,16 @@ function closeAddDialog() {
           :page-sizes="pageSizeOptions"
           :pager-count="5"
           layout="total, sizes, prev, pager, next"
-          :total="filteredParameterRecords.length"
+          :total="total"
+          @current-change="handleCurrentPageChange"
+          @size-change="handlePageSizeChange"
         />
       </el-footer>
     </el-container>
 
     <el-dialog
       v-model="addDialogVisible"
-      title="新增系统参数"
+      :title="dialogMode === 'create' ? '新增系统参数' : '编辑系统参数'"
       width="680"
       draggable
       overflow
@@ -179,7 +387,11 @@ function closeAddDialog() {
       <div class="system-params-dialog">
         <el-form label-position="top" class="system-params-dialog__form">
           <el-form-item label="Key">
-            <el-input v-model="addForm.key" placeholder="例如：app.theme.default" />
+            <el-input
+              v-model="addForm.key"
+              placeholder="例如：app.theme.default"
+              :disabled="dialogMode === 'edit'"
+            />
           </el-form-item>
 
           <el-form-item label="Type">
@@ -235,7 +447,7 @@ function closeAddDialog() {
       <template #footer>
         <div class="system-params-dialog__footer">
           <el-button @click="closeAddDialog">取消</el-button>
-          <el-button type="primary" @click="closeAddDialog">确认</el-button>
+          <el-button type="primary" :loading="saving" @click="handleSubmitAddForm">确认</el-button>
         </div>
       </template>
     </el-dialog>
@@ -304,6 +516,20 @@ function closeAddDialog() {
   overflow-y: auto;
 }
 
+.system-params-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 180px;
+  padding: 24px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.system-params-state--error {
+  color: #dc2626;
+}
+
 .system-params-card {
   display: grid;
   gap: 12px;
@@ -331,8 +557,7 @@ function closeAddDialog() {
   word-break: break-all;
 }
 
-.system-params-card__desc,
-.system-params-card__enabled {
+.system-params-card__desc {
   color: #6b7280;
   font-size: 12px;
   line-height: 1.6;
@@ -354,8 +579,16 @@ function closeAddDialog() {
   gap: 8px;
 }
 
-.system-params-card__enabled.is-off {
-  color: #9ca3af;
+.system-params-card__actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.system-params-card__actions :deep(.el-button) {
+  width: 28px;
+  height: 28px;
 }
 
 .system-params-layout__footer {

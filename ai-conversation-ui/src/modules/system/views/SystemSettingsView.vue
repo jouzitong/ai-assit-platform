@@ -6,6 +6,7 @@ import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
 import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
 import ComponentManageSection from '../components/sections/ComponentManageSection.vue'
 import DataSourceSection from '../components/sections/DataSourceSection.vue'
+import DataSourceTableSection from '../components/sections/DataSourceTableSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
 import WorkflowSection from '../components/sections/WorkflowSection.vue'
 
@@ -69,8 +70,10 @@ const activeSection = computed(() => {
   return sections.some((item) => item.key === section) ? section : sections[0].key
 })
 
+const hasDataSourceDetail = computed(() => activeSection.value === 'data-source' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const currentSection = computed(() => sections.find((item) => item.key === activeSection.value) || sections[0])
 const hideHeroSections = new Set(['component-manage', 'system-params'])
+const shouldHideHero = computed(() => hideHeroSections.has(activeSection.value) || hasDataSourceDetail.value)
 
 async function navigateToSection(sectionKey: string) {
   if (activeSection.value === sectionKey) {
@@ -100,12 +103,12 @@ onMounted(() => {
     />
 
     <main class="system-settings-content">
-      <header v-if="!hideHeroSections.has(activeSection)" class="system-settings-hero">
+      <header v-if="!shouldHideHero" class="system-settings-hero">
         <h2>{{ currentSection.title }}</h2>
         <p>{{ currentSection.description }}</p>
       </header>
 
-      <component :is="currentSection.component" />
+      <component :is="hasDataSourceDetail ? DataSourceTableSection : currentSection.component" />
     </main>
   </div>
 </template>
@@ -124,7 +127,7 @@ onMounted(() => {
   flex-direction: column;
   min-width: 0;
   min-height: 0;
-  padding: 24px;
+  padding: 10px;
   overflow-y: auto;
 }
 
