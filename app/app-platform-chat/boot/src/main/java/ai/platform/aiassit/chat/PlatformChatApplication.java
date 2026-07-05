@@ -1,7 +1,6 @@
 package ai.platform.aiassit.chat;
 
 import ai.platform.aiassit.render.api.RenderInternalApi;
-import ai.platform.aiassit.service.ai.api.AiChatExecutionApi;
 import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassit.service.ai.api.AiRetrievalExecutionApi;
 import ai.platform.aiassit.service.ai.api.AiVectorExecutionApi;
@@ -15,11 +14,10 @@ import java.util.Map;
 @MapperScan({
         "ai.platform.aiassit.chat.history.mapper",
         "ai.platform.aiassit.chat.workflow.data.mapper",
-        "ai.platform.aiassit.service.ai.meta.mapper"
+        "ai.platform.aiassit.model.mapper"
 })
 @SpringBootApplication(scanBasePackages = "ai.platform.aiassit")
 @EnableFeignClients(basePackageClasses = {
-        AiChatExecutionApi.class,
         AiKnowledgeApi.class,
         AiRetrievalExecutionApi.class,
         AiVectorExecutionApi.class,

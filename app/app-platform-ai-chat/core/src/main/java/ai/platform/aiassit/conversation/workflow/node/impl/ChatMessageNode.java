@@ -1,0 +1,262 @@
+package ai.platform.aiassit.conversation.workflow.node.impl;
+
+import ai.platform.aiassit.conversation.query.dto.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
+import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
+import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
+import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
+import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
+import ai.platform.aiassit.chat.history.enums.AiChatActorType;
+import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
+import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
+import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
+import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
+import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
+import ai.platform.aiassit.chat.history.service.AiChatMessageService;
+import ai.platform.aiassit.chat.history.service.AiChatRoundService;
+import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import lombok.extern.slf4j.Slf4j;
+import org.athena.framework.security.auth.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.util.CollectionUtils;
+import org.springframework.util.StringUtils;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * 会话消息准备节点。
+ *
+ * <p>功能：</p>
+ * <ul>
+ *     <li>校验本轮输入是否具备基础会话条件。</li>
+ *     <li>按 sessionCode 加载已有会话，或创建新会话。</li>
+ *     <li>加载当前会话历史消息与历史产物。</li>
+ *     <li>创建当前轮次 round，并落库当前用户消息。</li>
+ *     <li>将 session、round、用户消息上下文写入 {@link WorkflowContext}。</li>
+ * </ul>
+ *
+ * <p>边界描述：</p>
+ * <ul>
+ *     <li>只负责初始化会话与消息上下文，不做意图分析。</li>
+ *     <li>不调用模型，不检索知识库，不生成或校验 SQL。</li>
+ *     <li>不负责最终答案渲染，仅为后续节点提供完整上下文。</li>
+ * </ul>
+ *
+ * @author zhouzhitong
+ * @since 2026/6/8
+ */
+@Service
+@Slf4j
+@Deprecated(forRemoval = true)
+public class ChatMessageNode extends BaseWorkflowNode {
+
+    private static final String DEFAULT_SESSION_NAME = "新会话";
+    private static final String STATUS_RUNNING = "RUNNING";
+    private static final String STATUS_SUCCESS = "SUCCESS";
+
+    private final AiChatSessionService sessionService;
+    private final AiChatMessageService messageService;
+    private final AiChatArtifactService artifactService;
+    private final AiChatRoundService roundService;
+    private final WorkflowHistoryRecorder historyRecorder;
+
+    public ChatMessageNode(AiChatSessionService sessionService,
+                           AiChatMessageService messageService,
+                           AiChatArtifactService artifactService,
+                           AiChatRoundService roundService,
+                           WorkflowHistoryRecorder historyRecorder) {
+        this.sessionService = sessionService;
+        this.messageService = messageService;
+        this.artifactService = artifactService;
+        this.roundService = roundService;
+        this.historyRecorder = historyRecorder;
+    }
+
+    @Override
+    protected NodeResult doExecute(WorkflowContext context) {
+        AiChatQueryCommand command = context.getCommand();
+        if (command == null) {
+            return NodeResult.fail("command is required");
+        }
+        if (!StringUtils.hasText(command.getMessage())) {
+            return NodeResult.fail("message is required");
+        }
+
+        String sessionCode = command.getSessionCode();
+        Long userId = resolveUserId(command.getUserId());
+
+        AiChatSessionDTO session;
+        List<AiChatMessageDTO> sessionMessages;
+        List<AiChatArtifactDTO> sessionArtifacts;
+        if (!StringUtils.hasText(sessionCode)) {
+            session = createSession(command, userId);
+            sessionMessages = List.of();
+            sessionArtifacts = List.of();
+            command.setSessionCode(session.getSessionCode());
+        } else {
+            session = loadSession(sessionCode, userId);
+            if (session == null) {
+                log.warn("session not found, sessionCode={}, userId={}", sessionCode, userId);
+                return NodeResult.fail("session not found");
+            }
+            sessionMessages = loadSessionMessages(sessionCode, userId);
+            sessionArtifacts = loadSessionArtifacts(sessionCode, userId);
+        }
+
+        context.setSession(session);
+        context.setSessionArtifacts(sessionArtifacts);
+        context.getOrCreateUserMessageContext().setSessionMessages(sessionMessages);
+        AiChatRoundDTO round = createRound(session, sessionMessages, command, userId);
+        context.setRound(round);
+
+        AiChatMessageDTO lastMessage = sessionMessages.isEmpty() ? null : sessionMessages.get(sessionMessages.size() - 1);
+        AiChatMessageDTO userMessage = historyRecorder.saveMessage(
+                context,
+                round.getRoundCode(),
+                "USER",
+                AiChatActorType.HUMAN.name(),
+                resolveUserMessageType(round.getRoundType()),
+                command.getMessage(),
+                AiChatContentFormat.PLAIN_TEXT.name(),
+                AiChatDisplayLevel.VISIBLE.name(),
+                STATUS_SUCCESS,
+                lastMessage == null ? null : lastMessage.getMessageCode(),
+                lastMessage == null ? null : lastMessage.getMessageCode(),
+                null
+        );
+        context.getOrCreateUserMessageContext().setCurrentMessage(userMessage);
+        context.refreshUserMessageContext();
+        context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode()).setStatus(STATUS_SUCCESS);
+        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "session", session);
+        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "currentMessage", userMessage);
+        context.publishEvent("chat-message-ready",
+                "session and user message prepared");
+
+        return NodeResult.success(null);
+    }
+
+    @Override
+    public String code() {
+        return WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode();
+    }
+
+    private AiChatSessionDTO createSession(AiChatQueryCommand command, Long userId) {
+        AiChatSessionDTO session = new AiChatSessionDTO();
+        session.setSessionCode(generateSessionCode());
+        session.setUserId(userId);
+        session.setBusinessType(resolveBusinessType(command.getBusinessType()));
+        session.setSessionName(resolveSessionName(command));
+        session.setPinned(Boolean.FALSE);
+        return sessionService.add(session);
+    }
+
+    private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
+        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        query.setSessionCode(sessionCode);
+        query.setCreatedBy(userId);
+        return sessionService.get(query);
+    }
+
+    private List<AiChatMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
+        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        query.setSessionCode(sessionCode);
+        query.setCreatedBy(userId);
+        return messageService.queryAll(query).stream()
+                .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                .toList();
+    }
+
+    private List<AiChatArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
+        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        query.setSessionCode(sessionCode);
+        query.setCreatedBy(userId);
+        return artifactService.queryAll(query);
+    }
+
+    private AiChatRoundDTO createRound(AiChatSessionDTO session,
+                                       List<AiChatMessageDTO> sessionMessages,
+                                       AiChatQueryCommand command,
+                                       Long userId) {
+        AiChatRoundDTO round = new AiChatRoundDTO();
+        round.setRoundCode(generateRoundCode());
+        round.setRoundType(resolveRoundType(command));
+        round.setParentRoundCode(resolveParentRoundCode(session.getSessionCode(), userId));
+        round.setSessionCode(session.getSessionCode());
+        round.setUserId(userId);
+        round.setModelCode(resolveModelCode(command.getApiModel()));
+        round.setActualModel(resolveActualModel(command.getApiModel()));
+        round.setStatus(STATUS_RUNNING);
+        return roundService.add(round);
+    }
+
+    private Long resolveUserId(Long userId) {
+//        return userId == null ? 0L : userId;
+        return SecurityContextHolder.get().subject().userId();
+    }
+
+    private AiChatBusinessType resolveBusinessType(AiChatBusinessType businessType) {
+        return businessType == null ? AiChatBusinessType.CUSTOM : businessType;
+    }
+
+    private String resolveSessionName(AiChatQueryCommand command) {
+        if (StringUtils.hasText(command.getSessionName())) {
+            return command.getSessionName().trim();
+        }
+        if (!StringUtils.hasText(command.getMessage())) {
+            return DEFAULT_SESSION_NAME;
+        }
+        String content = command.getMessage().trim();
+        return content.length() > 20 ? content.substring(0, 20) : content;
+    }
+
+    private AiChatRoundType resolveRoundType(AiChatQueryCommand command) {
+        Object extValue = command == null || command.getExt() == null ? null : command.getExt().get("roundType");
+        if (extValue instanceof String str && StringUtils.hasText(str)) {
+            return AiChatRoundType.fromIntentType(str);
+        }
+        Object intentTypeValue = command == null || command.getExt() == null ? null : command.getExt().get("intentType");
+        if (intentTypeValue instanceof String str && StringUtils.hasText(str)) {
+            return AiChatRoundType.fromIntentType(str);
+        }
+        return AiChatRoundType.QUERY_RENDER;
+    }
+
+    private String resolveUserMessageType(AiChatRoundType roundType) {
+        return AiChatMessageType.USER_INPUT.name();
+    }
+
+    private String resolveParentRoundCode(String sessionCode, Long userId) {
+        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        query.setSessionCode(sessionCode);
+        query.setCreatedBy(userId);
+        List<AiChatRoundDTO> rounds = roundService.queryAll(query);
+        if (CollectionUtils.isEmpty(rounds)) {
+            return null;
+        }
+        return rounds.get(rounds.size() - 1).getRoundCode();
+    }
+
+    private String resolveModelCode(String apiModel) {
+        return StringUtils.hasText(apiModel) ? apiModel.trim() : "DEFAULT";
+    }
+
+    private String resolveActualModel(String apiModel) {
+        return StringUtils.hasText(apiModel) ? apiModel.trim() : "DEFAULT";
+    }
+
+    private String generateSessionCode() {
+        return "session-" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private String generateRoundCode() {
+        return "round-" + UUID.randomUUID().toString().replace("-", "");
+    }
+}

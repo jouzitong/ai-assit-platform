@@ -1,0 +1,20 @@
+package ai.platform.aiassit.conversation.query.controller;
+
+import ai.platform.aiassit.conversation.query.dto.AiChatQueryRequest;
+import ai.platform.aiassit.conversation.query.dto.AiChatQueryResponse;
+import org.springframework.http.MediaType;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+@RequestMapping("/api/v1/ai/chat")
+@Deprecated
+public interface AiChatQueryApi {
+
+    @PostMapping("/query")
+    AiChatQueryResponse query(@RequestBody AiChatQueryRequest request);
+
+    @PostMapping(value = "/query/stream", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    SseEmitter queryStream(@RequestBody AiChatQueryRequest request);
+}
