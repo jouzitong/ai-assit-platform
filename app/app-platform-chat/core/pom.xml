@@ -38,19 +38,11 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-data-chat-history</artifactId>
+            <artifactId>app-platform-chat-core-ai-chat</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-data-meta</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-data-workflow</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-data-kb</artifactId>
+            <artifactId>app-platform-chat-core-ai-engine</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

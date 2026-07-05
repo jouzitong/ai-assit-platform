@@ -30,7 +30,7 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-core</artifactId>
+            <artifactId>app-platform-chat-core-ai-engine</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
