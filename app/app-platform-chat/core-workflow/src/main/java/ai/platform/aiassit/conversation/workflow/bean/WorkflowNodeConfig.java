@@ -30,7 +30,7 @@ public class WorkflowNodeConfig implements Serializable {
 
     private List<WorkflowNodeCapabilityConfig> capabilities = new ArrayList<>();
 
-    private Map<String, Object> options = new LinkedHashMap<>();
+    private WorkflowNodeOptions options = new WorkflowNodeOptions();
 
     private Map<String, Object> ext = new LinkedHashMap<>();
 

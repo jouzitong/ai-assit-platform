@@ -26,7 +26,7 @@ import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeResult;
 import ai.platform.aiassit.conversation.workflow.engine.IWorkflowEngine;
 import ai.platform.aiassit.conversation.workflow.engine.transition.TransitionResolver;
 import ai.platform.aiassit.conversation.workflow.node.IWorkflowNode;
-import ai.platform.aiassit.conversation.workflow.planning.service.WorkflowIntentAnalyzeService;
+import ai.platform.aiassit.conversation.workflow.service.WorkflowIntentAnalyzeService;
 import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;

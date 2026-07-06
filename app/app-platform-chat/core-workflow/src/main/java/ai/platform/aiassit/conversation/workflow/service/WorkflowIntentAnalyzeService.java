@@ -1,4 +1,4 @@
-package ai.platform.aiassit.conversation.workflow.planning.service;
+package ai.platform.aiassit.conversation.workflow.service;
 
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;

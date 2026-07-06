@@ -8,7 +8,7 @@ import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.conversation.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.conversation.workflow.planning.contract.QueryPlanningSkillResult;
-import ai.platform.aiassit.conversation.workflow.planning.service.WorkflowIntentAnalyzeService;
+import ai.platform.aiassit.conversation.workflow.service.WorkflowIntentAnalyzeService;
 import ai.platform.aiassit.conversation.workflow.planning.skill.QueryPlanningSkill;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
