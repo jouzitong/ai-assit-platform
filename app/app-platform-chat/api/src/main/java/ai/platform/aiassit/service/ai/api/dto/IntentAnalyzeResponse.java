@@ -80,6 +80,21 @@ public class IntentAnalyzeResponse implements Serializable {
     private String clarificationQuestion;
 
     /**
+     * 当置信度偏低时，供知识库召回使用的建议词、别名、同义词、关联词。
+     */
+    private List<String> retrievalHints = new ArrayList<>();
+
+    /**
+     * 建议用于知识库检索的召回查询语句。
+     */
+    private String retrievalQuery;
+
+    /**
+     * 是否已基于知识库召回结果做过增强分析。
+     */
+    private Boolean knowledgeAugmented = Boolean.FALSE;
+
+    /**
      * AI 原始输出内容，用于调试、审计或异常排查。
      */
     private String rawOutput;
