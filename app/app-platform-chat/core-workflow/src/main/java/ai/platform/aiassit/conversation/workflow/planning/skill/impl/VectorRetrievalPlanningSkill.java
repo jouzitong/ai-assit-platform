@@ -6,8 +6,8 @@ import ai.platform.aiassit.service.ai.api.dto.HybridSearchRequest;
 import ai.platform.aiassit.service.ai.api.dto.HybridSearchResponse;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatToolDTO;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationToolDTO;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
@@ -50,7 +50,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
 
     @Override
     public QueryPlanningSkillResult analyze(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
             return null;
@@ -108,7 +108,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return message;
     }
 
-    private HybridSearchResponse fetchVectorHits(AiChatQueryCommand command, WorkflowContext context, String kbId) {
+    private HybridSearchResponse fetchVectorHits(ConversationQueryCommand command, WorkflowContext context, String kbId) {
         HybridSearchRequest request = new HybridSearchRequest();
         request.setProvider(null);
         request.setKbId(kbId);
@@ -122,7 +122,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return aiRetrievalExecutionApi.hybridSearch(request);
     }
 
-    private String buildRetrievalQuery(AiChatQueryCommand command, WorkflowContext context) {
+    private String buildRetrievalQuery(ConversationQueryCommand command, WorkflowContext context) {
         String currentMessage = command == null ? null : command.getMessage();
         String messageSummary = context == null ? null : context.getOrCreateUserMessageContext().getSummary();
         if (!StringUtils.hasText(messageSummary)) {
@@ -162,7 +162,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return risks;
     }
 
-    private RequestMeta buildMeta(AiChatQueryCommand command, String defaultScene) {
+    private RequestMeta buildMeta(ConversationQueryCommand command, String defaultScene) {
         RequestMeta meta = new RequestMeta();
         if (command == null) {
             meta.setScene(defaultScene);
@@ -174,7 +174,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return meta;
     }
 
-    private Integer resolveTopK(AiChatQueryCommand command, String key, int defaultValue) {
+    private Integer resolveTopK(ConversationQueryCommand command, String key, int defaultValue) {
         if (command != null && command.getExt() != null) {
             Object value = command.getExt().get(key);
             if (value instanceof Number number && number.intValue() > 0) {
@@ -184,7 +184,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return defaultValue;
     }
 
-    private String resolveKnowledgeBaseId(AiChatQueryCommand command) {
+    private String resolveKnowledgeBaseId(ConversationQueryCommand command) {
         if (command == null) {
             return null;
         }
@@ -196,7 +196,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
             return str.trim();
         }
         if (!CollectionUtils.isEmpty(command.getTools())) {
-            for (AiChatToolDTO tool : command.getTools()) {
+            for (ConversationToolDTO tool : command.getTools()) {
                 if (tool == null || tool.getExt() == null) {
                     continue;
                 }

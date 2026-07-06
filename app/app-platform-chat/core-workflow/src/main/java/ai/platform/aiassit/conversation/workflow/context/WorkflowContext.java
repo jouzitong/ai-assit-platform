@@ -2,8 +2,8 @@ package ai.platform.aiassit.conversation.workflow.context;
 
 import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
 import ai.platform.aiassit.conversation.constant.ConversationEventTypes;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
-import ai.platform.aiassit.conversation.workflow.dto.AiChatQueryStreamEvent;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -50,7 +50,7 @@ public class WorkflowContext implements Serializable {
     /**
      * 当前对话查询命令，包含用户输入、会话标识、追踪 ID 等请求参数。
      */
-    private AiChatQueryCommand command;
+    private ConversationQueryCommand command;
 
     /**
      * 当前执行的工作流编码。
@@ -399,7 +399,7 @@ public class WorkflowContext implements Serializable {
         if (emitter == null) {
             return;
         }
-        AiChatQueryStreamEvent event = new AiChatQueryStreamEvent();
+        ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
         event.setEventType(eventType);
         event.setSource(source);
         event.setPhase(phase);

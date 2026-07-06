@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.planning.skill;
 
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
@@ -35,7 +35,7 @@ public class QueryPlanningSkillExecutor {
 
     public IntentAnalysisBundle analyze(WorkflowContext context) {
         IntentAnalysisBundle bundle = new IntentAnalysisBundle();
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         bundle.setOriginalQuery(command == null ? null : command.getMessage());
 
         List<IntentEvidence> evidences = new ArrayList<>();

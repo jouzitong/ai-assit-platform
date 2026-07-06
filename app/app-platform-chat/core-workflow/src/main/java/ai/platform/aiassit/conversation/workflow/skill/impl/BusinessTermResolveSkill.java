@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.skill.impl;
 
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
@@ -38,7 +38,7 @@ public class BusinessTermResolveSkill implements IWorkflowNodeSkill {
 
     @Override
     public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
@@ -47,7 +47,7 @@ public class BusinessTermResolveSkill implements IWorkflowNodeSkill {
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
-    private List<String> resolveTerms(AiChatQueryCommand command) {
+    private List<String> resolveTerms(ConversationQueryCommand command) {
         Object extValue = command.getExt() == null ? null : command.getExt().get(EXT_KEY);
         if (extValue instanceof List<?> list && !CollectionUtils.isEmpty(list)) {
             Set<String> normalizedTerms = new LinkedHashSet<>();

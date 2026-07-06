@@ -10,7 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
@@ -270,7 +270,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
 
     @Override
     protected NodeResult doExecute(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
@@ -404,7 +404,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
     private ChatRequest buildSqlPreGenerateRequest(WorkflowContext context,
                                                    PlanningResult planningResult,
                                                    KbSearchResponse knowledgeSearchResponse) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command == null ? null : command.getApiModel()));
         request.setModel(resolveActualModel(command == null ? null : command.getApiModel()));
@@ -575,7 +575,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return value == null ? "" : value;
     }
 
-    private ChatRequest buildRequest(AiChatQueryCommand command, WorkflowContext context) {
+    private ChatRequest buildRequest(ConversationQueryCommand command, WorkflowContext context) {
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command.getApiModel()));
         request.setModel(resolveActualModel(command.getApiModel()));
@@ -604,7 +604,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return message;
     }
 
-    private String buildSqlGenerationInput(AiChatQueryCommand command, WorkflowContext context) {
+    private String buildSqlGenerationInput(ConversationQueryCommand command, WorkflowContext context) {
         StringBuilder builder = new StringBuilder();
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         builder.append("用户问题：\n").append(command.getMessage()).append("\n\n");

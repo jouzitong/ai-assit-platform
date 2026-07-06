@@ -2,7 +2,7 @@ package ai.platform.aiassit.conversation.workflow.planning.skill.impl;
 
 import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
@@ -45,7 +45,7 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
 
     @Override
     public QueryPlanningSkillResult analyze(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
             return null;

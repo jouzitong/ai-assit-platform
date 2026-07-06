@@ -18,7 +18,7 @@ import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeOptions;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
@@ -122,7 +122,7 @@ public class WorkflowIntentAnalyzeService {
     }
 
     public IntentAnalyzeResponse analyze(WorkflowContext context) {
-        AiChatQueryCommand command = context == null ? null : context.getCommand();
+        ConversationQueryCommand command = context == null ? null : context.getCommand();
         if (command == null || !StringUtils.hasText(command.getMessage())) {
             return null;
         }
@@ -157,7 +157,7 @@ public class WorkflowIntentAnalyzeService {
                                      IntentAnalyzeResponse previousResponse,
                                      int attempt,
                                      IntentAnalyzeConfig config) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
         request.setProvider(null);
         request.setModel(command.getApiModel());
@@ -222,7 +222,7 @@ public class WorkflowIntentAnalyzeService {
                                     IntentAnalyzeResponse previousResponse,
                                     int attempt) {
         StringBuilder builder = new StringBuilder();
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command != null && command.getBusinessType() != null) {
             builder.append("请求入参业务类型：").append(command.getBusinessType()).append('\n');
         }
@@ -385,7 +385,7 @@ public class WorkflowIntentAnalyzeService {
         return Map.of("type", "array", "items", itemSchema);
     }
 
-    private IntentAnalyzeResponse parseResponse(ChatResponse response, AiChatQueryCommand command) {
+    private IntentAnalyzeResponse parseResponse(ChatResponse response, ConversationQueryCommand command) {
         String rawOutput = extractOutput(response);
         if (!StringUtils.hasText(rawOutput)) {
             IntentAnalyzeResponse fallback = new IntentAnalyzeResponse();
@@ -450,7 +450,7 @@ public class WorkflowIntentAnalyzeService {
         return cleaned;
     }
 
-    private void normalizeResponse(IntentAnalyzeResponse response, AiChatQueryCommand command) {
+    private void normalizeResponse(IntentAnalyzeResponse response, ConversationQueryCommand command) {
         if (response == null) {
             return;
         }
@@ -622,7 +622,7 @@ public class WorkflowIntentAnalyzeService {
         return builder.toString().trim();
     }
 
-    private void normalizeRetrievalHints(IntentAnalyzeResponse response, AiChatQueryCommand command) {
+    private void normalizeRetrievalHints(IntentAnalyzeResponse response, ConversationQueryCommand command) {
         LinkedHashSet<String> hints = new LinkedHashSet<>();
         if (!CollectionUtils.isEmpty(response.getRetrievalHints())) {
             for (String hint : response.getRetrievalHints()) {
@@ -670,7 +670,7 @@ public class WorkflowIntentAnalyzeService {
         return normalized.substring(index + (normalized.charAt(index) == '-' ? 2 : 1)).trim();
     }
 
-    private String buildDefaultRetrievalQuery(IntentAnalyzeResponse response, AiChatQueryCommand command) {
+    private String buildDefaultRetrievalQuery(IntentAnalyzeResponse response, ConversationQueryCommand command) {
         LinkedHashSet<String> parts = new LinkedHashSet<>();
         addHint(parts, response.getRewrittenQuery());
         if (!CollectionUtils.isEmpty(response.getRetrievalHints())) {
@@ -698,7 +698,7 @@ public class WorkflowIntentAnalyzeService {
     }
 
     private KbSearchResponse searchKnowledgeForRetry(WorkflowContext context,
-                                                     AiChatQueryCommand command,
+                                                     ConversationQueryCommand command,
                                                      IntentAnalyzeResponse response,
                                                      IntentAnalyzeConfig config) {
         String query = StringUtils.hasText(response.getRetrievalQuery())
@@ -760,7 +760,7 @@ public class WorkflowIntentAnalyzeService {
         return StringUtils.hasText(content) ? content : null;
     }
 
-    private IntentAnalyzeConfig resolveIntentAnalyzeConfig(WorkflowContext context, AiChatQueryCommand command) {
+    private IntentAnalyzeConfig resolveIntentAnalyzeConfig(WorkflowContext context, ConversationQueryCommand command) {
         WorkflowNodeOptions options = resolveIntentAnalyzeNodeOptions(context);
         double minConfidenceScore = normalizeScore(resolveDouble(
                 options == null ? null : options.getMinConfidenceScore(),
@@ -799,7 +799,7 @@ public class WorkflowIntentAnalyzeService {
         return nodeConfig == null ? null : nodeConfig.getOptions();
     }
 
-    private String resolveKnowledgeBaseId(AiChatQueryCommand command, WorkflowNodeOptions options) {
+    private String resolveKnowledgeBaseId(ConversationQueryCommand command, WorkflowNodeOptions options) {
         Object candidate = options == null ? null : options.getKnowledgeBaseId();
         if (!StringUtils.hasText(candidate == null ? null : candidate.toString())) {
             candidate = safeGet(command == null ? null : command.getExt(), "kbId");

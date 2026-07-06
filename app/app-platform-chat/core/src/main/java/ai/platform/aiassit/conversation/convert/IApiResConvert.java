@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.convert;
 
-import ai.platform.aiassit.conversation.dto.conversation.AiChatSessionVO;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationSessionVO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import org.mapstruct.Mapper;
 
@@ -12,6 +12,6 @@ import org.mapstruct.Mapper;
 @Mapper(componentModel = "spring")
 public interface IApiResConvert {
 
-    AiChatSessionVO toVO(AiChatSessionDTO dto);
+    ConversationSessionVO toVO(AiChatSessionDTO dto);
 
 }

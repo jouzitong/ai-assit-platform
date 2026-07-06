@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.skill.impl;
 
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
@@ -44,7 +44,7 @@ public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
 
     @Override
     public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
@@ -55,7 +55,7 @@ public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
-    private Map<String, Object> resolvePreferenceProfile(AiChatQueryCommand command, WorkflowContext context) {
+    private Map<String, Object> resolvePreferenceProfile(ConversationQueryCommand command, WorkflowContext context) {
         Map<String, Object> profile = new LinkedHashMap<>();
 
         Map<String, Object> explicitPreferences = extractExplicitPreferences(command.getExt());

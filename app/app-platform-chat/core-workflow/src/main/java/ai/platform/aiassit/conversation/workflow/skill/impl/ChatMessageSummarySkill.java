@@ -8,8 +8,8 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
-import ai.platform.aiassit.conversation.workflow.constants.AiChatQueryExtKeys;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationQueryExtKeys;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
@@ -153,11 +153,11 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
         }
     }
 
-    private boolean allowUpdateSessionName(AiChatQueryCommand command) {
+    private boolean allowUpdateSessionName(ConversationQueryCommand command) {
         if (command == null || command.getExt() == null || command.getExt().isEmpty()) {
             return false;
         }
-        Object value = command.getExt().get(AiChatQueryExtKeys.ALLOW_UPDATE_SESSION_NAME);
+        Object value = command.getExt().get(ConversationQueryExtKeys.ALLOW_UPDATE_SESSION_NAME);
         if (value instanceof Boolean bool) {
             return bool;
         }
@@ -183,7 +183,7 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
     }
 
     private ChatRequest buildRequest(WorkflowContext context, UserMessageContext userMessageContext) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command == null ? null : command.getApiModel()));
         request.setModel(resolveActualModel(command == null ? null : command.getApiModel()));

@@ -10,7 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.config.WorkflowProperties;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
@@ -191,7 +191,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     @Override
     protected NodeResult doExecute(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
@@ -333,7 +333,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         return 200;
     }
 
-    private ChatRequest buildPlanningRequest(AiChatQueryCommand command,
+    private ChatRequest buildPlanningRequest(ConversationQueryCommand command,
                                              WorkflowContext context,
                                              List<AiChatMessageDTO> historyMessages) {
         ChatRequest request = new ChatRequest();
@@ -1000,7 +1000,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                 .orElse("");
     }
 
-    private ProviderType resolveProviderType(AiChatQueryCommand command) {
+    private ProviderType resolveProviderType(ConversationQueryCommand command) {
         String apiModel = command == null ? null : command.getApiModel();
         if (StringUtils.hasText(apiModel) && apiModel.toLowerCase(Locale.ROOT).contains("qwen")) {
             return ProviderType.DASHSCOPE;

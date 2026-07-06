@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.capability.impl;
 
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextCapability;
@@ -51,7 +51,7 @@ public class SystemDocumentPromptContextCapability implements PromptContextCapab
         return result;
     }
 
-    private List<String> resolveDocuments(AiChatQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
+    private List<String> resolveDocuments(ConversationQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
         List<String> documents = new ArrayList<>();
         Map<String, Object> options = capabilityConfig == null ? null : capabilityConfig.getOptions();
         if (options != null) {

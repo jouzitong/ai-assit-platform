@@ -4,8 +4,8 @@ import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatToolDTO;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationToolDTO;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextCapability;
@@ -47,7 +47,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
     public PromptContextResult load(WorkflowContext context,
                                     WorkflowNodeConfig nodeConfig,
                                     WorkflowNodeCapabilityConfig capabilityConfig) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return empty();
         }
@@ -92,7 +92,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         return new PromptContextResult();
     }
 
-    private String buildQuery(AiChatQueryCommand command,
+    private String buildQuery(ConversationQueryCommand command,
                               WorkflowContext context,
                               WorkflowNodeCapabilityConfig capabilityConfig) {
         String explicitQuery = resolveOptionAsString(capabilityConfig, "query");
@@ -116,7 +116,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         return message;
     }
 
-    private int resolveTopK(AiChatQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
+    private int resolveTopK(ConversationQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
         Object value = capabilityConfig == null || capabilityConfig.getOptions() == null
                 ? null
                 : capabilityConfig.getOptions().get("topK");
@@ -130,7 +130,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         return 5;
     }
 
-    private String resolveKnowledgeBaseId(AiChatQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
+    private String resolveKnowledgeBaseId(ConversationQueryCommand command, WorkflowNodeCapabilityConfig capabilityConfig) {
         Object extValue = capabilityConfig == null || capabilityConfig.getOptions() == null
                 ? null
                 : capabilityConfig.getOptions().get("kbId");
@@ -144,7 +144,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
             return str.trim();
         }
         if (!CollectionUtils.isEmpty(command.getTools())) {
-            for (AiChatToolDTO tool : command.getTools()) {
+            for (ConversationToolDTO tool : command.getTools()) {
                 if (tool == null || tool.getExt() == null) {
                     continue;
                 }

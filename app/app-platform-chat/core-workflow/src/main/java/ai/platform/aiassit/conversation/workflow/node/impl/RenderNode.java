@@ -14,7 +14,7 @@ import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
-import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
@@ -95,7 +95,7 @@ public class RenderNode extends BaseWorkflowNode {
 
     @Override
     protected NodeResult doExecute(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
@@ -178,7 +178,7 @@ public class RenderNode extends BaseWorkflowNode {
         return 700;
     }
 
-    private ChatRequest buildRenderRequest(AiChatQueryCommand command, WorkflowContext context) {
+    private ChatRequest buildRenderRequest(ConversationQueryCommand command, WorkflowContext context) {
         ChatRequest request = new ChatRequest();
         request.setProvider(ProviderType.AI_AGENT);
         request.setModel(resolveAgentModel(command));
@@ -280,7 +280,7 @@ public class RenderNode extends BaseWorkflowNode {
         return schema;
     }
 
-    private String buildRenderInput(AiChatQueryCommand command, WorkflowContext context) {
+    private String buildRenderInput(ConversationQueryCommand command, WorkflowContext context) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userQuery", command.getMessage());
         payload.put("planningSummary", context.getAnalysisResult());
@@ -451,7 +451,7 @@ public class RenderNode extends BaseWorkflowNode {
     }
 
     private String resolveRenderPageCode(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         String explicit = firstText(
                 readExt(command, "renderPageCode"),
                 readExt(command, "pageCode"),
@@ -472,7 +472,7 @@ public class RenderNode extends BaseWorkflowNode {
     }
 
     private String resolveRenderPageName(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         Object planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
         String explicit = firstText(
                 readExt(command, "renderPageName"),
@@ -487,7 +487,7 @@ public class RenderNode extends BaseWorkflowNode {
     }
 
     private String resolveRenderCategoryCode(WorkflowContext context) {
-        AiChatQueryCommand command = context.getCommand();
+        ConversationQueryCommand command = context.getCommand();
         Object planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
         return firstText(
                 readExt(command, "renderCategoryCode"),
@@ -497,7 +497,7 @@ public class RenderNode extends BaseWorkflowNode {
         );
     }
 
-    private Object readExt(AiChatQueryCommand command, String key) {
+    private Object readExt(ConversationQueryCommand command, String key) {
         return command == null || command.getExt() == null ? null : command.getExt().get(key);
     }
 
@@ -580,7 +580,7 @@ public class RenderNode extends BaseWorkflowNode {
         return text.substring(0, maxLength - 1) + "…";
     }
 
-    private String resolveAgentModel(AiChatQueryCommand command) {
+    private String resolveAgentModel(ConversationQueryCommand command) {
         Object explicit = command == null || command.getExt() == null ? null : command.getExt().get("renderAgentModel");
         if (!(explicit instanceof String) || !StringUtils.hasText((String) explicit)) {
             explicit = command == null || command.getExt() == null ? null : command.getExt().get("aiAgentModel");

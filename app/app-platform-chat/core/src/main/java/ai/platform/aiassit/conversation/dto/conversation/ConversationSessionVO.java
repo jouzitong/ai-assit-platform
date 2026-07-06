@@ -1,0 +1,22 @@
+package ai.platform.aiassit.conversation.dto.conversation;
+
+import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import lombok.Data;
+
+import java.time.LocalDateTime;
+
+@Data
+public class ConversationSessionVO {
+
+    private String sessionCode;
+
+    private Long userId;
+
+    private AiChatBusinessType businessType;
+
+    private String sessionName;
+
+    private Boolean pinned = Boolean.FALSE;
+
+    private LocalDateTime updateTime;
+}

@@ -1,0 +1,16 @@
+package ai.platform.aiassit.conversation.workflow.dto.chat;
+
+import lombok.Data;
+
+import java.util.HashMap;
+import java.util.Map;
+
+@Data
+public class ConversationToolDTO {
+
+    private String toolCode;
+
+    private String toolName;
+
+    private Map<String, Object> ext = new HashMap<>();
+}
