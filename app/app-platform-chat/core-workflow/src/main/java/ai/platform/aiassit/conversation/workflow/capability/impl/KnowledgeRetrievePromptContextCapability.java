@@ -1,6 +1,5 @@
 package ai.platform.aiassit.conversation.workflow.capability.impl;
 
-import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
@@ -14,6 +13,7 @@ import ai.platform.aiassit.conversation.workflow.capability.PromptContextItem;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextResult;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -32,10 +32,10 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
 
     public static final String CODE = "knowledge_retrieve_prompt_context";
 
-    private final AiKnowledgeApi knowledgeApi;
+    private final AiExecutionDomainService aiExecutionDomainService;
 
-    public KnowledgeRetrievePromptContextCapability(AiKnowledgeApi knowledgeApi) {
-        this.knowledgeApi = knowledgeApi;
+    public KnowledgeRetrievePromptContextCapability(AiExecutionDomainService aiExecutionDomainService) {
+        this.aiExecutionDomainService = aiExecutionDomainService;
     }
 
     @Override
@@ -66,7 +66,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : "ai-chat-prompt-context");
         request.setMeta(meta);
 
-        KbSearchResponse response = knowledgeApi.kbSearch(request);
+        KbSearchResponse response = aiExecutionDomainService.kbSearch(request);
         context.put(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE, response);
         String content = formatKnowledgeHits(response == null ? null : response.getItems());
         if (!StringUtils.hasText(content)) {
