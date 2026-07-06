@@ -102,7 +102,7 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     labelPosition: componentOptions.labelPosition ?? 'inner',
     class: componentOptions.className,
     style: styleConfig,
-    teleported: componentOptions.teleported ?? false,
+    teleported: componentOptions.teleported,
     ...componentProps,
   }
 
@@ -110,6 +110,7 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     return {
       ...commonProps,
       options: resolveSelectOptions(filter),
+      teleported: componentProps.teleported ?? componentOptions.teleported ?? true,
       filterable: componentProps.filterable ?? componentOptions.filterable ?? true,
       multiple: componentProps.multiple ?? componentOptions.multiple ?? false,
       collapseTags: componentProps.collapseTags ?? componentOptions.collapseTags ?? true,
@@ -120,6 +121,7 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     return {
       ...commonProps,
       data: filter.data || [],
+      teleported: componentProps.teleported ?? componentOptions.teleported ?? true,
       filterable: componentProps.filterable ?? componentOptions.filterable ?? true,
       multiple: componentProps.multiple ?? componentOptions.multiple ?? false,
       checkStrictly: componentProps.checkStrictly ?? componentOptions.checkStrictly ?? true,

@@ -92,7 +92,7 @@ const props = defineProps<{
 .app-field-shell__label {
   font-size: 13px;
   font-weight: 600;
-  color: #1f2a37;
+  color: var(--workbench-text, #1f2a37);
 }
 
 .app-field-shell__required {

@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Pointer, Warning, Share, Plus, Grid, FullScreen, Download, Star } from '@element-plus/icons-vue'
 import AiChat from '../../../../../components/AiChat.vue'
+import MarkdownContent from '../../../../../components/commons/MarkdownContent.vue'
 import { buildAssistantQueryViewModel } from '../data'
 import { useHomeOverviewPage } from '../service'
 
@@ -202,7 +203,7 @@ function togglePreviewFullscreen() {
                     <section class="ai-section ai-summary">
                       <div class="ai-section-title">分析摘要</div>
                       <div class="ai-section-body">
-                        {{ detailSummary }}
+                        <MarkdownContent :content="detailSummary" />
                       </div>
                     </section>
 

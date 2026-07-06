@@ -12,8 +12,11 @@ import ai.platform.aiassit.conversation.service.AiChatQueryService;
 import ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import lombok.AllArgsConstructor;
+import org.arthena.framework.common.constant.ErrCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
+import org.arthena.framework.common.exception.base.BaseHttpRuntimeException;
 import org.athena.framework.security.api.model.UserContext;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -96,7 +99,7 @@ public class AiChatController implements IAiChatController {
         if (userContext != null && userContext.subject() != null) {
             return userContext.subject().userId();
         }
-        throw new IllegalArgumentException("current user is required");
+        throw new BaseHttpRuntimeException(HttpStatus.UNAUTHORIZED.value(), ErrCodeConstant.UNAUTHORIZED);
     }
 
     private String resolveSessionName(String message) {

@@ -662,7 +662,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     private List<AiChatMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setUserId(userId);
+//        query.setUserId(userId);
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();

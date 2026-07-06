@@ -16,7 +16,7 @@ const routes: RouteRecordRaw[] = [
       {
         path: 'login',
         name: 'auth-login',
-        meta: { title: 'Login' },
+        meta: { title: 'Login', public: true },
         component: () => import('../modules/auth/views/LoginView.vue'),
       },
     ],

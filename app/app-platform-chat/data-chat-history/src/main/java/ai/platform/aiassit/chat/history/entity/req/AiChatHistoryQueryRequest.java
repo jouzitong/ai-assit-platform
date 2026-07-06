@@ -4,6 +4,7 @@ import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;
+import org.athena.framework.data.mybatis.annotations.IgnoredQuery;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -16,6 +17,7 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
     @Deprecated
     private Long createdBy;
 
+    @IgnoredQuery
     private Long userId;
 
     private String role;

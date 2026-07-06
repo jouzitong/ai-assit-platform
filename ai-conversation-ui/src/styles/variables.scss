@@ -42,6 +42,33 @@
   --chat-bubble-bg: #f8fafc;
   --chat-assistant-avatar-bg: #f1f5f9;
   --chat-followup-border: #f3f4f6;
+
+  --workbench-shell-bg:
+    radial-gradient(circle at top left, rgba(59, 130, 246, 0.14), transparent 24%),
+    linear-gradient(180deg, #f7fbff 0%, #edf4fb 100%);
+  --workbench-panel-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(244, 248, 252, 0.98) 100%);
+  --workbench-panel-border: rgba(148, 163, 184, 0.18);
+  --workbench-panel-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+  --workbench-side-bg: linear-gradient(180deg, rgba(241, 246, 252, 0.98) 0%, rgba(233, 240, 248, 0.96) 100%);
+  --workbench-side-border: rgba(148, 163, 184, 0.14);
+  --workbench-summary-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(238, 245, 252, 0.96) 100%);
+  --workbench-summary-border: rgba(148, 163, 184, 0.16);
+  --workbench-title: #162033;
+  --workbench-text: #1f2a37;
+  --workbench-text-soft: #516174;
+  --workbench-text-muted: #7c8aa5;
+  --workbench-tab-text: #6b7a90;
+  --workbench-tab-active: #2563eb;
+  --workbench-filter-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.96) 0%, rgba(247, 250, 253, 0.94) 100%);
+  --workbench-table-bg: transparent;
+  --workbench-table-row-bg: rgba(255, 255, 255, 0.84);
+  --workbench-table-header-bg: rgba(241, 246, 252, 0.96);
+  --workbench-table-border: rgba(148, 163, 184, 0.18);
+  --workbench-table-text: #334155;
+  --workbench-table-header-text: #162033;
+  --workbench-pagination-text: #475569;
+  --workbench-side-item-hover: rgba(37, 99, 235, 0.08);
+  --workbench-side-item-active: rgba(37, 99, 235, 0.12);
 }
 
 :root[data-theme='dark'] {
@@ -88,4 +115,31 @@
   --chat-bubble-bg: rgba(30, 41, 59, 0.92);
   --chat-assistant-avatar-bg: rgba(30, 41, 59, 0.98);
   --chat-followup-border: rgba(148, 163, 184, 0.14);
+
+  --workbench-shell-bg:
+    radial-gradient(circle at top left, rgba(84, 104, 255, 0.18), transparent 24%),
+    linear-gradient(120deg, #1a2236 0%, #243450 42%, #27475b 100%);
+  --workbench-panel-bg: linear-gradient(180deg, rgba(39, 56, 85, 0.92) 0%, rgba(43, 61, 90, 0.94) 100%);
+  --workbench-panel-border: rgba(148, 163, 184, 0.16);
+  --workbench-panel-shadow: 0 20px 60px rgba(3, 7, 18, 0.24);
+  --workbench-side-bg: linear-gradient(180deg, rgba(28, 41, 64, 0.96) 0%, rgba(27, 38, 58, 0.92) 100%);
+  --workbench-side-border: rgba(148, 163, 184, 0.14);
+  --workbench-summary-bg: linear-gradient(180deg, rgba(30, 41, 59, 0.9) 0%, rgba(37, 52, 79, 0.88) 100%);
+  --workbench-summary-border: rgba(148, 163, 184, 0.18);
+  --workbench-title: #f8fafc;
+  --workbench-text: #e2e8f0;
+  --workbench-text-soft: #cbd5e1;
+  --workbench-text-muted: #94a3b8;
+  --workbench-tab-text: rgba(226, 232, 240, 0.8);
+  --workbench-tab-active: #ffffff;
+  --workbench-filter-bg: linear-gradient(180deg, rgba(22, 31, 49, 0.52) 0%, rgba(22, 31, 49, 0.36) 100%);
+  --workbench-table-bg: transparent;
+  --workbench-table-row-bg: rgba(255, 255, 255, 0.02);
+  --workbench-table-header-bg: rgba(19, 30, 49, 0.68);
+  --workbench-table-border: rgba(148, 163, 184, 0.14);
+  --workbench-table-text: #e5edf8;
+  --workbench-table-header-text: #f8fafc;
+  --workbench-pagination-text: rgba(226, 232, 240, 0.92);
+  --workbench-side-item-hover: rgba(82, 172, 255, 0.12);
+  --workbench-side-item-active: rgba(82, 172, 255, 0.16);
 }

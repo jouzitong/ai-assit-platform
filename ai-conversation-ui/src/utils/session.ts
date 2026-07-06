@@ -1,6 +1,7 @@
 export const TOKEN_STORAGE_KEY = 'ai-conversation-ui-token'
 export const USER_STORAGE_KEY = 'ai-conversation-ui-user'
 export const THEME_STORAGE_KEY = 'ai-conversation-ui-theme'
+export const LOGIN_PATH = '/auth/login'
 
 export function getToken() {
   return window.localStorage.getItem(TOKEN_STORAGE_KEY)
@@ -34,4 +35,35 @@ export function setSession(session: { token: string; user?: unknown | null }) {
 export function clearSession() {
   window.localStorage.removeItem(TOKEN_STORAGE_KEY)
   window.localStorage.removeItem(USER_STORAGE_KEY)
+}
+
+export function isLoginRoute(path = window.location.pathname) {
+  return path === LOGIN_PATH
+}
+
+export function normalizeRedirectPath(redirectPath?: string | null) {
+  if (!redirectPath || !redirectPath.startsWith('/') || redirectPath.startsWith(LOGIN_PATH)) {
+    return ''
+  }
+  return redirectPath
+}
+
+export function buildLoginPath(redirectPath?: string | null) {
+  const normalizedRedirectPath = normalizeRedirectPath(redirectPath)
+  if (!normalizedRedirectPath) {
+    return LOGIN_PATH
+  }
+
+  return `${LOGIN_PATH}?redirect=${encodeURIComponent(normalizedRedirectPath)}`
+}
+
+export function redirectToLogin(redirectPath?: string | null) {
+  clearSession()
+
+  const currentPath = `${window.location.pathname}${window.location.search}${window.location.hash}`
+  if (isLoginRoute()) {
+    return
+  }
+
+  window.location.replace(buildLoginPath(redirectPath ?? currentPath))
 }

@@ -5,8 +5,8 @@ import { useRoute, useRouter } from 'vue-router'
 import { submitLogin } from '../service'
 
 const formState = reactive({
-  username: '',
-  password: '',
+  username: 'admin',
+  password: 'Admin@123456',
   tenantId: '',
   remember: true,
 })

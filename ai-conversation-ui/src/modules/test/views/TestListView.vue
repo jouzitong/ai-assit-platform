@@ -19,15 +19,19 @@ type DemoRecord = {
     title: string
   }
   categoryKey: string
+  groupKey: string
+  deadline: string
+  priority: string
 }
 
 const baseSchema: ListRendererSchema = {
   id: 'qwerty12345678aeswrtyui3234',
   version: '1.0.0',
-  title: '测试列表页面',
+  title: '任务中心',
   component: 'common-tree-list',
   tree: {
-    component: 'common-tree',
+    component: 'group-list',
+    title: '任务组列表',
   },
   tab: {
     activeTab: 'all',
@@ -100,7 +104,7 @@ const baseSchema: ListRendererSchema = {
     {
       key: 'title',
       name: 'title',
-      label: '标题',
+      label: '任务',
       field: ['tag', 'title'],
       options: {
         styles: {
@@ -122,29 +126,82 @@ const baseSchema: ListRendererSchema = {
         },
       },
     },
+    {
+      key: 'deadline',
+      name: 'deadline',
+      label: '截止时间',
+      field: ['deadline'],
+      options: {
+        styles: {
+          'text-align': 'left',
+          width: 18,
+        },
+      },
+    },
+    {
+      key: 'priority',
+      name: 'priority',
+      label: '优先级',
+      field: ['priority'],
+      options: {
+        styles: {
+          'text-align': 'left',
+          width: 14,
+        },
+      },
+    },
   ],
   actions: [
     {
-      key: 'add',
-      name: '添加',
+      key: 'edit-page',
+      name: '编辑页',
+      action: 'EDIT_PAGE',
+      type: '',
+    },
+    {
+      key: 'create',
+      name: '新增',
       action: 'ADD',
       type: 'primary',
     },
+    {
+      key: 'sync',
+      name: '同步',
+      action: 'SYNC',
+      type: '',
+    },
+    {
+      key: 'main',
+      name: '主按钮',
+      action: 'PRIMARY_ACTION',
+      type: 'success',
+    },
+    {
+      key: 'more',
+      name: '更多操作',
+      action: 'MORE',
+      type: '',
+    },
   ],
+  summary: {
+    cards: [
+      { key: 'pending', label: '待处理', value: 18, accent: '#f7c85b' },
+      { key: 'running', label: '进行中', value: 27, accent: '#9b8cff' },
+      { key: 'review', label: '待评审', value: 9, accent: '#8ea3ff' },
+      { key: 'done', label: '本周完成', value: 22, accent: '#5eead4' },
+      { key: 'overdue', label: '超期', value: 4, accent: '#fb7185' },
+      { key: 'expiring', label: '即将到期', value: 11, accent: '#fbbf24' },
+    ],
+  },
   list_config: {
+    variant: 'workbench',
     itemType: 'table',
     actionColumns: [
       {
-        key: 'edit',
-        name: '编辑',
-        action: 'EDIT',
+        key: 'view',
+        name: '查看',
+        action: 'VIEW',
         type: 'primary',
-      },
-      {
-        key: 'delete',
-        name: '删除',
-        action: 'DELETE',
-        type: 'danger',
       },
     ],
     pagination: {
@@ -180,12 +237,31 @@ const schemaWithMetadataAction = computed<ListRendererSchema>(() => ({
 
 const treeData: RendererTreeNode[] = [
   {
-    key: 'all',
-    label: '全部分类',
+    key: 'growth',
+    label: '增长实验',
     children: [
-      { key: 'product', label: '产品资料' },
-      { key: 'ops', label: '运维文档' },
-      { key: 'policy', label: '制度规范' },
+      { key: 'ab', label: 'AB 实验', count: 14 },
+      { key: 'funnel', label: '转化漏斗', count: 6 },
+      { key: 'campaign', label: '活动运营', count: 9 },
+    ],
+  },
+  {
+    key: 'product',
+    label: '产品迭代',
+    children: [
+      { key: 'ux', label: '交互体验', count: 7 },
+      { key: 'trade', label: '交易性能', count: 12 },
+      { key: 'risk', label: '风控策略', count: 5 },
+      { key: 'board', label: '数据看板', count: 8 },
+    ],
+  },
+  {
+    key: 'infra',
+    label: '基础建设',
+    children: [
+      { key: 'stability', label: '稳定性提升', count: 4 },
+      { key: 'monitor', label: '监控告警', count: 3 },
+      { key: 'cost', label: '成本优化', count: 5 },
     ],
   },
 ]
@@ -199,6 +275,9 @@ const records = reactive<DemoRecord[]>([
     title: '员工入职手册',
     tag: { title: '员工入职手册' },
     categoryKey: 'policy',
+    groupKey: 'stability',
+    deadline: '2026/02/05',
+    priority: 'P1',
   },
   {
     id: 'DOC-1002',
@@ -208,6 +287,9 @@ const records = reactive<DemoRecord[]>([
     title: '知识库接入说明',
     tag: { title: '知识库接入说明' },
     categoryKey: 'product',
+    groupKey: 'board',
+    deadline: '2026/02/06',
+    priority: 'P2',
   },
   {
     id: 'DOC-1003',
@@ -217,6 +299,9 @@ const records = reactive<DemoRecord[]>([
     title: '模型配置发布流程',
     tag: { title: '模型配置发布流程' },
     categoryKey: 'ops',
+    groupKey: 'risk',
+    deadline: '2026/02/04',
+    priority: 'P1',
   },
   {
     id: 'DOC-1004',
@@ -226,6 +311,9 @@ const records = reactive<DemoRecord[]>([
     title: '向量检索参数建议',
     tag: { title: '向量检索参数建议' },
     categoryKey: 'product',
+    groupKey: 'ux',
+    deadline: '2026/02/07',
+    priority: 'P2',
   },
   {
     id: 'DOC-1005',
@@ -235,6 +323,9 @@ const records = reactive<DemoRecord[]>([
     title: '权限审批流程',
     tag: { title: '权限审批流程' },
     categoryKey: 'policy',
+    groupKey: 'monitor',
+    deadline: '2026/02/08',
+    priority: 'P0',
   },
   {
     id: 'DOC-1006',
@@ -244,6 +335,9 @@ const records = reactive<DemoRecord[]>([
     title: '渲染模块发布清单',
     tag: { title: '渲染模块发布清单' },
     categoryKey: 'ops',
+    groupKey: 'cost',
+    deadline: '2026/02/06',
+    priority: 'P1',
   },
 ])
 
@@ -265,7 +359,7 @@ const filteredRecords = computed(() => {
     const selectedOwners = Array.isArray(queryState.filters.owner) ? queryState.filters.owner : []
     const matchTab = queryState.activeTab === 'all' || item.owner === 'zhou'
     const matchKeyword = !keyword || item.title.toLowerCase().includes(keyword) || item.id.toLowerCase().includes(keyword)
-    const matchTree = !queryState.selectedTreeKey || queryState.selectedTreeKey === 'all' || item.categoryKey === queryState.selectedTreeKey
+    const matchTree = !queryState.selectedTreeKey || item.groupKey === queryState.selectedTreeKey
     const matchOwner = selectedOwners.length === 0 || selectedOwners.includes(item.owner)
     return matchTab && matchKeyword && matchTree && matchOwner
   })

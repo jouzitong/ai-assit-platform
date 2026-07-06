@@ -1,5 +1,5 @@
 import { GATEWAY_BASE_URL } from '../config/runtime'
-import { getToken } from '../utils/session'
+import { getToken, redirectToLogin } from '../utils/session'
 import { applyRequestInterceptor, applyResponseInterceptor } from './interceptor'
 import type { ApiRequestConfig, ApiResponse } from './types'
 
@@ -41,6 +41,16 @@ function resolveBusinessMessage(payload: unknown, fallback: string) {
   }
   const candidate = payload as { msg?: string; message?: string }
   return candidate.msg || candidate.message || fallback
+}
+
+function resolveStatusFallback(status: number) {
+  if (status === 401) {
+    return '登录已失效，请重新登录'
+  }
+  if (status === 403) {
+    return '无权限访问该资源'
+  }
+  return `Request failed with status ${status}`
 }
 
 function unwrapBusinessPayload<T>(payload: ApiResponse<T> | T, fallback = '请求失败') {
@@ -112,7 +122,11 @@ export async function requestRaw(input: string, config: ApiRequestConfig = {}) {
   const response = await fetch(url, finalConfig)
   if (!response.ok) {
     const errorPayload = await readResponsePayload(response).catch(() => '')
-    throw new Error(resolveBusinessMessage(errorPayload, `Request failed with status ${response.status}`))
+    const message = resolveBusinessMessage(errorPayload, resolveStatusFallback(response.status))
+    if (response.status === 401) {
+      redirectToLogin()
+    }
+    throw new Error(message)
   }
 
   return response

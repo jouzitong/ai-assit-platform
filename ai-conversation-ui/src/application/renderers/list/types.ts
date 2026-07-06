@@ -12,7 +12,8 @@ export interface RendererTabItem {
 }
 
 export interface RendererTreeConfig {
-  component?: string
+  component?: 'common-tree' | 'group-list' | string
+  title?: string
 }
 
 export interface RendererTabConfig {
@@ -89,7 +90,20 @@ export interface RendererPaginationConfig {
   pageSizeOptions?: number[]
 }
 
+export interface RendererSummaryCard {
+  key: string
+  label: string
+  value: string | number
+  accent?: string
+  hint?: string
+}
+
+export interface RendererSummaryConfig {
+  cards?: RendererSummaryCard[]
+}
+
 export interface RendererListConfig {
+  variant?: 'default' | 'workbench'
   itemType?: 'table' | 'card' | 'item'
   cardItem?: Record<string, unknown>
   item_operate?: Record<string, unknown>
@@ -115,6 +129,7 @@ export interface ListRendererSchema {
   filters?: RendererFilter[]
   fields?: RendererField[]
   actions?: RendererAction[]
+  summary?: RendererSummaryConfig
   list_config?: RendererListConfig
   hooks?: RendererHooks
 }
@@ -122,6 +137,7 @@ export interface ListRendererSchema {
 export interface RendererTreeNode {
   key: string | number
   label: string
+  count?: number
   children?: RendererTreeNode[]
   [key: string]: unknown
 }

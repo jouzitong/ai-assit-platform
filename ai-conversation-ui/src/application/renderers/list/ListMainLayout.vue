@@ -3,6 +3,7 @@ import { computed, reactive, watch } from 'vue'
 import ListDataView from './components/ListDataView.vue'
 import ListFilterBar from './components/ListFilterBar.vue'
 import ListHeaderBar from './components/ListHeaderBar.vue'
+import ListSummaryBar from './components/ListSummaryBar.vue'
 import ListTabsBar from './components/ListTabsBar.vue'
 import ListTreePanel from './components/ListTreePanel.vue'
 import { createDefaultQueryState, normalizeSchema, shouldShowTree } from './schema'
@@ -57,6 +58,8 @@ watch(
 
 const showTree = computed(() => shouldShowTree(normalizedSchema.value))
 const paginationEnabled = computed(() => normalizedSchema.value.list_config?.pagination?.enabled)
+const variant = computed(() => normalizedSchema.value.list_config?.variant || 'default')
+const summaryCards = computed(() => normalizedSchema.value.summary?.cards || [])
 
 const handleAction = (action: RendererAction) => {
   emit('action', action)
@@ -105,7 +108,7 @@ const handlePageSizeChange = (pageSize: number) => {
 </script>
 
 <template>
-  <section class="list-main-layout">
+  <section class="list-main-layout" :class="`list-main-layout--${variant}`">
     <ListHeaderBar :schema="normalizedSchema" @action="handleAction" />
 
     <ListTabsBar
@@ -114,17 +117,10 @@ const handlePageSizeChange = (pageSize: number) => {
       @update:model-value="handleTabChange"
     />
 
-    <ListFilterBar
-      :filters="normalizedSchema.filters || []"
-      :model-value="queryState.filters"
-      @update:model-value="handleFilterChange"
-      @submit="handleSearch"
-      @reset="handleReset"
-    />
-
     <div class="list-main-layout__body" :class="{ 'list-main-layout__body--tree': showTree }">
       <aside v-if="showTree" class="list-main-layout__tree">
         <ListTreePanel
+          :config="normalizedSchema.tree"
           :data="treeData"
           :selected-key="queryState.selectedTreeKey"
           @select="handleTreeSelect"
@@ -133,6 +129,16 @@ const handlePageSizeChange = (pageSize: number) => {
 
       <div class="list-main-layout__content">
         <el-card shadow="never" class="list-main-layout__content-card">
+          <ListFilterBar
+            :filters="normalizedSchema.filters || []"
+            :model-value="queryState.filters"
+            @update:model-value="handleFilterChange"
+            @submit="handleSearch"
+            @reset="handleReset"
+          />
+
+          <ListSummaryBar :cards="summaryCards" />
+
           <ListDataView
             :schema="normalizedSchema"
             :records="records"
@@ -170,6 +176,11 @@ const handlePageSizeChange = (pageSize: number) => {
   border-radius: 28px;
 }
 
+.list-main-layout--workbench {
+  min-height: calc(100vh - 64px);
+  background: var(--workbench-shell-bg);
+}
+
 .list-main-layout__body {
   min-width: 0;
 }
@@ -187,6 +198,51 @@ const handlePageSizeChange = (pageSize: number) => {
 
 .list-main-layout__content-card {
   border-radius: 28px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.list-main-layout--workbench .list-main-layout__content-card {
+  border: 1px solid var(--workbench-panel-border);
+  background: var(--workbench-panel-bg);
+  box-shadow: var(--workbench-panel-shadow);
+}
+
+.list-main-layout--workbench :deep(.list-header-bar__title) {
+  color: var(--workbench-title);
+}
+
+.list-main-layout--workbench :deep(.list-tabs-bar .el-tabs__item) {
+  color: var(--workbench-tab-text);
+}
+
+.list-main-layout--workbench :deep(.list-tabs-bar .el-tabs__item.is-active) {
+  color: var(--workbench-tab-active);
+}
+
+.list-main-layout--workbench :deep(.list-filter-bar) {
+  border: 0;
+  background: var(--workbench-filter-bg);
+}
+
+.list-main-layout--workbench :deep(.list-data-view__table) {
+  --el-table-bg-color: var(--workbench-table-bg);
+  --el-table-tr-bg-color: var(--workbench-table-row-bg);
+  --el-table-header-bg-color: var(--workbench-table-header-bg);
+  --el-table-border-color: var(--workbench-table-border);
+  --el-table-text-color: var(--workbench-table-text);
+  --el-table-header-text-color: var(--workbench-table-header-text);
+}
+
+.list-main-layout--workbench :deep(.el-pagination) {
+  --el-text-color-regular: var(--workbench-pagination-text);
+}
+
+.list-main-layout--workbench :deep(.el-card__body) {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .list-main-layout__pagination {
