@@ -1,5 +1,8 @@
 package ai.platform.aiassit.conversation.workflow.engine.impl;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventSources;
+import ai.platform.aiassit.conversation.constant.ConversationEventTypes;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.dto.AiChatQueryStreamEvent;
@@ -153,7 +156,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 if (workflowNodeConfig == null) {
                     failWorkflow(context,
                             "workflow node config not found: " + currentNodeId,
-                            "workflow-error",
+                            ConversationEventTypes.ERROR,
                             "workflow node config not found: " + currentNodeId);
                     return;
                 }
@@ -161,12 +164,16 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 if (currentNode == null) {
                     failWorkflow(context,
                             "workflow node not found: " + workflowNodeConfig.getNodeId(),
-                            "workflow-error",
+                            ConversationEventTypes.ERROR,
                             "workflow node not found: " + workflowNodeConfig.getNodeId());
                     return;
                 }
-                context.publishEvent("node-start",
-                        "start node: " + workflowNodeConfig.getNodeId());
+                context.publishProgressEvent(
+                        ConversationEventSources.WORKFLOW,
+                        ConversationEventPhases.STARTED,
+                        "start node: " + workflowNodeConfig.getNodeId(),
+                        Map.of("nodeCode", workflowNodeConfig.getNodeId())
+                );
                 NodeExecutionResult result;
                 try {
                     result = adaptNodeResult(currentNode.execute(context, workflowNodeConfig), workflowNodeConfig);
@@ -174,24 +181,28 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                     log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
                     failWorkflow(context,
                             "Error executing node: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage(),
-                            "node-failed",
+                            ConversationEventTypes.ERROR,
                             "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
                     return;
                 }
                 if (result == null || !result.isSuccess()) {
                     failWorkflow(context,
                             result.getErrorMessage(),
-                            "node-failed",
+                            ConversationEventTypes.ERROR,
                             "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + result.getErrorMessage());
                     return;
                 }
-                context.publishEvent("node-complete",
-                        "complete node: " + workflowNodeConfig.getNodeId());
+                context.publishProgressEvent(
+                        ConversationEventSources.WORKFLOW,
+                        ConversationEventPhases.COMPLETED,
+                        "complete node: " + workflowNodeConfig.getNodeId(),
+                        Map.of("nodeCode", workflowNodeConfig.getNodeId())
+                );
                 TransitionDecision decision = transitionResolver.resolve(definition, state, workflowNodeConfig, result);
                 if (decision == null) {
                     failWorkflow(context,
                             "workflow transition decision is required",
-                            "workflow-error",
+                            ConversationEventTypes.ERROR,
                             "workflow transition decision is required");
                     return;
                 }
@@ -199,13 +210,24 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 if (decision.getAction() == TransitionAction.FAIL) {
                     failWorkflow(context,
                             StringUtils.defaultIfBlank(decision.getReason(), "workflow transition failed"),
-                            "workflow-error",
+                            ConversationEventTypes.ERROR,
                             "workflow transition failed: " + decision.getReason());
                     return;
                 }
                 if (decision.getAction() == TransitionAction.WAIT || decision.getAction() == TransitionAction.CLARIFY) {
-                    context.publishEvent(decision.getAction() == TransitionAction.WAIT ? "workflow-wait" : "workflow-clarify",
-                            StringUtils.defaultIfBlank(decision.getReason(), "workflow paused"));
+                    if (decision.getAction() == TransitionAction.WAIT) {
+                        context.publishProgressEvent(
+                                ConversationEventSources.WORKFLOW,
+                                ConversationEventPhases.RUNNING,
+                                StringUtils.defaultIfBlank(decision.getReason(), "workflow paused")
+                        );
+                    } else {
+                        context.publishClarificationEvent(
+                                ConversationEventSources.WORKFLOW,
+                                ConversationEventPhases.READY,
+                                StringUtils.defaultIfBlank(decision.getReason(), "workflow paused")
+                        );
+                    }
                     currentNodeId = null;
                     continue;
                 }
@@ -223,14 +245,18 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                     ex);
             failWorkflow(context,
                     ex.getMessage(),
-                    "workflow-error",
+                    ConversationEventTypes.ERROR,
                     "workflow execution failed: " + ex.getMessage());
         }
     }
 
-    private void failWorkflow(WorkflowContext context, String errorMessage, String eventName, String eventMessage) {
+    private void failWorkflow(WorkflowContext context, String errorMessage, String eventType, String eventMessage) {
         context.put(WorkflowContextKeys.Common.ERROR, errorMessage);
-        context.publishEvent(eventName, eventMessage);
+        if (ConversationEventTypes.ERROR.equals(eventType)) {
+            context.publishErrorEvent(ConversationEventSources.WORKFLOW, ConversationEventPhases.FAILED, eventMessage);
+        } else {
+            context.publishEvent(eventType, ConversationEventSources.WORKFLOW, ConversationEventPhases.FAILED, eventMessage);
+        }
         finishRound(context, STATUS_FAILED);
     }
 
@@ -250,14 +276,15 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "intentAnalyzeResponse", response);
             refreshRoundType(context, response);
             rebindWorkflowDefinitionByIntent(context, response);
-            context.publishEvent("base-intent-analysis-ready", "base intent analysis prepared");
+            context.publishProgressEvent(ConversationEventSources.INTENT_ANALYZE,
+                    ConversationEventPhases.READY, "base intent analysis prepared");
         } catch (Exception ex) {
             log.warn("base intent analyze failed, sessionCode={}, roundCode={}",
                     context.getSession() == null ? null : context.getSession().getSessionCode(),
-                    context.getRound() == null ? null : context.getRound().getRoundCode(),
-                    ex);
+                    context.getRound() == null ? null : context.getRound().getRoundCode(), ex);
             context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_ERROR, ex.getMessage());
-            context.publishEvent("base-intent-analysis-skipped", "base intent analysis skipped");
+            context.publishProgressEvent(ConversationEventSources.INTENT_ANALYZE,
+                    ConversationEventPhases.SKIPPED, "base intent analysis skipped");
         }
     }
 
@@ -524,13 +551,20 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         String source = decision.getDecisionSource() == null ? DecisionSource.DEFAULT_EDGE.name() : decision.getDecisionSource().name();
         String targetNodeId = StringUtils.defaultIfBlank(decision.getTargetNodeId(), "END");
         String reason = StringUtils.defaultIfBlank(decision.getReason(), "no reason");
-        context.publishEvent(
-                "transition-decided",
+        context.publishProgressEvent(
+                ConversationEventSources.WORKFLOW,
+                ConversationEventPhases.READY,
                 "transition node: " + workflowNodeConfig.getNodeId()
                         + " -> " + targetNodeId
                         + ", action=" + decision.getAction()
                         + ", source=" + source
-                        + ", reason=" + reason
+                        + ", reason=" + reason,
+                Map.of(
+                        "nodeCode", workflowNodeConfig.getNodeId(),
+                        "targetNodeId", targetNodeId,
+                        "action", decision.getAction().name(),
+                        "decisionSource", source
+                )
         );
     }
 
@@ -539,13 +573,16 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             return;
         }
         AiChatQueryStreamEvent completeEvent = new AiChatQueryStreamEvent();
-        completeEvent.setEventType("complete");
+        completeEvent.setEventType(ConversationEventTypes.COMPLETE);
+        completeEvent.setSource(ConversationEventSources.CONVERSATION);
+        completeEvent.setPhase(ConversationEventPhases.COMPLETED);
         completeEvent.setRequestId(context.getCommand() == null ? null : context.getCommand().getTraceId());
         completeEvent.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
+        completeEvent.setSessionName(context.getSession() == null ? null : context.getSession().getSessionName());
         completeEvent.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
         completeEvent.setAnswer(context.getRenderedAnswer());
         completeEvent.setStatus(STATUS_SUCCESS);
-        context.getEmitter().send(SseEmitter.event().name("complete").data(completeEvent, MediaType.APPLICATION_JSON));
+        context.getEmitter().send(SseEmitter.event().name(ConversationEventTypes.COMPLETE).data(completeEvent, MediaType.APPLICATION_JSON));
     }
 
     private void sendErrorEvent(WorkflowContext context, Exception ex) {
@@ -553,14 +590,17 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             return;
         }
         AiChatQueryStreamEvent errorEvent = new AiChatQueryStreamEvent();
-        errorEvent.setEventType("error");
+        errorEvent.setEventType(ConversationEventTypes.ERROR);
+        errorEvent.setSource(ConversationEventSources.WORKFLOW);
+        errorEvent.setPhase(ConversationEventPhases.FAILED);
         errorEvent.setRequestId(context.getCommand() == null ? null : context.getCommand().getTraceId());
         errorEvent.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
+        errorEvent.setSessionName(context.getSession() == null ? null : context.getSession().getSessionName());
         errorEvent.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
-        errorEvent.setStatus("FAILED");
+        errorEvent.setStatus(ConversationEventPhases.FAILED);
         errorEvent.setMessage(ex.getMessage());
         try {
-            context.getEmitter().send(SseEmitter.event().name("error").data(errorEvent, MediaType.APPLICATION_JSON));
+            context.getEmitter().send(SseEmitter.event().name(ConversationEventTypes.ERROR).data(errorEvent, MediaType.APPLICATION_JSON));
         } catch (IOException ioException) {
             log.warn("failed to send workflow error event", ioException);
         }
@@ -630,13 +670,16 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             return;
         }
         AiChatQueryStreamEvent initEvent = new AiChatQueryStreamEvent();
-        initEvent.setEventType("init");
+        initEvent.setEventType(ConversationEventTypes.PROGRESS);
+        initEvent.setSource(ConversationEventSources.CONVERSATION);
+        initEvent.setPhase(ConversationEventPhases.STARTED);
         initEvent.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
         initEvent.setSessionName(context.getSession() == null ? null : context.getSession().getSessionName());
         initEvent.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
         initEvent.setStatus(STATUS_RUNNING);
+        initEvent.setMessage("conversation started");
         try {
-            context.getEmitter().send(SseEmitter.event().name("init").data(initEvent, MediaType.APPLICATION_JSON));
+            context.getEmitter().send(SseEmitter.event().name(ConversationEventTypes.PROGRESS).data(initEvent, MediaType.APPLICATION_JSON));
         } catch (IOException ex) {
             throw new IllegalStateException("failed to send init event", ex);
         }

@@ -1,5 +1,8 @@
 package ai.platform.aiassit.conversation.service.impl;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventSources;
+import ai.platform.aiassit.conversation.constant.ConversationEventTypes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.dto.chat.AiChatQueryResponse;
 import ai.platform.aiassit.conversation.dto.chat.AiChatStreamReconnectRequest;
@@ -171,13 +174,16 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
                                AiChatSessionDTO session,
                                AiChatRoundDTO round) throws IOException {
         AiChatQueryStreamEvent initEvent = new AiChatQueryStreamEvent();
-        initEvent.setEventType("init");
+        initEvent.setEventType(ConversationEventTypes.PROGRESS);
+        initEvent.setSource(ConversationEventSources.CONVERSATION);
+        initEvent.setPhase(ConversationEventPhases.STARTED);
         initEvent.setRequestId(traceId);
         initEvent.setSessionCode(session.getSessionCode());
         initEvent.setSessionName(session.getSessionName());
         initEvent.setRoundCode(round.getRoundCode());
         initEvent.setStatus(round.getStatus());
-        emitter.send(SseEmitter.event().name("init").data(initEvent, MediaType.APPLICATION_JSON));
+        initEvent.setMessage("conversation started");
+        emitter.send(SseEmitter.event().name(ConversationEventTypes.PROGRESS).data(initEvent, MediaType.APPLICATION_JSON));
     }
 
     private void sendAnswerSnapshot(SseEmitter emitter,
@@ -186,14 +192,17 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
                                     AiChatRoundDTO round,
                                     String answer) throws IOException {
         AiChatQueryStreamEvent answerEvent = new AiChatQueryStreamEvent();
-        answerEvent.setEventType("answer-ready");
+        answerEvent.setEventType(ConversationEventTypes.ANSWER);
+        answerEvent.setSource(ConversationEventSources.CONVERSATION);
+        answerEvent.setPhase(ConversationEventPhases.READY);
         answerEvent.setRequestId(traceId);
         answerEvent.setSessionCode(session.getSessionCode());
+        answerEvent.setSessionName(session.getSessionName());
         answerEvent.setRoundCode(round.getRoundCode());
         answerEvent.setAnswer(answer);
         answerEvent.setStatus(round.getStatus());
         answerEvent.setMessage("replayed current answer snapshot");
-        emitter.send(SseEmitter.event().name("answer-ready").data(answerEvent, MediaType.APPLICATION_JSON));
+        emitter.send(SseEmitter.event().name(ConversationEventTypes.ANSWER).data(answerEvent, MediaType.APPLICATION_JSON));
     }
 
     private void sendCompleteEvent(SseEmitter emitter,
@@ -202,13 +211,16 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
                                    AiChatRoundDTO round,
                                    String answer) throws IOException {
         AiChatQueryStreamEvent completeEvent = new AiChatQueryStreamEvent();
-        completeEvent.setEventType("complete");
+        completeEvent.setEventType(ConversationEventTypes.COMPLETE);
+        completeEvent.setSource(ConversationEventSources.CONVERSATION);
+        completeEvent.setPhase(ConversationEventPhases.COMPLETED);
         completeEvent.setRequestId(traceId);
         completeEvent.setSessionCode(session.getSessionCode());
+        completeEvent.setSessionName(session.getSessionName());
         completeEvent.setRoundCode(round.getRoundCode());
         completeEvent.setAnswer(answer);
         completeEvent.setStatus("SUCCESS");
-        emitter.send(SseEmitter.event().name("complete").data(completeEvent, MediaType.APPLICATION_JSON));
+        emitter.send(SseEmitter.event().name(ConversationEventTypes.COMPLETE).data(completeEvent, MediaType.APPLICATION_JSON));
     }
 
     private void sendErrorEvent(SseEmitter emitter,
@@ -217,12 +229,15 @@ public class WorkflowAiChatQueryServiceImpl implements AiChatQueryService {
                                 AiChatRoundDTO round,
                                 String message) throws IOException {
         AiChatQueryStreamEvent errorEvent = new AiChatQueryStreamEvent();
-        errorEvent.setEventType("error");
+        errorEvent.setEventType(ConversationEventTypes.ERROR);
+        errorEvent.setSource(ConversationEventSources.CONVERSATION);
+        errorEvent.setPhase(ConversationEventPhases.FAILED);
         errorEvent.setRequestId(traceId);
         errorEvent.setSessionCode(session.getSessionCode());
+        errorEvent.setSessionName(session.getSessionName());
         errorEvent.setRoundCode(round.getRoundCode());
         errorEvent.setStatus("FAILED");
         errorEvent.setMessage(message);
-        emitter.send(SseEmitter.event().name("error").data(errorEvent, MediaType.APPLICATION_JSON));
+        emitter.send(SseEmitter.event().name(ConversationEventTypes.ERROR).data(errorEvent, MediaType.APPLICATION_JSON));
     }
 }

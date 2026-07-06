@@ -1,5 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.node.impl;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
@@ -124,11 +126,14 @@ public class RenderNode extends BaseWorkflowNode {
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
             context.put(WorkflowContextKeys.Render.RENDER_JSON, renderJson);
             context.put(WorkflowContextKeys.Render.RENDERED_ANSWER, renderJsonText);
-            context.publishEvent("answer-ready",
+            context.publishAnswerEvent(
+                    ConversationEventSources.RENDER,
+                    ConversationEventPhases.COMPLETED,
                     buildAnswerReadyMessage(renderPage),
                     renderJsonText,
                     null,
-                    STATUS_SUCCESS);
+                    STATUS_SUCCESS
+            );
 
             persistAssistantMessage(context, renderJsonText);
             historyRecorder.saveArtifact(

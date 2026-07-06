@@ -24,7 +24,6 @@ import java.util.Objects;
 @Component
 public class WorkflowPromptContextCapabilityExecutor {
 
-    private static final String OUTPUT_KEY_PROMPT_CONTEXT = "promptContext";
     private static final String OUTPUT_KEY_PROMPT_CONTEXT_ITEMS = "promptContextItems";
     private static final String OUTPUT_KEY_PROMPT_CONTEXT_SOURCES = "promptContextSources";
 

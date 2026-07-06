@@ -1,5 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.node.impl;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
@@ -81,7 +83,14 @@ public class SimpleChatNode extends BaseWorkflowNode {
             context.getOrCreateNodeResult(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode()).setStatus(STATUS_SUCCESS);
             context.putNodeOutput(WorkflowNodeCodes.SIMPLE_CHAT.getNodeCode(), "requestId",
                     response == null ? null : response.getRequestId());
-            context.publishEvent("answer-ready", "simple chat answer prepared", answer, null, STATUS_SUCCESS);
+            context.publishAnswerEvent(
+                    ConversationEventSources.SIMPLE_CHAT,
+                    ConversationEventPhases.COMPLETED,
+                    "simple chat answer prepared",
+                    answer,
+                    null,
+                    STATUS_SUCCESS
+            );
 
             persistAssistantMessage(context, answer);
             return NodeResult.success(null);
@@ -157,8 +166,14 @@ public class SimpleChatNode extends BaseWorkflowNode {
         if (StringUtils.hasText(response.getSummary())) {
             parts.add("summary=" + response.getSummary());
         }
-        if (!CollectionUtils.isEmpty(response.getImportantInfos())) {
-            parts.add("importantInfos=" + response.getImportantInfos());
+        if (StringUtils.hasText(response.getSessionTitle())) {
+            parts.add("sessionTitle=" + response.getSessionTitle());
+        }
+        if (response.getRisk() != null && StringUtils.hasText(response.getRisk().getSummary())) {
+            parts.add("risk=" + response.getRisk().getSummary());
+        }
+        if (StringUtils.hasText(response.getClarificationQuestion())) {
+            parts.add("clarificationQuestion=" + response.getClarificationQuestion());
         }
         return parts.isEmpty() ? null : "基础意图分析结论：" + String.join("；", parts);
     }

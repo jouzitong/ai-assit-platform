@@ -44,37 +44,55 @@ public class WorkflowIntentAnalyzeService {
             请根据当前用户问题、历史对话和补充上下文，先做一轮轻量但可靠的意图预分析。
 
             你的目标不是直接产出最终查询规划，而是先给出稳定的基础结论，供后续 Planning 使用。
+            你只能做基础意图分析，不要输出指标、维度、数据集、时间范围、SQL 规划等下游结构。
 
             你必须只返回严格合法的 JSON，对象结构固定如下：
             {
-              "businessType": "预留字段，当前阶段暂不使用；如果提供，仅作为候选业务域，后续真正使用时必须重新核对",
               "intentType": "意图类型，仅允许 SIMPLE_CHAT 或 QUERY_RENDER",
               "rewrittenQuery": "归一化后的用户问题",
               "summary": "用户需求摘要，突出真正想解决的问题",
-              "intentLabels": ["标签1"],
-              "metrics": ["指标1"],
-              "dimensions": ["维度1"],
-              "candidateDatasets": ["候选数据集1"],
-              "requiredContext": ["仍需补充的上下文1"],
-              "risks": ["需要注意的风险1"],
+              "sessionTitle": "适合给 session 使用的短标题",
+              "typoCorrected": false,
+              "corrections": ["错别字1 -> 正确表达1"],
+              "risk": {
+                "level": "LOW",
+                "summary": "整体风险总结",
+                "items": [
+                  {
+                    "type": "TYPO",
+                    "description": "风险描述",
+                    "evidence": "判断依据",
+                    "score": 0.85
+                  }
+                ]
+              },
+              "score": 0.86,
+              "invalidIntentSummary": "对历史已失效意图的总结描述；如果没有则返回空字符串",
+              "invalidIntents": [
+                {
+                  "content": "已失效的旧观点",
+                  "reason": "为什么失效",
+                  "evidence": "失效依据内容",
+                  "score": 0.91
+                }
+              ],
               "clarificationNeeded": false,
-              "clarificationQuestions": ["建议追问1"],
-              "importantInfos": ["其他重要信息1"],
-              "timeRange": {"granularity":"DAY","startDate":"2026-06-01","endDate":"2026-06-15"}
+              "clarificationQuestion": "若需要追问，返回最关键的一句；否则返回空字符串"
             }
 
             字段要求：
-            1. businessType、intentType、rewrittenQuery、summary 必须为非空字符串
-            2. 所有数组字段必须返回 JSON 数组，可为空数组
-            3. clarificationNeeded 必须返回布尔值
-            4. timeRange 必须返回 JSON 对象，可为空对象
-            5. importantInfos 重点补充业务口径、隐含对象、默认前提、限制条件等
-            6. businessType 当前只是预留候选字段，不作为最终业务判断依据；如果无法稳定判断，请返回 GENERAL
-            7. intentType 取值规则：
+            1. intentType、rewrittenQuery、summary、sessionTitle、clarificationQuestion、invalidIntentSummary 必须返回字符串
+            2. corrections、invalidIntents、risk.items 必须返回 JSON 数组，可为空数组
+            3. typoCorrected、clarificationNeeded 必须返回布尔值
+            4. risk、invalidIntents 中的 score 以及顶层 score 必须返回 0~1 的数字
+            5. risk 描述的是“分析风险”，例如错别字、歧义、上下文冲突、信息缺失，而不是业务风险
+            6. rewrittenQuery 允许纠正错别字、口语、省略和代词，但不要扩展成查询规划
+            7. invalidIntentSummary 和 invalidIntents 只描述“历史理解里哪些内容已经失效”
+            8. intentType 取值规则：
                - SIMPLE_CHAT：普通闲聊、解释、问答、建议，不需要进入查数渲染链路
                - QUERY_RENDER：用户核心目标是查数据、分析数据、生成报表、做指标解释或需要进入查询渲染链路
-            8. 如果无法绝对确认，但问题明显偏向数据查询/分析，优先返回 QUERY_RENDER
-            9. 不要输出 JSON 之外的任何解释
+            9. 如果无法绝对确认，但问题明显偏向数据查询/分析，优先返回 QUERY_RENDER
+            10. 不要输出 JSON 之外的任何解释
             """;
 
     private final AiExecutionDomainService aiExecutionDomainService;
@@ -225,36 +243,32 @@ public class WorkflowIntentAnalyzeService {
         schema.put("additionalProperties", false);
 
         Map<String, Object> properties = new LinkedHashMap<>();
-        properties.put("businessType", Map.of("type", "string"));
         properties.put("intentType", Map.of("type", "string"));
         properties.put("rewrittenQuery", Map.of("type", "string"));
         properties.put("summary", Map.of("type", "string"));
-        properties.put("intentLabels", buildStringArraySchema());
-        properties.put("metrics", buildStringArraySchema());
-        properties.put("dimensions", buildStringArraySchema());
-        properties.put("candidateDatasets", buildStringArraySchema());
-        properties.put("requiredContext", buildStringArraySchema());
-        properties.put("risks", buildStringArraySchema());
+        properties.put("sessionTitle", Map.of("type", "string"));
+        properties.put("typoCorrected", Map.of("type", "boolean"));
+        properties.put("corrections", buildStringArraySchema());
+        properties.put("risk", buildRiskSchema());
+        properties.put("score", Map.of("type", "number"));
+        properties.put("invalidIntentSummary", Map.of("type", "string"));
+        properties.put("invalidIntents", buildInvalidIntentArraySchema());
         properties.put("clarificationNeeded", Map.of("type", "boolean"));
-        properties.put("clarificationQuestions", buildStringArraySchema());
-        properties.put("importantInfos", buildStringArraySchema());
-        properties.put("timeRange", Map.of("type", "object", "additionalProperties", true));
+        properties.put("clarificationQuestion", Map.of("type", "string"));
         schema.put("properties", properties);
         schema.put("required", List.of(
-                "businessType",
                 "intentType",
                 "rewrittenQuery",
                 "summary",
-                "intentLabels",
-                "metrics",
-                "dimensions",
-                "candidateDatasets",
-                "requiredContext",
-                "risks",
+                "sessionTitle",
+                "typoCorrected",
+                "corrections",
+                "risk",
+                "score",
+                "invalidIntentSummary",
+                "invalidIntents",
                 "clarificationNeeded",
-                "clarificationQuestions",
-                "importantInfos",
-                "timeRange"
+                "clarificationQuestion"
         ));
         responseFormat.setSchema(schema);
         return responseFormat;
@@ -267,6 +281,47 @@ public class WorkflowIntentAnalyzeService {
         );
     }
 
+    private Map<String, Object> buildRiskSchema() {
+        Map<String, Object> itemProperties = new LinkedHashMap<>();
+        itemProperties.put("type", Map.of("type", "string"));
+        itemProperties.put("description", Map.of("type", "string"));
+        itemProperties.put("evidence", Map.of("type", "string"));
+        itemProperties.put("score", Map.of("type", "number"));
+
+        Map<String, Object> riskItemSchema = new LinkedHashMap<>();
+        riskItemSchema.put("type", "object");
+        riskItemSchema.put("additionalProperties", false);
+        riskItemSchema.put("properties", itemProperties);
+        riskItemSchema.put("required", List.of("type", "description", "evidence", "score"));
+
+        Map<String, Object> riskProperties = new LinkedHashMap<>();
+        riskProperties.put("level", Map.of("type", "string"));
+        riskProperties.put("summary", Map.of("type", "string"));
+        riskProperties.put("items", Map.of("type", "array", "items", riskItemSchema));
+
+        Map<String, Object> riskSchema = new LinkedHashMap<>();
+        riskSchema.put("type", "object");
+        riskSchema.put("additionalProperties", false);
+        riskSchema.put("properties", riskProperties);
+        riskSchema.put("required", List.of("level", "summary", "items"));
+        return riskSchema;
+    }
+
+    private Map<String, Object> buildInvalidIntentArraySchema() {
+        Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("content", Map.of("type", "string"));
+        properties.put("reason", Map.of("type", "string"));
+        properties.put("evidence", Map.of("type", "string"));
+        properties.put("score", Map.of("type", "number"));
+
+        Map<String, Object> itemSchema = new LinkedHashMap<>();
+        itemSchema.put("type", "object");
+        itemSchema.put("additionalProperties", false);
+        itemSchema.put("properties", properties);
+        itemSchema.put("required", List.of("content", "reason", "evidence", "score"));
+        return Map.of("type", "array", "items", itemSchema);
+    }
+
     private IntentAnalyzeResponse parseResponse(ChatResponse response, AiChatQueryCommand command) {
         String rawOutput = extractOutput(response);
         if (!StringUtils.hasText(rawOutput)) {
@@ -274,6 +329,7 @@ public class WorkflowIntentAnalyzeService {
             fallback.setRawOutput(null);
             fallback.setRewrittenQuery(command.getMessage());
             fallback.setSummary(command.getMessage());
+            fallback.setSessionTitle(command.getMessage());
             return fallback;
         }
         try {
@@ -285,6 +341,7 @@ public class WorkflowIntentAnalyzeService {
             fallback.setRawOutput(rawOutput);
             fallback.setRewrittenQuery(command.getMessage());
             fallback.setSummary(rawOutput.trim());
+            fallback.setSessionTitle(command.getMessage());
             return fallback;
         }
     }
@@ -328,9 +385,6 @@ public class WorkflowIntentAnalyzeService {
         if (response == null) {
             return;
         }
-        if (!StringUtils.hasText(response.getBusinessType())) {
-            response.setBusinessType("GENERAL");
-        }
         if (!StringUtils.hasText(response.getIntentType())) {
             response.setIntentType("QUERY_RENDER");
         }
@@ -345,35 +399,112 @@ public class WorkflowIntentAnalyzeService {
         if (!StringUtils.hasText(response.getSummary())) {
             response.setSummary(response.getRewrittenQuery());
         }
-        if (response.getIntentLabels() == null) {
-            response.setIntentLabels(new ArrayList<>());
+        if (!StringUtils.hasText(response.getSessionTitle())) {
+            response.setSessionTitle(buildSessionTitle(response.getSummary(), response.getRewrittenQuery()));
         }
-        if (response.getMetrics() == null) {
-            response.setMetrics(new ArrayList<>());
+        if (response.getTypoCorrected() == null) {
+            response.setTypoCorrected(Boolean.FALSE);
         }
-        if (response.getDimensions() == null) {
-            response.setDimensions(new ArrayList<>());
+        if (response.getCorrections() == null) {
+            response.setCorrections(new ArrayList<>());
         }
-        if (response.getCandidateDatasets() == null) {
-            response.setCandidateDatasets(new ArrayList<>());
+        if (response.getTypoCorrected() == null || !response.getTypoCorrected()) {
+            if (!CollectionUtils.isEmpty(response.getCorrections())) {
+                response.setTypoCorrected(Boolean.TRUE);
+            }
         }
-        if (response.getRequiredContext() == null) {
-            response.setRequiredContext(new ArrayList<>());
+        if (response.getRisk() == null) {
+            response.setRisk(new IntentAnalyzeResponse.RiskInfo());
         }
-        if (response.getRisks() == null) {
-            response.setRisks(new ArrayList<>());
+        normalizeRisk(response.getRisk(), response);
+        if (response.getScore() == null) {
+            response.setScore(Boolean.TRUE.equals(response.getClarificationNeeded()) ? 0.65D : 0.85D);
         }
-        if (response.getClarificationQuestions() == null) {
-            response.setClarificationQuestions(new ArrayList<>());
+        if (response.getInvalidIntents() == null) {
+            response.setInvalidIntents(new ArrayList<>());
         }
-        if (response.getImportantInfos() == null) {
-            response.setImportantInfos(new ArrayList<>());
-        }
-        if (response.getTimeRange() == null) {
-            response.setTimeRange(new LinkedHashMap<>());
+        normalizeInvalidIntents(response);
+        if (!StringUtils.hasText(response.getInvalidIntentSummary())) {
+            response.setInvalidIntentSummary(response.getInvalidIntents().isEmpty()
+                    ? ""
+                    : "识别到 " + response.getInvalidIntents().size() + " 项历史意图已失效");
         }
         if (response.getClarificationNeeded() == null) {
             response.setClarificationNeeded(Boolean.FALSE);
         }
+        if (!StringUtils.hasText(response.getClarificationQuestion())) {
+            response.setClarificationQuestion("");
+        }
+    }
+
+    private String buildSessionTitle(String summary, String rewrittenQuery) {
+        String candidate = StringUtils.hasText(summary) ? summary.trim() : rewrittenQuery;
+        if (!StringUtils.hasText(candidate)) {
+            return "";
+        }
+        return candidate.length() > 20 ? candidate.substring(0, 20) : candidate;
+    }
+
+    private void normalizeRisk(IntentAnalyzeResponse.RiskInfo risk, IntentAnalyzeResponse response) {
+        if (!StringUtils.hasText(risk.getLevel())) {
+            risk.setLevel(Boolean.TRUE.equals(response.getClarificationNeeded()) ? "MEDIUM" : "LOW");
+        } else {
+            risk.setLevel(risk.getLevel().trim().toUpperCase(java.util.Locale.ROOT));
+        }
+        if (risk.getItems() == null) {
+            risk.setItems(new ArrayList<>());
+        }
+        for (IntentAnalyzeResponse.RiskItem item : risk.getItems()) {
+            if (item == null) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getType())) {
+                item.setType("GENERAL");
+            } else {
+                item.setType(item.getType().trim().toUpperCase(java.util.Locale.ROOT));
+            }
+            if (!StringUtils.hasText(item.getDescription())) {
+                item.setDescription("");
+            }
+            if (!StringUtils.hasText(item.getEvidence())) {
+                item.setEvidence("");
+            }
+            if (item.getScore() == null) {
+                item.setScore(0.60D);
+            }
+        }
+        if (!StringUtils.hasText(risk.getSummary())) {
+            risk.setSummary(risk.getItems().isEmpty()
+                    ? "整体风险较低，可继续后续流程。"
+                    : risk.getItems().get(0).getDescription());
+        }
+    }
+
+    private void normalizeInvalidIntents(IntentAnalyzeResponse response) {
+        List<IntentAnalyzeResponse.InvalidIntentItem> normalizedItems = new ArrayList<>();
+        for (IntentAnalyzeResponse.InvalidIntentItem item : response.getInvalidIntents()) {
+            if (item == null) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getContent())
+                    && !StringUtils.hasText(item.getReason())
+                    && !StringUtils.hasText(item.getEvidence())) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getContent())) {
+                item.setContent("");
+            }
+            if (!StringUtils.hasText(item.getReason())) {
+                item.setReason("");
+            }
+            if (!StringUtils.hasText(item.getEvidence())) {
+                item.setEvidence("");
+            }
+            if (item.getScore() == null) {
+                item.setScore(0.70D);
+            }
+            normalizedItems.add(item);
+        }
+        response.setInvalidIntents(normalizedItems);
     }
 }

@@ -1,5 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.context;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventTypes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.dto.AiChatQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowDefinition;
@@ -9,6 +11,7 @@ import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.util.StringUtils;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.IOException;
@@ -17,6 +20,7 @@ import java.io.Serializable;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -169,7 +173,7 @@ public class WorkflowContext implements Serializable {
     /**
      * 根据当前会话消息和当前用户输入刷新用户消息上下文。
      *
-     * <p>当前约定只在 ChatMessageNode 中调用，用于初始化本轮用户消息上下文。</p>
+     * <p>当前约定只在会话初始化阶段调用，用于初始化本轮用户消息上下文。</p>
      */
     public void refreshUserMessageContext() {
         UserMessageContext messageContext = getOrCreateUserMessageContext();
@@ -361,11 +365,13 @@ public class WorkflowContext implements Serializable {
     /**
      * 推送默认运行中状态的工作流事件。
      *
-     * @param eventType 事件类型
+     * @param eventType 会话事件类型
+     * @param source    事件来源
+     * @param phase     事件阶段
      * @param message   事件消息
      */
-    public void publishEvent(String eventType, String message) {
-        publishEvent(eventType, message, null, null, STATUS_RUNNING);
+    public void publishEvent(String eventType, String source, String phase, String message) {
+        publishEvent(eventType, source, phase, message, null, null, STATUS_RUNNING, null);
     }
 
     /**
@@ -373,30 +379,76 @@ public class WorkflowContext implements Serializable {
      *
      * <p>该方法会组装当前请求、会话、轮次以及消息内容，并通过 SSE 发送给前端。</p>
      *
-     * @param eventType 事件类型
+     * @param eventType 会话事件类型
+     * @param source    事件来源
+     * @param phase     事件阶段
      * @param message   事件消息
      * @param answer    当前完整答案内容
      * @param delta     本次增量输出内容
      * @param status    当前事件状态
+     * @param ext       扩展上下文
      */
-    public void publishEvent(String eventType, String message, String answer, String delta, String status) {
+    public void publishEvent(String eventType,
+                             String source,
+                             String phase,
+                             String message,
+                             String answer,
+                             String delta,
+                             String status,
+                             Map<String, Object> ext) {
         if (emitter == null) {
             return;
         }
         AiChatQueryStreamEvent event = new AiChatQueryStreamEvent();
         event.setEventType(eventType);
+        event.setSource(source);
+        event.setPhase(phase);
         event.setRequestId(command == null ? null : command.getTraceId());
         event.setSessionCode(session == null ? null : session.getSessionCode());
+        event.setSessionName(session == null ? null : session.getSessionName());
         event.setRoundCode(getRound() == null ? null : getRound().getRoundCode());
         event.setMessage(message);
         event.setAnswer(answer);
         event.setDelta(delta);
         event.setStatus(status);
+        event.setExt(ext == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ext));
         try {
             emitter.send(SseEmitter.event().name(eventType).data(event));
         } catch (IOException ex) {
             log.warn("failed to publish workflow event, eventType={}", eventType, ex);
         }
+    }
+
+    public void publishProgressEvent(String source, String phase, String message) {
+        publishEvent(ConversationEventTypes.PROGRESS, source, phase, message, null, null, STATUS_RUNNING, null);
+    }
+
+    public void publishProgressEvent(String source, String phase, String message, Map<String, Object> ext) {
+        publishEvent(ConversationEventTypes.PROGRESS, source, phase, message, null, null, STATUS_RUNNING, ext);
+    }
+
+    public void publishAnswerEvent(String source, String phase, String message, String answer, String delta, String status) {
+        publishEvent(StringUtils.hasText(delta) ? ConversationEventTypes.ANSWER_DELTA : ConversationEventTypes.ANSWER,
+                source, phase, message, answer, delta, status, null);
+    }
+
+    public void publishClarificationEvent(String source, String phase, String message) {
+        publishEvent(ConversationEventTypes.CLARIFICATION, source, phase, message, null, null, STATUS_RUNNING, null);
+    }
+
+    public void publishErrorEvent(String source, String phase, String message) {
+        publishEvent(ConversationEventTypes.ERROR, source, phase, message, null, null, "FAILED", null);
+    }
+
+    public void publishCompleteEvent(String source, String phase, String message, String answer, String status) {
+        publishEvent(ConversationEventTypes.COMPLETE,
+                source,
+                StringUtils.hasText(phase) ? phase : ConversationEventPhases.COMPLETED,
+                message,
+                answer,
+                null,
+                status,
+                null);
     }
 
 }

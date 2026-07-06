@@ -37,33 +37,54 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
 
     private static final String INTENT_ANALYZE_PROMPT = """
             你是一个智能问数系统的意图分析器。
-            请根据用户问题、历史对话和检索补充上下文，识别用户意图、改写问题，并提取后续检索/SQL生成需要的关键信息。
+            请根据用户问题、历史对话和检索补充上下文，识别用户意图并给出稳定的基础意图结论。
+            只做基础意图分析，不要输出指标、维度、数据集、时间范围、SQL 规划等下游结构。
             你必须只返回严格合法的 JSON，不允许输出 markdown、解释、代码块。
             输出结构固定如下：
             {
               "intentType": "意图类型，仅允许 SIMPLE_CHAT 或 QUERY_RENDER",
               "rewrittenQuery": "归一化后的问题",
               "summary": "简明分析摘要",
-              "intentLabels": ["标签1"],
-              "metrics": ["指标1"],
-              "dimensions": ["维度1"],
-              "candidateDatasets": ["数据集1"],
-              "requiredContext": ["需要补充的上下文1"],
-              "risks": ["风险1"],
+              "sessionTitle": "推荐的会话标题",
+              "typoCorrected": false,
+              "corrections": ["错别字1 -> 正确表达1"],
+              "risk": {
+                "level": "LOW",
+                "summary": "风险总结",
+                "items": [
+                  {
+                    "type": "TYPO",
+                    "description": "风险描述",
+                    "evidence": "风险依据",
+                    "score": 0.80
+                  }
+                ]
+              },
+              "score": 0.85,
+              "invalidIntentSummary": "历史失效意图总结；如无则返回空字符串",
+              "invalidIntents": [
+                {
+                  "content": "旧观点",
+                  "reason": "失效原因",
+                  "evidence": "失效依据",
+                  "score": 0.88
+                }
+              ],
               "clarificationNeeded": false,
-              "clarificationQuestions": ["澄清问题1"],
-              "timeRange": {"granularity":"DAY","startDate":"2026-06-01","endDate":"2026-06-15"}
+              "clarificationQuestion": "最关键的澄清问题；不需要则返回空字符串"
             }
             字段要求：
-            1. intentType、rewrittenQuery、summary 必须为非空字符串
-            2. 所有数组字段必须返回 JSON 数组，可为空数组
-            3. clarificationNeeded 必须为布尔值
-            4. timeRange 必须返回 JSON 对象，可为空对象
+            1. intentType、rewrittenQuery、summary、sessionTitle、invalidIntentSummary、clarificationQuestion 必须为字符串
+            2. corrections、invalidIntents、risk.items 必须返回 JSON 数组，可为空数组
+            3. typoCorrected、clarificationNeeded 必须为布尔值
+            4. score 以及 risk/invalidIntents 中的 score 必须返回 0~1 的数字
             5. intentType 取值规则：
                - SIMPLE_CHAT：普通闲聊、解释、问答、建议，不需要进入查数渲染链路
                - QUERY_RENDER：用户核心目标是查数据、分析数据、生成报表、做指标解释或需要进入查询渲染链路
-            6. 如果无法绝对确认，但问题明显偏向数据查询/分析，优先返回 QUERY_RENDER
-            7. 不要输出任何额外字段
+            6. rewrittenQuery 可以纠正错别字、口语、省略和代词，但不要扩写成查询规划
+            7. risk 只描述分析风险，例如错别字、歧义、信息缺失、上下文冲突
+            8. 如果无法绝对确认，但问题明显偏向数据查询/分析，优先返回 QUERY_RENDER
+            9. 不要输出任何额外字段
             """;
 
     private final AiExecutionDomainService aiExecutionDomainService;
@@ -169,6 +190,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
         response.setIntentType("QUERY_RENDER");
         response.setRewrittenQuery(request.getQuery());
         response.setSummary(StringUtils.hasText(rawOutput) ? rawOutput.trim() : request.getQuery());
+        response.setSessionTitle(request.getQuery());
         return response;
     }
 
@@ -187,36 +209,112 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
         if (!StringUtils.hasText(response.getSummary())) {
             response.setSummary(response.getRewrittenQuery());
         }
-        if (response.getIntentLabels() == null) {
-            response.setIntentLabels(new ArrayList<>());
+        if (!StringUtils.hasText(response.getSessionTitle())) {
+            response.setSessionTitle(buildSessionTitle(response.getSummary(), response.getRewrittenQuery()));
         }
-        if (response.getMetrics() == null) {
-            response.setMetrics(new ArrayList<>());
+        if (response.getTypoCorrected() == null) {
+            response.setTypoCorrected(Boolean.FALSE);
         }
-        if (response.getDimensions() == null) {
-            response.setDimensions(new ArrayList<>());
+        if (response.getCorrections() == null) {
+            response.setCorrections(new ArrayList<>());
         }
-        if (response.getCandidateDatasets() == null) {
-            response.setCandidateDatasets(new ArrayList<>());
+        if (!CollectionUtils.isEmpty(response.getCorrections())) {
+            response.setTypoCorrected(Boolean.TRUE);
         }
-        if (response.getRequiredContext() == null) {
-            response.setRequiredContext(new ArrayList<>());
+        if (response.getRisk() == null) {
+            response.setRisk(new IntentAnalyzeResponse.RiskInfo());
         }
-        if (response.getRisks() == null) {
-            response.setRisks(new ArrayList<>());
+        normalizeRisk(response);
+        if (response.getScore() == null) {
+            response.setScore(Boolean.TRUE.equals(response.getClarificationNeeded()) ? 0.65D : 0.85D);
         }
-        if (response.getClarificationQuestions() == null) {
-            response.setClarificationQuestions(new ArrayList<>());
+        if (response.getInvalidIntents() == null) {
+            response.setInvalidIntents(new ArrayList<>());
         }
-        if (response.getImportantInfos() == null) {
-            response.setImportantInfos(new ArrayList<>());
-        }
-        if (response.getTimeRange() == null) {
-            response.setTimeRange(new java.util.HashMap<>());
+        normalizeInvalidIntents(response);
+        if (!StringUtils.hasText(response.getInvalidIntentSummary())) {
+            response.setInvalidIntentSummary(response.getInvalidIntents().isEmpty()
+                    ? ""
+                    : "识别到 " + response.getInvalidIntents().size() + " 项历史意图已失效");
         }
         if (response.getClarificationNeeded() == null) {
             response.setClarificationNeeded(Boolean.FALSE);
         }
+        if (!StringUtils.hasText(response.getClarificationQuestion())) {
+            response.setClarificationQuestion("");
+        }
+    }
+
+    private String buildSessionTitle(String summary, String rewrittenQuery) {
+        String normalized = StringUtils.hasText(summary) ? summary.trim() : rewrittenQuery;
+        if (!StringUtils.hasText(normalized)) {
+            return "";
+        }
+        return normalized.length() > 20 ? normalized.substring(0, 20) : normalized;
+    }
+
+    private void normalizeRisk(IntentAnalyzeResponse response) {
+        IntentAnalyzeResponse.RiskInfo risk = response.getRisk();
+        if (!StringUtils.hasText(risk.getLevel())) {
+            risk.setLevel(Boolean.TRUE.equals(response.getClarificationNeeded()) ? "MEDIUM" : "LOW");
+        } else {
+            risk.setLevel(risk.getLevel().trim().toUpperCase(java.util.Locale.ROOT));
+        }
+        if (risk.getItems() == null) {
+            risk.setItems(new ArrayList<>());
+        }
+        for (IntentAnalyzeResponse.RiskItem item : risk.getItems()) {
+            if (item == null) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getType())) {
+                item.setType("GENERAL");
+            } else {
+                item.setType(item.getType().trim().toUpperCase(java.util.Locale.ROOT));
+            }
+            if (!StringUtils.hasText(item.getDescription())) {
+                item.setDescription("");
+            }
+            if (!StringUtils.hasText(item.getEvidence())) {
+                item.setEvidence("");
+            }
+            if (item.getScore() == null) {
+                item.setScore(0.60D);
+            }
+        }
+        if (!StringUtils.hasText(risk.getSummary())) {
+            risk.setSummary(risk.getItems().isEmpty()
+                    ? "整体风险较低，可继续后续流程。"
+                    : risk.getItems().get(0).getDescription());
+        }
+    }
+
+    private void normalizeInvalidIntents(IntentAnalyzeResponse response) {
+        List<IntentAnalyzeResponse.InvalidIntentItem> normalized = new ArrayList<>();
+        for (IntentAnalyzeResponse.InvalidIntentItem item : response.getInvalidIntents()) {
+            if (item == null) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getContent())
+                    && !StringUtils.hasText(item.getReason())
+                    && !StringUtils.hasText(item.getEvidence())) {
+                continue;
+            }
+            if (!StringUtils.hasText(item.getContent())) {
+                item.setContent("");
+            }
+            if (!StringUtils.hasText(item.getReason())) {
+                item.setReason("");
+            }
+            if (!StringUtils.hasText(item.getEvidence())) {
+                item.setEvidence("");
+            }
+            if (item.getScore() == null) {
+                item.setScore(0.70D);
+            }
+            normalized.add(item);
+        }
+        response.setInvalidIntents(normalized);
     }
 
     private void rerankHits(HybridSearchRequest request, HybridSearchResponse response) {

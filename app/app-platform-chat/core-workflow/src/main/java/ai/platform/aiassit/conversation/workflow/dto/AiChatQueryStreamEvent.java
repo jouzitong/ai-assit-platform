@@ -2,10 +2,17 @@ package ai.platform.aiassit.conversation.workflow.dto;
 
 import lombok.Data;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 @Data
 public class AiChatQueryStreamEvent {
 
     private String eventType;
+
+    private String source;
+
+    private String phase;
 
     private String requestId;
 
@@ -22,4 +29,6 @@ public class AiChatQueryStreamEvent {
     private String status;
 
     private String message;
+
+    private Map<String, Object> ext = new LinkedHashMap<>();
 }

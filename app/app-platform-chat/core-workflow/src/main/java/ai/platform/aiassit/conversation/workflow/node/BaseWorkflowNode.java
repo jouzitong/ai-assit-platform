@@ -2,10 +2,8 @@ package ai.platform.aiassit.conversation.workflow.node;
 
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
-import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.conversation.workflow.capability.WorkflowPromptContextCapabilityExecutor;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.skill.WorkflowNodeSkillExecutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -16,7 +14,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * <pre>
  * 用户问题
  * ↓
- * ChatMessageNode     初始化/加载会话上下文
+ * 会话初始化          初始化/加载会话上下文
  * ↓
  * QueryPlanningNode   提炼用户意图、生成执行规划
  * ↓
@@ -34,9 +32,6 @@ import org.springframework.beans.factory.annotation.Autowired;
 public abstract class BaseWorkflowNode implements IWorkflowNode {
 
     @Autowired
-    private WorkflowNodeSkillExecutor skillExecutor;
-
-    @Autowired
     private WorkflowPromptContextCapabilityExecutor capabilityExecutor;
 
     protected void beforeExecute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
@@ -52,26 +47,8 @@ public abstract class BaseWorkflowNode implements IWorkflowNode {
         if (!capabilityResult.isSuccess()) {
             return capabilityResult;
         }
-        NodeResult beforeResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.BEFORE_EXECUTE, null);
-        if (!beforeResult.isSuccess()) {
-            return beforeResult;
-        }
 
-        NodeResult nodeResult = doExecute(context);
-        if (!nodeResult.isSuccess()) {
-            return nodeResult;
-        }
-
-        NodeResult afterResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.AFTER_EXECUTE, nodeResult);
-        if (!afterResult.isSuccess()) {
-            return afterResult;
-        }
-
-        NodeResult reviewResult = skillExecutor.execute(context, nodeConfig, WorkflowSkillPhase.REVIEW_OUTPUT, afterResult);
-        if (!reviewResult.isSuccess()) {
-            return reviewResult;
-        }
-        return reviewResult;
+        return doExecute(context);
     }
 
     @Override

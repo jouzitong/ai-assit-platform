@@ -1,5 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.node.impl;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
@@ -121,12 +123,20 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
             context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "blocking", !Boolean.TRUE.equals(response.getPassed()));
             if (Boolean.TRUE.equals(response.getPassed())) {
                 context.getOrCreateNodeResult(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode()).setStatus(STATUS_SUCCESS);
-                context.publishEvent("result-evaluation-ready", response.getReason());
+                context.publishProgressEvent(
+                        ConversationEventSources.EVALUATION,
+                        ConversationEventPhases.READY,
+                        response.getReason()
+                );
                 return NodeResult.success(WorkflowNodeCodes.RENDER.getNodeCode());
             }
             markFailed(context, response.getReason());
             if (Boolean.TRUE.equals(response.getClarificationNeeded()) && StringUtils.hasText(response.getClarificationQuestion())) {
-                context.publishEvent("result-evaluation-clarify", response.getClarificationQuestion());
+                context.publishClarificationEvent(
+                        ConversationEventSources.EVALUATION,
+                        ConversationEventPhases.READY,
+                        response.getClarificationQuestion()
+                );
             }
             return NodeResult.success(response.getRetryNodeCode());
         } catch (Exception ex) {
@@ -143,8 +153,16 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
         context.getOrCreateNodeResult(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode()).setStatus(STATUS_SUCCESS);
         context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "evaluationSummary", summary);
         context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "blocking", Boolean.FALSE);
-        context.publishEvent("result-evaluation-ai-skipped", reason);
-        context.publishEvent("result-evaluation-ready", summary);
+        context.publishProgressEvent(
+                ConversationEventSources.EVALUATION,
+                ConversationEventPhases.SKIPPED,
+                reason
+        );
+        context.publishProgressEvent(
+                ConversationEventSources.EVALUATION,
+                ConversationEventPhases.READY,
+                summary
+        );
         return NodeResult.success(WorkflowNodeCodes.RENDER.getNodeCode());
     }
 
@@ -152,6 +170,10 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
         context.getOrCreateNodeResult(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode()).setStatus(STATUS_FAILED);
         context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "evaluationSummary", summary);
         context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "blocking", Boolean.TRUE);
-        context.publishEvent("result-evaluation-retry", summary);
+        context.publishProgressEvent(
+                ConversationEventSources.EVALUATION,
+                ConversationEventPhases.FAILED,
+                summary
+        );
     }
 }

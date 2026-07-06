@@ -1,5 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.node.impl;
 
+import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
+import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
@@ -11,8 +13,8 @@ import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.AiChatQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.config.WorkflowProperties;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentAnalysisBundle;
@@ -231,7 +233,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             context.put(WorkflowContextKeys.Planning.INTENT_ANALYSIS_BUNDLE, intentAnalysisBundle);
             context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_EVIDENCES, intentAnalysisBundle.getEvidences());
             context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES, intentAnalysisBundle.getContextMessages());
-            context.publishEvent("intent-analysis-ready", "intent analysis bundle prepared");
+            context.publishProgressEvent(
+                    ConversationEventSources.INTENT_ANALYZE,
+                    ConversationEventPhases.READY,
+                    "intent analysis bundle prepared"
+            );
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
             log.info("query planning request built, sessionCode={}, provider={}, model={}, messageCount={}",
@@ -275,7 +281,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             context.put(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT, planningResult);
             context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_SUMMARY, buildIntentAnalysisSummary(intentAnalysisBundle));
             context.put(WorkflowContextKeys.Planning.PLANNING_REQUEST_ID, planningResponse == null ? null : planningResponse.getRequestId());
-            context.publishEvent("query-plan-ready", "query plan prepared");
+            context.publishProgressEvent(
+                    ConversationEventSources.QUERY_PLAN,
+                    ConversationEventPhases.READY,
+                    "query plan prepared"
+            );
             historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.QUERY_PLAN.name(),
