@@ -4,8 +4,8 @@ import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryComma
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
 import ai.platform.aiassit.conversation.workflow.skill.IWorkflowNodeSkill;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -40,17 +40,17 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
     }
 
     @Override
-    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
+    public NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
         Map<String, Object> policy = buildPolicy(command, context);
-        context.put(WorkflowContextKeys.Skill.SQL_GENERATION_POLICY, policy);
+        context.put(ConversationRuntimeContextKeys.Skill.SQL_GENERATION_POLICY, policy);
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
-    private Map<String, Object> buildPolicy(ConversationQueryCommand command, WorkflowContext context) {
+    private Map<String, Object> buildPolicy(ConversationQueryCommand command, ConversationRuntimeContext context) {
         Map<String, Object> policy = new LinkedHashMap<>();
         policy.put("hardConstraints", buildHardConstraints(command, context));
         policy.put("softGuidelines", buildSoftGuidelines(command, context));
@@ -58,7 +58,7 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
         return policy;
     }
 
-    private List<String> buildHardConstraints(ConversationQueryCommand command, WorkflowContext context) {
+    private List<String> buildHardConstraints(ConversationQueryCommand command, ConversationRuntimeContext context) {
         Set<String> constraints = new LinkedHashSet<>();
         constraints.add("只允许生成单条 SELECT 或 WITH 查询。");
         constraints.add("禁止生成 INSERT、UPDATE、DELETE、DROP、ALTER、TRUNCATE、CREATE、MERGE、GRANT、REVOKE。");
@@ -69,11 +69,11 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
         constraints.add("若涉及聚合指标，必须保证聚合表达式与 GROUP BY 维度一致。");
         constraints.add("仅在当前上下文能支持时使用 JOIN，无法确认关联关系时不要臆造关联字段。");
 
-        List<String> businessTerms = context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
+        List<String> businessTerms = context.get(ConversationRuntimeContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
         if (!CollectionUtils.isEmpty(businessTerms)) {
             constraints.add("术语解析结果已提供业务术语，请优先使用这些标准术语对应的字段和口径：" + businessTerms);
         }
-        Object normalizedTimeRange = context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE);
+        Object normalizedTimeRange = context.get(ConversationRuntimeContextKeys.Skill.NORMALIZED_TIME_RANGE);
         if (normalizedTimeRange != null) {
             constraints.add("已识别标准化时间范围，请在 SQL 条件中优先落实该时间范围：" + normalizedTimeRange);
         }
@@ -87,7 +87,7 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
         return new ArrayList<>(constraints);
     }
 
-    private List<String> buildSoftGuidelines(ConversationQueryCommand command, WorkflowContext context) {
+    private List<String> buildSoftGuidelines(ConversationQueryCommand command, ConversationRuntimeContext context) {
         Set<String> guidelines = new LinkedHashSet<>();
         guidelines.add("在满足硬约束前提下，优先生成可读性高、结构稳定的 SQL。");
         guidelines.add("若规划中存在核心指标优先级，排序优先围绕核心指标展开。");
@@ -103,13 +103,13 @@ public class SqlGenerationPolicySkill implements IWorkflowNodeSkill {
         return new ArrayList<>(guidelines);
     }
 
-    private List<String> buildSources(ConversationQueryCommand command, WorkflowContext context) {
+    private List<String> buildSources(ConversationQueryCommand command, ConversationRuntimeContext context) {
         List<String> sources = new ArrayList<>();
         sources.add("built-in-default-policy");
-        if (context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS) != null) {
+        if (context.get(ConversationRuntimeContextKeys.Skill.RESOLVED_BUSINESS_TERMS) != null) {
             sources.add("resolvedBusinessTerms");
         }
-        if (context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE) != null) {
+        if (context.get(ConversationRuntimeContextKeys.Skill.NORMALIZED_TIME_RANGE) != null) {
             sources.add("normalizedTimeRange");
         }
         if (StringUtils.hasText(context.getKnowledgeResult())) {

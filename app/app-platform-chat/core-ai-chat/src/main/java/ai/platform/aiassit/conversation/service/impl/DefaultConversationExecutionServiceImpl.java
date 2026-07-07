@@ -5,8 +5,8 @@ import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.conversation.dto.chat.ConversationQueryResponse;
 import ai.platform.aiassit.conversation.dto.chat.ConversationStreamReconnectRequest;
 import ai.platform.aiassit.conversation.service.ConversationExecutionService;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.engine.IWorkflowEngine;
@@ -53,7 +53,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     @Override
     public ConversationQueryResponse execute(ConversationQueryCommand command) {
-        WorkflowContext workflowContext = buildWorkflowContext(command);
+        ConversationRuntimeContext workflowContext = buildConversationRuntimeContext(command);
         preparationService.prepare(workflowContext);
         workflowEngine.run(workflowContext);
         return buildQueryResponse(workflowContext);
@@ -62,34 +62,34 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     @Override
     public SseEmitter executeStream(ConversationQueryCommand command) {
         SseEmitter emitter = new SseEmitter(0L);
-        WorkflowContext workflowContext = buildWorkflowContext(command);
+        ConversationRuntimeContext workflowContext = buildConversationRuntimeContext(command);
         workflowContext.setEmitter(emitter);
         asyncTaskManager.submit(() -> runStream(workflowContext));
         return emitter;
     }
 
-    private void runStream(WorkflowContext workflowContext) {
-        SseEmitter emitter = workflowContext.getEmitter();
+    private void runStream(ConversationRuntimeContext context) {
+        SseEmitter emitter = context.getEmitter();
         try {
-            preparationService.prepare(workflowContext);
-            publishInitEvent(workflowContext);
-            workflowEngine.run(workflowContext);
-            String error = workflowContext.get(WorkflowContextKeys.Common.ERROR);
+            preparationService.prepare(context);
+            publishInitEvent(context);
+            workflowEngine.run(context);
+            String error = context.get(ConversationRuntimeContextKeys.Common.ERROR);
             if (StringUtils.hasText(error)) {
                 emitter.completeWithError(new IllegalStateException(error));
                 return;
             }
-            workflowContext.publishCompleteEvent(
+            context.publishCompleteEvent(
                     ConversationEventSources.CONVERSATION,
                     ConversationEventPhases.COMPLETED,
                     "conversation completed",
-                    workflowContext.getRenderedAnswer(),
+                    context.getRenderedAnswer(),
                     "SUCCESS"
             );
             emitter.complete();
         } catch (Exception ex) {
-            if (!StringUtils.hasText(workflowContext.get(WorkflowContextKeys.Common.ERROR))) {
-                workflowContext.publishErrorEvent(
+            if (!StringUtils.hasText(context.get(ConversationRuntimeContextKeys.Common.ERROR))) {
+                context.publishErrorEvent(
                         ConversationEventSources.CONVERSATION,
                         ConversationEventPhases.FAILED,
                         ex.getMessage()
@@ -130,14 +130,14 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         return emitter;
     }
 
-    private WorkflowContext buildWorkflowContext(ConversationQueryCommand command) {
-        WorkflowContext context = new WorkflowContext();
+    private ConversationRuntimeContext buildConversationRuntimeContext(ConversationQueryCommand command) {
+        ConversationRuntimeContext context = new ConversationRuntimeContext();
         context.setCommand(command);
         context.setWorkflowCode("ai-chat-intent-routing");
         return context;
     }
 
-    private void publishInitEvent(WorkflowContext context) {
+    private void publishInitEvent(ConversationRuntimeContext context) {
         context.publishProgressEvent(
                 ConversationEventSources.CONVERSATION,
                 ConversationEventPhases.STARTED,
@@ -145,7 +145,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         );
     }
 
-    private ConversationQueryResponse buildQueryResponse(WorkflowContext context) {
+    private ConversationQueryResponse buildQueryResponse(ConversationRuntimeContext context) {
         ConversationQueryResponse response = new ConversationQueryResponse();
         response.setRequestId(context.getCommand() == null ? null : context.getCommand().getTraceId());
         response.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
@@ -154,7 +154,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         response.setProviderCode(null);
         response.setAnswer(context.getRenderedAnswer());
         response.setStatus(context.getRound() == null ? null : context.getRound().getStatus());
-        String error = context.get(WorkflowContextKeys.Common.ERROR);
+        String error = context.get(ConversationRuntimeContextKeys.Common.ERROR);
         response.setFinishReason(StringUtils.hasText(error) ? error : response.getStatus());
         return response;
     }

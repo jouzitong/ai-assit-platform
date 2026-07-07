@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.engine;
 
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 
 /**
  * 工作流引擎接口。
@@ -17,6 +17,6 @@ public interface IWorkflowEngine {
      *
      * @param context 工作流上下文，用于在工作流执行过程中传递输入参数、中间结果和运行状态
      */
-    void run(WorkflowContext context);
+    void run(ConversationRuntimeContext context);
 
 }

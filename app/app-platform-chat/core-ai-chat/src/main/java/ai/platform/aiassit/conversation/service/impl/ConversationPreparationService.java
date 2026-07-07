@@ -11,7 +11,7 @@ import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
@@ -54,12 +54,12 @@ public class ConversationPreparationService {
         this.intentRouteService = intentRouteService;
     }
 
-    public void prepare(WorkflowContext context) {
-        prepareConversationContext(context);
+    public void prepare(ConversationRuntimeContext context) {
+        prepareConversationRuntimeContext(context);
         intentRouteService.route(context);
     }
 
-    private void prepareConversationContext(WorkflowContext context) {
+    private void prepareConversationRuntimeContext(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             throw new IllegalArgumentException("query command is required");

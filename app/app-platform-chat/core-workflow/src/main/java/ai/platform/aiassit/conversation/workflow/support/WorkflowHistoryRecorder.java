@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.support;
 
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatActorType;
@@ -32,7 +32,7 @@ public class WorkflowHistoryRecorder {
         this.objectMapper = objectMapper;
     }
 
-    public AiChatMessageDTO saveMessage(WorkflowContext context,
+    public AiChatMessageDTO saveMessage(ConversationRuntimeContext context,
                                         String roundCode,
                                         String role,
                                         String actorType,
@@ -67,7 +67,7 @@ public class WorkflowHistoryRecorder {
         return created;
     }
 
-    public AiChatArtifactDTO saveArtifact(WorkflowContext context,
+    public AiChatArtifactDTO saveArtifact(ConversationRuntimeContext context,
                                           String artifactType,
                                           String stage,
                                           String title,
@@ -113,12 +113,12 @@ public class WorkflowHistoryRecorder {
         return actorType == null ? AiChatActorType.SYSTEM.name() : actorType;
     }
 
-    private int nextMessageSortNo(WorkflowContext context) {
+    private int nextMessageSortNo(ConversationRuntimeContext context) {
         List<AiChatMessageDTO> messages = context.getOrCreateUserMessageContext().getSessionMessages();
         return CollectionUtils.isEmpty(messages) ? 1 : messages.size() + 1;
     }
 
-    private int nextArtifactSeqNo(WorkflowContext context) {
+    private int nextArtifactSeqNo(ConversationRuntimeContext context) {
         return CollectionUtils.isEmpty(context.getSessionArtifacts()) ? 1 : context.getSessionArtifacts().size() + 1;
     }
 

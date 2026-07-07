@@ -1,4 +1,4 @@
-package ai.platform.aiassit.conversation.workflow.service;
+package ai.platform.aiassit.conversation.service.impl;
 
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
@@ -14,17 +14,17 @@ import ai.platform.aiassit.service.ai.api.dto.ResponseFormat;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
-import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeOptions;
-import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
+import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
+import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Component;
+import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -42,8 +42,8 @@ import java.util.Objects;
  * <p>在正式进入 QueryPlanningNode 之前，先用基础系统描述生成一份轻量意图结论，
  * 供工作流引擎预热上下文和后续规划技能复用。</p>
  */
-@Component
-public class WorkflowIntentAnalyzeService {
+@Service
+public class ConversationIntentAnalyzeService {
 
     private static final String DEFAULT_SCENE = "ai-chat-base-intent-analyze";
     private static final double DEFAULT_MIN_CONFIDENCE_SCORE = 0.80D;
@@ -115,13 +115,13 @@ public class WorkflowIntentAnalyzeService {
     private final AiExecutionDomainService aiExecutionDomainService;
     private final ObjectMapper objectMapper;
 
-    public WorkflowIntentAnalyzeService(AiExecutionDomainService aiExecutionDomainService,
+    public ConversationIntentAnalyzeService(AiExecutionDomainService aiExecutionDomainService,
                                         ObjectMapper objectMapper) {
         this.aiExecutionDomainService = aiExecutionDomainService;
         this.objectMapper = objectMapper;
     }
 
-    public IntentAnalyzeResponse analyze(WorkflowContext context) {
+    public IntentAnalyzeResponse analyze(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context == null ? null : context.getCommand();
         if (command == null || !StringUtils.hasText(command.getMessage())) {
             return null;
@@ -152,7 +152,7 @@ public class WorkflowIntentAnalyzeService {
         return response;
     }
 
-    private ChatRequest buildRequest(WorkflowContext context,
+    private ChatRequest buildRequest(ConversationRuntimeContext context,
                                      String knowledgeContext,
                                      IntentAnalyzeResponse previousResponse,
                                      int attempt,
@@ -188,7 +188,7 @@ public class WorkflowIntentAnalyzeService {
         return request;
     }
 
-    private List<ChatMessage> buildMessages(WorkflowContext context,
+    private List<ChatMessage> buildMessages(ConversationRuntimeContext context,
                                             String knowledgeContext,
                                             IntentAnalyzeResponse previousResponse,
                                             int attempt) {
@@ -217,7 +217,7 @@ public class WorkflowIntentAnalyzeService {
         return messages;
     }
 
-    private String buildContextText(WorkflowContext context,
+    private String buildContextText(ConversationRuntimeContext context,
                                     String knowledgeContext,
                                     IntentAnalyzeResponse previousResponse,
                                     int attempt) {
@@ -230,11 +230,11 @@ public class WorkflowIntentAnalyzeService {
         if (StringUtils.hasText(userMessageSummary)) {
             builder.append("用户消息上下文汇总：").append('\n').append(userMessageSummary).append('\n');
         }
-        Object normalizedTimeRange = context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE);
+        Object normalizedTimeRange = context.get(ConversationRuntimeContextKeys.Skill.NORMALIZED_TIME_RANGE);
         if (normalizedTimeRange != null) {
             builder.append("已标准化时间范围：").append(normalizedTimeRange).append('\n');
         }
-        List<String> resolvedTerms = context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
+        List<String> resolvedTerms = context.get(ConversationRuntimeContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("已识别业务术语：").append(resolvedTerms).append('\n');
         }
@@ -251,7 +251,7 @@ public class WorkflowIntentAnalyzeService {
         return builder.toString().trim();
     }
 
-    private List<AiChatMessageDTO> resolveHistoryMessages(WorkflowContext context) {
+    private List<AiChatMessageDTO> resolveHistoryMessages(ConversationRuntimeContext context) {
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         if (CollectionUtils.isEmpty(sessionMessages)) {
@@ -697,7 +697,7 @@ public class WorkflowIntentAnalyzeService {
         return StringUtils.hasText(config.knowledgeBaseId());
     }
 
-    private KbSearchResponse searchKnowledgeForRetry(WorkflowContext context,
+    private KbSearchResponse searchKnowledgeForRetry(ConversationRuntimeContext context,
                                                      ConversationQueryCommand command,
                                                      IntentAnalyzeResponse response,
                                                      IntentAnalyzeConfig config) {
@@ -760,7 +760,7 @@ public class WorkflowIntentAnalyzeService {
         return StringUtils.hasText(content) ? content : null;
     }
 
-    private IntentAnalyzeConfig resolveIntentAnalyzeConfig(WorkflowContext context, ConversationQueryCommand command) {
+    private IntentAnalyzeConfig resolveIntentAnalyzeConfig(ConversationRuntimeContext context, ConversationQueryCommand command) {
         WorkflowNodeOptions options = resolveIntentAnalyzeNodeOptions(context);
         double minConfidenceScore = normalizeScore(resolveDouble(
                 options == null ? null : options.getMinConfidenceScore(),
@@ -787,7 +787,7 @@ public class WorkflowIntentAnalyzeService {
         return new IntentAnalyzeConfig(minConfidenceScore, maxLoopCount, knowledgeBaseId, knowledgeTopK, timeoutMs);
     }
 
-    private WorkflowNodeOptions resolveIntentAnalyzeNodeOptions(WorkflowContext context) {
+    private WorkflowNodeOptions resolveIntentAnalyzeNodeOptions(ConversationRuntimeContext context) {
         WorkflowDefinition workflowDefinition = context == null ? null : context.getWorkflowDefinition();
         if (workflowDefinition == null || workflowDefinition.getNodes() == null) {
             return null;

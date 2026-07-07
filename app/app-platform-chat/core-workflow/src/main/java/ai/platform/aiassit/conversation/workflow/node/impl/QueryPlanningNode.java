@@ -13,8 +13,8 @@ import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.config.WorkflowProperties;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentAnalysisBundle;
@@ -60,7 +60,7 @@ import java.util.UUID;
  * <ul>
  *     <li>只回答“要查什么、为什么这样查、后续需要什么上下文”。</li>
  *     <li>不直接执行知识检索，不生成 SQL，不执行 SQL。</li>
- *     <li>不组织最终用户回复，规划结果统一通过 {@link WorkflowContext} 传递。</li>
+ *     <li>不组织最终用户回复，规划结果统一通过 {@link ConversationRuntimeContext} 传递。</li>
  * </ul>
  *
  * @author zhouzhitong
@@ -190,7 +190,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     @Override
-    protected NodeResult doExecute(WorkflowContext context) {
+    protected NodeResult doExecute(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
@@ -230,9 +230,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                     historyMessages.isEmpty());
 
             IntentAnalysisBundle intentAnalysisBundle = queryPlanningSkillExecutor.analyze(context);
-            context.put(WorkflowContextKeys.Planning.INTENT_ANALYSIS_BUNDLE, intentAnalysisBundle);
-            context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_EVIDENCES, intentAnalysisBundle.getEvidences());
-            context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES, intentAnalysisBundle.getContextMessages());
+            context.put(ConversationRuntimeContextKeys.Planning.INTENT_ANALYSIS_BUNDLE, intentAnalysisBundle);
+            context.put(ConversationRuntimeContextKeys.Planning.QUERY_PLANNING_EVIDENCES, intentAnalysisBundle.getEvidences());
+            context.put(ConversationRuntimeContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES, intentAnalysisBundle.getContextMessages());
             context.publishProgressEvent(
                     ConversationEventSources.INTENT_ANALYZE,
                     ConversationEventPhases.READY,
@@ -277,10 +277,10 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             context.putNodeOutput(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode(), "planningRequestId",
                     planningResponse == null ? null : planningResponse.getRequestId());
             context.setAnalysisResult(analysisResult);
-            context.put(WorkflowContextKeys.Planning.QUERY_PLAN, analysisResult);
-            context.put(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT, planningResult);
-            context.put(WorkflowContextKeys.Planning.QUERY_PLANNING_SUMMARY, buildIntentAnalysisSummary(intentAnalysisBundle));
-            context.put(WorkflowContextKeys.Planning.PLANNING_REQUEST_ID, planningResponse == null ? null : planningResponse.getRequestId());
+            context.put(ConversationRuntimeContextKeys.Planning.QUERY_PLAN, analysisResult);
+            context.put(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT, planningResult);
+            context.put(ConversationRuntimeContextKeys.Planning.QUERY_PLANNING_SUMMARY, buildIntentAnalysisSummary(intentAnalysisBundle));
+            context.put(ConversationRuntimeContextKeys.Planning.PLANNING_REQUEST_ID, planningResponse == null ? null : planningResponse.getRequestId());
             context.publishProgressEvent(
                     ConversationEventSources.QUERY_PLAN,
                     ConversationEventPhases.READY,
@@ -334,7 +334,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     private ChatRequest buildPlanningRequest(ConversationQueryCommand command,
-                                             WorkflowContext context,
+                                             ConversationRuntimeContext context,
                                              List<AiChatMessageDTO> historyMessages) {
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command));
@@ -378,7 +378,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         return request;
     }
 
-    private String buildPlanningContext(WorkflowContext context) {
+    private String buildPlanningContext(ConversationRuntimeContext context) {
         StringBuilder builder = new StringBuilder();
         AiChatMessageDTO currentUserMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         builder.append("是否新会话首轮：")
@@ -388,11 +388,11 @@ public class QueryPlanningNode extends BaseWorkflowNode {
         if (StringUtils.hasText(userMessageSummary)) {
             builder.append("用户消息上下文汇总：").append('\n').append(userMessageSummary).append('\n');
         }
-        List<String> resolvedTerms = context.get(WorkflowContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
+        List<String> resolvedTerms = context.get(ConversationRuntimeContextKeys.Skill.RESOLVED_BUSINESS_TERMS);
         if (!CollectionUtils.isEmpty(resolvedTerms)) {
             builder.append("业务术语补充：").append(resolvedTerms).append('\n');
         }
-        Object normalizedTimeRange = context.get(WorkflowContextKeys.Skill.NORMALIZED_TIME_RANGE);
+        Object normalizedTimeRange = context.get(ConversationRuntimeContextKeys.Skill.NORMALIZED_TIME_RANGE);
         if (normalizedTimeRange != null) {
             builder.append("时间范围补充：").append(normalizedTimeRange).append('\n');
         }
@@ -400,8 +400,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
     }
 
     @SuppressWarnings("unchecked")
-    private void appendPlanningSkillMessages(List<ChatMessage> messages, WorkflowContext context) {
-        List<PlanningContextMessage> contextMessages = context.get(WorkflowContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES);
+    private void appendPlanningSkillMessages(List<ChatMessage> messages, ConversationRuntimeContext context) {
+        List<PlanningContextMessage> contextMessages = context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLANNING_CONTEXT_MESSAGES);
         if (CollectionUtils.isEmpty(contextMessages)) {
             return;
         }

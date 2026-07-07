@@ -12,8 +12,8 @@ import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
@@ -59,7 +59,7 @@ public class SimpleChatNode extends BaseWorkflowNode {
     }
 
     @Override
-    protected NodeResult doExecute(WorkflowContext context) {
+    protected NodeResult doExecute(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
@@ -110,7 +110,7 @@ public class SimpleChatNode extends BaseWorkflowNode {
         return 650;
     }
 
-    private ChatRequest buildRequest(WorkflowContext context) {
+    private ChatRequest buildRequest(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
         request.setProvider(null);
@@ -131,7 +131,7 @@ public class SimpleChatNode extends BaseWorkflowNode {
         return request;
     }
 
-    private List<ChatMessage> buildMessages(WorkflowContext context) {
+    private List<ChatMessage> buildMessages(ConversationRuntimeContext context) {
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(buildMessage(MessageRole.SYSTEM, SIMPLE_CHAT_PROMPT));
 
@@ -154,8 +154,8 @@ public class SimpleChatNode extends BaseWorkflowNode {
         return messages;
     }
 
-    private String buildIntentSummary(WorkflowContext context) {
-        IntentAnalyzeResponse response = context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
+    private String buildIntentSummary(ConversationRuntimeContext context) {
+        IntentAnalyzeResponse response = context.get(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
         if (response == null) {
             return null;
         }
@@ -178,7 +178,7 @@ public class SimpleChatNode extends BaseWorkflowNode {
         return parts.isEmpty() ? null : "基础意图分析结论：" + String.join("；", parts);
     }
 
-    private List<AiChatMessageDTO> resolveHistoryMessages(WorkflowContext context) {
+    private List<AiChatMessageDTO> resolveHistoryMessages(ConversationRuntimeContext context) {
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         if (CollectionUtils.isEmpty(sessionMessages)) {
@@ -229,7 +229,7 @@ public class SimpleChatNode extends BaseWorkflowNode {
                 .orElse("");
     }
 
-    private void persistAssistantMessage(WorkflowContext context, String answer) {
+    private void persistAssistantMessage(ConversationRuntimeContext context, String answer) {
         historyRecorder.saveMessage(
                 context,
                 context.getRound().getRoundCode(),

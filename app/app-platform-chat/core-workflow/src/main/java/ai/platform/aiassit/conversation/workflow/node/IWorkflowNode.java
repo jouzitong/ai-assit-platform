@@ -2,7 +2,7 @@ package ai.platform.aiassit.conversation.workflow.node;
 
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 
 /**
  *
@@ -13,7 +13,7 @@ public interface IWorkflowNode {
 
     String code();
 
-    NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig);
+    NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig);
 
     int order();
 

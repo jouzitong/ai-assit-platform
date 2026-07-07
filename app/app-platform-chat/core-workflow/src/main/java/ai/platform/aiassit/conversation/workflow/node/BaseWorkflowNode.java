@@ -3,7 +3,7 @@ package ai.platform.aiassit.conversation.workflow.node;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.WorkflowPromptContextCapabilityExecutor;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 
@@ -23,7 +23,7 @@ import org.springframework.beans.factory.annotation.Autowired;
  * RenderNode          组织最终回复并落库
  * </pre>
  *
- * <p>各节点只负责自己的阶段产物，统一通过 {@link WorkflowContext} 传递上下文。</p>
+ * <p>各节点只负责自己的阶段产物，统一通过 {@link ConversationRuntimeContext} 传递上下文。</p>
  *
  * @author zhouzhitong
  * @since 2026/6/8
@@ -34,13 +34,13 @@ public abstract class BaseWorkflowNode implements IWorkflowNode {
     @Autowired
     private WorkflowPromptContextCapabilityExecutor capabilityExecutor;
 
-    protected void beforeExecute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+    protected void beforeExecute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig) {
     }
 
-    protected abstract NodeResult doExecute(WorkflowContext context);
+    protected abstract NodeResult doExecute(ConversationRuntimeContext context);
 
     @Override
-    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+    public NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig) {
         beforeExecute(context, nodeConfig);
 
         NodeResult capabilityResult = capabilityExecutor.execute(context, nodeConfig);

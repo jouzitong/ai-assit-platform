@@ -3,12 +3,11 @@ package ai.platform.aiassit.conversation.workflow.planning.skill.impl;
 import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.conversation.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.conversation.workflow.planning.contract.QueryPlanningSkillResult;
-import ai.platform.aiassit.conversation.workflow.service.WorkflowIntentAnalyzeService;
 import ai.platform.aiassit.conversation.workflow.planning.skill.QueryPlanningSkill;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -27,12 +26,6 @@ import java.util.Map;
 @Component
 public class RuleMatchPlanningSkill implements QueryPlanningSkill {
 
-    private final WorkflowIntentAnalyzeService workflowIntentAnalyzeService;
-
-    public RuleMatchPlanningSkill(WorkflowIntentAnalyzeService workflowIntentAnalyzeService) {
-        this.workflowIntentAnalyzeService = workflowIntentAnalyzeService;
-    }
-
     @Override
     public String code() {
         return "query_planning_rule_match";
@@ -44,18 +37,17 @@ public class RuleMatchPlanningSkill implements QueryPlanningSkill {
     }
 
     @Override
-    public QueryPlanningSkillResult analyze(WorkflowContext context) {
+    public QueryPlanningSkillResult analyze(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
             return null;
         }
-        IntentAnalyzeResponse response = context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
+        IntentAnalyzeResponse response = context.get(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
         if (response == null) {
-            response = workflowIntentAnalyzeService.analyze(context);
-            context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
+            return null;
         }
-        context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
+        context.put(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
 
         IntentEvidence evidence = new IntentEvidence();
         evidence.setSource(code());

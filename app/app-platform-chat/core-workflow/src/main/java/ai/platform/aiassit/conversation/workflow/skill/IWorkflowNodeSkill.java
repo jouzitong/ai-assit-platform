@@ -3,7 +3,7 @@ package ai.platform.aiassit.conversation.workflow.skill;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 
 /**
  * 节点技能接口。
@@ -17,5 +17,5 @@ public interface IWorkflowNodeSkill {
 
     WorkflowSkillPhase phase();
 
-    NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult);
+    NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult);
 }

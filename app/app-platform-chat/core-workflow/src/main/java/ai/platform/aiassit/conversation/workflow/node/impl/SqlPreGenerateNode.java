@@ -15,8 +15,8 @@ import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.impl.KnowledgeRetrievePromptContextCapability;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.planning.contract.PlanningResult;
@@ -166,7 +166,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
     }
 
     @Override
-    protected void beforeExecute(WorkflowContext context, WorkflowNodeConfig nodeConfig) {
+    protected void beforeExecute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig) {
         if (nodeConfig == null) {
             return;
         }
@@ -202,8 +202,8 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         knowledgeCapability.getOptions().put("topK", DEFAULT_KB_TOP_K);
     }
 
-    private String buildKnowledgeRetrieveQuery(WorkflowContext context) {
-        PlanningResult planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+    private String buildKnowledgeRetrieveQuery(ConversationRuntimeContext context) {
+        PlanningResult planningResult = context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT);
         if (planningResult == null || planningResult.getSubject() == null) {
             return null;
         }
@@ -269,7 +269,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
     }
 
     @Override
-    protected NodeResult doExecute(WorkflowContext context) {
+    protected NodeResult doExecute(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
@@ -281,7 +281,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         try {
             SqlPreGenerateResult sqlPreGenerateResult = buildSqlPreGenerateResult(context);
             context.setSqlPreGenerateResult(sqlPreGenerateResult);
-            context.put(WorkflowContextKeys.SqlGenerate.PRE_GENERATE_RESULT, sqlPreGenerateResult);
+            context.put(ConversationRuntimeContextKeys.SqlGenerate.PRE_GENERATE_RESULT, sqlPreGenerateResult);
             ChatRequest request = buildRequest(command, context);
             context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setRequest(request);
             context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setStatus("RUNNING");
@@ -293,8 +293,8 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
             }
             context.setGeneratedSql(generatedSql);
             context.putNodeOutput(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode(), "requestId", response == null ? null : response.getRequestId());
-            context.put(WorkflowContextKeys.SqlGenerate.GENERATED_SQL, generatedSql);
-            context.put(WorkflowContextKeys.SqlGenerate.REQUEST_ID, response == null ? null : response.getRequestId());
+            context.put(ConversationRuntimeContextKeys.SqlGenerate.GENERATED_SQL, generatedSql);
+            context.put(ConversationRuntimeContextKeys.SqlGenerate.REQUEST_ID, response == null ? null : response.getRequestId());
             context.getOrCreateNodeResult(WorkflowNodeCodes.SQL_PRE_GENERATE.getNodeCode()).setStatus("SUCCESS");
             historyRecorder.saveArtifact(
                     context,
@@ -338,9 +338,9 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return 400;
     }
 
-    private SqlPreGenerateResult buildSqlPreGenerateResult(WorkflowContext context) {
-        PlanningResult planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
-        KbSearchResponse knowledgeSearchResponse = context.get(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE);
+    private SqlPreGenerateResult buildSqlPreGenerateResult(ConversationRuntimeContext context) {
+        PlanningResult planningResult = context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT);
+        KbSearchResponse knowledgeSearchResponse = context.get(ConversationRuntimeContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE);
         SqlPreGenerateResult result = new SqlPreGenerateResult();
         result.setKnowledgeSearchResponse(knowledgeSearchResponse);
         if (planningResult == null) {
@@ -380,7 +380,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         }
     }
 
-    private SqlPreGenerateResult analyzeSqlPreGenerateResult(WorkflowContext context,
+    private SqlPreGenerateResult analyzeSqlPreGenerateResult(ConversationRuntimeContext context,
                                                              PlanningResult planningResult,
                                                              KbSearchResponse knowledgeSearchResponse) {
         String currentText = extractAnswer(aiExecutionDomainService.chat(buildSqlPreGenerateRequest(context, planningResult, knowledgeSearchResponse)));
@@ -401,7 +401,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         throw new IllegalArgumentException("sql pre-generate result parse failed: " + validationError);
     }
 
-    private ChatRequest buildSqlPreGenerateRequest(WorkflowContext context,
+    private ChatRequest buildSqlPreGenerateRequest(ConversationRuntimeContext context,
                                                    PlanningResult planningResult,
                                                    KbSearchResponse knowledgeSearchResponse) {
         ConversationQueryCommand command = context.getCommand();
@@ -426,7 +426,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return request;
     }
 
-    private String buildSqlPreGenerateInput(WorkflowContext context,
+    private String buildSqlPreGenerateInput(ConversationRuntimeContext context,
                                             PlanningResult planningResult,
                                             KbSearchResponse knowledgeSearchResponse) {
         StringBuilder builder = new StringBuilder();
@@ -462,7 +462,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return builder.toString().trim();
     }
 
-    private String retrySqlPreGenerateWithFeedback(WorkflowContext context,
+    private String retrySqlPreGenerateWithFeedback(ConversationRuntimeContext context,
                                                    PlanningResult planningResult,
                                                    KbSearchResponse knowledgeSearchResponse,
                                                    String previousOutput,
@@ -575,7 +575,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return value == null ? "" : value;
     }
 
-    private ChatRequest buildRequest(ConversationQueryCommand command, WorkflowContext context) {
+    private ChatRequest buildRequest(ConversationQueryCommand command, ConversationRuntimeContext context) {
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command.getApiModel()));
         request.setModel(resolveActualModel(command.getApiModel()));
@@ -604,7 +604,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         return message;
     }
 
-    private String buildSqlGenerationInput(ConversationQueryCommand command, WorkflowContext context) {
+    private String buildSqlGenerationInput(ConversationQueryCommand command, ConversationRuntimeContext context) {
         StringBuilder builder = new StringBuilder();
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         builder.append("用户问题：\n").append(command.getMessage()).append("\n\n");

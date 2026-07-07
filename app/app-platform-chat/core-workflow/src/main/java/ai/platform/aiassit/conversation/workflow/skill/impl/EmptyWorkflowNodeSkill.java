@@ -3,7 +3,7 @@ package ai.platform.aiassit.conversation.workflow.skill.impl;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.skill.IWorkflowNodeSkill;
 import org.springframework.stereotype.Component;
 
@@ -26,7 +26,7 @@ public class EmptyWorkflowNodeSkill implements IWorkflowNodeSkill {
     }
 
     @Override
-    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
+    public NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
         return nodeResult;
     }
 }

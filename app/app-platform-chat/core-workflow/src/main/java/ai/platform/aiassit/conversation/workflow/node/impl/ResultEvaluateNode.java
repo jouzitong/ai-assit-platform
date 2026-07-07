@@ -3,8 +3,8 @@ package ai.platform.aiassit.conversation.workflow.node.impl;
 import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
 import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.dto.WorkflowEvaluationResponse;
 import ai.platform.aiassit.conversation.workflow.evaluate.service.WorkflowResultEvaluateService;
@@ -38,8 +38,8 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
     }
 
     @Override
-    protected NodeResult doExecute(WorkflowContext context) {
-        PlanningResult planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+    protected NodeResult doExecute(ConversationRuntimeContext context) {
+        PlanningResult planningResult = context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT);
         if (planningResult == null) {
             markFailed(context, "planning result is missing");
             return NodeResult.success(WorkflowNodeCodes.QUERY_PLANNING.getNodeCode());
@@ -110,14 +110,14 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
                 + ", relationTableCount=" + relationTableCount;
     }
 
-    private NodeResult evaluateByAi(WorkflowContext context, SqlPreGenerateResult sqlPreGenerateResult) {
+    private NodeResult evaluateByAi(ConversationRuntimeContext context, SqlPreGenerateResult sqlPreGenerateResult) {
         try {
             WorkflowEvaluationResponse response = workflowResultEvaluateService.evaluate(context);
             if (response == null) {
                 return passWithFallback(context, sqlPreGenerateResult, "result evaluation ai response is null");
             }
-            context.put(WorkflowContextKeys.Evaluation.RESULT_EVALUATION_RESPONSE, response);
-            context.put(WorkflowContextKeys.Evaluation.RESULT_EVALUATION_SUMMARY, response.getReason());
+            context.put(ConversationRuntimeContextKeys.Evaluation.RESULT_EVALUATION_RESPONSE, response);
+            context.put(ConversationRuntimeContextKeys.Evaluation.RESULT_EVALUATION_SUMMARY, response.getReason());
             context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "evaluationResponse", response);
             context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "evaluationSummary", response.getReason());
             context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "blocking", !Boolean.TRUE.equals(response.getPassed()));
@@ -141,12 +141,12 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
             return NodeResult.success(response.getRetryNodeCode());
         } catch (Exception ex) {
             log.warn("result evaluate ai failed, fallback to programmatic pass", ex);
-            context.put(WorkflowContextKeys.Evaluation.RESULT_EVALUATION_ERROR, ex.getMessage());
+            context.put(ConversationRuntimeContextKeys.Evaluation.RESULT_EVALUATION_ERROR, ex.getMessage());
             return passWithFallback(context, sqlPreGenerateResult, "result evaluation ai skipped: " + ex.getMessage());
         }
     }
 
-    private NodeResult passWithFallback(WorkflowContext context,
+    private NodeResult passWithFallback(ConversationRuntimeContext context,
                                         SqlPreGenerateResult sqlPreGenerateResult,
                                         String reason) {
         String summary = buildSuccessSummary(sqlPreGenerateResult);
@@ -166,7 +166,7 @@ public class ResultEvaluateNode extends BaseWorkflowNode {
         return NodeResult.success(WorkflowNodeCodes.RENDER.getNodeCode());
     }
 
-    private void markFailed(WorkflowContext context, String summary) {
+    private void markFailed(ConversationRuntimeContext context, String summary) {
         context.getOrCreateNodeResult(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode()).setStatus(STATUS_FAILED);
         context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "evaluationSummary", summary);
         context.putNodeOutput(WorkflowNodeCodes.RESULT_EVALUATE.getNodeCode(), "blocking", Boolean.TRUE);

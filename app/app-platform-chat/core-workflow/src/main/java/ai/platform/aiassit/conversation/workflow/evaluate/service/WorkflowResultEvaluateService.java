@@ -1,8 +1,8 @@
 package ai.platform.aiassit.conversation.workflow.evaluate.service;
 
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.dto.WorkflowEvaluationResponse;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -81,7 +81,7 @@ public class WorkflowResultEvaluateService {
         this.objectMapper = objectMapper;
     }
 
-    public WorkflowEvaluationResponse evaluate(WorkflowContext context) {
+    public WorkflowEvaluationResponse evaluate(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context == null ? null : context.getCommand();
         if (command == null || !StringUtils.hasText(command.getMessage())) {
             return null;
@@ -98,7 +98,7 @@ public class WorkflowResultEvaluateService {
         return response;
     }
 
-    private ChatRequest buildRequest(WorkflowContext context) {
+    private ChatRequest buildRequest(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
         request.setProvider(null);
@@ -119,7 +119,7 @@ public class WorkflowResultEvaluateService {
         return request;
     }
 
-    private List<ChatMessage> buildMessages(WorkflowContext context) {
+    private List<ChatMessage> buildMessages(ConversationRuntimeContext context) {
         List<ChatMessage> messages = new ArrayList<>();
         messages.add(buildMessage(MessageRole.SYSTEM, RESULT_EVALUATE_PROMPT));
         String contextText = buildContextText(context);
@@ -136,9 +136,9 @@ public class WorkflowResultEvaluateService {
         return messages;
     }
 
-    private String buildContextText(WorkflowContext context) {
+    private String buildContextText(ConversationRuntimeContext context) {
         StringBuilder builder = new StringBuilder();
-        Object intentAnalyzeResponse = context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
+        Object intentAnalyzeResponse = context.get(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
         if (intentAnalyzeResponse != null) {
             builder.append("基础意图分析：").append(intentAnalyzeResponse).append('\n');
         }
@@ -149,7 +149,7 @@ public class WorkflowResultEvaluateService {
         return builder.toString().trim();
     }
 
-    private List<AiChatMessageDTO> resolveHistoryMessages(WorkflowContext context) {
+    private List<AiChatMessageDTO> resolveHistoryMessages(ConversationRuntimeContext context) {
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         if (CollectionUtils.isEmpty(sessionMessages)) {
@@ -191,13 +191,13 @@ public class WorkflowResultEvaluateService {
         return message;
     }
 
-    private String buildEvaluateInput(WorkflowContext context) {
+    private String buildEvaluateInput(ConversationRuntimeContext context) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userQuery", context.getCommand() == null ? null : context.getCommand().getMessage());
         payload.put("analysisResult", context.getAnalysisResult());
-        payload.put("planningResult", context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT));
+        payload.put("planningResult", context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT));
         payload.put("knowledgeResult", context.getKnowledgeResult());
-        payload.put("knowledgeSearchResponse", context.get(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE));
+        payload.put("knowledgeSearchResponse", context.get(ConversationRuntimeContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE));
         payload.put("sqlPreGenerateResult", context.getSqlPreGenerateResult());
         payload.put("generatedSql", context.getGeneratedSql());
         payload.put("renderRequirements", List.of(

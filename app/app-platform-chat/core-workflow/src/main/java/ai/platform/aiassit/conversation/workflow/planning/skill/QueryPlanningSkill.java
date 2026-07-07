@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.planning.skill;
 
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.QueryPlanningSkillResult;
 
 /**
@@ -15,5 +15,5 @@ public interface QueryPlanningSkill {
 
     int order();
 
-    QueryPlanningSkillResult analyze(WorkflowContext context);
+    QueryPlanningSkillResult analyze(ConversationRuntimeContext context);
 }

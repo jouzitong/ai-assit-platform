@@ -8,8 +8,8 @@ import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationToolDTO;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.conversation.workflow.planning.contract.PlanningContextMessage;
 import ai.platform.aiassit.conversation.workflow.planning.contract.QueryPlanningSkillResult;
@@ -49,7 +49,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
     }
 
     @Override
-    public QueryPlanningSkillResult analyze(WorkflowContext context) {
+    public QueryPlanningSkillResult analyze(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         String message = command == null ? null : command.getMessage();
         if (!StringUtils.hasText(message)) {
@@ -60,8 +60,8 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
             return null;
         }
         HybridSearchResponse response = fetchVectorHits(command, context, kbId);
-        context.put(WorkflowContextKeys.Planning.VECTOR_HYBRID_SEARCH_RESPONSE, response);
-        context.put(WorkflowContextKeys.Planning.VECTOR_HYBRID_SEARCH_SUMMARY, summarizeHits(response));
+        context.put(ConversationRuntimeContextKeys.Planning.VECTOR_HYBRID_SEARCH_RESPONSE, response);
+        context.put(ConversationRuntimeContextKeys.Planning.VECTOR_HYBRID_SEARCH_SUMMARY, summarizeHits(response));
 
         IntentEvidence evidence = new IntentEvidence();
         evidence.setSource(code());
@@ -108,7 +108,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return message;
     }
 
-    private HybridSearchResponse fetchVectorHits(ConversationQueryCommand command, WorkflowContext context, String kbId) {
+    private HybridSearchResponse fetchVectorHits(ConversationQueryCommand command, ConversationRuntimeContext context, String kbId) {
         HybridSearchRequest request = new HybridSearchRequest();
         request.setProvider(null);
         request.setKbId(kbId);
@@ -122,7 +122,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
         return aiRetrievalExecutionApi.hybridSearch(request);
     }
 
-    private String buildRetrievalQuery(ConversationQueryCommand command, WorkflowContext context) {
+    private String buildRetrievalQuery(ConversationQueryCommand command, ConversationRuntimeContext context) {
         String currentMessage = command == null ? null : command.getMessage();
         String messageSummary = context == null ? null : context.getOrCreateUserMessageContext().getSummary();
         if (!StringUtils.hasText(messageSummary)) {

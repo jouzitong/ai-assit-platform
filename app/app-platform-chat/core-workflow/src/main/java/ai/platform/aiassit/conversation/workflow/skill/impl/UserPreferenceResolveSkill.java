@@ -4,8 +4,8 @@ import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryComma
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
 import ai.platform.aiassit.conversation.workflow.skill.IWorkflowNodeSkill;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -43,19 +43,19 @@ public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
     }
 
     @Override
-    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
+    public NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
         }
         Map<String, Object> preferenceProfile = resolvePreferenceProfile(command, context);
         if (!preferenceProfile.isEmpty()) {
-            context.put(WorkflowContextKeys.Skill.RESOLVED_USER_PREFERENCES, preferenceProfile);
+            context.put(ConversationRuntimeContextKeys.Skill.RESOLVED_USER_PREFERENCES, preferenceProfile);
         }
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
-    private Map<String, Object> resolvePreferenceProfile(ConversationQueryCommand command, WorkflowContext context) {
+    private Map<String, Object> resolvePreferenceProfile(ConversationQueryCommand command, ConversationRuntimeContext context) {
         Map<String, Object> profile = new LinkedHashMap<>();
 
         Map<String, Object> explicitPreferences = extractExplicitPreferences(command.getExt());
@@ -109,7 +109,7 @@ public class UserPreferenceResolveSkill implements IWorkflowNodeSkill {
         target.put(key, value);
     }
 
-    private Map<String, Object> inferPreferences(WorkflowContext context) {
+    private Map<String, Object> inferPreferences(ConversationRuntimeContext context) {
         List<String> corpus = new ArrayList<>();
         List<AiChatMessageDTO> sessionMessages = context.getOrCreateUserMessageContext().getSessionMessages();
         if (!CollectionUtils.isEmpty(sessionMessages)) {

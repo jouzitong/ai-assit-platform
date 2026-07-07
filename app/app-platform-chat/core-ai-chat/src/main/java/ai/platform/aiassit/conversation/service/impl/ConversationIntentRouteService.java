@@ -5,12 +5,11 @@ import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
 import ai.platform.aiassit.conversation.constant.ConversationEventSources;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.service.WorkflowDefinitionFactory;
-import ai.platform.aiassit.conversation.workflow.service.WorkflowIntentAnalyzeService;
 import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -25,35 +24,35 @@ public class ConversationIntentRouteService {
 
     private static final String SIMPLE_CHAT = "SIMPLE_CHAT";
 
-    private final WorkflowIntentAnalyzeService workflowIntentAnalyzeService;
+    private final ConversationIntentAnalyzeService intentAnalyzeService;
     private final WorkflowDefinitionFactory workflowDefinitionFactory;
     private final AiChatRoundService roundService;
 
-    public ConversationIntentRouteService(WorkflowIntentAnalyzeService workflowIntentAnalyzeService,
-                                    WorkflowDefinitionFactory workflowDefinitionFactory,
-                                    AiChatRoundService roundService) {
-        this.workflowIntentAnalyzeService = workflowIntentAnalyzeService;
+    public ConversationIntentRouteService(ConversationIntentAnalyzeService intentAnalyzeService,
+                                          WorkflowDefinitionFactory workflowDefinitionFactory,
+                                          AiChatRoundService roundService) {
+        this.intentAnalyzeService = intentAnalyzeService;
         this.workflowDefinitionFactory = workflowDefinitionFactory;
         this.roundService = roundService;
     }
 
-    public void route(WorkflowContext context) {
+    public void route(ConversationRuntimeContext context) {
         IntentAnalyzeResponse response = resolveIntentAnalyzeResponse(context);
         refreshRoundType(context, response);
         bindWorkflowDefinition(context, response);
     }
 
-    private IntentAnalyzeResponse resolveIntentAnalyzeResponse(WorkflowContext context) {
-        IntentAnalyzeResponse existingResponse = context.get(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
+    private IntentAnalyzeResponse resolveIntentAnalyzeResponse(ConversationRuntimeContext context) {
+        IntentAnalyzeResponse existingResponse = context.get(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
         if (existingResponse != null) {
             return existingResponse;
         }
         try {
-            IntentAnalyzeResponse response = workflowIntentAnalyzeService.analyze(context);
+            IntentAnalyzeResponse response = intentAnalyzeService.analyze(context);
             if (response == null) {
                 return null;
             }
-            context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
+            context.put(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
             context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "intentAnalyzeResponse", response);
             context.publishProgressEvent(
                     ConversationEventSources.INTENT_ANALYZE,
@@ -67,7 +66,7 @@ public class ConversationIntentRouteService {
                     context.getSession() == null ? null : context.getSession().getSessionCode(),
                     context.getRound() == null ? null : context.getRound().getRoundCode(),
                     ex);
-            context.put(WorkflowContextKeys.Planning.INTENT_ANALYZE_ERROR, ex.getMessage());
+            context.put(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_ERROR, ex.getMessage());
             context.publishProgressEvent(
                     ConversationEventSources.INTENT_ANALYZE,
                     ConversationEventPhases.SKIPPED,
@@ -77,7 +76,7 @@ public class ConversationIntentRouteService {
         }
     }
 
-    private void bindWorkflowDefinition(WorkflowContext context, IntentAnalyzeResponse response) {
+    private void bindWorkflowDefinition(ConversationRuntimeContext context, IntentAnalyzeResponse response) {
         String intentType = response == null ? null : response.getIntentType();
         if (SIMPLE_CHAT.equalsIgnoreCase(intentType)) {
             context.setWorkflowDefinition(workflowDefinitionFactory.simpleChatWorkflow());
@@ -98,7 +97,7 @@ public class ConversationIntentRouteService {
         );
     }
 
-    private void refreshRoundType(WorkflowContext context, IntentAnalyzeResponse response) {
+    private void refreshRoundType(ConversationRuntimeContext context, IntentAnalyzeResponse response) {
         if (hasExplicitRoundType(context == null ? null : context.getCommand())) {
             return;
         }

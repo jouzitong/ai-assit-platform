@@ -11,8 +11,8 @@ import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextCapability;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextItem;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextResult;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
@@ -44,7 +44,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
     }
 
     @Override
-    public PromptContextResult load(WorkflowContext context,
+    public PromptContextResult load(ConversationRuntimeContext context,
                                     WorkflowNodeConfig nodeConfig,
                                     WorkflowNodeCapabilityConfig capabilityConfig) {
         ConversationQueryCommand command = context.getCommand();
@@ -67,13 +67,13 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         request.setMeta(meta);
 
         KbSearchResponse response = aiExecutionDomainService.kbSearch(request);
-        context.put(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE, response);
+        context.put(ConversationRuntimeContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE, response);
         String content = formatKnowledgeHits(response == null ? null : response.getItems());
         if (!StringUtils.hasText(content)) {
             return empty();
         }
         context.setKnowledgeResult(content);
-        context.put(WorkflowContextKeys.Capability.KNOWLEDGE_RESULT, content);
+        context.put(ConversationRuntimeContextKeys.Capability.KNOWLEDGE_RESULT, content);
 
         PromptContextItem item = new PromptContextItem();
         item.setTitle(resolveTitle(capabilityConfig, "知识库上下文"));
@@ -93,7 +93,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
     }
 
     private String buildQuery(ConversationQueryCommand command,
-                              WorkflowContext context,
+                              ConversationRuntimeContext context,
                               WorkflowNodeCapabilityConfig capabilityConfig) {
         String explicitQuery = resolveOptionAsString(capabilityConfig, "query");
         if (StringUtils.hasText(explicitQuery)) {

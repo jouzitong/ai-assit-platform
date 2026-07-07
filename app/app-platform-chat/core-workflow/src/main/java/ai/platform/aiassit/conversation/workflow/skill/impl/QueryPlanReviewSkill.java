@@ -3,7 +3,7 @@ package ai.platform.aiassit.conversation.workflow.skill.impl;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.skill.IWorkflowNodeSkill;
 import org.springframework.util.StringUtils;
 
@@ -29,7 +29,7 @@ public class QueryPlanReviewSkill implements IWorkflowNodeSkill {
     }
 
     @Override
-    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
+    public NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
         String analysisResult = context.getAnalysisResult();
         if (!StringUtils.hasText(analysisResult)) {
             return NodeResult.fail("analysisResult is required for query plan review");

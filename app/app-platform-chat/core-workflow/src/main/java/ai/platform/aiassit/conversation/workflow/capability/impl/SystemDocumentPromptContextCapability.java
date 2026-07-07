@@ -6,7 +6,7 @@ import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextCapability;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextItem;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextResult;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -32,7 +32,7 @@ public class SystemDocumentPromptContextCapability implements PromptContextCapab
     }
 
     @Override
-    public PromptContextResult load(WorkflowContext context,
+    public PromptContextResult load(ConversationRuntimeContext context,
                                     WorkflowNodeConfig nodeConfig,
                                     WorkflowNodeCapabilityConfig capabilityConfig) {
         List<String> documents = resolveDocuments(context.getCommand(), capabilityConfig);

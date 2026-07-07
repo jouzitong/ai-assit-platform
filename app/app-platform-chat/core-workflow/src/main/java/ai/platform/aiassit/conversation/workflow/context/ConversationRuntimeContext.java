@@ -26,16 +26,18 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * 工作流上下文。
+ * 聊天运行上下文。
  *
- * <p>用于承载一次 AI 对话工作流执行过程中的输入参数、会话信息、节点中间结果、SQL 预生成阶段结果以及 SSE 推送对象。</p>
+ * <p>用于承载一次聊天任务执行过程中的输入参数、会话信息、意图分析结果、工作流定义、节点中间结果以及 SSE 推送对象。</p>
+ *
+ * <p>workflow 相关状态只是该运行上下文中的一个执行域，而不是上下文本身的全部语义。</p>
  *
  * @author zhouzhitong
  * @since 2026/6/8
  */
 @Data
 @Slf4j
-public class WorkflowContext implements Serializable {
+public class ConversationRuntimeContext implements Serializable {
 
     @Serial
     private static final long serialVersionUID = 1L;
@@ -53,12 +55,12 @@ public class WorkflowContext implements Serializable {
     private ConversationQueryCommand command;
 
     /**
-     * 当前执行的工作流编码。
+     * 当前聊天任务绑定的工作流编码。
      */
     private String workflowCode;
 
     /**
-     * 当前工作流定义。
+     * 当前聊天任务绑定的工作流定义。
      */
     private WorkflowDefinition workflowDefinition;
 

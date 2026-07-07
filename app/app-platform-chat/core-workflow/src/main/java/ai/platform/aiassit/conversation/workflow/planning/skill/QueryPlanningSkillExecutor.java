@@ -1,7 +1,7 @@
 package ai.platform.aiassit.conversation.workflow.planning.skill;
 
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.conversation.workflow.planning.contract.PlanningContextMessage;
@@ -33,7 +33,7 @@ public class QueryPlanningSkillExecutor {
                 .toList();
     }
 
-    public IntentAnalysisBundle analyze(WorkflowContext context) {
+    public IntentAnalysisBundle analyze(ConversationRuntimeContext context) {
         IntentAnalysisBundle bundle = new IntentAnalysisBundle();
         ConversationQueryCommand command = context.getCommand();
         bundle.setOriginalQuery(command == null ? null : command.getMessage());

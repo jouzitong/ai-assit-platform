@@ -4,7 +4,7 @@ import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeSkillConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -30,7 +30,7 @@ public class WorkflowNodeSkillExecutor {
         }
     }
 
-    public NodeResult execute(WorkflowContext context,
+    public NodeResult execute(ConversationRuntimeContext context,
                               WorkflowNodeConfig nodeConfig,
                               WorkflowSkillPhase phase,
                               NodeResult nodeResult) {

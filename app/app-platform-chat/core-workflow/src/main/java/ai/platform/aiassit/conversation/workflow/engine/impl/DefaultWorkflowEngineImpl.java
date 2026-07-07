@@ -12,8 +12,8 @@ import ai.platform.aiassit.conversation.workflow.bean.TransitionProposal;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowDefinition;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowExecutionState;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeResult;
 import ai.platform.aiassit.conversation.workflow.engine.IWorkflowEngine;
@@ -52,11 +52,11 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
     }
 
     @Override
-    public void run(WorkflowContext context) {
+    public void run(ConversationRuntimeContext context) {
         executeWorkflow(context);
     }
 
-    private void executeWorkflow(WorkflowContext context) {
+    private void executeWorkflow(ConversationRuntimeContext context) {
         try {
             WorkflowDefinition definition = context.getWorkflowDefinition();
             if (definition == null) {
@@ -167,8 +167,8 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         }
     }
 
-    private void failWorkflow(WorkflowContext context, String errorMessage, String eventType, String eventMessage) {
-        context.put(WorkflowContextKeys.Common.ERROR, errorMessage);
+    private void failWorkflow(ConversationRuntimeContext context, String errorMessage, String eventType, String eventMessage) {
+        context.put(ConversationRuntimeContextKeys.Common.ERROR, errorMessage);
         if (ConversationEventTypes.ERROR.equals(eventType)) {
             context.publishErrorEvent(ConversationEventSources.WORKFLOW, ConversationEventPhases.FAILED, eventMessage);
         } else {
@@ -177,7 +177,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         finishRound(context, STATUS_FAILED);
     }
 
-    private void finishRound(WorkflowContext context, String status) {
+    private void finishRound(ConversationRuntimeContext context, String status) {
         AiChatRoundDTO round = context == null ? null : context.getRound();
         if (round == null || round.getId() == null) {
             return;
@@ -198,7 +198,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         round.setStatus(status);
     }
 
-    private String resolveRoundActualModel(WorkflowContext context) {
+    private String resolveRoundActualModel(ConversationRuntimeContext context) {
         WorkflowNodeResult nodeResult = resolveRoundModelNodeResult(context);
         if (nodeResult != null && nodeResult.getResponse() != null
                 && org.springframework.util.StringUtils.hasText(nodeResult.getResponse().getModel())) {
@@ -212,7 +212,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         return round == null ? null : round.getActualModel();
     }
 
-    private String resolveRoundModelCode(WorkflowContext context) {
+    private String resolveRoundModelCode(ConversationRuntimeContext context) {
         WorkflowNodeResult nodeResult = resolveRoundModelNodeResult(context);
         if (nodeResult != null && nodeResult.getRequest() != null
                 && org.springframework.util.StringUtils.hasText(nodeResult.getRequest().getModel())) {
@@ -226,7 +226,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         return round == null ? null : round.getModelCode();
     }
 
-    private WorkflowNodeResult resolveRoundModelNodeResult(WorkflowContext context) {
+    private WorkflowNodeResult resolveRoundModelNodeResult(ConversationRuntimeContext context) {
         if (context == null || context.getOrCreateResultContext().getNodeResults() == null) {
             return null;
         }
@@ -284,7 +284,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
         return result;
     }
 
-    private void publishTransitionDecision(WorkflowContext context,
+    private void publishTransitionDecision(ConversationRuntimeContext context,
                                            WorkflowNodeConfig workflowNodeConfig,
                                            TransitionDecision decision) {
         if (context == null || workflowNodeConfig == null || decision == null) {

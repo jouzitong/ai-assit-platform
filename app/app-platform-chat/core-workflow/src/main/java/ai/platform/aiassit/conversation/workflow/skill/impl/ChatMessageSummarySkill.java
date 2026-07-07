@@ -15,8 +15,8 @@ import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeConfig;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowSkillPhase;
 import ai.platform.aiassit.conversation.workflow.context.InvalidIntentItem;
 import ai.platform.aiassit.conversation.workflow.context.UserMessageContext;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.skill.IWorkflowNodeSkill;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
@@ -92,7 +92,7 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
     }
 
     @Override
-    public NodeResult execute(WorkflowContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
+    public NodeResult execute(ConversationRuntimeContext context, WorkflowNodeConfig nodeConfig, NodeResult nodeResult) {
         UserMessageContext userMessageContext = context.getOrCreateUserMessageContext();
         AiChatMessageDTO currentMessage = userMessageContext.getCurrentMessage();
         if (currentMessage == null || !StringUtils.hasText(currentMessage.getContent())) {
@@ -122,12 +122,12 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
                         userMessageContext.getInvalidIntents());
             }
         } catch (Exception ex) {
-            context.put(WorkflowContextKeys.ChatMessage.SUMMARY_ERROR, ex.getMessage());
+            context.put(ConversationRuntimeContextKeys.ChatMessage.SUMMARY_ERROR, ex.getMessage());
         }
         return NodeResult.success(nodeResult == null ? null : nodeResult.getNextNodeId());
     }
 
-    private void refreshSessionName(WorkflowContext context, String title, String summary) {
+    private void refreshSessionName(ConversationRuntimeContext context, String title, String summary) {
         AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         if (context.getSession() == null
                 || context.getSession().getId() == null
@@ -182,7 +182,7 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private ChatRequest buildRequest(WorkflowContext context, UserMessageContext userMessageContext) {
+    private ChatRequest buildRequest(ConversationRuntimeContext context, UserMessageContext userMessageContext) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
         request.setProvider(resolveProviderType(command == null ? null : command.getApiModel()));

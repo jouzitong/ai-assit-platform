@@ -16,8 +16,8 @@ import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
-import ai.platform.aiassit.conversation.workflow.constants.WorkflowContextKeys;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
@@ -94,7 +94,7 @@ public class RenderNode extends BaseWorkflowNode {
     }
 
     @Override
-    protected NodeResult doExecute(WorkflowContext context) {
+    protected NodeResult doExecute(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
             return NodeResult.fail("command is required");
@@ -119,13 +119,13 @@ public class RenderNode extends BaseWorkflowNode {
             context.setRenderJson(renderJson);
             if (StringUtils.hasText(renderCheckReport)) {
                 context.setRenderCheckReport(renderCheckReport);
-                context.put(WorkflowContextKeys.Render.RENDER_CHECK_REPORT, renderCheckReport);
+                context.put(ConversationRuntimeContextKeys.Render.RENDER_CHECK_REPORT, renderCheckReport);
             }
             RenderDetailDTO renderPage = persistRenderPage(context, renderJsonText);
             context.setRenderedAnswer(renderJsonText);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
-            context.put(WorkflowContextKeys.Render.RENDER_JSON, renderJson);
-            context.put(WorkflowContextKeys.Render.RENDERED_ANSWER, renderJsonText);
+            context.put(ConversationRuntimeContextKeys.Render.RENDER_JSON, renderJson);
+            context.put(ConversationRuntimeContextKeys.Render.RENDERED_ANSWER, renderJsonText);
             context.publishAnswerEvent(
                     ConversationEventSources.RENDER,
                     ConversationEventPhases.COMPLETED,
@@ -178,7 +178,7 @@ public class RenderNode extends BaseWorkflowNode {
         return 700;
     }
 
-    private ChatRequest buildRenderRequest(ConversationQueryCommand command, WorkflowContext context) {
+    private ChatRequest buildRenderRequest(ConversationQueryCommand command, ConversationRuntimeContext context) {
         ChatRequest request = new ChatRequest();
         request.setProvider(ProviderType.AI_AGENT);
         request.setModel(resolveAgentModel(command));
@@ -280,14 +280,14 @@ public class RenderNode extends BaseWorkflowNode {
         return schema;
     }
 
-    private String buildRenderInput(ConversationQueryCommand command, WorkflowContext context) {
+    private String buildRenderInput(ConversationQueryCommand command, ConversationRuntimeContext context) {
         Map<String, Object> payload = new LinkedHashMap<>();
         payload.put("userQuery", command.getMessage());
         payload.put("planningSummary", context.getAnalysisResult());
-        payload.put("planningResult", context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT));
+        payload.put("planningResult", context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT));
         payload.put("promptContext", context.getPromptContext(WorkflowNodeCodes.RENDER.getNodeCode()));
         payload.put("knowledgeContext", context.getKnowledgeResult());
-        payload.put("knowledgeSearchResponse", context.get(WorkflowContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE));
+        payload.put("knowledgeSearchResponse", context.get(ConversationRuntimeContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE));
         payload.put("sqlPreGenerateResult", context.getSqlPreGenerateResult());
         payload.put("pseudoSql", context.getGeneratedSql());
         payload.put("renderRequirements", List.of(
@@ -426,7 +426,7 @@ public class RenderNode extends BaseWorkflowNode {
         return "anonymous-root";
     }
 
-    private RenderDetailDTO persistRenderPage(WorkflowContext context, String renderJsonText) {
+    private RenderDetailDTO persistRenderPage(ConversationRuntimeContext context, String renderJsonText) {
         RenderUpsertRequest request = new RenderUpsertRequest();
         request.setCode(resolveRenderPageCode(context));
         request.setName(resolveRenderPageName(context));
@@ -436,9 +436,9 @@ public class RenderNode extends BaseWorkflowNode {
 
         RenderDetailDTO detail = renderInternalApi.upsert(request);
         String pageCode = detail == null ? request.getCode() : detail.getCode();
-        context.put(WorkflowContextKeys.Render.RENDER_PAGE_CODE, pageCode);
-        context.put(WorkflowContextKeys.Render.RENDER_PAGE_DETAIL, detail);
-        context.putNodeMetadata(WorkflowNodeCodes.RENDER.getNodeCode(), WorkflowContextKeys.Render.RENDER_PAGE_CODE, pageCode);
+        context.put(ConversationRuntimeContextKeys.Render.RENDER_PAGE_CODE, pageCode);
+        context.put(ConversationRuntimeContextKeys.Render.RENDER_PAGE_DETAIL, detail);
+        context.putNodeMetadata(WorkflowNodeCodes.RENDER.getNodeCode(), ConversationRuntimeContextKeys.Render.RENDER_PAGE_CODE, pageCode);
         log.info("render page persisted, roundCode={}, pageCode={}", context.getRound().getRoundCode(), pageCode);
         return detail;
     }
@@ -450,7 +450,7 @@ public class RenderNode extends BaseWorkflowNode {
         return "render json generated and persisted, pageCode=" + renderPage.getCode();
     }
 
-    private String resolveRenderPageCode(WorkflowContext context) {
+    private String resolveRenderPageCode(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         String explicit = firstText(
                 readExt(command, "renderPageCode"),
@@ -471,9 +471,9 @@ public class RenderNode extends BaseWorkflowNode {
         return sanitizePageCode(String.join("-", segments));
     }
 
-    private String resolveRenderPageName(WorkflowContext context) {
+    private String resolveRenderPageName(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
-        Object planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+        Object planningResult = context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT);
         String explicit = firstText(
                 readExt(command, "renderPageName"),
                 readExt(command, "pageName"),
@@ -486,9 +486,9 @@ public class RenderNode extends BaseWorkflowNode {
         return limitLength(explicit, 80);
     }
 
-    private String resolveRenderCategoryCode(WorkflowContext context) {
+    private String resolveRenderCategoryCode(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
-        Object planningResult = context.get(WorkflowContextKeys.Planning.QUERY_PLAN_RESULT);
+        Object planningResult = context.get(ConversationRuntimeContextKeys.Planning.QUERY_PLAN_RESULT);
         return firstText(
                 readExt(command, "renderCategoryCode"),
                 readExt(command, "categoryCode"),
@@ -545,7 +545,7 @@ public class RenderNode extends BaseWorkflowNode {
         return collapsed.length() > 128 ? collapsed.substring(0, 128) : collapsed;
     }
 
-    private void persistAssistantMessage(WorkflowContext context, String answer) {
+    private void persistAssistantMessage(ConversationRuntimeContext context, String answer) {
         historyRecorder.saveMessage(
                 context,
                 context.getRound().getRoundCode(),

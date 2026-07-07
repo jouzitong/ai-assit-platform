@@ -3,7 +3,7 @@ package ai.platform.aiassit.conversation.workflow.constants;
 import ai.platform.aiassit.service.ai.api.dto.HybridSearchResponse;
 import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowContext;
+import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentAnalysisBundle;
 import ai.platform.aiassit.conversation.workflow.planning.contract.IntentEvidence;
 import ai.platform.aiassit.conversation.workflow.planning.contract.PlanningContextMessage;
@@ -14,14 +14,14 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * {@link WorkflowContext#put(String, Object)} / {@link WorkflowContext#get(String)} 动态上下文键常量。
+ * {@link ConversationRuntimeContext#put(String, Object)} / {@link ConversationRuntimeContext#get(String)} 动态上下文键常量。
  *
  * <p>按通用域、规划域、技能域、Capability 域和节点产物域分组，避免散落字符串。</p>
  *
  * @author zhouzhitong
  * @since 2026/6/23
  */
-public interface WorkflowContextKeys {
+public interface ConversationRuntimeContextKeys {
 
     /**
      * 通用上下文键。
