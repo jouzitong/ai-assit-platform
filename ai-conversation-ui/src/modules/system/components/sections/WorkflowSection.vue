@@ -2,6 +2,7 @@
 import { Delete, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref } from 'vue'
+import { searchAiFlowSkills, type AiFlowSkillItem } from '../../api/aiPlatform'
 import {
   deleteNode,
   deleteWorkflow,
@@ -11,7 +12,8 @@ import {
   type AiWorkflowItem,
 } from '../../api/workflow'
 
-type WorkflowTab = 'workflow' | 'node'
+type WorkflowTab = 'workflow' | 'node' | 'skill' | 'tool'
+type WorkflowCard = AiWorkflowItem | AiNodeItem | AiFlowSkillItem
 
 const activeTab = ref<WorkflowTab>('workflow')
 const keyword = ref('')
@@ -22,15 +24,53 @@ const loading = ref(false)
 const errorMessage = ref('')
 const workflowRows = ref<AiWorkflowItem[]>([])
 const nodeRows = ref<AiNodeItem[]>([])
+const skillRows = ref<AiFlowSkillItem[]>([])
 
 const pageSizeOptions = [10, 20, 50, 100, 200, 500]
 const tabOptions = [
   { key: 'workflow' as const, label: '流程配置' },
   { key: 'node' as const, label: '节点配置' },
+  { key: 'skill' as const, label: 'Skill 管理' },
+  { key: 'tool' as const, label: 'Tool 管理' },
 ]
 
-const currentLabel = computed(() => activeTab.value === 'workflow' ? '流程' : '节点')
-const currentRows = computed(() => activeTab.value === 'workflow' ? workflowRows.value : nodeRows.value)
+const currentLabel = computed(() => {
+  switch (activeTab.value) {
+    case 'workflow':
+      return '流程'
+    case 'node':
+      return '节点'
+    case 'skill':
+      return 'Skill'
+    default:
+      return 'Tool'
+  }
+})
+const currentRows = computed<WorkflowCard[]>(() => {
+  switch (activeTab.value) {
+    case 'workflow':
+      return workflowRows.value
+    case 'node':
+      return nodeRows.value
+    case 'skill':
+      return skillRows.value
+    default:
+      return []
+  }
+})
+const isToolTab = computed(() => activeTab.value === 'tool')
+const isDeleteEnabled = computed(() => activeTab.value === 'workflow' || activeTab.value === 'node')
+const currentSearchPlaceholder = computed(() => {
+  switch (activeTab.value) {
+    case 'workflow':
+    case 'node':
+      return `搜索${currentLabel.value}名称 / 编码 / 类型`
+    case 'skill':
+      return '搜索 Skill 名称 / 编码 / 类型'
+    default:
+      return 'Tool 管理接口待接入'
+  }
+})
 const filteredRows = computed(() => {
   const normalized = keyword.value.trim().toLowerCase()
   const source = currentRows.value
@@ -66,6 +106,11 @@ async function loadData() {
   loading.value = true
   errorMessage.value = ''
   try {
+    if (activeTab.value === 'tool') {
+      total.value = 0
+      return
+    }
+
     if (activeTab.value === 'workflow') {
       const payload = await searchWorkflows({
         page: currentPage.value,
@@ -76,12 +121,23 @@ async function loadData() {
       return
     }
 
-    const payload = await searchNodes({
+    if (activeTab.value === 'node') {
+      const payload = await searchNodes({
+        page: currentPage.value,
+        size: pageSize.value,
+      })
+      nodeRows.value = payload?.list ?? []
+      total.value = resolveTotal(payload?.pageInfo?.total, nodeRows.value.length)
+      return
+    }
+
+    const payload = await searchAiFlowSkills({
       page: currentPage.value,
       size: pageSize.value,
+      keyword: keyword.value.trim() || undefined,
     })
-    nodeRows.value = payload?.list ?? []
-    total.value = resolveTotal(payload?.pageInfo?.total, nodeRows.value.length)
+    skillRows.value = payload?.list ?? []
+    total.value = resolveTotal(payload?.pageInfo?.total, skillRows.value.length)
   }
   catch (error) {
     total.value = 0
@@ -179,7 +235,8 @@ onMounted(() => {
         <div class="workflow-shell__tools">
           <el-input
             v-model="keyword"
-            :placeholder="`搜索${currentLabel}名称 / 编码 / 类型`"
+            :placeholder="currentSearchPlaceholder"
+            :disabled="isToolTab"
             clearable
             @keyup.enter="handleSearch"
           >
@@ -187,7 +244,7 @@ onMounted(() => {
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button plain :loading="loading" @click="handleRefresh">
+          <el-button plain :loading="loading" :disabled="isToolTab" @click="handleRefresh">
             <el-icon><RefreshRight /></el-icon>
             刷新
           </el-button>
@@ -200,6 +257,9 @@ onMounted(() => {
         </div>
         <div v-else-if="loading" class="workflow-shell__state">
           正在加载{{ currentLabel }}列表...
+        </div>
+        <div v-else-if="activeTab === 'tool'" class="workflow-shell__state">
+          Tool 管理接口暂未接入，当前先迁移入口到 Workflow 管理。
         </div>
         <div v-else-if="!filteredRows.length" class="workflow-shell__state">
           当前没有{{ currentLabel }}数据
@@ -216,20 +276,36 @@ onMounted(() => {
                 <el-tag size="small" effect="plain" :type="row.enabled === false ? 'info' : 'success'">
                   {{ row.enabled === false ? '停用' : '启用' }}
                 </el-tag>
+                <template v-if="activeTab === 'skill'">
+                  <el-tag
+                    v-for="phase in ((row as AiFlowSkillItem).config?.supportedPhases || []).slice(0, 2)"
+                    :key="phase"
+                    size="small"
+                    effect="plain"
+                  >
+                    {{ phase }}
+                  </el-tag>
+                </template>
               </div>
             </div>
-            <div class="workflow-card__summary">{{ formatConfigPreview(row.config) }}</div>
+            <div class="workflow-card__summary">
+              {{ activeTab === 'skill' ? ((row as AiFlowSkillItem).config?.summary || '暂无 Skill 摘要') : formatConfigPreview(row.config) }}
+            </div>
             <div class="workflow-card__meta">
               <div class="workflow-card__meta-item">
                 <span>类型</span>
                 <strong>{{ row.type || '-' }}</strong>
+              </div>
+              <div v-if="activeTab === 'skill'" class="workflow-card__meta-item">
+                <span>支持阶段</span>
+                <strong>{{ ((row as AiFlowSkillItem).config?.supportedPhases || []).join(', ') || '-' }}</strong>
               </div>
               <div class="workflow-card__meta-item">
                 <span>更新时间</span>
                 <strong>{{ formatDateTime(row.updateTime || row.createTime) }}</strong>
               </div>
             </div>
-            <div class="workflow-card__actions">
+            <div v-if="isDeleteEnabled" class="workflow-card__actions">
               <el-button plain circle type="danger" title="删除" @click="handleDelete(row)">
                 <el-icon><Delete /></el-icon>
               </el-button>
@@ -241,6 +317,7 @@ onMounted(() => {
       <footer class="workflow-shell__footer">
         <div class="workflow-shell__footer-total">Total {{ total }}</div>
         <el-pagination
+          v-if="!isToolTab"
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
@@ -250,6 +327,7 @@ onMounted(() => {
           @current-change="handleCurrentPageChange"
           @size-change="handlePageSizeChange"
         />
+        <span v-else class="workflow-shell__footer-total">待接入 Tool 管理接口</span>
       </footer>
     </div>
   </section>
