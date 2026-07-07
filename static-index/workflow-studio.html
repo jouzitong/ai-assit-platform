@@ -591,7 +591,7 @@
     <header class="topbar">
       <div>
         <h1>流程编排</h1>
-        <p>左边只看已配置节点和插入位置，右边专注当前节点配置，包括变量、异常、兜底和低分失真策略。</p>
+        <p>左边只看已配置节点和插入位置，右边先收口流程本身的全局配置，包括知识库、默认模型、全局变量、异常和低分兜底策略。</p>
       </div>
       <div class="topbar-actions">
         <button class="btn-ghost">预览变量流</button>
@@ -751,113 +751,148 @@
       <section class="panel config-panel">
         <div class="panel-head">
           <div>
-            <h2>节点配置 / 查询规划</h2>
-            <p>右侧配置区只服务当前选中节点。把变量、失败策略、异常策略、低分兜底都放这里，避免画布里承载太多操作。</p>
+            <h2>流程配置 / 运营日报问数流程</h2>
+            <p>右侧先只看流程级配置。节点仍然可以点选，但当前版本只把节点当成画布结构，不展开节点级细项。</p>
           </div>
-          <div class="badge">当前节点 N02</div>
+          <div class="badge">流程级参数</div>
         </div>
 
         <div class="config-body">
           <div class="summary-grid">
             <article class="summary-card">
-              <span>节点类型</span>
-              <strong>Agent 节点</strong>
+              <span>流程类型</span>
+              <strong>问数工作流</strong>
             </article>
             <article class="summary-card">
-              <span>输入变量</span>
-              <strong class="mono">intent_result</strong>
+              <span>默认模型</span>
+              <strong class="mono">qwen-0001</strong>
             </article>
             <article class="summary-card">
-              <span>输出变量</span>
-              <strong class="mono">plan_result</strong>
+              <span>知识库</span>
+              <strong class="mono">ops_daily_report</strong>
             </article>
             <article class="summary-card">
-              <span>默认去向</span>
-              <strong>知识检索</strong>
+              <span>全局低分阈值</span>
+              <strong class="mono">0.74</strong>
             </article>
           </div>
 
           <section class="section">
-            <h3>基础配置</h3>
-            <p>先定义节点做什么、吃什么、吐什么。这部分是主业务配置，不掺杂异常和兜底。</p>
+            <h3>流程基础配置</h3>
+            <p>这部分是整个流程的主配置。节点先不展开，先把所有节点默认会继承的公共参数收口到流程层。</p>
             <div class="field-grid">
               <div class="field">
-                <label>节点名称</label>
-                <div class="box">查询规划</div>
+                <label>流程名称</label>
+                <div class="box">运营日报问数流程</div>
               </div>
               <div class="field">
-                <label>执行类型</label>
-                <div class="box">AGENT</div>
+                <label>流程编码</label>
+                <div class="box mono">workflow_ops_daily_query</div>
               </div>
               <div class="field full">
-                <label>节点目标</label>
-                <div class="box">把用户问题拆成查询计划、关键假设、待补信息和推荐工具链，为后续检索和答案生成提供稳定中间层。</div>
+                <label>流程目标</label>
+                <div class="box">统一处理运营日报相关问数请求，默认走意图识别、规划、检索、生成、评估、兜底的固定链路。</div>
               </div>
               <div class="field">
-                <label>输入变量</label>
-                <div class="box mono">intent_result, prompt_context</div>
+                <label>默认模型</label>
+                <div class="box mono">qwen-0001</div>
               </div>
               <div class="field">
-                <label>输出变量</label>
-                <div class="box mono">plan_result</div>
+                <label>默认备用模型</label>
+                <div class="box mono">qwen-lite</div>
               </div>
               <div class="field full">
-                <label>关键参数</label>
-                <div class="box mono">model=qwen-0001 / maxTokens=1800 / temperature=0.2 / useTools=true</div>
+                <label>流程描述</label>
+                <div class="box">用于运营数据问答场景。节点默认继承模型、知识域、评分阈值和异常兜底策略；只有特殊节点再单独覆盖。</div>
               </div>
             </div>
           </section>
 
           <section class="section">
-            <h3>流转配置</h3>
-            <p>这里定义当前节点之后怎么走。默认只需要一个主去向，但允许挂条件分支。</p>
+            <h3>知识库与资源配置</h3>
+            <p>流程先绑定公共资源。后面节点如果没有单独指定知识域、工具集或提示模板，就直接继承这里的默认值。</p>
             <div class="field-grid">
               <div class="field">
-                <label>主去向</label>
-                <div class="box">知识检索</div>
+                <label>默认知识库</label>
+                <div class="box mono">ops_daily_report</div>
               </div>
               <div class="field">
-                <label>条件分支</label>
-                <div class="box">若工具计划为空，则直接去答案生成</div>
+                <label>备用知识库</label>
+                <div class="box mono">public_metric_dict</div>
               </div>
               <div class="field full">
-                <label>变量透传</label>
-                <div class="box mono">plan_result -> N03.kb_query_input / plan_result -> N04.answer_plan</div>
+                <label>全局 Tool 组</label>
+                <div class="box mono">knowledge_base_search_tool, data_format_validate_tool</div>
+              </div>
+              <div class="field">
+                <label>默认 Prompt 模板</label>
+                <div class="box mono">ops_query_default_v1</div>
+              </div>
+              <div class="field">
+                <label>上下文窗口</label>
+                <div class="box mono">最近 8 轮对话</div>
               </div>
             </div>
           </section>
 
           <section class="section">
-            <h3>异常配置</h3>
-            <p>异常是“节点没正常执行完”。建议明确重试、超时、切换模型、终止流程这些策略，不要和低分失真混在一起。</p>
+            <h3>全局变量配置</h3>
+            <p>这里定义流程级共享变量。节点先不单独配复杂逻辑，默认按流程变量读写，后面再细化到节点覆盖。</p>
+            <div class="field-grid">
+              <div class="field">
+                <label>用户问题</label>
+                <div class="box mono">user_query</div>
+              </div>
+              <div class="field">
+                <label>场景标识</label>
+                <div class="box mono">scene = ops_daily</div>
+              </div>
+              <div class="field">
+                <label>知识上下文</label>
+                <div class="box mono">kb_context</div>
+              </div>
+              <div class="field">
+                <label>最终输出</label>
+                <div class="box mono">final_answer</div>
+              </div>
+              <div class="field full">
+                <label>全局变量映射</label>
+                <div class="box mono">{ tenantId, traceId, user_query, kb_context, final_answer, judge_score }</div>
+              </div>
+            </div>
+          </section>
+
+          <section class="section">
+            <h3>全局异常配置</h3>
+            <p>先定义流程级默认异常策略。后续节点如果没有特殊要求，直接继承这一套。</p>
             <div class="strategy-grid">
               <article class="strategy-card blue">
                 <h4>重试策略</h4>
-                <p>超时或空结果时，本节点原模型重试 1 次。</p>
+                <p>任意节点超时或空结果时，默认原模型重试 1 次。</p>
               </article>
               <article class="strategy-card amber">
                 <h4>降级策略</h4>
-                <p>重试失败后切轻量模型，再跑一次最小查询规划。</p>
+                <p>重试失败后切全局备用模型 `qwen-lite`，继续跑当前节点。</p>
               </article>
               <article class="strategy-card red">
                 <h4>终止策略</h4>
-                <p>若连续两次失败，终止流程并返回“规划失败，请人工处理”。</p>
+                <p>若连续两次失败，终止流程并返回统一异常提示，必要时转人工。</p>
               </article>
             </div>
             <div class="alert-row">
               <span class="alert-pill success">超时 12s</span>
               <span class="alert-pill warning">最大重试 1</span>
-              <span class="alert-pill danger">失败后可终止</span>
+              <span class="alert-pill danger">默认失败后终止</span>
             </div>
           </section>
 
           <section class="section">
-            <h3>失真兜底配置</h3>
-            <p>失真是“节点执行成功了，但内容质量太差”。这里专门定义评分阈值和低分后的补救路线。</p>
+            <h3>全局低分与兜底配置</h3>
+            <p>低分策略先放流程层，作为所有生成型节点的默认评分规则。后续节点有特殊要求，再允许单点覆盖。</p>
             <div class="field-grid">
               <div class="field">
                 <label>评分来源</label>
-                <div class="box">内容评估节点 N05</div>
+                <div class="box">统一走内容评估节点 N05</div>
               </div>
               <div class="field">
                 <label>低分阈值</label>
@@ -865,7 +900,7 @@
               </div>
               <div class="field full">
                 <label>低分后动作</label>
-                <div class="box">强制补知识检索，然后回到当前节点重做查询规划；如果第二次仍低分，则跳转低分兜底节点。</div>
+                <div class="box">默认回跳到“查询规划”节点，强制补知识检索后重新生成；若第二轮仍低分，则进入低分兜底节点。</div>
               </div>
               <div class="field">
                 <label>极低分阈值</label>
@@ -877,31 +912,31 @@
               </div>
             </div>
             <div class="alert-row">
-              <span class="alert-pill violet">低分回跳当前节点</span>
+              <span class="alert-pill violet">低分默认回跳查询规划</span>
               <span class="alert-pill warning">二次低分进入兜底节点</span>
               <span class="alert-pill danger">极低分转人工</span>
             </div>
           </section>
 
           <section class="section">
-            <h3>执行时间线</h3>
-            <p>这个区域让用户快速理解当前节点的完整处理链路，而不是来回翻多个抽屉。</p>
+            <h3>节点配置预留区</h3>
+            <p>节点级配置先不展开。等你把真实流程逻辑想清楚后，再在这里承接“仅覆盖当前节点”的特殊配置。</p>
             <div class="timeline">
               <div class="step">
-                <strong>1. 正常执行</strong>
-                <p>读取 `intent_result`，输出 `plan_result`，主去向进入知识检索节点。</p>
+                <strong>1. 当前先配流程，不急着配节点</strong>
+                <p>先把默认模型、默认知识库、全局变量、全局评分阈值这些公共项配好。</p>
               </div>
               <div class="step">
-                <strong>2. 节点执行异常</strong>
-                <p>先原模型重试，再切轻量模型；都失败则直接终止流程。</p>
+                <strong>2. 节点默认继承流程设置</strong>
+                <p>例如知识检索节点默认用流程知识库，生成节点默认用流程模型和全局阈值。</p>
               </div>
               <div class="step">
-                <strong>3. 内容评分过低</strong>
-                <p>补检索上下文后回跳当前节点重做规划，避免错误直接扩散到答案生成。</p>
+                <strong>3. 后续再补节点级覆盖</strong>
+                <p>等你确定某些节点确实要特殊模型、特殊知识域、特殊阈值，再增加节点级覆盖区。</p>
               </div>
               <div class="step">
-                <strong>4. 仍不可靠</strong>
-                <p>进入低分兜底节点，统一决定保守模板输出还是人工接管。</p>
+                <strong>4. 这样能避免流程页一上来过重</strong>
+                <p>先把流程骨架和全局参数稳定下来，再进入节点细化，不容易把交互做散。</p>
               </div>
             </div>
           </section>
@@ -915,12 +950,12 @@
     const title = document.querySelector('.config-panel .panel-head h2');
     const badge = document.querySelector('.config-panel .badge');
     const nodeNames = {
-      intent: ['节点配置 / 意图识别', '当前节点 N01'],
-      plan: ['节点配置 / 查询规划', '当前节点 N02'],
-      kb: ['节点配置 / 知识检索', '当前节点 N03'],
-      answer: ['节点配置 / 答案生成', '当前节点 N04'],
-      judge: ['节点配置 / 内容评估', '当前节点 N05'],
-      fallback: ['节点配置 / 低分兜底', '当前节点 N06'],
+      intent: ['流程配置 / 运营日报问数流程', '流程级参数'],
+      plan: ['流程配置 / 运营日报问数流程', '流程级参数'],
+      kb: ['流程配置 / 运营日报问数流程', '流程级参数'],
+      answer: ['流程配置 / 运营日报问数流程', '流程级参数'],
+      judge: ['流程配置 / 运营日报问数流程', '流程级参数'],
+      fallback: ['流程配置 / 运营日报问数流程', '流程级参数'],
     };
 
     cards.forEach((card) => {
