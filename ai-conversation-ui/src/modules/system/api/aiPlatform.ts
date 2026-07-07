@@ -22,6 +22,18 @@ export interface AiModelManageItem {
   updateTime?: string
 }
 
+export interface AiModelManageUpsertPayload {
+  modelCode?: string
+  modelName?: string
+  providerCode?: string
+  providerName?: string
+  baseUrl?: string
+  apiModel?: string
+  enabled?: boolean
+  apiKey?: string
+  extJson?: Record<string, unknown> | null
+}
+
 export interface AiKbStoreItem {
   id: string | number
   kbCode?: string
@@ -33,6 +45,16 @@ export interface AiKbStoreItem {
   extJson?: Record<string, unknown> | null
   createTime?: string
   updateTime?: string
+}
+
+export interface AiKbStoreUpsertPayload {
+  kbCode?: string
+  kbName?: string
+  providerKbId?: string
+  enabled?: boolean
+  tags?: string[]
+  url?: string
+  extJson?: Record<string, unknown> | null
 }
 
 export interface AiFlowSkillItem {
@@ -48,6 +70,79 @@ export interface AiFlowSkillItem {
   } | null
   createTime?: string
   updateTime?: string
+}
+
+export interface AiKbDocumentItem {
+  id: string | number
+  kbCode?: string
+  documentCode?: string
+  documentName?: string
+  documentType?: number | string
+  bizType?: number | string
+  bizKey?: string
+  sourceSystem?: string
+  status?: number | string
+  providerDocumentId?: string
+  providerSyncStatus?: number | string
+  currentVersionNo?: number
+  contentFormat?: number | string
+  contentSize?: number
+  lastGeneratedAt?: string
+  updateTime?: string
+}
+
+export interface AiKbDocumentDetail extends AiKbDocumentItem {
+  contentChecksum?: string
+  metaJson?: Record<string, unknown> | null
+  lastError?: string
+  remark?: string
+  contentJson?: Record<string, unknown> | null
+  renderedContent?: string
+  extJson?: Record<string, unknown> | null
+}
+
+export interface AiKbDocumentQueryPayload {
+  kbCode?: string
+  documentCode?: string
+  keyword?: string
+  bizTypeCode?: number
+  tab?: string
+  page?: number
+  size?: number
+}
+
+export interface AiKbDocumentUpsertPayload {
+  kbId: string
+  documentId: string
+  documentName?: string
+  documentType: number
+  bizType?: number
+  content: string
+  canUpdate?: boolean
+  ext?: Record<string, unknown>
+}
+
+export interface AiKbDocumentContentUpdatePayload {
+  documentId: number | string
+  content: string
+  ext?: Record<string, unknown>
+}
+
+export interface AiKbDocumentDeletePayload {
+  kbCode: string
+  documentCodes: string[]
+}
+
+export interface AiKbDocumentSyncPayload {
+  kbCode: string
+  documentCodes?: string[]
+  force?: boolean
+}
+
+export interface AiKbDocumentSyncResult {
+  acceptedCount?: number
+  taskCode?: string
+  skippedDocumentCodes?: string[]
 }
 
 export interface PageResult<T> {
@@ -86,8 +181,107 @@ export function searchAiModelManages(payload: AiModelManageQueryPayload = {}) {
   })
 }
 
+export function createAiModelManage(payload: AiModelManageUpsertPayload) {
+  return request<AiModelManageItem>(`${AI_MODEL_MANAGE_API_PREFIX}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function editAiModelManage(id: string | number, payload: Partial<AiModelManageUpsertPayload>) {
+  return request<AiModelManageItem>(`${AI_MODEL_MANAGE_API_PREFIX}/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateAiModelManage(id: string | number, payload: AiModelManageUpsertPayload) {
+  return request<AiModelManageItem>(`${AI_MODEL_MANAGE_API_PREFIX}/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteAiModelManage(id: string | number) {
+  return request<boolean>(`${AI_MODEL_MANAGE_API_PREFIX}/${id}`, {
+    method: 'DELETE',
+  })
+}
+
 export function searchAiKbStores(payload: AiKbStoreQueryPayload = {}) {
   return request<PageResult<AiKbStoreItem>>(`${AI_KB_STORE_API_PREFIX}/_search`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function createAiKbStore(payload: AiKbStoreUpsertPayload) {
+  return request<AiKbStoreItem>(`${AI_KB_STORE_API_PREFIX}`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function editAiKbStore(id: string | number, payload: Partial<AiKbStoreUpsertPayload>) {
+  return request<AiKbStoreItem>(`${AI_KB_STORE_API_PREFIX}/${id}`, {
+    method: 'PATCH',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateAiKbStore(id: string | number, payload: AiKbStoreUpsertPayload) {
+  return request<AiKbStoreItem>(`${AI_KB_STORE_API_PREFIX}/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteAiKbStore(id: string | number) {
+  return request<boolean>(`${AI_KB_STORE_API_PREFIX}/${id}`, {
+    method: 'DELETE',
+  })
+}
+
+export function searchAiKbDocuments(payload: AiKbDocumentQueryPayload = {}) {
+  return request<PageResult<AiKbDocumentItem>>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/list`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function getAiKbDocumentDetail(kbCode: string, documentCode: string) {
+  return request<AiKbDocumentDetail>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/detail`, {
+    method: 'GET',
+    query: {
+      kbCode,
+      documentCode,
+    },
+  })
+}
+
+export function createOrUpdateAiKbDocument(payload: AiKbDocumentUpsertPayload) {
+  return request(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/upsert`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateAiKbDocumentContent(payload: AiKbDocumentContentUpdatePayload) {
+  return request(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/content/update`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteAiKbDocuments(payload: AiKbDocumentDeletePayload) {
+  return request(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/delete`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function syncAiKbDocuments(payload: AiKbDocumentSyncPayload) {
+  return request<AiKbDocumentSyncResult>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/sync`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

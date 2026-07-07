@@ -10,8 +10,7 @@ import java.util.List;
 public class AiKbSyncRequest implements Serializable {
 
     /**
-     * 可选：指定同步某个知识库的当前文档。
-     * <p>为空时同步全部知识库的当前文档。</p>
+     * 必填：指定同步某个知识库的当前文档。
      */
     private String kbCode;
 

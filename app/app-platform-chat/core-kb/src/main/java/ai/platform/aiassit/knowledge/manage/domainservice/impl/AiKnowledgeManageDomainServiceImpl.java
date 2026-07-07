@@ -362,16 +362,17 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AiKbSyncResponse syncDocument(AiKbSyncRequest request) {
-        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
-        if (request != null) {
-            query.setKbCode(trimToNull(request.getKbCode()));
+        if (request == null || !StringUtils.hasText(request.getKbCode())) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_CODE);
         }
+        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        query.setKbCode(trimToNull(request.getKbCode()));
         query.setStatus(AiKbDocumentStatus.ACTIVE);
         query.setPage(1);
         query.setSize(Integer.MAX_VALUE);
         List<AiKbDocumentDTO> documents = documentService.listByQuery(query);
 
-        Set<String> targetDocumentCodes = request == null || request.getDocumentCodes() == null
+        Set<String> targetDocumentCodes = request.getDocumentCodes() == null
                 ? Set.of()
                 : request.getDocumentCodes().stream()
                 .filter(StringUtils::hasText)
@@ -381,7 +382,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             documents = documents.stream()
                     .filter(item -> targetDocumentCodes.contains(item.getDocumentCode()))
                     .toList();
-        } else if (request == null || !Boolean.TRUE.equals(request.getForce())) {
+        } else if (!Boolean.TRUE.equals(request.getForce())) {
             documents = documents.stream()
                     .filter(this::shouldSyncDocument)
                     .toList();

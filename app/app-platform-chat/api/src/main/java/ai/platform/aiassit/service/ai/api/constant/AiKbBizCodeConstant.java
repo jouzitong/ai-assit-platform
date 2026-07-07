@@ -23,6 +23,7 @@ public interface AiKbBizCodeConstant {
     Integer REQUIRED_STORE_EXT = 51_01_0008;
     Integer REQUIRED_KB_NAME = 51_01_0009;
     Integer REQUIRED_SOURCE_TYPE = 51_01_0010;
+    Integer REQUIRED_KB_CODE = 51_01_0011;
 
     // 51_02_xxxx 参数取值非法
     Integer INVALID_KB_SOURCE_TYPE = 51_02_0001;

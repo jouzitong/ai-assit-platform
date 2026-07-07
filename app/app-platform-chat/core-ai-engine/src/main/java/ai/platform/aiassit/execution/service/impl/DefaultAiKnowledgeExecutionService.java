@@ -3,6 +3,7 @@ package ai.platform.aiassit.execution.service.impl;
 import ai.platform.aiassit.execution.convert.AiProviderRequestMapper;
 import ai.platform.aiassit.execution.properties.AiCoreProperties;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
+import ai.platform.aiassit.service.ai.api.AiVectorExecutionApi;
 import ai.platform.aiassit.execution.validator.AiRequestValidator;
 import ai.platform.aiassit.service.ai.api.dto.EmbedRequest;
 import ai.platform.aiassit.service.ai.api.dto.EmbedResponse;
@@ -16,14 +17,15 @@ import ai.platform.aiassit.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.service.ai.spi.KnowledgeService;
-import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 
-@Service
-public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionService {
+@RestController
+public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionService, AiVectorExecutionApi {
 
     private final Map<ProviderType, KnowledgeService> knowledgeServices = new EnumMap<>(ProviderType.class);
     private final AiCoreProperties properties;
@@ -43,13 +45,13 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
     }
 
     @Override
-    public EmbedResponse embed(EmbedRequest request) {
+    public EmbedResponse embed(@RequestBody EmbedRequest request) {
         validator.validateEmbed(request);
         return resolveKnowledgeService(request.getProvider()).embed(requestMapper.mapEmbed(request, properties));
     }
 
     @Override
-    public RerankResponse rerank(RerankRequest request) {
+    public RerankResponse rerank(@RequestBody RerankRequest request) {
         validator.validateRerank(request);
         return resolveKnowledgeService(request.getProvider()).rerank(requestMapper.mapRerank(request, properties));
     }

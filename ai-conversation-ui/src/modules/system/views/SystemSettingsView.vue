@@ -7,6 +7,7 @@ import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
 import ComponentManageSection from '../components/sections/ComponentManageSection.vue'
 import DataSourceSection from '../components/sections/DataSourceSection.vue'
 import DataSourceTableSection from '../components/sections/DataSourceTableSection.vue'
+import KbDocumentManageSection from '../components/sections/KbDocumentManageSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
 import WorkflowSection from '../components/sections/WorkflowSection.vue'
 
@@ -71,9 +72,10 @@ const activeSection = computed(() => {
 })
 
 const hasDataSourceDetail = computed(() => activeSection.value === 'data-source' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
+const hasAiPlatformKbDetail = computed(() => activeSection.value === 'ai-platform' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const currentSection = computed(() => sections.find((item) => item.key === activeSection.value) || sections[0])
 const hideHeroSections = new Set(['component-manage', 'system-params'])
-const shouldHideHero = computed(() => hideHeroSections.has(activeSection.value) || hasDataSourceDetail.value)
+const shouldHideHero = computed(() => hideHeroSections.has(activeSection.value) || hasDataSourceDetail.value || hasAiPlatformKbDetail.value)
 
 async function navigateToSection(sectionKey: string) {
   if (activeSection.value === sectionKey) {
@@ -108,7 +110,7 @@ onMounted(() => {
         <p>{{ currentSection.description }}</p>
       </header>
 
-      <component :is="hasDataSourceDetail ? DataSourceTableSection : currentSection.component" />
+      <component :is="hasDataSourceDetail ? DataSourceTableSection : hasAiPlatformKbDetail ? KbDocumentManageSection : currentSection.component" />
     </main>
   </div>
 </template>

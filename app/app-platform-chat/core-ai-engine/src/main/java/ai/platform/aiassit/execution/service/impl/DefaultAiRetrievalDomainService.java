@@ -1,5 +1,6 @@
 package ai.platform.aiassit.execution.service.impl;
 
+import ai.platform.aiassit.service.ai.api.AiRetrievalExecutionApi;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatOptions;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
@@ -23,7 +24,8 @@ import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.execution.service.AiRetrievalDomainService;
 import ai.platform.aiassit.execution.validator.AiRequestValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.springframework.stereotype.Service;
+import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RestController;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -33,8 +35,8 @@ import java.util.List;
 import java.util.Objects;
 import java.util.StringJoiner;
 
-@Service
-public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService {
+@RestController
+public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService, AiRetrievalExecutionApi {
 
     private static final String INTENT_ANALYZE_PROMPT = """
             你是一个智能问数系统的意图分析器。
@@ -104,7 +106,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
     }
 
     @Override
-    public HybridSearchResponse hybridSearch(HybridSearchRequest request) {
+    public HybridSearchResponse hybridSearch(@RequestBody HybridSearchRequest request) {
         aiRequestValidator.validateHybridSearch(request);
         HybridSearchResponse response = new HybridSearchResponse();
         response.setKbId(request.getKbId());
@@ -131,7 +133,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
     }
 
     @Override
-    public IntentAnalyzeResponse analyzeIntent(IntentAnalyzeRequest request) {
+    public IntentAnalyzeResponse analyzeIntent(@RequestBody IntentAnalyzeRequest request) {
         aiRequestValidator.validateIntentAnalyze(request);
         ChatRequest chatRequest = buildIntentAnalyzeChatRequest(request);
         ChatResponse chatResponse = aiExecutionDomainService.chat(chatRequest);
