@@ -76,9 +76,7 @@ public class AiAgentProcessExecutor {
         if (StringUtils.hasText(properties.getKnowledgeSearchUrl())) {
             env.put("AI_AGENT_KB_SEARCH_URL", properties.getKnowledgeSearchUrl());
         }
-        if (StringUtils.hasText(properties.getKnowledgeSearchToken())) {
-            env.put("AI_AGENT_KB_SEARCH_TOKEN", ((UserContext) SystemContext.getUserContext()).token());
-        }
+        env.put("AI_AGENT_KB_SEARCH_TOKEN", ((UserContext) SystemContext.getUserContext()).token());
 
         try {
             log.info("ai agent process starting, command={}", command);
