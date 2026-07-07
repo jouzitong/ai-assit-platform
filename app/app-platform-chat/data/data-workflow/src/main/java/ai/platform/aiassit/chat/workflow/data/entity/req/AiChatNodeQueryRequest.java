@@ -1,5 +1,6 @@
 package ai.platform.aiassit.chat.workflow.data.entity.req;
 
+import ai.platform.aiassit.chat.workflow.data.enums.AiExecuteType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;
@@ -12,7 +13,9 @@ public class AiChatNodeQueryRequest extends BaseRequest {
 
     private String name;
 
-    private String type;
+    private String desc;
+
+    private AiExecuteType executeType;
 
     private Boolean enabled;
 }

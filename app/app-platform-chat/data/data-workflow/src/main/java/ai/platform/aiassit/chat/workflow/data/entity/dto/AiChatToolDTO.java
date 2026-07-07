@@ -1,15 +1,13 @@
 package ai.platform.aiassit.chat.workflow.data.entity.dto;
 
+import ai.platform.aiassit.chat.workflow.data.enums.AiChatToolSyncStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
 
-import java.util.ArrayList;
-import java.util.List;
-
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class AiChatSkillDTO extends BaseDTO {
+public class AiChatToolDTO extends BaseDTO {
 
     private String code;
 
@@ -19,7 +17,9 @@ public class AiChatSkillDTO extends BaseDTO {
 
     private String content;
 
-    private List<String> toolRefs = new ArrayList<>();
+    private String runtimeType;
+
+    private AiChatToolSyncStatus syncStatus;
 
     private Boolean enabled = Boolean.TRUE;
 

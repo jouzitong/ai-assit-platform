@@ -1,61 +1,64 @@
 package ai.platform.aiassit.chat.workflow.data.entity;
 
+import ai.platform.aiassit.chat.workflow.data.enums.AiChatToolSyncStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
-import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
 
-import java.util.ArrayList;
-import java.util.List;
-
 /**
- * Skill 目录表。
+ * Tool 目录表。
  *
- * <p>独立维护面向 Agent 的 skill 规则文档及关联 tool 引用。</p>
+ * <p>维护对 Agent 暴露的工具定义，脚本内容直接存储在表中。</p>
  *
  * @author zhouzhitong
- * @since 2026/6/15
+ * @since 2026/7/7
  */
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "ai_chat_skill", autoResultMap = true)
-public class AiChatSkillEntity extends LogicalDeleteEntity {
+@TableName("ai_chat_tool")
+public class AiChatToolEntity extends LogicalDeleteEntity {
 
     /**
-     * Skill 编码。
+     * Tool 编码。
      */
     @TableField("code")
     private String code;
 
     /**
-     * Skill 名称。
+     * Tool 名称 / Agent 暴露名。
      */
     @TableField("name")
     private String name;
 
     /**
-     * Skill 简要说明。
+     * Tool 说明。
      */
     @TableField("`desc`")
     private String desc;
 
     /**
-     * Skill Markdown 规则内容。
+     * 脚本内容。
      */
     @TableField("content")
     private String content;
 
     /**
-     * Skill 关联的 tool 编码列表。
+     * 运行时类型，例如 PYTHON / JAVASCRIPT。
      */
-    @TableField(value = "tool_refs", typeHandler = JacksonTypeHandler.class)
-    private List<String> toolRefs = new ArrayList<>();
+    @TableField("runtime_type")
+    private String runtimeType;
+
+    /**
+     * 同步状态，例如 PENDING / SUCCESS / FAILED。
+     */
+    @TableField("sync_status")
+    private AiChatToolSyncStatus syncStatus;
 
     /**
      * 是否启用。

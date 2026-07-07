@@ -74,7 +74,7 @@ const activeSection = computed(() => {
 const hasDataSourceDetail = computed(() => activeSection.value === 'data-source' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const hasAiPlatformKbDetail = computed(() => activeSection.value === 'ai-platform' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const currentSection = computed(() => sections.find((item) => item.key === activeSection.value) || sections[0])
-const hideHeroSections = new Set(['component-manage', 'system-params'])
+const hideHeroSections = new Set(['component-manage', 'system-params', 'workflow'])
 const shouldHideHero = computed(() => hideHeroSections.has(activeSection.value) || hasDataSourceDetail.value || hasAiPlatformKbDetail.value)
 
 async function navigateToSection(sectionKey: string) {

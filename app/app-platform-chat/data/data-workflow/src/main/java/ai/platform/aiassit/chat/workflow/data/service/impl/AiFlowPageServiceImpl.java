@@ -7,8 +7,6 @@ import ai.platform.aiassit.chat.workflow.data.entity.AiChatWorkflowConfigNodeEnt
 import ai.platform.aiassit.chat.workflow.data.entity.AiChatWorkflowConfigNodeSkillEntity;
 import ai.platform.aiassit.chat.workflow.data.entity.AiChatWorkflowEntity;
 import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowCatalogConfig;
-import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowNodeConfigItem;
-import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowNodeRuntimeConfig;
 import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowRuntimeConfig;
 import ai.platform.aiassit.chat.workflow.data.entity.dto.AiFlowCardDTO;
 import ai.platform.aiassit.chat.workflow.data.entity.dto.AiFlowDetailDTO;
@@ -25,6 +23,7 @@ import ai.platform.aiassit.chat.workflow.data.mapper.AiChatWorkflowConfigNodeSki
 import ai.platform.aiassit.chat.workflow.data.mapper.AiChatWorkflowMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.ArrayList;
@@ -239,11 +238,11 @@ public class AiFlowPageServiceImpl implements AiFlowPageService {
         card.setKey(node.getCode());
         card.setCode(node.getCode());
         card.setName(node.getName());
-        card.setType(node.getType());
-        card.setScene(node.getConfig() == null ? "" : node.getConfig().getSummary());
+        card.setType(node.getExecuteType() == null ? "" : node.getExecuteType().name());
+        card.setScene(StringUtils.hasText(node.getDesc()) ? node.getDesc() : "未配置节点说明");
         card.setNodes(workflowNames.isEmpty() ? "适用流程：-" : "适用流程：" + String.join("、", workflowNames.stream().distinct().toList()));
         card.setStatus(resolveStatus(node.getEnabled(), "已接入", "待补充"));
-        card.setTags(List.of(node.getType()));
+        card.setTags(List.of(node.getExecuteType() == null ? "未配置执行类型" : node.getExecuteType().name()));
         return card;
     }
 
@@ -253,14 +252,12 @@ public class AiFlowPageServiceImpl implements AiFlowPageService {
         card.setKey(skill.getCode());
         card.setCode(skill.getCode());
         card.setName(skill.getName());
-        card.setType(skill.getType());
-        card.setScene(skill.getConfig() == null ? "" : skill.getConfig().getSummary());
-        String nodes = skill.getConfig() == null || skill.getConfig().getSupportedPhases().isEmpty()
-                ? "典型阶段：-"
-                : "典型阶段：" + String.join("、", skill.getConfig().getSupportedPhases());
-        card.setNodes(nodes);
+        card.setType("SKILL");
+        card.setScene(StringUtils.hasText(skill.getDesc()) ? skill.getDesc() : summarizeSkillContent(skill.getContent()));
+        int toolRefCount = skill.getToolRefs() == null ? 0 : (int) skill.getToolRefs().stream().filter(StringUtils::hasText).count();
+        card.setNodes("关联工具：" + toolRefCount);
         card.setStatus(resolveStatus(skill.getEnabled(), "已接入", "待补充"));
-        card.setTags(List.of(skill.getType()));
+        card.setTags(toolRefCount <= 0 ? List.of("未关联 Tool") : List.of("Tool x" + toolRefCount));
         return card;
     }
 
@@ -268,22 +265,23 @@ public class AiFlowPageServiceImpl implements AiFlowPageService {
                                                 AiChatNodeEntity node,
                                                 List<AiChatWorkflowConfigNodeSkillEntity> bindings,
                                                 Map<String, AiChatSkillEntity> skillByCode) {
-        WorkflowNodeRuntimeConfig runtimeConfig = configNode.getConfig() == null ? new WorkflowNodeRuntimeConfig() : configNode.getConfig();
         AiFlowNodeDetailDTO detail = new AiFlowNodeDetailDTO();
         detail.setId(configNode.getId());
         detail.setConfigCode(configNode.getConfigCode());
         detail.setNodeCode(configNode.getNodeCode());
         detail.setKey(configNode.getNodeCode());
         detail.setName(node == null ? configNode.getNodeCode() : node.getName());
-        detail.setType(node == null ? "" : node.getType());
+        detail.setType(node == null || node.getExecuteType() == null ? "" : node.getExecuteType().name());
         detail.setStatus(resolveStatus(configNode.getEnabled(), "启用", "停用"));
-        detail.setMode(runtimeConfig.getExecuteMode());
-        detail.setNextCode(configNode.getNextCode());
-        detail.setSort(configNode.getSort());
-        detail.setSummary(runtimeConfig.getSummary());
-        detail.setInputDefinitions(runtimeConfig.getInputDefinitions() == null ? new ArrayList<>() : runtimeConfig.getInputDefinitions());
-        detail.setOutputDefinitions(runtimeConfig.getOutputDefinitions() == null ? new ArrayList<>() : runtimeConfig.getOutputDefinitions());
-        detail.setConfigItems(runtimeConfig.getConfigItems() == null ? new ArrayList<>() : runtimeConfig.getConfigItems());
+        if (node != null) {
+            detail.setDesc(node.getDesc());
+            detail.setModelCode(node.getModelCode());
+            detail.setSkillRefs(node.getSkillRefs() == null ? new ArrayList<>() : node.getSkillRefs());
+            detail.setToolRefs(node.getToolRefs() == null ? new ArrayList<>() : node.getToolRefs());
+            detail.setKbRefs(node.getKbRefs() == null ? new ArrayList<>() : node.getKbRefs());
+            detail.setInputConfig(node.getInputConfig() == null ? new ArrayList<>() : node.getInputConfig());
+            detail.setOutputConfig(node.getOutputConfig());
+        }
 
         List<AiFlowNodeSkillItemDTO> skillItems = new ArrayList<>();
         if (bindings != null) {
@@ -295,7 +293,7 @@ public class AiFlowPageServiceImpl implements AiFlowPageService {
                 item.setName(skill == null ? binding.getSkillCode() : skill.getName());
                 item.setPhase(binding.getPhase());
                 item.setStatus(resolveStatus(binding.getEnabled(), "已挂接", "未挂接"));
-                item.setSummary(skill == null || skill.getConfig() == null ? "" : skill.getConfig().getSummary());
+                item.setSummary(skill == null ? "" : (StringUtils.hasText(skill.getDesc()) ? skill.getDesc() : summarizeSkillContent(skill.getContent())));
                 skillItems.add(item);
             }
         }
@@ -360,5 +358,13 @@ public class AiFlowPageServiceImpl implements AiFlowPageService {
 
     private String resolveStatus(Boolean enabled, String enabledLabel, String disabledLabel) {
         return Boolean.TRUE.equals(enabled) ? enabledLabel : disabledLabel;
+    }
+
+    private String summarizeSkillContent(String content) {
+        if (!StringUtils.hasText(content)) {
+            return "";
+        }
+        String normalized = content.replaceAll("[#>*`\\r\\n]+", " ").replaceAll("\\s+", " ").trim();
+        return normalized.length() > 80 ? normalized.substring(0, 80) + "..." : normalized;
     }
 }

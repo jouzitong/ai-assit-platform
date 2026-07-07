@@ -76,6 +76,12 @@ public class AiAgentProcessExecutor {
         if (StringUtils.hasText(properties.getKnowledgeSearchUrl())) {
             env.put("AI_AGENT_KB_SEARCH_URL", properties.getKnowledgeSearchUrl());
         }
+        if (StringUtils.hasText(properties.getValidateContentType())) {
+            env.put("AI_AGENT_VALIDATE_CONTENT_TYPE", properties.getValidateContentType());
+        }
+        if (StringUtils.hasText(properties.getValidateStructure())) {
+            env.put("AI_AGENT_VALIDATE_STRUCTURE", properties.getValidateStructure());
+        }
         env.put("AI_AGENT_KB_SEARCH_TOKEN", ((UserContext) SystemContext.getUserContext()).token());
 
         try {

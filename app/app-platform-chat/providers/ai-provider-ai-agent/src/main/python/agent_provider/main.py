@@ -8,12 +8,14 @@ from typing import Any
 from agents import Agent, Runner
 
 from tools import (
+    data_format_validate_tool,
     knowledge_base_search_tool,
     render_json_validate_tool,
 )
 
 
 TOOL_REGISTRY = {
+    "data_format_validate_tool": data_format_validate_tool,
     "knowledge_base_search_tool": knowledge_base_search_tool,
     "render_json_validate_tool": render_json_validate_tool,
 }

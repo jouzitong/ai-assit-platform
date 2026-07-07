@@ -1,7 +1,7 @@
 package ai.platform.aiassit.chat.workflow.data.entity.dto;
 
-import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowFieldDefinition;
-import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowNodeConfigItem;
+import ai.platform.aiassit.chat.workflow.data.entity.config.AiNodeMessageConfig;
+import ai.platform.aiassit.chat.workflow.data.entity.config.AiNodeOutputConfig;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -24,19 +24,19 @@ public class AiFlowNodeDetailDTO {
 
     private String status;
 
-    private String mode;
+    private String desc;
 
-    private String nextCode;
+    private String modelCode;
 
-    private Integer sort;
+    private List<String> skillRefs = new ArrayList<>();
 
-    private String summary;
+    private List<String> toolRefs = new ArrayList<>();
 
-    private List<WorkflowFieldDefinition> inputDefinitions = new ArrayList<>();
+    private List<String> kbRefs = new ArrayList<>();
 
-    private List<WorkflowFieldDefinition> outputDefinitions = new ArrayList<>();
+    private List<AiNodeMessageConfig> inputConfig = new ArrayList<>();
 
-    private List<WorkflowNodeConfigItem> configItems = new ArrayList<>();
+    private AiNodeOutputConfig outputConfig;
 
     private List<AiFlowNodeSkillItemDTO> skillItems = new ArrayList<>();
 }

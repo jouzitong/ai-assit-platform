@@ -1,6 +1,8 @@
 package ai.platform.aiassit.chat.workflow.data.entity;
 
-import ai.platform.aiassit.chat.workflow.data.entity.config.WorkflowNodeCatalogConfig;
+import ai.platform.aiassit.chat.workflow.data.entity.config.AiNodeMessageConfig;
+import ai.platform.aiassit.chat.workflow.data.entity.config.AiNodeOutputConfig;
+import ai.platform.aiassit.chat.workflow.data.enums.AiExecuteType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -10,10 +12,13 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
 
+import java.util.ArrayList;
+import java.util.List;
+
 /**
  * 节点目录表。
  *
- * <p>独立维护系统已实现的节点能力，不要求节点必须绑定某个流程。</p>
+ * <p>独立维护可配置的 AI 执行节点定义，不要求节点必须绑定某个流程。</p>
  *
  * @author zhouzhitong
  * @since 2026/6/15
@@ -38,10 +43,52 @@ public class AiChatNodeEntity extends LogicalDeleteEntity {
     private String name;
 
     /**
-     * 节点实现类型，例如 QueryPlanningNode。
+     * 节点说明。
      */
-    @TableField("type")
-    private String type;
+    @TableField("`desc`")
+    private String desc;
+
+    /**
+     * AI 执行类型。
+     */
+    @TableField("execute_type")
+    private AiExecuteType executeType;
+
+    /**
+     * 指定执行模型编码。
+     */
+    @TableField("model_code")
+    private String modelCode;
+
+    /**
+     * 关联 skill 编码列表。
+     */
+    @TableField(value = "skill_refs", typeHandler = JacksonTypeHandler.class)
+    private List<String> skillRefs = new ArrayList<>();
+
+    /**
+     * 关联 tool 编码列表。
+     */
+    @TableField(value = "tool_refs", typeHandler = JacksonTypeHandler.class)
+    private List<String> toolRefs = new ArrayList<>();
+
+    /**
+     * 关联知识库编码列表。
+     */
+    @TableField(value = "kb_refs", typeHandler = JacksonTypeHandler.class)
+    private List<String> kbRefs = new ArrayList<>();
+
+    /**
+     * 输入消息配置。
+     */
+    @TableField(value = "input_config", typeHandler = JacksonTypeHandler.class)
+    private List<AiNodeMessageConfig> inputConfig = new ArrayList<>();
+
+    /**
+     * 输出配置。
+     */
+    @TableField(value = "output_config", typeHandler = JacksonTypeHandler.class)
+    private AiNodeOutputConfig outputConfig;
 
     /**
      * 是否启用。
@@ -50,9 +97,8 @@ public class AiChatNodeEntity extends LogicalDeleteEntity {
     private Boolean enabled = Boolean.TRUE;
 
     /**
-     * 节点目录配置 JSON。
-     * 可放默认输入输出定义、默认提示模板、默认执行参数等。
+     * 备注。
      */
-    @TableField(value = "config", typeHandler = JacksonTypeHandler.class)
-    private WorkflowNodeCatalogConfig config;
+    @TableField("remark")
+    private String remark;
 }

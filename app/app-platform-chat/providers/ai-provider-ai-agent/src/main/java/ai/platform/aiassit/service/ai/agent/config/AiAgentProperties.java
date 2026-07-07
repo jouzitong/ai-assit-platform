@@ -34,6 +34,12 @@ public class AiAgentProperties {
     /** Python tool 调用知识库搜索接口的完整地址 */
     private String knowledgeSearchUrl = "http://127.0.0.1:13101/aiEngine/api/v1/ai/execution/kb/search";
 
+    /** 数据格式校验器默认 content type */
+    private String validateContentType = "json";
+
+    /** 数据格式校验器默认结构语义模板 */
+    private String validateStructure = "";
+
     /** 调用超时（毫秒） */
     private Integer timeoutMs = 60000;
 }
