@@ -11,9 +11,9 @@
         <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>app-platform-chat-core</artifactId>
+    <artifactId>app-platform-chat-core-kb</artifactId>
     <packaging>jar</packaging>
-    <name>app-platform-chat-core</name>
+    <name>app-platform-chat-core-kb</name>
 
     <dependencies>
         <dependency>
@@ -21,32 +21,16 @@
             <artifactId>athena-framework-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-security-token-jwt</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-data-mybatis</artifactId>
-        </dependency>
-        <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-api</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-core-ai-chat</artifactId>
+            <artifactId>app-platform-chat-data-kb</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-core-ai-engine</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-core-kb</artifactId>
         </dependency>
         <dependency>
             <groupId>org.projectlombok</groupId>

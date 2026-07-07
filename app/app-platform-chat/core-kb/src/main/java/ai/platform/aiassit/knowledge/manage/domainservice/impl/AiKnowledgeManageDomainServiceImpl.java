@@ -20,7 +20,7 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
-import ai.platform.aiassit.execution.service.AiExecutionDomainService;
+import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
@@ -77,20 +77,20 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     private final AiKbDocumentContentService contentService;
     private final AiKbDocumentVersionService documentVersionService;
     private final AiKbDocumentVersionContentService documentVersionContentService;
-    private final AiExecutionDomainService aiExecutionDomainService;
+    private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
 
     public AiKnowledgeManageDomainServiceImpl(AiKbStoreService storeService,
                                                   AiKbDocumentService documentService,
                                                   AiKbDocumentContentService contentService,
                                                   AiKbDocumentVersionService documentVersionService,
                                                   AiKbDocumentVersionContentService documentVersionContentService,
-                                                  AiExecutionDomainService aiExecutionDomainService) {
+                                                  AiKnowledgeExecutionService aiKnowledgeExecutionService) {
         this.storeService = storeService;
         this.documentService = documentService;
         this.contentService = contentService;
         this.documentVersionService = documentVersionService;
         this.documentVersionContentService = documentVersionContentService;
-        this.aiExecutionDomainService = aiExecutionDomainService;
+        this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
     }
 
     @Override
@@ -567,7 +567,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         markDocumentsSyncing(acceptedDocuments);
         KbUpsertResponse upsertResponse;
         try {
-            upsertResponse = aiExecutionDomainService.kbUpsert(upsertRequest);
+            upsertResponse = aiKnowledgeExecutionService.kbUpsert(upsertRequest);
         } catch (RuntimeException ex) {
             markDocumentsSyncFailed(acceptedDocuments, ex.getMessage());
             throw BizException.of(AiKbBizCodeConstant.PROVIDER_UPSERT_FAILED, ex.getMessage());

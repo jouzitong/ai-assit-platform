@@ -9,7 +9,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
-import ai.platform.aiassit.execution.service.AiExecutionDomainService;
+import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeManageDomainService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -19,12 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiKnowledgeController implements AiKnowledgeApi {
 
     private final AiKnowledgeManageDomainService domainService;
-    private final AiExecutionDomainService aiExecutionDomainService;
+    private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
 
     public AiKnowledgeController(AiKnowledgeManageDomainService domainService,
-                                 AiExecutionDomainService aiExecutionDomainService) {
+                                 AiKnowledgeExecutionService aiKnowledgeExecutionService) {
         this.domainService = domainService;
-        this.aiExecutionDomainService = aiExecutionDomainService;
+        this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
     }
 
     @Override
@@ -44,11 +44,11 @@ public class AiKnowledgeController implements AiKnowledgeApi {
 
     @Override
     public KbDeleteResponse kbDelete(@RequestBody KbDeleteRequest request) {
-        return aiExecutionDomainService.kbDelete(request);
+        return aiKnowledgeExecutionService.kbDelete(request);
     }
 
     @Override
     public KbSearchResponse kbSearch(@RequestBody KbSearchRequest request) {
-        return aiExecutionDomainService.kbSearch(request);
+        return aiKnowledgeExecutionService.kbSearch(request);
     }
 }

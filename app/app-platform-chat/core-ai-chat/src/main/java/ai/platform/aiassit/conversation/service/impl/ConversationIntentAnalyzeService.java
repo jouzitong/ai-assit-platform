@@ -22,6 +22,7 @@ import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeCont
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
+import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
@@ -113,11 +114,14 @@ public class ConversationIntentAnalyzeService {
             """;
 
     private final AiExecutionDomainService aiExecutionDomainService;
+    private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
     private final ObjectMapper objectMapper;
 
     public ConversationIntentAnalyzeService(AiExecutionDomainService aiExecutionDomainService,
-                                        ObjectMapper objectMapper) {
+                                            AiKnowledgeExecutionService aiKnowledgeExecutionService,
+                                            ObjectMapper objectMapper) {
         this.aiExecutionDomainService = aiExecutionDomainService;
+        this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
         this.objectMapper = objectMapper;
     }
 
@@ -720,7 +724,7 @@ public class ConversationIntentAnalyzeService {
                 : DEFAULT_SCENE + "-kb-retry");
         request.setMeta(meta);
 
-        KbSearchResponse kbSearchResponse = aiExecutionDomainService.kbSearch(request);
+        KbSearchResponse kbSearchResponse = aiKnowledgeExecutionService.kbSearch(request);
         context.setKnowledgeBaseId(config.knowledgeBaseId());
         context.putNodeOutput(WorkflowNodeCodes.KNOWLEDGE_SEARCH.getNodeCode(),
                 "intentAnalyzeKbSearchResponse", kbSearchResponse);

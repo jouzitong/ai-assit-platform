@@ -13,7 +13,7 @@ import ai.platform.aiassit.conversation.workflow.capability.PromptContextItem;
 import ai.platform.aiassit.conversation.workflow.capability.PromptContextResult;
 import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
-import ai.platform.aiassit.execution.service.AiExecutionDomainService;
+import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -32,10 +32,10 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
 
     public static final String CODE = "knowledge_retrieve_prompt_context";
 
-    private final AiExecutionDomainService aiExecutionDomainService;
+    private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
 
-    public KnowledgeRetrievePromptContextCapability(AiExecutionDomainService aiExecutionDomainService) {
-        this.aiExecutionDomainService = aiExecutionDomainService;
+    public KnowledgeRetrievePromptContextCapability(AiKnowledgeExecutionService aiKnowledgeExecutionService) {
+        this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
     }
 
     @Override
@@ -66,7 +66,7 @@ public class KnowledgeRetrievePromptContextCapability implements PromptContextCa
         meta.setScene(StringUtils.hasText(command.getScene()) ? command.getScene() : "ai-chat-prompt-context");
         request.setMeta(meta);
 
-        KbSearchResponse response = aiExecutionDomainService.kbSearch(request);
+        KbSearchResponse response = aiKnowledgeExecutionService.kbSearch(request);
         context.put(ConversationRuntimeContextKeys.Capability.KNOWLEDGE_SEARCH_RESPONSE, response);
         String content = formatKnowledgeHits(response == null ? null : response.getItems());
         if (!StringUtils.hasText(content)) {

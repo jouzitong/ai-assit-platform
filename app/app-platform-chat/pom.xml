@@ -72,6 +72,11 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-chat-core-kb</artifactId>
+                <version>${app.platform.chat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-ai-chat</artifactId>
                 <version>${app.platform.chat.version}</version>
             </dependency>
@@ -131,6 +136,7 @@
         <module>data-workflow</module>
         <module>data-kb</module>
         <module>core-ai-engine</module>
+        <module>core-kb</module>
         <module>core-ai-chat</module>
         <module>core-workflow</module>
         <module>spi</module>

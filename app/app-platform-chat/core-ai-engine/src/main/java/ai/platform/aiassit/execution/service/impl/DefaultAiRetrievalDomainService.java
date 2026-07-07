@@ -19,6 +19,7 @@ import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
+import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.execution.service.AiRetrievalDomainService;
 import ai.platform.aiassit.execution.validator.AiRequestValidator;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -85,16 +86,19 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
             7. risk 只描述分析风险，例如错别字、歧义、信息缺失、上下文冲突
             8. 如果无法绝对确认，但问题明显偏向数据查询/分析，优先返回 QUERY_RENDER
             9. 不要输出任何额外字段
-            """;
+    """;
 
     private final AiExecutionDomainService aiExecutionDomainService;
+    private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
     private final AiRequestValidator aiRequestValidator;
     private final ObjectMapper objectMapper;
 
     public DefaultAiRetrievalDomainService(AiExecutionDomainService aiExecutionDomainService,
+                                           AiKnowledgeExecutionService aiKnowledgeExecutionService,
                                            AiRequestValidator aiRequestValidator,
                                            ObjectMapper objectMapper) {
         this.aiExecutionDomainService = aiExecutionDomainService;
+        this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
         this.aiRequestValidator = aiRequestValidator;
         this.objectMapper = objectMapper;
     }
@@ -112,7 +116,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
         kbSearchRequest.setQuery(request.getQuery());
         kbSearchRequest.setTopK(resolveTopK(request));
         kbSearchRequest.setMeta(copyMeta(request.getMeta()));
-        KbSearchResponse kbSearchResponse = aiExecutionDomainService.kbSearch(kbSearchRequest);
+        KbSearchResponse kbSearchResponse = aiKnowledgeExecutionService.kbSearch(kbSearchRequest);
         response.setHits(toHybridHits(kbSearchResponse));
 
         if (Boolean.TRUE.equals(request.getRerankEnabled()) && !CollectionUtils.isEmpty(response.getHits())) {
@@ -324,7 +328,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
         rerankRequest.setTopN(resolveTopK(request));
         rerankRequest.setMeta(copyMeta(request.getMeta()));
         rerankRequest.setCandidates(response.getHits().stream().map(HybridSearchHit::getContent).toList());
-        RerankResponse rerankResponse = aiExecutionDomainService.rerank(rerankRequest);
+        RerankResponse rerankResponse = aiKnowledgeExecutionService.rerank(rerankRequest);
         if (rerankResponse == null || CollectionUtils.isEmpty(rerankResponse.getItems())) {
             return;
         }
