@@ -5,6 +5,8 @@ import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.context.SystemContext;
+import org.athena.framework.security.api.model.UserContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -73,6 +75,9 @@ public class AiAgentProcessExecutor {
         }
         if (StringUtils.hasText(properties.getKnowledgeSearchUrl())) {
             env.put("AI_AGENT_KB_SEARCH_URL", properties.getKnowledgeSearchUrl());
+        }
+        if (StringUtils.hasText(properties.getKnowledgeSearchToken())) {
+            env.put("AI_AGENT_KB_SEARCH_TOKEN", ((UserContext) SystemContext.getUserContext()).token());
         }
 
         try {

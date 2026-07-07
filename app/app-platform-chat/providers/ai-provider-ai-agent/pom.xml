@@ -29,6 +29,10 @@
             <artifactId>spring-boot-starter</artifactId>
             <version>3.2.5</version>
         </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-security-api</artifactId>
+        </dependency>
     </dependencies>
 
     <build>

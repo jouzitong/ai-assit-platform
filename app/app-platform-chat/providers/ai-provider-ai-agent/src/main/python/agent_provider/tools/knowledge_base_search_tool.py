@@ -6,12 +6,19 @@ from urllib import error, request
 from agents import function_tool
 
 
-DEFAULT_KB_SEARCH_URL = "http://127.0.0.1:13101/aiEngine/api/v1/ai/execution/kb/search"
+DEFAULT_KB_SEARCH_URL = "http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search"
 
 
 def _kb_search_url() -> str:
     return os.getenv("AI_AGENT_KB_SEARCH_URL") or DEFAULT_KB_SEARCH_URL
 
+
+def _kb_search_headers() -> dict[str, str]:
+    headers = {"Content-Type": "application/json; charset=utf-8"}
+    token = (os.getenv("AI_AGENT_KB_SEARCH_TOKEN") or "").strip()
+    if token:
+        headers["Authorization"] = token if token.lower().startswith("bearer ") else f"Bearer {token}"
+    return headers
 
 def _build_request_payload(
     kb_id: str,
@@ -56,7 +63,7 @@ def _request_kb_search(payload: dict[str, Any]) -> dict[str, Any]:
     req = request.Request(
         _kb_search_url(),
         data=body,
-        headers={"Content-Type": "application/json; charset=utf-8"},
+        headers=_kb_search_headers(),
         method="POST",
     )
     try:
