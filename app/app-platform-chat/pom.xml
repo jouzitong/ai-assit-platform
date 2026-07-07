@@ -131,10 +131,10 @@
         <module>api</module>
         <module>core</module>
         <module>boot</module>
-        <module>data-chat-history</module>
-        <module>data-meta</module>
-        <module>data-workflow</module>
-        <module>data-kb</module>
+        <module>data/data-chat-history</module>
+        <module>data/data-meta</module>
+        <module>data/data-workflow</module>
+        <module>data/data-kb</module>
         <module>core-ai-engine</module>
         <module>core-kb</module>
         <module>core-ai-chat</module>
