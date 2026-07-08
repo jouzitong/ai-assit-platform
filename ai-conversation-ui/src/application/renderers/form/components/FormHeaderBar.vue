@@ -1,0 +1,96 @@
+<script setup lang="ts">
+import type { FormRendererAction } from '../types'
+
+defineProps<{
+  title: string
+  description?: string
+  actions?: FormRendererAction[]
+  actionsAlign?: 'left' | 'center' | 'right'
+}>()
+
+const emit = defineEmits<{
+  action: [action: FormRendererAction]
+}>()
+
+const toButtonType = (type?: FormRendererAction['type']) => type || 'default'
+</script>
+
+<template>
+  <div class="form-header-bar">
+    <div class="form-header-bar__main">
+      <div>
+        <h2 class="form-header-bar__title">{{ title }}</h2>
+        <p v-if="description" class="form-header-bar__description">{{ description }}</p>
+      </div>
+
+      <div
+        v-if="actions?.length"
+        class="form-header-bar__actions"
+        :class="`form-header-bar__actions--${actionsAlign || 'right'}`"
+      >
+        <el-button
+          v-for="action in actions"
+          :key="action.key"
+          :type="toButtonType(action.type)"
+          :disabled="action.disabled"
+          @click="emit('action', action)"
+        >
+          {{ action.name }}
+        </el-button>
+      </div>
+    </div>
+  </div>
+</template>
+
+<style scoped>
+.form-header-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.form-header-bar__main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.form-header-bar__title {
+  margin: 0;
+  font-size: 24px;
+  font-weight: 700;
+  color: var(--app-title);
+}
+
+.form-header-bar__description {
+  margin: 8px 0 0;
+  color: var(--app-text-muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.form-header-bar__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.form-header-bar__actions--left {
+  justify-content: flex-start;
+}
+
+.form-header-bar__actions--center {
+  justify-content: center;
+}
+
+.form-header-bar__actions--right {
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .form-header-bar__main {
+    flex-direction: column;
+  }
+}
+</style>

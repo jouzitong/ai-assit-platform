@@ -7,4 +7,16 @@ export const testRoutes: RouteRecordRaw[] = [
     meta: { title: 'List Renderer Test' },
     component: () => import('../../modules/test/views/TestListView.vue'),
   },
+  {
+    path: '/test/form',
+    name: 'test-form',
+    meta: { title: 'Form Renderer Test' },
+    component: () => import('../../modules/test/views/TestFormView.vue'),
+  },
+  {
+    path: '/test/echarts',
+    name: 'test-echarts',
+    meta: { title: 'ECharts Renderer Test' },
+    component: () => import('../../modules/test/views/TestEchartsView.vue'),
+  },
 ]

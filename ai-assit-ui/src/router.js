@@ -8,6 +8,8 @@ import CostPage from './views/domain/emp/cost/index.vue'
 import KnowledgePage from './views/domain/knowledge/index.vue'
 import KnowledgeManagePage from './views/domain/knowledge/views/knowledge/manage.vue'
 import ProfilePage from './views/domain/settings/profile/index.vue'
+import ChartShowcasePage from './views/domain/settings/chart-showcase/index.vue'
+import TestEchartsPage from './views/domain/test/echarts/index.vue'
 import SystemPage from './views/domain/settings/system/index.vue'
 import SystemOverviewPage from './views/domain/settings/system/views/overview.vue'
 import SystemParamsPage from './views/domain/settings/system/views/params.vue'
@@ -40,6 +42,7 @@ const routes = [
   { path: '/emp/attendance', component: AttendancePage, meta: { title: '考勤看板' } },
   { path: '/emp/performance', component: PerformancePage, meta: { title: '绩效洞察' } },
   { path: '/emp/cost', component: CostPage, meta: { title: '人力成本分析' } },
+  { path: '/test/echarts', component: TestEchartsPage, meta: { title: 'ECharts 测试' } },
   { path: '/settings/profile', component: ProfilePage, meta: { title: '个人管理' } },
   {
     path: '/settings/system',
@@ -54,6 +57,7 @@ const routes = [
       { path: 'app-metadata', component: SystemAppMetadataPage, meta: { title: '应用元数据配置' } },
       { path: 'lowcode', component: SystemLowcodePage, meta: { title: '低代码渲染' } },
       { path: 'components', component: SystemComponentsPage, meta: { title: '常用组件' } },
+      { path: 'chart-showcase', component: ChartShowcasePage, meta: { title: 'ECharts 组件' } },
       { path: 'permissions', component: SystemPermissionsPage, meta: { title: '权限配置' } },
       { path: 'ai', component: SystemAiPage, meta: { title: 'AI 接入' } },
       { path: 'ai-flow', component: SystemAiFlowPage, meta: { title: 'AI流程配置' } },
