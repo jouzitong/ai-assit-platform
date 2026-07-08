@@ -91,11 +91,72 @@
   --system-accent-bg-strong: rgba(37, 99, 235, 0.12);
   --system-accent-border: rgba(37, 99, 235, 0.22);
   --system-accent-shadow: 0 12px 24px rgba(37, 99, 235, 0.12);
-  --system-primary-button-bg: #111827;
+  --system-primary-button-bg: #2563eb;
   --system-primary-button-text: #ffffff;
   --system-danger: #dc2626;
   --system-table-header-bg: #f3f4f6;
   --system-table-header-text: #4b5563;
+
+  --app-title: var(--system-title);
+  --app-text: var(--system-text);
+  --app-text-soft: var(--system-text-soft);
+  --app-text-muted: var(--system-text-muted);
+  --app-text-faint: var(--system-text-faint);
+  --app-placeholder: #9aa4b2;
+  --app-surface: var(--system-surface);
+  --app-surface-solid: var(--system-surface-solid);
+  --app-surface-muted: var(--system-surface-muted);
+  --app-surface-raised: var(--system-surface-strong);
+  --app-surface-gradient: var(--system-surface-gradient);
+  --app-border: var(--system-border);
+  --app-border-subtle: var(--system-border-subtle);
+  --app-accent: var(--system-accent-text);
+  --app-accent-bg: var(--system-accent-bg);
+  --app-accent-bg-strong: var(--system-accent-bg-strong);
+  --app-accent-border: var(--system-accent-border);
+  --app-accent-shadow: var(--system-accent-shadow);
+  --app-danger: var(--system-danger);
+  --app-shadow-sm: 0 8px 22px rgba(15, 23, 42, 0.08);
+  --app-shadow-md: var(--system-shadow);
+  --app-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+
+  --app-editor-border: #d7dee8;
+  --app-editor-border-soft: #e5ecf4;
+  --app-editor-surface: #fbfcfe;
+  --app-editor-surface-strong: #ffffff;
+  --app-editor-toolbar: linear-gradient(90deg, #f8fbff 0%, #eff6ff 100%);
+  --app-editor-gutter-bg: #f3f6fb;
+  --app-editor-gutter-text: #7c8aa5;
+  --app-editor-active-line: rgba(226, 232, 240, 0.45);
+  --app-editor-active-gutter: #e8eef7;
+  --app-editor-text: #334155;
+  --app-editor-placeholder: #94a3b8;
+  --app-editor-label: #475569;
+  --app-editor-focus: #0f766e;
+
+  --el-color-primary: var(--app-accent);
+  --el-color-primary-light-3: var(--app-accent);
+  --el-color-primary-light-5: var(--app-accent-bg-strong);
+  --el-color-primary-light-7: var(--app-accent-bg);
+  --el-color-primary-light-8: var(--app-accent-bg);
+  --el-color-primary-light-9: var(--app-accent-bg);
+  --el-color-primary-dark-2: var(--app-accent);
+  --el-text-color-primary: var(--app-title);
+  --el-text-color-regular: var(--app-text);
+  --el-text-color-secondary: var(--app-text-soft);
+  --el-text-color-placeholder: var(--app-placeholder);
+  --el-border-color: var(--app-border);
+  --el-border-color-light: var(--app-border-subtle);
+  --el-border-color-lighter: var(--app-border-subtle);
+  --el-fill-color-blank: var(--app-surface-solid);
+  --el-fill-color-light: var(--app-surface-muted);
+  --el-fill-color-lighter: var(--app-surface);
+  --el-fill-color-dark: var(--app-surface-raised);
+  --el-bg-color: var(--app-surface-solid);
+  --el-bg-color-overlay: var(--app-surface-solid);
+  --el-mask-color: rgba(15, 23, 42, 0.42);
+  --el-box-shadow-light: var(--app-shadow-md);
+  --el-box-shadow: var(--app-shadow-md);
 }
 
 :root[data-theme='dark'] {
@@ -196,4 +257,24 @@
   --system-danger: #f87171;
   --system-table-header-bg: rgba(19, 30, 49, 0.68);
   --system-table-header-text: #f8fafc;
+
+  --app-placeholder: #64748b;
+  --app-shadow-sm: 0 8px 22px rgba(2, 6, 23, 0.24);
+  --app-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+
+  --app-editor-border: rgba(148, 163, 184, 0.18);
+  --app-editor-border-soft: rgba(148, 163, 184, 0.14);
+  --app-editor-surface: rgba(30, 41, 59, 0.92);
+  --app-editor-surface-strong: rgba(22, 31, 49, 0.96);
+  --app-editor-toolbar: linear-gradient(90deg, rgba(30, 41, 59, 0.96) 0%, rgba(37, 52, 79, 0.92) 100%);
+  --app-editor-gutter-bg: rgba(19, 30, 49, 0.88);
+  --app-editor-gutter-text: #94a3b8;
+  --app-editor-active-line: rgba(82, 172, 255, 0.08);
+  --app-editor-active-gutter: rgba(82, 172, 255, 0.12);
+  --app-editor-text: #e2e8f0;
+  --app-editor-placeholder: #64748b;
+  --app-editor-label: #cbd5e1;
+  --app-editor-focus: #7dd3fc;
+
+  --el-mask-color: rgba(2, 6, 23, 0.58);
 }

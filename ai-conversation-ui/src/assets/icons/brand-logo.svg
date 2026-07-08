@@ -1,0 +1,33 @@
+<svg width="640" height="220" viewBox="0 0 640 220" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="brand-logo-accent" x1="34" y1="180" x2="204" y2="18" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1D4ED8"/>
+      <stop offset="0.48" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1FD4C9"/>
+    </linearGradient>
+    <linearGradient id="brand-logo-accent-soft" x1="364" y1="150" x2="492" y2="94" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1FD4C9"/>
+    </linearGradient>
+    <linearGradient id="brand-logo-line" x1="260" y1="170" x2="608" y2="170" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#2563EB"/>
+      <stop offset="1" stop-color="#1FD4C9"/>
+    </linearGradient>
+    <filter id="brand-logo-shadow" x="0" y="0" width="640" height="220" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#C7D8F8" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <g filter="url(#brand-logo-shadow)">
+    <path d="M47 72C47 47.6995 66.6995 28 91 28H173C197.301 28 217 47.6995 217 72V95C217 101.627 211.627 107 205 107C198.373 107 193 101.627 193 95V72C193 60.8497 183.15 51 172 51H92C80.8497 51 71 60.8497 71 72V141C71 152.15 80.8497 162 92 162H160.5C163.107 162 165.626 162.921 167.616 164.599L184.857 179.142V167.5C184.857 160.873 190.23 155.5 196.857 155.5C203.484 155.5 208.857 160.873 208.857 167.5V193.5C208.857 198.248 206.054 202.549 201.709 204.474C197.364 206.398 192.293 205.587 188.765 202.409L156.009 173H91C66.6995 173 47 153.301 47 129V72Z" fill="url(#brand-logo-accent)"/>
+    <rect x="102" y="102" width="26" height="58" rx="8" fill="url(#brand-logo-accent)"/>
+    <rect x="142" y="78" width="26" height="82" rx="8" fill="url(#brand-logo-accent)"/>
+    <rect x="182" y="54" width="26" height="106" rx="8" fill="url(#brand-logo-accent)"/>
+    <circle cx="216" cy="145" r="32" fill="white"/>
+    <circle cx="216" cy="145" r="24" stroke="url(#brand-logo-accent)" stroke-width="16"/>
+    <path d="M239 168L263 192" stroke="url(#brand-logo-accent)" stroke-width="16" stroke-linecap="round"/>
+  </g>
+  <text x="292" y="109" fill="#0F2147" font-size="82" font-weight="800" font-family="'PingFang SC', 'Microsoft YaHei', sans-serif" letter-spacing="3">智能问数</text>
+  <path d="M266 173H380" stroke="url(#brand-logo-line)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M542 173H614" stroke="url(#brand-logo-line)" stroke-width="6" stroke-linecap="round"/>
+  <text x="401" y="188" fill="url(#brand-logo-accent-soft)" font-size="72" font-style="italic" font-weight="800" font-family="Arial, Helvetica, sans-serif" letter-spacing="2">ZG</text>
+</svg>

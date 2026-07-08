@@ -12,7 +12,7 @@ defineProps<{
       v-for="card in cards"
       :key="card.key"
       class="list-summary-bar__card"
-      :style="{ '--summary-accent': card.accent || '#6ee7f9' }"
+      :style="{ '--summary-accent': card.accent || 'var(--app-accent)' }"
     >
       <span class="list-summary-bar__label">{{ card.label }}</span>
       <strong class="list-summary-bar__value">{{ card.value }}</strong>
@@ -37,7 +37,7 @@ defineProps<{
   border: 1px solid var(--workbench-summary-border);
   border-radius: 22px;
   background: var(--workbench-summary-bg);
-  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.3);
+  box-shadow: var(--app-inset-highlight);
 }
 
 .list-summary-bar__label {

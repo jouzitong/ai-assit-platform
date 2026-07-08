@@ -1012,8 +1012,8 @@ onMounted(() => {
 
 .metadata-category-dialog__footer :deep(.el-button--primary) {
   border-color: var(--system-accent-border);
-  background: var(--system-accent-text);
-  color: #08111f;
+  background: var(--system-primary-button-bg);
+  color: var(--system-primary-button-text);
 }
 
 .component-manage-layout__body {
@@ -1079,8 +1079,8 @@ onMounted(() => {
 
 .component-manage-layout__tools :deep(.el-button--primary) {
   border-color: var(--system-accent-border);
-  background: var(--system-accent-text);
-  color: #08111f;
+  background: var(--system-primary-button-bg);
+  color: var(--system-primary-button-text);
 }
 
 .component-manage-layout__main {

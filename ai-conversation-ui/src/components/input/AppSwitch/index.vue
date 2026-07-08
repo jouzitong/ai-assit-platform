@@ -68,6 +68,6 @@ const emit = defineEmits<{
 
 .app-switch__text {
   font-size: 13px;
-  color: #4b5563;
+  color: var(--app-text);
 }
 </style>

@@ -170,9 +170,7 @@ const handlePageSizeChange = (pageSize: number) => {
   flex-direction: column;
   gap: 20px;
   padding: 24px;
-  background:
-    radial-gradient(circle at top left, rgba(35, 108, 255, 0.08), transparent 32%),
-    linear-gradient(180deg, #f6f9fc 0%, #eef3f8 100%);
+  background: var(--workbench-shell-bg);
   border-radius: 28px;
 }
 

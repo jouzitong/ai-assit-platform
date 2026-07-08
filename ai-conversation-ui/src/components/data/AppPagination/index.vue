@@ -115,7 +115,7 @@ const handlePageSizeChange = (value: number) => {
   --app-pagination-text: var(--system-text);
   --app-pagination-text-muted: var(--system-text-soft);
   --app-pagination-text-active: var(--system-title);
-  --app-pagination-shadow: 0 8px 22px rgba(15, 23, 42, 0.08);
+  --app-pagination-shadow: var(--app-shadow-sm);
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -17,12 +17,13 @@ defineProps<{
 .app-dialog {
   border: 1px solid var(--color-border);
   border-radius: 16px;
-  background: #fff;
+  background: var(--app-surface-solid);
 }
 
 .app-dialog__header {
   padding: 16px 20px 0;
   font-weight: 600;
+  color: var(--app-title);
 }
 
 .app-dialog__body {

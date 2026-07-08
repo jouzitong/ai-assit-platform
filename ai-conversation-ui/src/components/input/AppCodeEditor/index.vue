@@ -393,35 +393,19 @@ watch(
   --app-code-editor-height: v-bind('props.height || "100%"');
   --app-code-editor-min-height: v-bind('props.minHeight');
   --app-code-editor-max-height: v-bind('editorMaxHeight || "none"');
-  --app-code-editor-border: #d7dee8;
-  --app-code-editor-border-soft: #e5ecf4;
-  --app-code-editor-surface: #fbfcfe;
-  --app-code-editor-surface-strong: #ffffff;
-  --app-code-editor-toolbar: linear-gradient(90deg, #f8fbff 0%, #eff6ff 100%);
-  --app-code-editor-gutter-bg: #f3f6fb;
-  --app-code-editor-gutter-text: #7c8aa5;
-  --app-code-editor-active-line: rgba(226, 232, 240, 0.45);
-  --app-code-editor-active-gutter: #e8eef7;
-  --app-code-editor-text: #334155;
-  --app-code-editor-placeholder: #94a3b8;
-  --app-code-editor-label: #475569;
-  --app-code-editor-focus: #0f766e;
-}
-
-:global(:root[data-theme='dark']) .app-code-editor-shell {
-  --app-code-editor-border: rgba(148, 163, 184, 0.18);
-  --app-code-editor-border-soft: rgba(148, 163, 184, 0.14);
-  --app-code-editor-surface: rgba(30, 41, 59, 0.92);
-  --app-code-editor-surface-strong: rgba(22, 31, 49, 0.96);
-  --app-code-editor-toolbar: linear-gradient(90deg, rgba(30, 41, 59, 0.96) 0%, rgba(37, 52, 79, 0.92) 100%);
-  --app-code-editor-gutter-bg: rgba(19, 30, 49, 0.88);
-  --app-code-editor-gutter-text: #94a3b8;
-  --app-code-editor-active-line: rgba(82, 172, 255, 0.08);
-  --app-code-editor-active-gutter: rgba(82, 172, 255, 0.12);
-  --app-code-editor-text: #e2e8f0;
-  --app-code-editor-placeholder: #64748b;
-  --app-code-editor-label: #cbd5e1;
-  --app-code-editor-focus: #7dd3fc;
+  --app-code-editor-border: var(--app-editor-border);
+  --app-code-editor-border-soft: var(--app-editor-border-soft);
+  --app-code-editor-surface: var(--app-editor-surface);
+  --app-code-editor-surface-strong: var(--app-editor-surface-strong);
+  --app-code-editor-toolbar: var(--app-editor-toolbar);
+  --app-code-editor-gutter-bg: var(--app-editor-gutter-bg);
+  --app-code-editor-gutter-text: var(--app-editor-gutter-text);
+  --app-code-editor-active-line: var(--app-editor-active-line);
+  --app-code-editor-active-gutter: var(--app-editor-active-gutter);
+  --app-code-editor-text: var(--app-editor-text);
+  --app-code-editor-placeholder: var(--app-editor-placeholder);
+  --app-code-editor-label: var(--app-editor-label);
+  --app-code-editor-focus: var(--app-editor-focus);
 }
 
 .app-code-editor {

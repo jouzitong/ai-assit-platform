@@ -547,8 +547,8 @@ onMounted(() => {
 
 .system-params-layout__tools :deep(.el-button--primary) {
   border-color: var(--system-accent-border);
-  background: var(--system-accent-text);
-  color: #08111f;
+  background: var(--system-primary-button-bg);
+  color: var(--system-primary-button-text);
 }
 
 .system-params-layout__tools :deep(.el-button--primary:hover) {
@@ -805,8 +805,8 @@ onMounted(() => {
 
 .system-params-dialog__footer :deep(.el-button--primary) {
   border-color: var(--system-accent-border);
-  background: var(--system-accent-text);
-  color: #08111f;
+  background: var(--system-primary-button-bg);
+  color: var(--system-primary-button-text);
 }
 
 .system-params-dialog__footer :deep(.el-button--primary:hover) {

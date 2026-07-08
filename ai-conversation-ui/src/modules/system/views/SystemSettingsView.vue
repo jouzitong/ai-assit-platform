@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Connection, Cpu, DataAnalysis, Setting, Share } from '@element-plus/icons-vue'
-import { computed, onMounted } from 'vue'
+import { ArrowLeftBold, ArrowRightBold, Connection, Cpu, DataAnalysis, Setting, Share } from '@element-plus/icons-vue'
+import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
 import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
@@ -23,6 +23,7 @@ type SettingsSection = {
 
 const router = useRouter()
 const route = useRoute()
+const sidebarCollapsed = ref(false)
 
 const sections: SettingsSection[] = [
   {
@@ -97,6 +98,10 @@ async function navigateHome() {
   await router.push('/')
 }
 
+function toggleSidebar() {
+  sidebarCollapsed.value = !sidebarCollapsed.value
+}
+
 onMounted(() => {
   if (typeof route.params.section !== 'string' || !sections.some((item) => item.key === route.params.section)) {
     void router.replace(`/settings/system/${sections[0].key}`)
@@ -105,13 +110,31 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="system-settings-shell">
+  <div
+    class="system-settings-shell"
+    :class="{ 'system-settings-shell--collapsed': sidebarCollapsed }"
+    :style="{ '--system-sidebar-width': sidebarCollapsed ? '88px' : '236px' }"
+  >
     <SystemSettingsSidebar
       :sections="sections"
       :active-section="activeSection"
+      :collapsed="sidebarCollapsed"
       @navigate-home="navigateHome"
       @select-section="navigateToSection"
     />
+
+    <button
+      class="system-settings-shell__toggle"
+      type="button"
+      :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+      :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
+      @click="toggleSidebar"
+    >
+      <el-icon>
+        <ArrowRightBold v-if="sidebarCollapsed" />
+        <ArrowLeftBold v-else />
+      </el-icon>
+    </button>
 
     <main class="system-settings-content">
       <header v-if="!shouldHideHero" class="system-settings-hero">
@@ -128,11 +151,37 @@ onMounted(() => {
 
 <style scoped>
 .system-settings-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: 236px minmax(0, 1fr);
+  grid-template-columns: var(--system-sidebar-width) minmax(0, 1fr);
   height: 100vh;
   background: var(--system-shell-bg);
   overflow: hidden;
+}
+
+.system-settings-shell__toggle {
+  position: absolute;
+  top: 28px;
+  left: calc(var(--system-sidebar-width) - 16px);
+  z-index: 15;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--system-sidebar-border);
+  border-radius: 50%;
+  background: var(--system-surface-solid);
+  color: var(--system-text-soft);
+  box-shadow: var(--system-shadow);
+  cursor: pointer;
+  transition: left 0.2s ease, color 0.2s ease, background-color 0.2s ease;
+}
+
+.system-settings-shell__toggle:hover {
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
 }
 
 .system-settings-content {
@@ -165,6 +214,10 @@ onMounted(() => {
     grid-template-columns: 1fr;
     height: auto;
     overflow: visible;
+  }
+
+  .system-settings-shell__toggle {
+    display: none;
   }
 
   .system-settings-content {

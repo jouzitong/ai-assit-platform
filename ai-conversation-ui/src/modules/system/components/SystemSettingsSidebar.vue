@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ArrowLeftBold, Setting, SwitchButton } from '@element-plus/icons-vue'
+import { Setting, SwitchButton } from '@element-plus/icons-vue'
 import { ElIcon } from 'element-plus'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import brandLogo from '../../../assets/icons/brand-logo.svg'
+import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme, type ThemeName } from '../../../stores/theme'
 import { clearSession, getStoredUser } from '../../../utils/session'
 
@@ -12,14 +14,18 @@ type SettingsSection = {
   icon: unknown
 }
 
-defineProps<{
+const props = defineProps<{
   sections: SettingsSection[]
   activeSection: string
+  collapsed?: boolean
 }>()
 
 const router = useRouter()
 const activeTheme = ref<ThemeName>('light')
 const userMenuVisible = ref(false)
+const userMenuAnchorRef = ref<HTMLElement | null>(null)
+const userMenuRef = ref<HTMLElement | null>(null)
+const userMenuStyle = ref<Record<string, string>>({})
 
 const emit = defineEmits<{
   navigateHome: []
@@ -36,8 +42,41 @@ const displayName = computed(() => {
 })
 const avatarText = computed(() => displayName.value.trim().slice(0, 1) || 'U')
 
-function toggleUserMenu() {
+function updateUserMenuPosition() {
+  const anchor = userMenuAnchorRef.value
+  if (!anchor) {
+    return
+  }
+
+  const rect = anchor.getBoundingClientRect()
+  const menuWidth = userMenuRef.value?.offsetWidth ?? 248
+  const menuHeight = userMenuRef.value?.offsetHeight ?? 220
+  const viewportPadding = 12
+
+  let left = props.collapsed ? rect.right + 12 : rect.left
+  left = Math.min(left, window.innerWidth - menuWidth - viewportPadding)
+  left = Math.max(viewportPadding, left)
+
+  let top = rect.top - menuHeight - 12
+  if (top < viewportPadding) {
+    top = rect.bottom + 12
+  }
+  top = Math.min(top, window.innerHeight - menuHeight - viewportPadding)
+  top = Math.max(viewportPadding, top)
+
+  userMenuStyle.value = {
+    position: 'fixed',
+    left: `${left}px`,
+    top: `${top}px`,
+  }
+}
+
+async function toggleUserMenu() {
   userMenuVisible.value = !userMenuVisible.value
+  if (userMenuVisible.value) {
+    await nextTick()
+    updateUserMenuPosition()
+  }
 }
 
 function closeUserMenu() {
@@ -64,6 +103,10 @@ function handleDocumentClick(event: MouseEvent) {
     return
   }
 
+  if (target.closest('.system-settings-user-menu')) {
+    return
+  }
+
   if (target.closest('.system-settings-user-menu-anchor')) {
     return
   }
@@ -71,31 +114,45 @@ function handleDocumentClick(event: MouseEvent) {
   closeUserMenu()
 }
 
+function handleViewportChange() {
+  if (!userMenuVisible.value) {
+    return
+  }
+  updateUserMenuPosition()
+}
+
 onMounted(() => {
   activeTheme.value = getSavedTheme()
   document.addEventListener('click', handleDocumentClick)
+  window.addEventListener('resize', handleViewportChange)
+  window.addEventListener('scroll', handleViewportChange, true)
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  window.removeEventListener('resize', handleViewportChange)
+  window.removeEventListener('scroll', handleViewportChange, true)
 })
 </script>
 
 <template>
-  <aside class="system-settings-sidebar">
+  <aside class="system-settings-sidebar" :class="{ 'system-settings-sidebar--collapsed': collapsed }">
     <button
-      class="system-settings-back system-settings-back--top"
+      class="system-settings-logo"
       type="button"
       aria-label="返回聊天首页"
       title="返回聊天首页"
       @click="emit('navigateHome')"
     >
-      <el-icon><ArrowLeftBold /></el-icon>
+      <img
+        class="system-settings-logo__image"
+        :src="collapsed ? brandMark : brandLogo"
+        :alt="collapsed ? '智能问数' : '智能问数 ZG'"
+      />
     </button>
 
     <div class="system-settings-brand">
       <h1>系统设置</h1>
-      <p>独立的业务配置工作台，不复用聊天页导航。</p>
     </div>
 
     <nav class="system-settings-nav">
@@ -107,57 +164,65 @@ onBeforeUnmount(() => {
         @click="emit('selectSection', section.key)"
       >
         <el-icon><component :is="section.icon" /></el-icon>
-        <span>{{ section.label }}</span>
+        <span v-if="!collapsed">{{ section.label }}</span>
       </button>
     </nav>
 
     <div class="system-settings-sidebar__footer">
-      <div class="system-settings-user-menu-anchor">
+      <div ref="userMenuAnchorRef" class="system-settings-user-menu-anchor">
         <button class="system-settings-user" type="button" @click.stop="toggleUserMenu">
           <div class="system-settings-user__avatar">{{ avatarText }}</div>
-          <div class="system-settings-user__copy">
+          <div v-if="!collapsed" class="system-settings-user__copy">
             <strong>{{ displayName }}</strong>
             <span>用户设置</span>
           </div>
         </button>
 
-        <div v-if="userMenuVisible" class="system-settings-user-menu" @click.stop>
-          <div class="system-settings-user-menu__profile">
-            <div class="system-settings-user-menu__avatar">{{ avatarText }}</div>
-            <div class="system-settings-user-menu__identity">
-              <div class="system-settings-user-menu__name">{{ displayName }}</div>
-              <div class="system-settings-user-menu__status">在线</div>
+        <Teleport to="body">
+          <div
+            v-if="userMenuVisible"
+            ref="userMenuRef"
+            class="system-settings-user-menu"
+            :style="userMenuStyle"
+            @click.stop
+          >
+            <div class="system-settings-user-menu__profile">
+              <div class="system-settings-user-menu__avatar">{{ avatarText }}</div>
+              <div class="system-settings-user-menu__identity">
+                <div class="system-settings-user-menu__name">{{ displayName }}</div>
+                <div class="system-settings-user-menu__status">在线</div>
+              </div>
             </div>
-          </div>
 
-          <div class="system-settings-user-menu__section">
-            <div class="system-settings-user-menu__section-title">
-              <el-icon><Setting /></el-icon>
-              <span>主题</span>
+            <div class="system-settings-user-menu__section">
+              <div class="system-settings-user-menu__section-title">
+                <el-icon><Setting /></el-icon>
+                <span>主题</span>
+              </div>
+              <div class="system-settings-user-menu__theme-switch">
+                <button
+                  :class="['system-settings-user-menu__theme-option', { 'is-active': activeTheme === 'dark' }]"
+                  type="button"
+                  @click="selectTheme('dark')"
+                >
+                  暗色
+                </button>
+                <button
+                  :class="['system-settings-user-menu__theme-option', { 'is-active': activeTheme === 'light' }]"
+                  type="button"
+                  @click="selectTheme('light')"
+                >
+                  浅色
+                </button>
+              </div>
             </div>
-            <div class="system-settings-user-menu__theme-switch">
-              <button
-                :class="['system-settings-user-menu__theme-option', { 'is-active': activeTheme === 'dark' }]"
-                type="button"
-                @click="selectTheme('dark')"
-              >
-                暗色
-              </button>
-              <button
-                :class="['system-settings-user-menu__theme-option', { 'is-active': activeTheme === 'light' }]"
-                type="button"
-                @click="selectTheme('light')"
-              >
-                浅色
-              </button>
-            </div>
-          </div>
 
-          <button class="system-settings-user-menu__item system-settings-user-menu__item--logout" type="button" @click="handleLogout">
-            <el-icon><SwitchButton /></el-icon>
-            <span>登出</span>
-          </button>
-        </div>
+            <button class="system-settings-user-menu__item system-settings-user-menu__item--logout" type="button" @click="handleLogout">
+              <el-icon><SwitchButton /></el-icon>
+              <span>登出</span>
+            </button>
+          </div>
+        </Teleport>
       </div>
     </div>
   </aside>
@@ -174,18 +239,12 @@ onBeforeUnmount(() => {
   border-right: 1px solid var(--system-sidebar-border);
   background: var(--system-sidebar-bg);
   overflow-y: auto;
+  overflow-x: visible;
 }
 
 .system-settings-brand h1 {
   margin: 6px 0 4px;
   color: var(--system-title);
-}
-
-.system-settings-brand p {
-  margin: 0;
-  color: var(--system-text-muted);
-  font-size: 13px;
-  line-height: 1.55;
 }
 
 .system-settings-nav {
@@ -198,8 +257,7 @@ onBeforeUnmount(() => {
   position: relative;
 }
 
-.system-settings-nav__item,
-.system-settings-back {
+.system-settings-nav__item {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -215,26 +273,26 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.system-settings-logo {
+  display: block;
+  width: 168px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+  overflow: hidden;
+}
+
+.system-settings-logo__image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+}
+
 .system-settings-nav__item.is-active {
   border-color: var(--system-accent-border);
-  background: var(--system-accent-bg);
-  color: var(--system-accent-text);
-}
-
-.system-settings-back {
-  justify-content: flex-start;
-  width: 40px;
-  min-width: 40px;
-  padding: 0;
-  background: transparent;
-  color: var(--system-text-soft);
-}
-
-.system-settings-back--top {
-  margin-bottom: 2px;
-}
-
-.system-settings-back:hover {
   background: var(--system-accent-bg);
   color: var(--system-accent-text);
 }
@@ -258,14 +316,49 @@ onBeforeUnmount(() => {
   cursor: pointer;
 }
 
+.system-settings-sidebar--collapsed {
+  align-items: center;
+  padding: 20px 12px;
+}
+
+.system-settings-sidebar--collapsed .system-settings-logo {
+  width: 52px;
+}
+
+.system-settings-sidebar--collapsed .system-settings-logo__image {
+  width: 52px;
+}
+
+.system-settings-sidebar--collapsed .system-settings-brand {
+  display: none;
+}
+
+.system-settings-sidebar--collapsed .system-settings-nav {
+  width: 100%;
+}
+
+.system-settings-sidebar--collapsed .system-settings-nav__item {
+  justify-content: center;
+  padding: 0;
+}
+
+.system-settings-sidebar--collapsed .system-settings-sidebar__footer {
+  width: 100%;
+}
+
+.system-settings-sidebar--collapsed .system-settings-user {
+  justify-content: center;
+  padding: 10px 0;
+}
+
 .system-settings-user__avatar,
 .system-settings-user-menu__avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  background: var(--system-accent-text);
-  color: #08111f;
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
   font-weight: 700;
 }
 
@@ -289,10 +382,7 @@ onBeforeUnmount(() => {
 }
 
 .system-settings-user-menu {
-  position: absolute;
-  bottom: calc(100% + 10px);
-  left: 0;
-  z-index: 20;
+  z-index: 40;
   width: 248px;
   padding: 12px;
   border: 1px solid var(--system-border);

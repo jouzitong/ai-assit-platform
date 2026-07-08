@@ -92,12 +92,12 @@ const props = defineProps<{
 .app-field-shell__label {
   font-size: 13px;
   font-weight: 600;
-  color: var(--workbench-text, #1f2a37);
+  color: var(--app-text);
 }
 
 .app-field-shell__required {
   margin-right: 4px;
-  color: #dc2626;
+  color: var(--app-danger);
 }
 
 .app-field-shell__control {
@@ -117,7 +117,7 @@ const props = defineProps<{
   transform: translateY(-50%);
   white-space: nowrap;
   pointer-events: none;
-  background: #fff;
+  background: var(--app-surface-solid);
   line-height: 1;
   border-radius: 999px;
 }
@@ -134,7 +134,7 @@ const props = defineProps<{
 
 .app-field-shell__control--inner :deep(.el-select__placeholder),
 .app-field-shell__control--inner :deep(.el-input__inner::placeholder) {
-  color: #9aa4b2;
+  color: var(--app-placeholder);
 }
 
 .app-field-shell__control :deep(.el-input),
@@ -150,10 +150,10 @@ const props = defineProps<{
 }
 
 .app-field-shell__hint {
-  color: #7c8aa5;
+  color: var(--app-text-muted);
 }
 
 .app-field-shell__error {
-  color: #dc2626;
+  color: var(--app-danger);
 }
 </style>

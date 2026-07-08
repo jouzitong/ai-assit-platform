@@ -116,13 +116,13 @@ const getRowKey = (row: Record<string, unknown>, index: number) =>
 
 .list-data-view__label {
   font-size: 12px;
-  color: #6b7a90;
+  color: var(--app-text-muted);
   text-transform: uppercase;
 }
 
 .list-data-view__value {
   font-size: 14px;
-  color: #132238;
+  color: var(--app-title);
   word-break: break-word;
 }
 

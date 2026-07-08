@@ -8,9 +8,7 @@ import {
   Crop,
   Document,
   EditPen,
-  Expand,
   Files,
-  Fold,
   FolderOpened,
   Loading,
   Microphone,
@@ -18,6 +16,8 @@ import {
   Notebook,
   Operation,
   Promotion,
+  ArrowLeftBold,
+  ArrowRightBold,
   Search,
   Setting,
   SwitchButton,
@@ -25,6 +25,8 @@ import {
 } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import brandLogo from '../../../assets/icons/brand-logo.svg'
+import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
 import { clearSession } from '../../../utils/session'
@@ -416,20 +418,25 @@ watch(route, () => {
 </script>
 
 <template>
-  <div :class="['chat-home-shell', { 'is-sidebar-collapsed': !sidebarExpanded }]">
+  <div
+    :class="['chat-home-shell', { 'is-sidebar-collapsed': !sidebarExpanded }]"
+    :style="{ '--chat-sidebar-width': sidebarExpanded ? '210px' : '88px' }"
+  >
     <aside class="chat-home-sidebar">
       <div class="chat-home-brand">
         <button
-          class="chat-home-sidebar__toggle"
+          class="chat-home-brand__logo"
           type="button"
-          :aria-label="sidebarExpanded ? 'Collapse Sidebar' : 'Expand Sidebar'"
-          @click="sidebarExpanded = !sidebarExpanded"
+          aria-label="返回聊天首页"
+          title="返回聊天首页"
+          @click="router.push('/')"
         >
-          <el-icon><component :is="sidebarExpanded ? Fold : Expand" /></el-icon>
+          <img
+            class="chat-home-brand__logo-image"
+            :src="sidebarExpanded ? brandLogo : brandMark"
+            :alt="sidebarExpanded ? '智能问数 ZG' : '智能问数'"
+          />
         </button>
-        <div v-if="sidebarExpanded" class="chat-home-brand__copy">
-          <h1>Open WebUI</h1>
-        </div>
       </div>
 
       <nav class="chat-home-nav">
@@ -575,18 +582,22 @@ watch(route, () => {
       </div>
     </aside>
 
+    <button
+      class="chat-home-shell__toggle"
+      type="button"
+      :aria-label="sidebarExpanded ? '收起侧边栏' : '展开侧边栏'"
+      :title="sidebarExpanded ? '收起侧边栏' : '展开侧边栏'"
+      @click="sidebarExpanded = !sidebarExpanded"
+    >
+      <el-icon>
+        <ArrowLeftBold v-if="sidebarExpanded" />
+        <ArrowRightBold v-else />
+      </el-icon>
+    </button>
+
     <main class="chat-home-main">
       <header class="chat-home-topbar">
         <div class="chat-home-topbar__left">
-          <button
-            v-if="!sidebarExpanded"
-            class="chat-home-topbar__sidebar-button"
-            type="button"
-            aria-label="Expand Sidebar"
-            @click="sidebarExpanded = true"
-          >
-            <el-icon><Expand /></el-icon>
-          </button>
           <div class="chat-home-model-switcher">
             <span>{{ selectedModelLabel }}</span>
             <span class="chat-home-model-switcher__caret">⌄</span>
@@ -806,15 +817,16 @@ watch(route, () => {
 
 <style scoped>
 .chat-home-shell {
+  position: relative;
   display: grid;
-  grid-template-columns: 210px minmax(0, 1fr);
+  grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
   min-height: 100vh;
   background: var(--chat-shell-bg);
   transition: grid-template-columns 0.2s ease;
 }
 
 .chat-home-shell.is-sidebar-collapsed {
-  grid-template-columns: 64px minmax(0, 1fr);
+  grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
 }
 
 .chat-home-sidebar {
@@ -828,46 +840,79 @@ watch(route, () => {
 }
 
 .chat-home-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  min-height: 28px;
+  display: block;
   padding: 0 4px;
 }
 
-.chat-home-brand__copy {
-  min-width: 0;
+.chat-home-brand__logo {
+  display: block;
+  width: 168px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  line-height: 0;
+  cursor: pointer;
+  overflow: hidden;
 }
 
-.chat-home-sidebar__toggle,
-.chat-home-topbar__sidebar-button {
+.chat-home-brand__logo-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: none;
+}
+
+.chat-home-shell.is-sidebar-collapsed .chat-home-brand {
+  display: flex;
+  justify-content: center;
+  padding: 0;
+}
+
+.chat-home-shell.is-sidebar-collapsed .chat-home-brand__logo {
+  width: 40px;
+}
+
+.chat-home-shell.is-sidebar-collapsed .chat-home-brand__logo-image {
+  width: 40px;
+}
+
+.chat-home-shell__toggle {
+  position: absolute;
+  top: 28px;
+  left: calc(var(--chat-sidebar-width) - 16px);
+  z-index: 15;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 28px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-}
-
-.chat-home-sidebar__toggle :deep(.el-icon),
-.chat-home-topbar__sidebar-button :deep(.el-icon) {
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--chat-sidebar-border);
+  border-radius: 50%;
+  background: var(--chat-panel-bg);
   color: var(--chat-icon-muted);
-  font-size: 14px;
+  box-shadow: var(--chat-panel-shadow);
+  cursor: pointer;
+  transition: left 0.2s ease, color 0.2s ease, background-color 0.2s ease;
 }
 
-.chat-home-brand h1 {
-  margin: 0;
-  color: var(--chat-text-primary);
-  font-size: 13px;
-  font-weight: 600;
+.chat-home-shell__toggle:hover {
+  background: var(--chat-hover-bg);
+  color: var(--chat-text-strong);
 }
 
 .chat-home-nav {
   display: grid;
   gap: 2px;
+}
+
+.chat-home-shell.is-sidebar-collapsed .chat-home-nav__item {
+  justify-content: center;
+  padding-inline: 0;
+}
+
+.chat-home-shell.is-sidebar-collapsed .chat-home-nav__leading {
+  justify-content: center;
 }
 
 .chat-home-nav__item,
@@ -1044,6 +1089,10 @@ watch(route, () => {
   z-index: 25;
 }
 
+.chat-home-shell.is-sidebar-collapsed .chat-home-sidebar__footer {
+  width: 100%;
+}
+
 .chat-home-user {
   display: flex;
   align-items: center;
@@ -1055,6 +1104,11 @@ watch(route, () => {
   background: transparent;
   text-align: left;
   cursor: pointer;
+}
+
+.chat-home-shell.is-sidebar-collapsed .chat-home-user {
+  justify-content: center;
+  padding-inline: 0;
 }
 
 .chat-home-user__avatar,
@@ -1678,6 +1732,10 @@ watch(route, () => {
 @media (max-width: 960px) {
   .chat-home-shell {
     grid-template-columns: 1fr;
+  }
+
+  .chat-home-shell__toggle {
+    display: none;
   }
 
   .chat-home-sidebar {

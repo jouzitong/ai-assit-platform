@@ -20,7 +20,7 @@ defineProps<{
   border: 1px solid var(--color-border);
   border-radius: 16px;
   overflow: hidden;
-  background: #fff;
+  background: var(--app-surface-solid);
 }
 
 .app-table__head {
@@ -28,7 +28,8 @@ defineProps<{
   grid-auto-flow: column;
   gap: 16px;
   padding: 16px 20px;
-  background: #f8fafc;
+  background: var(--app-surface-muted);
+  color: var(--app-title);
   font-weight: 600;
 }
 

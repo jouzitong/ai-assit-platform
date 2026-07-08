@@ -57,7 +57,7 @@ const toButtonType = (type?: RendererAction['type']) => type || 'default'
   margin: 0;
   font-size: 24px;
   font-weight: 700;
-  color: #132238;
+  color: var(--app-title);
 }
 
 .list-header-bar__meta {

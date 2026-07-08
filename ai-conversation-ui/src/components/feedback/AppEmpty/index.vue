@@ -16,9 +16,9 @@ defineProps<{
   align-items: center;
   justify-content: center;
   min-height: 160px;
-  border: 1px dashed #cbd5e1;
+  border: 1px dashed var(--app-border);
   border-radius: 16px;
-  color: #64748b;
-  background: #f8fafc;
+  color: var(--app-text-soft);
+  background: var(--app-surface-muted);
 }
 </style>
