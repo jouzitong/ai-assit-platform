@@ -14,14 +14,15 @@ import {
   ChatDotRound,
   UserFilled,
 } from '@element-plus/icons-vue'
-import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import chatTransportProtocol from '../../../../../data/chatMessage/chat-transport-protocol.json'
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import DashboardCanvasPreview from '../components/DashboardCanvasPreview.vue'
 
 type ChatRole = 'assistant' | 'user'
 
-type ThinkingActivityStatus = 'done' | 'running' | 'pending'
+type ThinkingActivityStatus = 'done' | 'running' | 'pending' | 'failed'
 
 type ThinkingActivityDetail = {
   id: string
@@ -49,7 +50,11 @@ type StaticMessage = {
   id: string
   role: ChatRole
   content: string
+  status?: 'pending' | 'running' | 'completed'
   createdAt?: string
+  thinkingStatus?: 'running' | 'completed'
+  thinkingStartedAt?: number
+  thinkingElapsedSeconds?: number
   thinking?: ThinkingActivity[]
   canvas?: boolean
 }
@@ -59,6 +64,20 @@ type StaticSession = {
   title: string
   meta: string
   messages: StaticMessage[]
+}
+
+type ProtocolContentBlock = {
+  type: string
+  text?: string
+  markdown?: string
+}
+
+type ProtocolEvent = {
+  id: string
+  event: string
+  data: {
+    payload: Record<string, any>
+  }
 }
 
 const initialSessions: StaticSession[] = [
@@ -76,6 +95,7 @@ const initialSessions: StaticSession[] = [
       {
         id: 'risk-assistant-1',
         role: 'assistant',
+        status: 'completed',
         createdAt: '2026-07-08 22:58',
         content: '我已加载静态风控日报。当前异常集中在登录失败率、提现拦截率和工单响应时长三项指标。',
       },
@@ -88,7 +108,10 @@ const initialSessions: StaticSession[] = [
       {
         id: 'risk-assistant-2',
         role: 'assistant',
+        status: 'completed',
         createdAt: '2026-07-08 23:00',
+        thinkingStatus: 'completed',
+        thinkingElapsedSeconds: 83,
         thinking: [
           {
             id: 'risk-analysis',
@@ -167,6 +190,7 @@ const initialSessions: StaticSession[] = [
       {
         id: 'product-assistant-1',
         role: 'assistant',
+        status: 'completed',
         content: '这个静态会话用于验证首页同款聊天交互：切换会话、发送消息、快捷建议和模拟回复。',
       },
       {
@@ -177,6 +201,7 @@ const initialSessions: StaticSession[] = [
       {
         id: 'product-assistant-2',
         role: 'assistant',
+        status: 'completed',
         thinking: [
           {
             id: 'product-analysis',
@@ -209,8 +234,14 @@ const activeSessionId = ref(initialSessions[0]?.id || '')
 const sidebarExpanded = ref(true)
 const isStreaming = ref(false)
 const thinkingDrawerVisible = ref(false)
+const thinkingDrawerTransitioning = ref(false)
 const activeThinking = ref<ThinkingActivity[]>([])
 const sessions = ref<StaticSession[]>(cloneSessions(initialSessions))
+const isSimulationRunning = ref(false)
+const isSimulationPaused = ref(false)
+const simulationEventIndex = ref(0)
+let simulationTimer: number | null = null
+let thinkingClockTimer: number | null = null
 const welcomeTextarea = useTemplateRef<HTMLTextAreaElement>('welcomeTextarea')
 const conversationTextarea = useTemplateRef<HTMLTextAreaElement>('conversationTextarea')
 
@@ -238,8 +269,9 @@ const activeSession = computed(() => sessions.value.find((session) => session.id
 const chatMessages = computed(() => activeSession.value?.messages || [])
 const isConversationMode = computed(() => Boolean(activeSessionId.value))
 const currentSessionName = computed(() => activeSession.value?.title || '静态测试会话')
+const shouldReserveThinkingDrawer = computed(() => thinkingDrawerVisible.value || thinkingDrawerTransitioning.value)
 const lastAssistantMessageId = computed(() => {
-  return [...chatMessages.value].reverse().find((message) => message.role === 'assistant')?.id
+  return [...chatMessages.value].reverse().find((message) => message.role === 'assistant' && message.status === 'completed')?.id
 })
 const thinkingTaskNodes = computed(() =>
   activeThinking.value.map((activity, index) => ({
@@ -310,6 +342,7 @@ async function copyMessageContent(content: string) {
 function createAssistantMessage(content: string, sourcePrompt: string): StaticMessage {
   return {
     ...createMessage('assistant', content),
+    status: 'completed',
     thinking: createThinkingActivities(sourcePrompt),
   }
 }
@@ -371,17 +404,352 @@ function getThinkingStatusText(status: ThinkingActivityStatus) {
     done: '已完成',
     running: '进行中',
     pending: '待处理',
+    failed: '失败',
   }
   return statusMap[status]
 }
 
-function openThinkingDrawer(thinking: ThinkingActivity[]) {
-  activeThinking.value = thinking
+function normalizeProtocolStatus(status?: string): ThinkingActivityStatus {
+  if (status === 'completed') {
+    return 'done'
+  }
+  if (status === 'failed') {
+    return 'failed'
+  }
+  if (status === 'running') {
+    return 'running'
+  }
+  return 'pending'
+}
+
+function formatProtocolCreatedAt(value?: string) {
+  if (!value) {
+    return undefined
+  }
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value.slice(0, 16).replace('T', ' ')
+  }
+  return formatMessageCreatedAt(date)
+}
+
+function formatThinkingDuration(seconds: number) {
+  const safeSeconds = Math.max(0, Math.floor(seconds))
+  const minutes = Math.floor(safeSeconds / 60)
+  const restSeconds = safeSeconds % 60
+  if (minutes > 0) {
+    return `${minutes}分${restSeconds}秒`
+  }
+  return `${restSeconds}秒`
+}
+
+function resolveThinkingElapsedSeconds(message?: StaticMessage) {
+  if (!message) {
+    return 0
+  }
+  if (message.thinkingStatus === 'running' && message.thinkingStartedAt) {
+    return Math.floor((Date.now() - message.thinkingStartedAt) / 1000)
+  }
+  return message.thinkingElapsedSeconds || 0
+}
+
+function resolveThinkingTitle(message?: StaticMessage) {
+  return message?.thinkingStatus === 'running' ? '思考中' : '思考过程'
+}
+
+function resolveThinkingMeta(message?: StaticMessage) {
+  return `已处理 ${formatThinkingDuration(resolveThinkingElapsedSeconds(message))}`
+}
+
+function clearThinkingClock() {
+  if (thinkingClockTimer !== null) {
+    window.clearInterval(thinkingClockTimer)
+    thinkingClockTimer = null
+  }
+}
+
+function startThinkingClock(message: StaticMessage) {
+  clearThinkingClock()
+  message.thinkingStatus = 'running'
+  message.thinkingStartedAt = Date.now()
+  message.thinkingElapsedSeconds = 0
+  thinkingClockTimer = window.setInterval(() => {
+    message.thinkingElapsedSeconds = resolveThinkingElapsedSeconds(message)
+  }, 1000)
+}
+
+function completeThinkingClock(message: StaticMessage) {
+  message.thinkingElapsedSeconds = resolveThinkingElapsedSeconds(message)
+  message.thinkingStatus = 'completed'
+  clearThinkingClock()
+}
+
+function resolveProtocolContent(blocks?: ProtocolContentBlock[]) {
+  if (!blocks?.length) {
+    return ''
+  }
+  return blocks.map((block) => block.markdown || block.text || '').join('\n')
+}
+
+function resolveSimulationSession(payload?: Record<string, any>) {
+  const conversation = payload?.conversation
+  const sessionCode = conversation?.sessionCode || conversation?.id || 'static-risk-session'
+  let session = sessions.value.find((item) => item.id === sessionCode)
+
+  if (!session) {
+    session = {
+      id: sessionCode,
+      title: conversation?.title || '风控日报分析',
+      meta: '刚刚',
+      messages: [],
+    }
+    sessions.value.unshift(session)
+  }
+
+  session.title = conversation?.title || session.title
+  activeSessionId.value = session.id
+  return session
+}
+
+function resolveSimulationAssistant(session: StaticSession, assistantId = 'risk-assistant-round-2') {
+  let message = session.messages.find((item) => item.id === assistantId)
+  if (!message) {
+    message = {
+      id: assistantId,
+      role: 'assistant',
+      status: 'pending',
+      content: '',
+      createdAt: formatMessageCreatedAt(new Date()),
+      thinking: [],
+    }
+    session.messages.push(message)
+  }
+  return message
+}
+
+function applyThinkingNodes(nodes?: Array<Record<string, any>>) {
+  if (!nodes?.length) {
+    return
+  }
+
+  const nextActivities = [...activeThinking.value]
+  for (const node of nodes) {
+    const activity: ThinkingActivity = {
+      id: node.id,
+      title: node.title,
+      status: normalizeProtocolStatus(node.status),
+      description: node.description || '',
+    }
+    const index = nextActivities.findIndex((item) => item.id === activity.id)
+    if (index >= 0) {
+      nextActivities[index] = { ...nextActivities[index], ...activity }
+    } else {
+      nextActivities.push(activity)
+    }
+  }
+  activeThinking.value = nextActivities
+}
+
+function showThinkingDrawer() {
+  thinkingDrawerTransitioning.value = true
   thinkingDrawerVisible.value = true
 }
 
-function closeThinkingDrawer() {
+function hideThinkingDrawer() {
   thinkingDrawerVisible.value = false
+}
+
+function handleThinkingDrawerAfterLeave() {
+  thinkingDrawerTransitioning.value = false
+}
+
+function applySimulationEvent(protocolEvent: ProtocolEvent) {
+  const payload = protocolEvent.data.payload
+
+  if (protocolEvent.event === 'session.initialized') {
+    const session = resolveSimulationSession(payload)
+    session.messages = []
+    hideThinkingDrawer()
+    activeThinking.value = []
+    return
+  }
+
+  const session = ensureSession()
+
+  if (protocolEvent.event === 'round.initialized') {
+    const userMessage = payload.round?.userMessage
+    if (userMessage && !session.messages.some((message) => message.id === userMessage.id)) {
+      session.messages.push({
+        id: userMessage.id,
+        role: 'user',
+        createdAt: formatProtocolCreatedAt(userMessage.createdAt),
+        content: resolveProtocolContent(userMessage.content),
+      })
+    }
+    return
+  }
+
+  if (protocolEvent.event === 'assistant.started') {
+    const assistant = payload.assistant
+    const assistantMessage = resolveSimulationAssistant(session, assistant?.id)
+    assistantMessage.status = 'running'
+    assistantMessage.content = ''
+    isStreaming.value = true
+    return
+  }
+
+  if (protocolEvent.event === 'thinking.started') {
+    const assistantMessage = resolveSimulationAssistant(session)
+    activeThinking.value = []
+    assistantMessage.thinking = activeThinking.value
+    startThinkingClock(assistantMessage)
+    showThinkingDrawer()
+    return
+  }
+
+  if (protocolEvent.event === 'thinking.updated') {
+    const assistantMessage = resolveSimulationAssistant(session)
+    applyThinkingNodes(payload.nodes)
+    assistantMessage.thinking = activeThinking.value
+    return
+  }
+
+  if (protocolEvent.event === 'assistant.message.delta') {
+    const message = payload.message
+    const assistantMessage = resolveSimulationAssistant(session)
+    assistantMessage.createdAt = formatProtocolCreatedAt(message?.createdAt) || assistantMessage.createdAt
+    assistantMessage.content = resolveProtocolContent(message?.content)
+    assistantMessage.thinking = activeThinking.value
+    assistantMessage.status = 'running'
+    isStreaming.value = false
+    return
+  }
+
+  if (protocolEvent.event === 'artifacts.build') {
+    const assistantMessage = resolveSimulationAssistant(session)
+    assistantMessage.canvas = true
+    return
+  }
+
+  if (protocolEvent.event === 'thinking.completed') {
+    applyThinkingNodes(payload.nodes)
+    const assistantMessage = resolveSimulationAssistant(session)
+    assistantMessage.thinking = activeThinking.value
+    completeThinkingClock(assistantMessage)
+    hideThinkingDrawer()
+    return
+  }
+
+  if (protocolEvent.event === 'round.completed') {
+    const round = payload.round
+    const assistant = round?.assistant
+    const firstMessage = assistant?.messages?.[0]
+    const assistantMessage = resolveSimulationAssistant(session)
+    assistantMessage.content = resolveProtocolContent(firstMessage?.content) || assistantMessage.content
+    assistantMessage.createdAt = formatProtocolCreatedAt(firstMessage?.createdAt) || assistantMessage.createdAt
+    assistantMessage.thinking = activeThinking.value
+    assistantMessage.canvas = Boolean(assistant?.artifacts?.length)
+    assistantMessage.status = 'completed'
+    isStreaming.value = false
+    return
+  }
+}
+
+function startProtocolSimulation() {
+  isSimulationRunning.value = true
+  isSimulationPaused.value = false
+  scheduleNextSimulationEvent(0)
+}
+
+function clearSimulationTimer() {
+  if (simulationTimer !== null) {
+    window.clearTimeout(simulationTimer)
+    simulationTimer = null
+  }
+}
+
+function scheduleNextSimulationEvent(delay = 3000) {
+  clearSimulationTimer()
+  const stream = chatTransportProtocol.sampleEventStream as ProtocolEvent[]
+  if (simulationEventIndex.value >= stream.length) {
+    isSimulationRunning.value = false
+    isSimulationPaused.value = false
+    return
+  }
+
+  simulationTimer = window.setTimeout(() => {
+    if (isSimulationPaused.value) {
+      return
+    }
+    applySimulationEvent(stream[simulationEventIndex.value])
+    simulationEventIndex.value += 1
+    scheduleNextSimulationEvent()
+  }, delay)
+}
+
+function resetSimulationState() {
+  clearSimulationTimer()
+  clearThinkingClock()
+  isSimulationRunning.value = false
+  isSimulationPaused.value = false
+  simulationEventIndex.value = 0
+  const session = sessions.value.find((item) => item.id === 'static-risk-session')
+  if (session) {
+    session.messages = []
+  }
+  activeSessionId.value = 'static-risk-session'
+  activeThinking.value = []
+  hideThinkingDrawer()
+  isStreaming.value = false
+}
+
+function restartProtocolSimulation() {
+  resetSimulationState()
+  startProtocolSimulation()
+}
+
+function toggleProtocolSimulation() {
+  const stream = chatTransportProtocol.sampleEventStream as ProtocolEvent[]
+  if (!isSimulationRunning.value && simulationEventIndex.value >= stream.length) {
+    simulationEventIndex.value = 0
+  }
+
+  if (!isSimulationRunning.value) {
+    startProtocolSimulation()
+    return
+  }
+
+  if (isSimulationPaused.value) {
+    isSimulationPaused.value = false
+    scheduleNextSimulationEvent()
+    return
+  }
+
+  isSimulationPaused.value = true
+  clearSimulationTimer()
+}
+
+function resolveSimulationButtonText() {
+  const stream = chatTransportProtocol.sampleEventStream as ProtocolEvent[]
+  if (isSimulationRunning.value && !isSimulationPaused.value) {
+    return '暂停模拟'
+  }
+  if (isSimulationRunning.value && isSimulationPaused.value) {
+    return '继续模拟'
+  }
+  if (simulationEventIndex.value > 0 && simulationEventIndex.value < stream.length) {
+    return '继续模拟'
+  }
+  return '开始模拟'
+}
+
+function openThinkingDrawer(thinking: ThinkingActivity[]) {
+  activeThinking.value = thinking
+  showThinkingDrawer()
+}
+
+function closeThinkingDrawer() {
+  hideThinkingDrawer()
 }
 
 function getStaticReply(message: string) {
@@ -554,6 +922,11 @@ watch(prompt, () => {
 watch(isConversationMode, () => {
   void syncTextareaHeights()
 }, { immediate: true })
+
+onBeforeUnmount(() => {
+  clearSimulationTimer()
+  clearThinkingClock()
+})
 </script>
 
 <template>
@@ -562,7 +935,7 @@ watch(isConversationMode, () => {
       'chat-home-shell',
       {
         'is-sidebar-collapsed': !sidebarExpanded,
-        'has-thinking-drawer': thinkingDrawerVisible,
+        'has-thinking-drawer': shouldReserveThinkingDrawer,
       },
     ]"
     :style="{ '--chat-sidebar-width': sidebarExpanded ? '210px' : '88px' }"
@@ -669,7 +1042,22 @@ watch(isConversationMode, () => {
           <div class="chat-home-model-switcher">
             <span>{{ selectedModelLabel }}</span>
             <span class="chat-home-model-switcher__caret">⌄</span>
-            <button class="chat-home-model-switcher__plus" type="button">+</button>
+            <div class="chat-home-model-switcher__simulate-group">
+              <button
+                class="chat-home-model-switcher__simulate"
+                type="button"
+                @click="toggleProtocolSimulation"
+              >
+                {{ resolveSimulationButtonText() }}
+              </button>
+              <button
+                class="chat-home-model-switcher__simulate"
+                type="button"
+                @click="restartProtocolSimulation"
+              >
+                重新开始
+              </button>
+            </div>
           </div>
         </div>
 
@@ -767,12 +1155,21 @@ watch(isConversationMode, () => {
                           type="button"
                           @click="openThinkingDrawer(message.thinking)"
                         >
-                          <span>思考过程</span>
-                          <small>已处理 1分23秒</small>
+                          <span
+                            v-if="message.thinkingStatus === 'running'"
+                            class="chat-home-thinking__running"
+                            aria-hidden="true"
+                          ></span>
+                          <span>{{ resolveThinkingTitle(message) }}</span>
+                          <small>{{ resolveThinkingMeta(message) }}</small>
                           <el-icon><ArrowDown /></el-icon>
                         </button>
                       </div>
-                      <div class="chat-home-message__assistant-text" v-html="renderMarkdown(message.content)"></div>
+                      <div
+                        v-if="message.content"
+                        class="chat-home-message__assistant-text"
+                        v-html="renderMarkdown(message.content)"
+                      ></div>
                       <DashboardCanvasPreview v-if="message.canvas" />
                       <div
                         v-if="message.id === lastAssistantMessageId"
@@ -810,15 +1207,6 @@ watch(isConversationMode, () => {
                 </template>
               </article>
 
-              <article v-if="isStreaming" class="chat-home-message is-assistant">
-                <div class="chat-home-message__assistant-row">
-                  <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
-                  <div class="chat-home-message__assistant-copy">
-                    <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
-                    <div class="chat-home-message__assistant-text">正在生成回复...</div>
-                  </div>
-                </div>
-              </article>
             </div>
 
             <div class="chat-home-followups">
@@ -859,20 +1247,21 @@ watch(isConversationMode, () => {
           </div>
         </section>
 
-        <aside
-          v-if="thinkingDrawerVisible"
-          class="chat-home-thinking-drawer"
-          aria-label="思考过程"
-        >
-          <header class="chat-home-thinking-drawer__header">
-            <div>
-              <h2>思考过程</h2>
-              <p>已处理 1分23秒 · {{ activeThinking.length }} 个活动</p>
-            </div>
-            <button type="button" aria-label="关闭思考过程" @click="closeThinkingDrawer">×</button>
-          </header>
+        <Transition name="chat-thinking-drawer" @after-leave="handleThinkingDrawerAfterLeave">
+          <aside
+            v-if="thinkingDrawerVisible"
+            class="chat-home-thinking-drawer"
+            aria-label="思考过程"
+          >
+            <header class="chat-home-thinking-drawer__header">
+              <div>
+                <h2>思考过程</h2>
+                <p>{{ resolveThinkingMeta(chatMessages.find((message) => message.thinking?.length)) }} · {{ activeThinking.length }} 个活动</p>
+              </div>
+              <button type="button" aria-label="关闭思考过程" @click="closeThinkingDrawer">×</button>
+            </header>
 
-          <div class="chat-home-thinking-drawer__body">
+            <div class="chat-home-thinking-drawer__body">
             <section class="chat-home-thinking-task-nodes" aria-label="任务节点">
               <div class="chat-home-thinking-task-nodes__title">
                 <span>任务节点</span>
@@ -937,8 +1326,9 @@ watch(isConversationMode, () => {
                 </details>
               </div>
             </div>
-          </div>
-        </aside>
+            </div>
+          </aside>
+        </Transition>
       </div>
     </main>
   </div>
