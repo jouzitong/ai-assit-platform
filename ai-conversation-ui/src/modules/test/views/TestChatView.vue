@@ -3,6 +3,7 @@ import {
   ArrowLeftBold,
   ArrowRightBold,
   ArrowDown,
+  CopyDocument,
   Document,
   EditPen,
   Microphone,
@@ -10,11 +11,13 @@ import {
   Operation,
   Promotion,
   Search,
+  ChatDotRound,
   UserFilled,
 } from '@element-plus/icons-vue'
 import { computed, nextTick, ref, useTemplateRef, watch } from 'vue'
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
+import DashboardCanvasPreview from '../components/DashboardCanvasPreview.vue'
 
 type ChatRole = 'assistant' | 'user'
 
@@ -46,7 +49,9 @@ type StaticMessage = {
   id: string
   role: ChatRole
   content: string
+  createdAt?: string
   thinking?: ThinkingActivity[]
+  canvas?: boolean
 }
 
 type StaticSession = {
@@ -63,18 +68,27 @@ const initialSessions: StaticSession[] = [
     meta: '刚刚',
     messages: [
       {
+        id: 'risk-user-0',
+        role: 'user',
+        createdAt: '2026-07-08 22:58',
+        content: '加载今天的风控日报，先帮我看一下异常指标。',
+      },
+      {
         id: 'risk-assistant-1',
         role: 'assistant',
+        createdAt: '2026-07-08 22:58',
         content: '我已加载静态风控日报。当前异常集中在登录失败率、提现拦截率和工单响应时长三项指标。',
       },
       {
         id: 'risk-user-1',
         role: 'user',
+        createdAt: '2026-07-08 22:59',
         content: '帮我按优先级列出需要排查的事项。',
       },
       {
         id: 'risk-assistant-2',
         role: 'assistant',
+        createdAt: '2026-07-08 23:00',
         thinking: [
           {
             id: 'risk-analysis',
@@ -132,6 +146,7 @@ const initialSessions: StaticSession[] = [
             description: '下一步可以补充负责人、截止时间和复盘口径，形成完整处置计划。',
           },
         ],
+        canvas: true,
         content: [
           '### 执行完成摘要',
           '',
@@ -223,6 +238,9 @@ const activeSession = computed(() => sessions.value.find((session) => session.id
 const chatMessages = computed(() => activeSession.value?.messages || [])
 const isConversationMode = computed(() => Boolean(activeSessionId.value))
 const currentSessionName = computed(() => activeSession.value?.title || '静态测试会话')
+const lastAssistantMessageId = computed(() => {
+  return [...chatMessages.value].reverse().find((message) => message.role === 'assistant')?.id
+})
 const thinkingTaskNodes = computed(() =>
   activeThinking.value.map((activity, index) => ({
     id: activity.id,
@@ -273,7 +291,20 @@ function createMessage(role: ChatRole, content: string): StaticMessage {
     id: `${role}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
     role,
     content,
+    createdAt: formatMessageCreatedAt(new Date()),
   }
+}
+
+function formatMessageCreatedAt(date: Date) {
+  const pad = (value: number) => `${value}`.padStart(2, '0')
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())} ${pad(date.getHours())}:${pad(date.getMinutes())}`
+}
+
+async function copyMessageContent(content: string) {
+  if (!navigator.clipboard) {
+    return
+  }
+  await navigator.clipboard.writeText(content)
 }
 
 function createAssistantMessage(content: string, sourcePrompt: string): StaticMessage {
@@ -651,17 +682,163 @@ watch(isConversationMode, () => {
         </div>
       </header>
 
-      <section v-if="!isConversationMode" class="chat-home-welcome">
-        <div class="chat-home-welcome-stage">
-          <div class="chat-home-welcome-model">
-            <div class="chat-home-welcome-model__avatar">oi</div>
-            <div class="chat-home-welcome-model__name">{{ selectedModelLabel }}</div>
+      <div class="chat-home-content">
+        <section v-if="!isConversationMode" class="chat-home-welcome">
+          <div class="chat-home-welcome-stage">
+            <div class="chat-home-welcome-model">
+              <div class="chat-home-welcome-model__avatar">oi</div>
+              <div class="chat-home-welcome-model__name">{{ selectedModelLabel }}</div>
+            </div>
+            <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome">
+              <textarea
+                ref="welcomeTextarea"
+                v-model="prompt"
+                placeholder="有什么我能帮您的么?"
+                rows="1"
+                @keydown="handlePromptKeydown"
+              ></textarea>
+              <div class="chat-home-composer__footer">
+                <div class="chat-home-composer__tools">
+                  <button class="composer-tool-button" type="button"><span>+</span></button>
+                  <button class="composer-tool-button" type="button">
+                    <el-icon><Operation /></el-icon>
+                  </button>
+                </div>
+                <div class="chat-home-composer__actions">
+                  <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
+                  <button class="composer-send-button" type="button" :disabled="isStreaming" @click="handlePrimaryAction">
+                    <el-icon><Promotion /></el-icon>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-home-welcome-suggestions">
+              <div class="chat-home-welcome-suggestions__header">建议</div>
+              <button
+                v-for="item in welcomeSuggestions"
+                :key="item.title"
+                class="chat-home-welcome-suggestion"
+                type="button"
+                @click="applySuggestion(item.prompt)"
+              >
+                <strong>{{ item.title }}</strong>
+                <span>{{ item.subtitle }}</span>
+              </button>
+            </div>
           </div>
-          <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome">
+        </section>
+
+        <section v-else class="chat-home-conversation">
+          <div class="chat-home-center-column chat-home-center-column--conversation">
+            <div v-if="chatMessages.length === 0" class="chat-home-assistant">
+              <div class="chat-home-assistant__avatar">pr</div>
+              <div class="chat-home-assistant__body">
+                <div class="chat-home-assistant__title">{{ selectedModelLabel }}</div>
+                <div class="chat-home-assistant__meta">{{ currentSessionName }}</div>
+                <div class="chat-home-assistant__text">你好！这是静态数据测试会话。</div>
+                <div class="chat-home-assistant__actions">
+                  <button
+                    v-for="index in 6"
+                    :key="index"
+                    class="ghost-inline-icon"
+                    type="button"
+                  >
+                    <span></span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-home-message-list">
+              <article
+                v-for="message in chatMessages"
+                :key="message.id"
+                :class="['chat-home-message', `is-${message.role}`]"
+              >
+                <template v-if="message.role === 'assistant'">
+                  <div class="chat-home-message__assistant-row">
+                    <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
+                    <div class="chat-home-message__assistant-copy">
+                      <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
+                      <div v-if="message.thinking?.length" class="chat-home-thinking">
+                        <button
+                          class="chat-home-thinking__summary"
+                          type="button"
+                          @click="openThinkingDrawer(message.thinking)"
+                        >
+                          <span>思考过程</span>
+                          <small>已处理 1分23秒</small>
+                          <el-icon><ArrowDown /></el-icon>
+                        </button>
+                      </div>
+                      <div class="chat-home-message__assistant-text" v-html="renderMarkdown(message.content)"></div>
+                      <DashboardCanvasPreview v-if="message.canvas" />
+                      <div
+                        v-if="message.id === lastAssistantMessageId"
+                        class="chat-home-feedback"
+                        aria-label="回复操作"
+                      >
+                        <button class="chat-home-feedback__button" type="button">
+                          <svg class="chat-home-feedback__icon" viewBox="0 0 16 16" aria-hidden="true">
+                            <path d="M6.2 6.3 7 2.5c.1-.5.5-.9 1-.9.7 0 1.2.5 1.2 1.2v2.5h3.1c.8 0 1.4.7 1.3 1.5l-.6 4.5c-.1.9-.9 1.5-1.8 1.5H6.2V6.3Z" />
+                            <path d="M2.3 6.4h2.4v6.4H2.3V6.4Z" />
+                          </svg>
+                          <span>喜欢</span>
+                        </button>
+                        <button class="chat-home-feedback__button" type="button">
+                          <el-icon><ChatDotRound /></el-icon>
+                          <span>反馈</span>
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </template>
+                <template v-else>
+                  <div class="chat-home-message__user-stack">
+                    <div class="chat-home-message__user-row">
+                      <div class="chat-home-user-bubble">{{ message.content }}</div>
+                    </div>
+                    <div class="chat-home-message__user-meta">
+                      <span>{{ message.createdAt }}</span>
+                      <button type="button" @click="copyMessageContent(message.content)">
+                        <el-icon><CopyDocument /></el-icon>
+                        <span>复制</span>
+                      </button>
+                    </div>
+                  </div>
+                </template>
+              </article>
+
+              <article v-if="isStreaming" class="chat-home-message is-assistant">
+                <div class="chat-home-message__assistant-row">
+                  <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
+                  <div class="chat-home-message__assistant-copy">
+                    <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
+                    <div class="chat-home-message__assistant-text">正在生成回复...</div>
+                  </div>
+                </div>
+              </article>
+            </div>
+
+            <div class="chat-home-followups">
+              <button
+                v-for="card in welcomeCards.slice(0, 3)"
+                :key="card"
+                class="chat-home-followup-line"
+                type="button"
+                @click="applySuggestion(card)"
+              >
+                {{ card }}
+              </button>
+            </div>
+          </div>
+
+          <div class="chat-home-composer chat-home-composer--floating chat-home-composer--conversation">
             <textarea
-              ref="welcomeTextarea"
+              ref="conversationTextarea"
               v-model="prompt"
-              placeholder="有什么我能帮您的么?"
+              placeholder="输入消息"
               rows="1"
               @keydown="handlePromptKeydown"
             ></textarea>
@@ -680,205 +857,90 @@ watch(isConversationMode, () => {
               </div>
             </div>
           </div>
+        </section>
 
-          <div class="chat-home-welcome-suggestions">
-            <div class="chat-home-welcome-suggestions__header">建议</div>
-            <button
-              v-for="item in welcomeSuggestions"
-              :key="item.title"
-              class="chat-home-welcome-suggestion"
-              type="button"
-              @click="applySuggestion(item.prompt)"
-            >
-              <strong>{{ item.title }}</strong>
-              <span>{{ item.subtitle }}</span>
-            </button>
-          </div>
-        </div>
-      </section>
-
-      <section v-else class="chat-home-conversation">
-        <div class="chat-home-center-column chat-home-center-column--conversation">
-          <div v-if="chatMessages.length === 0" class="chat-home-assistant">
-            <div class="chat-home-assistant__avatar">pr</div>
-            <div class="chat-home-assistant__body">
-              <div class="chat-home-assistant__title">{{ selectedModelLabel }}</div>
-              <div class="chat-home-assistant__meta">{{ currentSessionName }}</div>
-              <div class="chat-home-assistant__text">你好！这是静态数据测试会话。</div>
-              <div class="chat-home-assistant__actions">
-                <button
-                  v-for="index in 6"
-                  :key="index"
-                  class="ghost-inline-icon"
-                  type="button"
-                >
-                  <span></span>
-                </button>
-              </div>
+        <aside
+          v-if="thinkingDrawerVisible"
+          class="chat-home-thinking-drawer"
+          aria-label="思考过程"
+        >
+          <header class="chat-home-thinking-drawer__header">
+            <div>
+              <h2>思考过程</h2>
+              <p>已处理 1分23秒 · {{ activeThinking.length }} 个活动</p>
             </div>
-          </div>
+            <button type="button" aria-label="关闭思考过程" @click="closeThinkingDrawer">×</button>
+          </header>
 
-          <div class="chat-home-message-list">
-            <article
-              v-for="message in chatMessages"
-              :key="message.id"
-              :class="['chat-home-message', `is-${message.role}`]"
-            >
-              <template v-if="message.role === 'assistant'">
-                <div class="chat-home-message__assistant-row">
-                  <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
-                  <div class="chat-home-message__assistant-copy">
-                    <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
-                    <div v-if="message.thinking?.length" class="chat-home-thinking">
-                      <button
-                        class="chat-home-thinking__summary"
-                        type="button"
-                        @click="openThinkingDrawer(message.thinking)"
-                      >
-                        <span>思考过程</span>
-                        <small>已处理 1分23秒</small>
-                        <el-icon><ArrowDown /></el-icon>
-                      </button>
-                    </div>
-                    <div class="chat-home-message__assistant-text" v-html="renderMarkdown(message.content)"></div>
+          <div class="chat-home-thinking-drawer__body">
+            <section class="chat-home-thinking-task-nodes" aria-label="任务节点">
+              <div class="chat-home-thinking-task-nodes__title">
+                <span>任务节点</span>
+                <strong>智能问数</strong>
+              </div>
+              <div class="chat-home-thinking-task-nodes__grid">
+                <div
+                  v-for="node in thinkingTaskNodes"
+                  :key="node.id"
+                  :class="['chat-home-thinking-task-node', `is-${node.status}`]"
+                  :title="node.description"
+                >
+                  <span class="chat-home-thinking-task-node__status" aria-hidden="true"></span>
+                  <div class="chat-home-thinking-task-node__copy">
+                    <strong><span>{{ node.step }}</span>{{ node.title }}</strong>
+                    <p>{{ node.description }}</p>
                   </div>
                 </div>
-              </template>
-              <template v-else>
-                <div class="chat-home-message__user-row">
-                  <div class="chat-home-user-bubble">{{ message.content }}</div>
-                </div>
-              </template>
-            </article>
-
-            <article v-if="isStreaming" class="chat-home-message is-assistant">
-              <div class="chat-home-message__assistant-row">
-                <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
-                <div class="chat-home-message__assistant-copy">
-                  <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
-                  <div class="chat-home-message__assistant-text">正在生成回复...</div>
-                </div>
               </div>
-            </article>
-          </div>
+            </section>
 
-          <div class="chat-home-followups">
-            <button
-              v-for="card in welcomeCards.slice(0, 3)"
-              :key="card"
-              class="chat-home-followup-line"
-              type="button"
-              @click="applySuggestion(card)"
-            >
-              {{ card }}
-            </button>
-          </div>
-        </div>
-
-        <div class="chat-home-composer chat-home-composer--floating chat-home-composer--conversation">
-          <textarea
-            ref="conversationTextarea"
-            v-model="prompt"
-            placeholder="输入消息"
-            rows="1"
-            @keydown="handlePromptKeydown"
-          ></textarea>
-          <div class="chat-home-composer__footer">
-            <div class="chat-home-composer__tools">
-              <button class="composer-tool-button" type="button"><span>+</span></button>
-              <button class="composer-tool-button" type="button">
-                <el-icon><Operation /></el-icon>
-              </button>
-            </div>
-            <div class="chat-home-composer__actions">
-              <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
-              <button class="composer-send-button" type="button" :disabled="isStreaming" @click="handlePrimaryAction">
-                <el-icon><Promotion /></el-icon>
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-    </main>
-
-    <aside
-      v-if="thinkingDrawerVisible"
-      class="chat-home-thinking-drawer"
-      aria-label="思考过程"
-    >
-      <header class="chat-home-thinking-drawer__header">
-        <div>
-          <h2>思考过程</h2>
-          <p>已处理 1分23秒 · {{ activeThinking.length }} 个活动</p>
-        </div>
-        <button type="button" aria-label="关闭思考过程" @click="closeThinkingDrawer">×</button>
-      </header>
-
-      <section class="chat-home-thinking-task-nodes" aria-label="任务节点">
-        <div class="chat-home-thinking-task-nodes__title">
-          <span>任务节点</span>
-          <strong>智能问数</strong>
-        </div>
-        <div class="chat-home-thinking-task-nodes__grid">
-          <div
-            v-for="node in thinkingTaskNodes"
-            :key="node.id"
-            :class="['chat-home-thinking-task-node', `is-${node.status}`]"
-            :title="node.description"
-          >
-            <span class="chat-home-thinking-task-node__status" aria-hidden="true"></span>
-            <div class="chat-home-thinking-task-node__copy">
-              <strong><span>{{ node.step }}</span>{{ node.title }}</strong>
-              <p>{{ node.description }}</p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <div class="chat-home-thinking__content chat-home-thinking__content--drawer">
-        <div
-          v-for="activity in activeThinking"
-          :key="activity.id"
-          :class="['chat-home-thinking-activity', `is-${activity.status}`]"
-        >
-          <span class="chat-home-thinking-activity__marker"></span>
-          <div class="chat-home-thinking-activity__header">
-            <strong>{{ activity.title }}</strong>
-            <span>{{ getThinkingStatusText(activity.status) }}</span>
-          </div>
-          <p>{{ activity.description }}</p>
-          <div v-if="activity.sources?.length" class="chat-home-thinking-sources">
-            <span
-              v-for="source in activity.sources"
-              :key="source.id"
-              class="chat-home-thinking-source"
-            >
-              <span class="chat-home-thinking-source__icon">{{ source.icon }}</span>
-              <span>{{ source.label }}</span>
-            </span>
-          </div>
-          <details v-if="activity.details?.length" class="chat-home-thinking-submodule">
-            <summary class="chat-home-thinking-submodule__summary">
-              <span>再显示 {{ activity.details.length }} 个结果</span>
-              <el-icon><ArrowDown /></el-icon>
-            </summary>
-            <div class="chat-home-thinking-submodule__content">
+            <div class="chat-home-thinking__content chat-home-thinking__content--drawer">
               <div
-                v-for="detail in activity.details"
-                :key="detail.id"
-                class="chat-home-thinking-detail"
+                v-for="activity in activeThinking"
+                :key="activity.id"
+                :class="['chat-home-thinking-activity', `is-${activity.status}`]"
               >
-                <strong>{{ detail.title }}</strong>
-                <p>{{ detail.content }}</p>
-                <a v-if="detail.url" :href="detail.url" target="_blank" rel="noreferrer">
-                  {{ detail.url }}
-                </a>
+                <span class="chat-home-thinking-activity__marker"></span>
+                <div class="chat-home-thinking-activity__header">
+                  <strong>{{ activity.title }}</strong>
+                  <span>{{ getThinkingStatusText(activity.status) }}</span>
+                </div>
+                <p>{{ activity.description }}</p>
+                <div v-if="activity.sources?.length" class="chat-home-thinking-sources">
+                  <span
+                    v-for="source in activity.sources"
+                    :key="source.id"
+                    class="chat-home-thinking-source"
+                  >
+                    <span class="chat-home-thinking-source__icon">{{ source.icon }}</span>
+                    <span>{{ source.label }}</span>
+                  </span>
+                </div>
+                <details v-if="activity.details?.length" class="chat-home-thinking-submodule">
+                  <summary class="chat-home-thinking-submodule__summary">
+                    <span>再显示 {{ activity.details.length }} 个结果</span>
+                    <el-icon><ArrowDown /></el-icon>
+                  </summary>
+                  <div class="chat-home-thinking-submodule__content">
+                    <div
+                      v-for="detail in activity.details"
+                      :key="detail.id"
+                      class="chat-home-thinking-detail"
+                    >
+                      <strong>{{ detail.title }}</strong>
+                      <p>{{ detail.content }}</p>
+                      <a v-if="detail.url" :href="detail.url" target="_blank" rel="noreferrer">
+                        {{ detail.url }}
+                      </a>
+                    </div>
+                  </div>
+                </details>
               </div>
             </div>
-          </details>
-        </div>
+          </div>
+        </aside>
       </div>
-    </aside>
+    </main>
   </div>
 </template>
 

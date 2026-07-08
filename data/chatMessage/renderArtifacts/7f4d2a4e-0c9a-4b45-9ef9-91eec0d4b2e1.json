@@ -1,0 +1,241 @@
+{
+  "schemaVersion": "render-artifact.v1",
+  "codeRef": "7f4d2a4e-0c9a-4b45-9ef9-91eec0d4b2e1",
+  "type": "dashboardCanvas",
+  "status": "completed",
+  "payload": {
+    "type": "dashboardCanvas",
+    "id": "risk-dashboard-canvas",
+    "title": "看板画布",
+    "description": "拖动标题移动组件，拖动右下角调整尺寸",
+    "canvas": {
+      "columns": 12,
+      "rowHeight": 56,
+      "fullscreenRowHeight": 96,
+      "gap": 12,
+      "minRows": 7,
+      "fullscreenMinRows": 9,
+      "draggable": true,
+      "resizable": true,
+      "layout": [
+        {
+          "id": "risk-list",
+          "title": "异常任务列表",
+          "x": 0,
+          "y": 0,
+          "w": 6,
+          "h": 4,
+          "minW": 4,
+          "minH": 3,
+          "widgetId": "risk-list-widget"
+        },
+        {
+          "id": "plan-form",
+          "title": "处置计划",
+          "x": 6,
+          "y": 0,
+          "w": 6,
+          "h": 4,
+          "minW": 4,
+          "minH": 3,
+          "widgetId": "plan-form-widget"
+        },
+        {
+          "id": "trend-chart",
+          "title": "异常趋势",
+          "x": 2,
+          "y": 4,
+          "w": 8,
+          "h": 4,
+          "minW": 5,
+          "minH": 3,
+          "widgetId": "trend-chart-widget"
+        }
+      ]
+    },
+    "widgets": [
+      {
+        "id": "risk-list-widget",
+        "type": "common-list",
+        "schema": {
+          "id": "dashboard-list-demo",
+          "title": "异常任务列表",
+          "component": "common-list",
+          "tab": {
+            "activeTab": "all",
+            "tabs": [
+              {
+                "key": "all",
+                "label": "全部"
+              },
+              {
+                "key": "risk",
+                "label": "风险"
+              }
+            ]
+          },
+          "fields": [
+            {
+              "key": "name",
+              "name": "name",
+              "label": "任务",
+              "field": [
+                "name"
+              ]
+            },
+            {
+              "key": "owner",
+              "name": "owner",
+              "label": "负责人",
+              "field": [
+                "owner"
+              ]
+            },
+            {
+              "key": "status",
+              "name": "status",
+              "label": "状态",
+              "field": [
+                "status"
+              ]
+            }
+          ],
+          "summary": {
+            "cards": [
+              {
+                "key": "pending",
+                "label": "待处理",
+                "value": 6,
+                "accent": "#f59e0b"
+              },
+              {
+                "key": "running",
+                "label": "进行中",
+                "value": 3,
+                "accent": "#60a5fa"
+              }
+            ]
+          },
+          "list_config": {
+            "variant": "workbench",
+            "itemType": "table",
+            "pagination": {
+              "enabled": false
+            }
+          }
+        },
+        "records": [
+          {
+            "name": "提现拦截来源核对",
+            "owner": "Risk Ops",
+            "status": "进行中"
+          },
+          {
+            "name": "登录失败地区拆分",
+            "owner": "Data",
+            "status": "待处理"
+          }
+        ],
+        "total": 2
+      },
+      {
+        "id": "plan-form-widget",
+        "type": "zg-common-info",
+        "readonly": true,
+        "schema": {
+          "id": "dashboard-form-demo",
+          "title": "处置计划",
+          "component": "zg-common-info",
+          "form_config": {
+            "variant": "workbench",
+            "columns": 2,
+            "description": "用于补充执行完成后的负责人和截止时间。"
+          },
+          "fields": [
+            {
+              "key": "owner",
+              "label": "负责人",
+              "field": [
+                "owner"
+              ],
+              "component": "zg-input"
+            },
+            {
+              "key": "deadline",
+              "label": "截止时间",
+              "field": [
+                "deadline"
+              ],
+              "component": "zg-date"
+            },
+            {
+              "key": "summary",
+              "label": "复盘口径",
+              "field": [
+                "summary"
+              ],
+              "component": "zg-textarea",
+              "type": "textarea"
+            }
+          ],
+          "groups": [
+            {
+              "key": "base",
+              "title": "基础信息",
+              "fields": [
+                "owner",
+                "deadline",
+                "summary"
+              ],
+              "columns": 2
+            }
+          ],
+          "data": {
+            "owner": "Risk Ops",
+            "deadline": "今日 18:00",
+            "summary": "资金链路优先归因，登录异常同步复核。"
+          }
+        }
+      },
+      {
+        "id": "trend-chart-widget",
+        "type": "line-chart",
+        "props": {
+          "categories": [
+            "10:00",
+            "12:00",
+            "14:00",
+            "16:00",
+            "18:00"
+          ],
+          "unit": "%",
+          "height": 190,
+          "fullscreenHeight": 320,
+          "series": [
+            {
+              "name": "登录失败率",
+              "data": [
+                2.1,
+                2.8,
+                3.7,
+                3.1,
+                2.6
+              ],
+              "area": true
+            },
+            {
+              "name": "提现拦截率",
+              "data": [
+                1.2,
+                1.8,
+                2.4,
+                2.9,
+                2.2
+              ]
+            }
+          ]
+        }
+      }
+    ]
+  }
+}
