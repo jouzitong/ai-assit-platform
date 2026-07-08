@@ -19,4 +19,10 @@ export const testRoutes: RouteRecordRaw[] = [
     meta: { title: 'ECharts Renderer Test' },
     component: () => import('../../modules/test/views/TestEchartsView.vue'),
   },
+  {
+    path: '/test/chat',
+    name: 'test-chat',
+    meta: { title: 'Chat Interaction Test', fullscreen: true },
+    component: () => import('../../modules/test/views/TestChatView.vue'),
+  },
 ]
