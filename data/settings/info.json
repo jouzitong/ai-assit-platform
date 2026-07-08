@@ -1,6 +1,23 @@
 {
+  "id": "demo",
+  "version": "1.0.0",
   "title": "Demo",
+  "component": "zg-common-info",
   "fields": [
+    {
+      "key": "name",
+      "label": "ID",
+      "field": [
+        "name"
+      ],
+      "options": {
+        "styles": {
+          "text-align": "center",
+          "width": 8
+        },
+        "className": "text-center"
+      }
+    }
   ],
   "groups": [
     {

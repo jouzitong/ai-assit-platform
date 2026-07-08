@@ -1,0 +1,130 @@
+{
+  "id": "common-title-demo",
+  "version": "1.0.0",
+  "title": "通用标题组件",
+  "component": "zg-common-title",
+  "component_config": {
+    "layout": "horizontal",
+    "align": "center",
+    "divider": false,
+    "backable": false,
+    "iconable": true,
+    "taggable": true,
+    "descriptionMode": "block",
+    "actionsAlign": "right"
+  },
+  "fields": [
+    {
+      "key": "title",
+      "label": "主标题",
+      "field": [
+        "title"
+      ],
+      "options": {
+        "required": true,
+        "styles": {
+          "width": 100
+        }
+      }
+    },
+    {
+      "key": "subtitle",
+      "label": "副标题",
+      "field": [
+        "subtitle"
+      ],
+      "options": {
+        "styles": {
+          "width": 100
+        }
+      }
+    },
+    {
+      "key": "description",
+      "label": "描述",
+      "field": [
+        "description"
+      ],
+      "options": {
+        "styles": {
+          "width": 100
+        }
+      }
+    },
+    {
+      "key": "icon",
+      "label": "图标",
+      "field": [
+        "icon"
+      ],
+      "options": {
+        "hidden": false
+      }
+    },
+    {
+      "key": "tags",
+      "label": "标签",
+      "field": [
+        "tags"
+      ],
+      "options": {
+        "multiple": true
+      }
+    },
+    {
+      "key": "status",
+      "label": "状态文案",
+      "field": [
+        "status"
+      ],
+      "options": {
+        "hidden": false
+      }
+    }
+  ],
+  "groups": [
+    {
+      "key": "basic",
+      "title": "基础信息",
+      "fields": [
+        "title",
+        "subtitle",
+        "description",
+        "icon",
+        "tags",
+        "status"
+      ]
+    }
+  ],
+  "children": [],
+  "actions": [
+    {
+      "key": "refresh",
+      "name": "刷新",
+      "action": "refresh",
+      "type": ""
+    },
+    {
+      "key": "create",
+      "name": "新建",
+      "action": "create",
+      "type": "primary"
+    }
+  ],
+  "form_relations": [],
+  "life_cycle": {
+    "before_load": "=function(){ return true }",
+    "after_load": "=function(data){ return data }"
+  },
+  "data": {
+    "title": "系统参数",
+    "subtitle": "System Parameters",
+    "description": "维护系统级参数、默认开关和全局配置。",
+    "icon": "Setting",
+    "tags": [
+      "平台级",
+      "可配置"
+    ],
+    "status": "已启用"
+  }
+}
