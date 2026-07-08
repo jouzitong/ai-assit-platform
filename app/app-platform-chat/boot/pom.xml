@@ -60,7 +60,118 @@
                 <version>3.2.5</version>
                 <configuration>
                     <mainClass>ai.platform.aiassit.chat.PlatformConversationApplication</mainClass>
+                    <layout>ZIP</layout>
+                    <includes>
+                        <include>
+                            <groupId>non-exists</groupId>
+                            <artifactId>non-exists</artifactId>
+                        </include>
+                    </includes>
                 </configuration>
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>repackage</goal>
+                        </goals>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <version>3.6.1</version>
+                <executions>
+                    <execution>
+                        <id>copy-lib</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/app-platform-chat/lib</outputDirectory>
+                            <excludeTransitive>false</excludeTransitive>
+                            <stripVersion>false</stripVersion>
+                            <includeScope>runtime</includeScope>
+                            <excludeGroupIds>ai.platform.aiassit,org.athena</excludeGroupIds>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-celib</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy-dependencies</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/app-platform-chat/celib</outputDirectory>
+                            <excludeTransitive>false</excludeTransitive>
+                            <stripVersion>false</stripVersion>
+                            <includeScope>runtime</includeScope>
+                            <includeGroupIds>ai.platform.aiassit,org.athena</includeGroupIds>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-app</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>copy</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/app-platform-chat</outputDirectory>
+                            <stripVersion>false</stripVersion>
+                            <artifact>${project.groupId}:${project.artifactId}:${project.version}</artifact>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+            <plugin>
+                <artifactId>maven-antrun-plugin</artifactId>
+                <version>3.1.0</version>
+                <executions>
+                    <execution>
+                        <id>assemble-distribution</id>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <mkdir dir="${project.build.directory}/app-platform-chat/logs/ai-assit/chat"/>
+                                <mkdir dir="${project.build.directory}/app-platform-chat/pid"/>
+
+                                <copy todir="${project.build.directory}/app-platform-chat/bin" overwrite="true">
+                                    <fileset dir="../bin" erroronmissingdir="false">
+                                        <include name="*"/>
+                                    </fileset>
+                                </copy>
+
+                                <copy todir="${project.build.directory}/app-platform-chat/config" overwrite="true">
+                                    <fileset dir="../config" erroronmissingdir="false">
+                                        <include name="**"/>
+                                    </fileset>
+                                </copy>
+
+                                <copy todir="${project.build.directory}/app-platform-chat/config" overwrite="true">
+                                    <fileset dir="src/main/resources" erroronmissingdir="false">
+                                        <include name="application.yml"/>
+                                        <include name="bootstrap.yml"/>
+                                        <include name="logback-spring.xml"/>
+                                    </fileset>
+                                </copy>
+
+                                <copy todir="${project.build.directory}/app-platform-chat/python" overwrite="true">
+                                    <fileset dir="../providers/ai-provider-ai-agent/src/main/python" erroronmissingdir="false">
+                                        <exclude name="**/__pycache__/**"/>
+                                        <exclude name="**/*.pyc"/>
+                                    </fileset>
+                                </copy>
+
+                                <chmod dir="${project.build.directory}/app-platform-chat/bin" perm="755" includes="*"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

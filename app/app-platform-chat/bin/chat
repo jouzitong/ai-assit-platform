@@ -1,0 +1,106 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+APP_NAME="app-platform-chat"
+JAVA_CMD="${JAVA_HOME:+${JAVA_HOME}/bin/}java"
+
+BIN_DIR="$(cd "$(dirname "$0")" && pwd)"
+BASE_DIR="$(cd "${BIN_DIR}/.." && pwd)"
+PID_DIR="${BASE_DIR}/pid"
+PID_FILE="${PID_DIR}/${APP_NAME}.pid"
+LOG_DIR="${BASE_DIR}/logs/ai-assit/chat"
+PYTHON_DIR="${BASE_DIR}/python"
+CONFIG_DIR="${BASE_DIR}/config"
+LIB_DIR="${BASE_DIR}/lib,${BASE_DIR}/celib"
+
+mkdir -p "${PID_DIR}" "${LOG_DIR}"
+
+BOOT_JAR="$(find "${BASE_DIR}" -maxdepth 1 -name '*.jar' | head -n 1)"
+if [[ -z "${BOOT_JAR}" ]]; then
+  echo "boot jar not found in ${BASE_DIR}" >&2
+  exit 1
+fi
+
+usage() {
+  echo "Usage: $0 {start|stop|restart|status} [profile]"
+  exit 1
+}
+
+get_pid() {
+  if [[ -f "${PID_FILE}" ]]; then
+    local current_pid
+    current_pid="$(cat "${PID_FILE}")"
+    if [[ -n "${current_pid}" ]] && ps -p "${current_pid}" > /dev/null 2>&1; then
+      echo "${current_pid}"
+      return 0
+    fi
+  fi
+  return 1
+}
+
+start() {
+  local profile="${1:-dev}"
+  if pid="$(get_pid)"; then
+    echo "${APP_NAME} is already running with pid ${pid}"
+    return 0
+  fi
+
+  local java_opts=(
+    "--enable-preview"
+    "-server"
+    "-Xms1g"
+    "-Xmx1g"
+    "-XX:+UseG1GC"
+    "-Dloader.path=${LIB_DIR}"
+    "-Dathena.log.dir=${LOG_DIR}"
+    "-Dlogging.config=${CONFIG_DIR}/logback-spring.xml"
+    "-Dai.provider.ai-agent.script-path=${PYTHON_DIR}/agent_provider/main.py"
+    "-Dai.provider.ai-agent.working-directory=${PYTHON_DIR}"
+    "-Dspring.profiles.active=${profile}"
+  )
+
+  nohup "${JAVA_CMD}" "${java_opts[@]}" -jar "${BOOT_JAR}" \
+    --spring.config.additional-location="optional:file:${CONFIG_DIR}/" \
+    > "${LOG_DIR}/console.out" 2>&1 &
+
+  echo $! > "${PID_FILE}"
+  echo "started ${APP_NAME}, pid=$(cat "${PID_FILE}")"
+}
+
+stop() {
+  if pid="$(get_pid)"; then
+    kill "${pid}"
+    rm -f "${PID_FILE}"
+    echo "stopped ${APP_NAME}"
+  else
+    echo "${APP_NAME} is not running"
+  fi
+}
+
+status() {
+  if pid="$(get_pid)"; then
+    echo "${APP_NAME} is running with pid ${pid}"
+  else
+    echo "${APP_NAME} is not running"
+  fi
+}
+
+case "${1:-}" in
+  start)
+    start "${2:-}"
+    ;;
+  stop)
+    stop
+    ;;
+  restart)
+    stop
+    start "${2:-}"
+    ;;
+  status)
+    status
+    ;;
+  *)
+    usage
+    ;;
+esac

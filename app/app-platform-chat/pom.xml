@@ -129,7 +129,7 @@
 
     <modules>
         <module>api</module>
-        <module>core</module>
+        <module>web</module>
         <module>boot</module>
         <module>data/data-chat-history</module>
         <module>data/data-meta</module>

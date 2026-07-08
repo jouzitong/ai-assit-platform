@@ -30,9 +30,15 @@ import java.util.concurrent.TimeUnit;
 @Component
 public class AiAgentProcessExecutor {
 
+    private static final Path DEPLOYED_SCRIPT_PATH = Path.of(
+            "python",
+            "agent_provider",
+            "main.py"
+    );
+
     private static final Path DEV_SCRIPT_PATH = Path.of(
             "app",
-            "app-platform-ai-engine",
+            "app-platform-chat",
             "providers",
             "ai-provider-ai-agent",
             "src",
@@ -165,6 +171,11 @@ public class AiAgentProcessExecutor {
             Path configuredPath = Path.of(properties.getScriptPath()).toAbsolutePath().normalize();
             log.debug("ai agent script path resolved from configuration, scriptPath={}", configuredPath);
             return configuredPath;
+        }
+        Path deployedPath = DEPLOYED_SCRIPT_PATH.toAbsolutePath().normalize();
+        if (Files.exists(deployedPath)) {
+            log.debug("ai agent script path resolved from deployed path, scriptPath={}", deployedPath);
+            return deployedPath;
         }
         Path developmentPath = DEV_SCRIPT_PATH.toAbsolutePath().normalize();
         if (Files.exists(developmentPath)) {
