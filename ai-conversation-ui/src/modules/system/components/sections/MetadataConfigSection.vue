@@ -2,6 +2,7 @@
 import { MoreFilled, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { AppPagination } from '../../../../components'
 import {
   createRenderPage,
   createRenderPageCategory,
@@ -65,7 +66,7 @@ const summary = ref({
   categories: 0,
 })
 
-const pageSizeOptions = [10, 20, 50, 100, 200, 500]
+const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 const treeProps = {
   children: 'children',
   label: 'label',
@@ -737,16 +738,12 @@ onMounted(() => {
         </el-main>
 
         <el-footer class="component-manage-layout__footer">
-          <div class="component-manage-layout__footer-total">
-            Total {{ total }}
-          </div>
-          <el-pagination
+          <AppPagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
             :page-sizes="pageSizeOptions"
-            :pager-count="5"
-            layout="sizes, prev, pager, next"
             :total="total"
+            :pager-count="5"
             @current-change="handleCurrentPageChange"
             @size-change="handlePageSizeChange"
           />
@@ -838,23 +835,23 @@ onMounted(() => {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
 }
 
 .component-manage-layout__aside {
   min-height: 0;
   padding: 14px 12px;
-  border-right: 1px solid #eef2f7;
-  background: #fbfcfd;
+  border-right: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
 .component-manage-layout__aside-title {
   margin-bottom: 8px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -863,27 +860,27 @@ onMounted(() => {
   display: grid;
   gap: 4px;
   margin-bottom: 10px;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
 .component-manage-layout__aside-error {
   margin-bottom: 10px;
-  color: #dc2626;
+  color: var(--system-danger);
   font-size: 12px;
 }
 
 .metadata-tree-panel {
   padding: 10px 8px 4px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  background: var(--system-surface-gradient);
 }
 
 .metadata-tree-panel__header {
   margin-bottom: 8px;
   padding: 0 4px;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
   font-weight: 600;
 }
@@ -898,16 +895,16 @@ onMounted(() => {
 }
 
 .metadata-tree :deep(.el-tree-node__content:hover) {
-  background: #eef4ff;
+  background: var(--system-accent-bg);
 }
 
 .metadata-tree :deep(.el-tree-node.is-current > .el-tree-node__content) {
-  background: #e0ecff;
-  color: #1d4ed8;
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
 }
 
 .metadata-tree :deep(.el-tree-node__expand-icon) {
-  color: #94a3b8;
+  color: var(--system-text-faint);
 }
 
 .metadata-tree-node {
@@ -922,7 +919,7 @@ onMounted(() => {
 .metadata-tree-node__label {
   flex: 1;
   overflow: hidden;
-  color: #1f2937;
+  color: var(--system-title);
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -947,8 +944,8 @@ onMounted(() => {
   min-width: 22px;
   padding: 2px 6px;
   border-radius: 999px;
-  background: #eff6ff;
-  color: #2563eb;
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
   font-size: 12px;
   line-height: 1.2;
   text-align: center;
@@ -968,7 +965,7 @@ onMounted(() => {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--system-text-faint);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -976,8 +973,8 @@ onMounted(() => {
 }
 
 .metadata-tree-node__more:hover {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
 }
 
 .metadata-tree :deep(.el-tree-node__content:hover) .metadata-tree-node__count,
@@ -993,13 +990,30 @@ onMounted(() => {
 }
 
 .metadata-category-parent {
-  color: #475569;
+  color: var(--system-text-soft);
   font-size: 13px;
 }
 
 .metadata-category-dialog__footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.metadata-category-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.metadata-category-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.metadata-category-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
 }
 
 .component-manage-layout__body {
@@ -1013,18 +1027,18 @@ onMounted(() => {
   gap: 16px;
   height: auto;
   padding: 18px 20px 12px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .component-manage-layout__title h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 18px;
 }
 
 .component-manage-layout__title p {
   margin: 6px 0 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
@@ -1038,6 +1052,37 @@ onMounted(() => {
   width: 320px;
 }
 
+.component-manage-layout__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.component-manage-layout__tools :deep(.el-input__inner),
+.component-manage-layout__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.component-manage-layout__tools :deep(.el-input__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.component-manage-layout__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.component-manage-layout__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.component-manage-layout__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
 .component-manage-layout__main {
   min-height: 0;
   padding: 20px;
@@ -1048,12 +1093,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 220px;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 14px;
 }
 
 .component-manage-layout__state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .component-manage-layout__grid {
@@ -1068,9 +1113,9 @@ onMounted(() => {
   gap: 14px;
   min-height: 220px;
   padding: 18px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  background: var(--system-surface-gradient);
 }
 
 .component-manage-card__row,
@@ -1082,14 +1127,14 @@ onMounted(() => {
 }
 
 .component-manage-card__name {
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
   font-weight: 600;
 }
 
 .component-manage-card__meta,
 .component-manage-card__info {
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
@@ -1113,7 +1158,7 @@ onMounted(() => {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--system-text-faint);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -1121,8 +1166,8 @@ onMounted(() => {
 }
 
 .component-manage-card__more:hover {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
 }
 
 .component-manage-card:hover .component-manage-card__more,
@@ -1142,14 +1187,14 @@ onMounted(() => {
 }
 
 .component-manage-card__section label {
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
   font-weight: 600;
 }
 
 .component-manage-card__section p {
   margin: 0;
-  color: #1f2937;
+  color: var(--system-title);
   font-size: 13px;
   line-height: 1.6;
   word-break: break-word;
@@ -1158,16 +1203,53 @@ onMounted(() => {
 .component-manage-layout__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   height: auto;
   padding: 12px 20px 18px;
-  border-top: 1px solid #eef2f7;
+  border-top: 1px solid var(--system-border-subtle);
 }
 
-.component-manage-layout__footer-total {
-  color: #64748b;
-  font-size: 12px;
+.system-settings-component-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.system-settings-component-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+}
+
+.system-settings-component-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.system-settings-component-page :deep(.el-dialog__body) {
+  background: var(--system-surface-strong);
+}
+
+.system-settings-component-page :deep(.el-dialog__footer) {
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.system-settings-component-page :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+}
+
+.system-settings-component-page :deep(.el-input__wrapper),
+.system-settings-component-page :deep(.el-textarea__inner),
+.system-settings-component-page :deep(.el-select__wrapper),
+.system-settings-component-page :deep(.el-tree-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
 }
 
 @media (max-width: 1100px) {

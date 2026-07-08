@@ -3,7 +3,7 @@ import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AppCodeEditor } from '../../../../components'
+import { AppCodeEditor, AppPagination } from '../../../../components'
 import {
   searchAiKbStores,
   searchAiModelManages,
@@ -38,7 +38,7 @@ type WorkflowCard = AiWorkflowItem | AiNodeItem | AiSkillItem | AiToolItem
 const route = useRoute()
 const router = useRouter()
 const validTabs: WorkflowTab[] = ['workflow', 'node', 'skill', 'tool']
-const pageSizeOptions = [10, 20, 50, 100, 200, 500]
+const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 const tabOptions = [
   { key: 'workflow' as const, label: '流程配置' },
   { key: 'node' as const, label: '节点配置' },
@@ -936,14 +936,12 @@ watch(
       </main>
 
       <footer class="workflow-shell__footer">
-        <div class="workflow-shell__footer-total">Total {{ total }}</div>
-        <el-pagination
+        <AppPagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
-          :pager-count="5"
-          layout="sizes, prev, pager, next"
           :total="total"
+          :pager-count="5"
           @current-change="handleCurrentPageChange"
           @size-change="handlePageSizeChange"
         />
@@ -1226,10 +1224,10 @@ watch(
   grid-template-rows: auto minmax(0, 1fr) auto;
   flex: 1;
   min-height: 0;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
   overflow: hidden;
 }
 
@@ -1239,7 +1237,7 @@ watch(
   justify-content: space-between;
   gap: 16px;
   padding: 12px 14px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .workflow-shell__tabs {
@@ -1249,7 +1247,16 @@ watch(
 }
 
 .workflow-shell__tab {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text-soft);
   cursor: pointer;
+}
+
+.workflow-shell__tab.el-tag--primary {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
 }
 
 .workflow-shell__tools {
@@ -1262,10 +1269,41 @@ watch(
   width: 260px;
 }
 
+.workflow-shell__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.workflow-shell__tools :deep(.el-input__inner),
+.workflow-shell__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.workflow-shell__tools :deep(.el-input__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.workflow-shell__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.workflow-shell__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.workflow-shell__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
 .workflow-shell__main {
   min-height: 0;
   padding: 12px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
@@ -1273,12 +1311,12 @@ watch(
   display: grid;
   place-items: center;
   min-height: 260px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .workflow-shell__state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .workflow-grid {
@@ -1291,9 +1329,9 @@ watch(
   display: grid;
   gap: 8px;
   padding: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--system-surface-solid);
 }
 
 .workflow-card__head {
@@ -1305,14 +1343,14 @@ watch(
 
 .workflow-card__head h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
   line-height: 1.3;
 }
 
 .workflow-card__head p {
   margin: 2px 0 0;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 11px;
 }
 
@@ -1323,8 +1361,27 @@ watch(
   justify-content: flex-end;
 }
 
+.workflow-card__tags :deep(.el-tag) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text-soft);
+}
+
+.workflow-card__tags :deep(.el-tag.el-tag--success),
+.workflow-card__tags :deep(.el-tag.el-tag--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
+}
+
+.workflow-card__tags :deep(.el-tag.el-tag--info) {
+  border-color: var(--system-border);
+  background: rgba(148, 163, 184, 0.12);
+  color: var(--system-text-faint);
+}
+
 .workflow-card__summary {
-  color: #334155;
+  color: var(--system-text);
   font-size: 12px;
   line-height: 1.45;
   word-break: break-all;
@@ -1346,12 +1403,12 @@ watch(
 }
 
 .workflow-card__meta-item span {
-  color: #94a3b8;
+  color: var(--system-text-faint);
   font-size: 11px;
 }
 
 .workflow-card__meta-item strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 11px;
   line-height: 1.35;
   word-break: break-all;
@@ -1370,21 +1427,62 @@ watch(
 .workflow-shell__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   height: 40px;
   padding: 0 14px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
 }
 
-.workflow-shell__footer-total {
-  color: #6b7280;
-  font-size: 12px;
+.workflow-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.workflow-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+}
+
+.workflow-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.workflow-page :deep(.el-dialog__body) {
+  background: var(--system-surface-strong);
 }
 
 .workflow-dialog-form__select {
   width: 100%;
+}
+
+.workflow-dialog-form :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+}
+
+.workflow-dialog-form :deep(.el-input__wrapper),
+.workflow-dialog-form :deep(.el-textarea__inner),
+.workflow-dialog-form :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
+}
+
+.workflow-dialog-form :deep(.el-switch__core) {
+  background: var(--system-surface-muted);
+  border-color: var(--system-border);
+}
+
+.workflow-dialog-form :deep(.el-switch.is-checked .el-switch__core) {
+  background: var(--system-accent-text);
+  border-color: var(--system-accent-text);
 }
 
 .workflow-message-list {
@@ -1420,6 +1518,23 @@ watch(
   gap: 8px;
 }
 
+.workflow-dialog-form__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.workflow-dialog-form__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.workflow-dialog-form__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
 .workflow-tool-dialog :deep(.el-dialog) {
   display: flex;
   flex-direction: column;
@@ -1438,8 +1553,8 @@ watch(
 .workflow-tool-dialog :deep(.el-dialog__footer) {
   flex-shrink: 0;
   padding-top: 12px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
 }
 
 @media (max-width: 960px) {

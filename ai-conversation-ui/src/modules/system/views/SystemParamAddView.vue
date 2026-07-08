@@ -149,7 +149,7 @@ async function navigateBack() {
 .system-param-add-shell {
   min-height: 100vh;
   padding: 24px;
-  background: #f4f6f8;
+  background: var(--system-shell-bg);
 }
 
 .system-param-add-hero {
@@ -167,13 +167,13 @@ async function navigateBack() {
 
 .system-param-add-hero__left h1 {
   margin: 0 0 6px;
-  color: #111827;
+  color: var(--system-title);
   font-size: 24px;
 }
 
 .system-param-add-hero__left p {
   margin: 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
   line-height: 1.6;
 }
@@ -192,15 +192,15 @@ async function navigateBack() {
 
 .system-param-add-card {
   padding: 18px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
 }
 
 .system-param-add-card__title {
   margin-bottom: 14px;
-  color: #111827;
+  color: var(--system-title);
   font-size: 15px;
   font-weight: 600;
 }
@@ -216,7 +216,7 @@ async function navigateBack() {
 
 .system-param-add-form__hint {
   margin-top: 8px;
-  color: #9ca3af;
+  color: var(--system-text-faint);
   font-size: 12px;
 }
 
@@ -238,12 +238,12 @@ async function navigateBack() {
 }
 
 .system-param-preview__item span {
-  color: #9ca3af;
+  color: var(--system-text-faint);
   font-size: 12px;
 }
 
 .system-param-preview__item strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 13px;
   line-height: 1.5;
   word-break: break-all;

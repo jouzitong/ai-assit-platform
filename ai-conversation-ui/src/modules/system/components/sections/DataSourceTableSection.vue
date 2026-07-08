@@ -16,6 +16,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { AppPagination } from '../../../../components'
 import {
   listDbAccessTables,
   downloadDbMetaTemplateWorkbook,
@@ -842,16 +843,12 @@ onMounted(() => {
 
       <el-footer class="data-source-table-layout__footer">
         <div v-if="currentMode === 'tables'" class="data-source-table-layout__footer-inner">
-          <div class="data-source-table-layout__footer-total">
-            Total {{ total }}
-          </div>
-          <el-pagination
+          <AppPagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
-            :page-sizes="[10, 20, 50, 100, 200, 500]"
-            :pager-count="5"
-            layout="sizes, prev, pager, next"
+            :page-sizes="[5, 10, 20, 50, 100, 200, 500]"
             :total="total"
+            :pager-count="5"
             @current-change="handleCurrentPageChange"
             @size-change="handlePageSizeChange"
           />
@@ -1065,16 +1062,16 @@ onMounted(() => {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
 }
 
 .data-source-table-layout__header {
   height: 82px;
   padding: 10px 16px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .data-source-table-layout__header-inner {
@@ -1094,13 +1091,13 @@ onMounted(() => {
 
 .data-source-table-layout__title h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
 }
 
 .data-source-table-layout__title p {
   margin: 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -1120,12 +1117,34 @@ onMounted(() => {
   font-size: 12px;
 }
 
+.data-source-table-layout__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.data-source-table-layout__tools :deep(.el-input__inner),
+.data-source-table-layout__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.data-source-table-layout__tools :deep(.el-button:not(.el-button--text)) {
+  border-radius: 10px;
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.data-source-table-layout__tools :deep(.el-button--text) {
+  color: var(--system-accent-text);
+}
+
 .data-source-table-layout__main {
   display: flex;
   justify-content: center;
   min-height: 0;
   padding: 12px 16px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow: hidden;
 }
 
@@ -1144,9 +1163,9 @@ onMounted(() => {
 .data-source-field-browser__sidebar,
 .data-source-field-browser__summary,
 .data-source-field-browser__table-wrap {
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: #fff;
+  background: var(--system-surface-solid);
 }
 
 .data-source-field-browser__sidebar {
@@ -1159,7 +1178,7 @@ onMounted(() => {
 
 .data-source-field-browser__sidebar-title,
 .data-source-field-browser__label {
-  color: #2563eb;
+  color: var(--system-accent-text);
   font-size: 12px;
   font-weight: 600;
 }
@@ -1168,7 +1187,7 @@ onMounted(() => {
 .data-source-field-browser__summary h3,
 .data-source-field-browser__table-wrap h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
 }
 
@@ -1177,26 +1196,26 @@ onMounted(() => {
   gap: 4px;
   width: 100%;
   padding: 12px 10px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 16px;
-  background: #fff;
+  background: var(--system-surface-solid);
   text-align: left;
   cursor: pointer;
 }
 
 .data-source-field-browser__table strong {
-  color: #1f2937;
+  color: var(--system-title);
   font-size: 14px;
 }
 
 .data-source-field-browser__table span {
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
 .data-source-field-browser__table.is-active {
-  border-color: #93c5fd;
-  background: #eff6ff;
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg);
 }
 
 .data-source-field-browser__content {
@@ -1223,25 +1242,25 @@ onMounted(() => {
   display: grid;
   gap: 6px;
   padding: 12px 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--system-surface-solid);
   min-width: 0;
 }
 
 .data-source-field-browser__card span {
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
 .data-source-field-browser__card strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
 }
 
 .data-source-field-browser__card--remark p {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 13px;
   line-height: 1.7;
   white-space: pre-wrap;
@@ -1261,8 +1280,8 @@ onMounted(() => {
 }
 
 .data-source-table :deep(.data-source-table__header-cell) {
-  background: #f3f4f6;
-  color: #4b5563;
+  background: var(--system-table-header-bg);
+  color: var(--system-table-header-text);
   font-weight: 600;
 }
 
@@ -1271,12 +1290,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   height: 100%;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .data-source-table-state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .data-source-table-layout__footer {
@@ -1285,22 +1304,58 @@ onMounted(() => {
   justify-content: center;
   height: 44px;
   padding: 0 16px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
 }
 
 .data-source-table-layout__footer-inner {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-end;
   width: 100%;
   margin: 0 auto;
 }
 
-.data-source-table-layout__footer-total {
-  color: #6b7280;
-  font-size: 12px;
-  white-space: nowrap;
+.data-source-table-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-source-table-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+}
+
+.data-source-table-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.data-source-table-page :deep(.el-dialog__body) {
+  background: var(--system-surface-strong);
+}
+
+.data-source-table-page :deep(.el-dialog__footer) {
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.data-source-table-page :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+}
+
+.data-source-table-page :deep(.el-input__wrapper),
+.data-source-table-page :deep(.el-textarea__inner),
+.data-source-table-page :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
 }
 
 .table-sync-dialog {
@@ -1320,7 +1375,7 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 12px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -1329,12 +1384,12 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   min-height: 120px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .table-sync-dialog__state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .table-sync-dialog__list {
@@ -1349,9 +1404,9 @@ onMounted(() => {
   grid-template-columns: auto minmax(0, 1fr);
   gap: 10px;
   padding: 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--system-surface-solid);
 }
 
 .table-sync-dialog__item-body {
@@ -1367,19 +1422,19 @@ onMounted(() => {
 }
 
 .table-sync-dialog__item-head strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
 }
 
 .table-sync-dialog__item-body p {
   margin: 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }
 
 .table-sync-dialog__item-body span {
-  color: #94a3b8;
+  color: var(--system-text-faint);
   font-size: 12px;
 }
 
@@ -1400,11 +1455,11 @@ onMounted(() => {
 
 .data-transfer-dialog__upload-icon {
   font-size: 22px;
-  color: #3b82f6;
+  color: var(--system-accent-text);
 }
 
 .data-transfer-dialog__error {
-  color: #dc2626;
+  color: var(--system-danger);
   font-size: 12px;
 }
 
@@ -1412,6 +1467,26 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.table-sync-dialog__footer :deep(.el-button),
+.data-transfer-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.table-sync-dialog__footer :deep(.el-button:not(.el-button--primary)),
+.data-transfer-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.table-sync-dialog__footer :deep(.el-button--primary),
+.data-transfer-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
 }
 
 .import-progress-dialog {
@@ -1426,12 +1501,12 @@ onMounted(() => {
 
 .import-progress-dialog__item span,
 .import-progress-dialog__summary span {
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
 .import-progress-dialog__item strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 13px;
 }
 

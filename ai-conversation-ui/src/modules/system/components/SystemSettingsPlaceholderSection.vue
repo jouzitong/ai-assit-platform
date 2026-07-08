@@ -31,22 +31,22 @@ defineProps<{
 
 .system-settings-panel__card {
   padding: 18px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface);
+  box-shadow: var(--system-shadow);
 }
 
 .system-settings-panel__card h3 {
   margin: 0 0 8px;
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
 }
 
 .system-settings-panel__card p,
 .system-settings-panel__card li {
   margin: 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
   line-height: 1.55;
 }

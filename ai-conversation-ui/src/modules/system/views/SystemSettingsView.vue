@@ -131,7 +131,7 @@ onMounted(() => {
   display: grid;
   grid-template-columns: 236px minmax(0, 1fr);
   height: 100vh;
-  background: #f4f6f8;
+  background: var(--system-shell-bg);
   overflow: hidden;
 }
 
@@ -150,12 +150,12 @@ onMounted(() => {
 
 .system-settings-hero h2 {
   margin: 6px 0 4px;
-  color: #111827;
+  color: var(--system-title);
 }
 
 .system-settings-hero p {
   margin: 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
   line-height: 1.55;
 }

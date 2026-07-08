@@ -219,7 +219,8 @@ function createEditor() {
           fontSize: '13px',
           borderRadius: '14px',
           overflow: 'hidden',
-          backgroundColor: '#fbfcfe',
+          backgroundColor: 'var(--app-code-editor-surface)',
+          color: 'var(--app-code-editor-text)',
         },
         '.cm-scroller': {
           fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
@@ -232,21 +233,27 @@ function createEditor() {
           padding: '0 16px',
         },
         '.cm-gutters': {
-          backgroundColor: '#f3f6fb',
-          color: '#7c8aa5',
-          borderRight: '1px solid #e6edf5',
+          backgroundColor: 'var(--app-code-editor-gutter-bg)',
+          color: 'var(--app-code-editor-gutter-text)',
+          borderRight: '1px solid var(--app-code-editor-border-soft)',
         },
         '.cm-activeLine': {
-          backgroundColor: 'rgba(226, 232, 240, 0.45)',
+          backgroundColor: 'var(--app-code-editor-active-line)',
         },
         '.cm-activeLineGutter': {
-          backgroundColor: '#e8eef7',
+          backgroundColor: 'var(--app-code-editor-active-gutter)',
         },
         '.cm-focused': {
           outline: 'none',
         },
         '.cm-editor.cm-focused': {
-          boxShadow: 'inset 0 0 0 1px #0f766e',
+          boxShadow: 'inset 0 0 0 1px var(--app-code-editor-focus)',
+        },
+        '.cm-content, .cm-line, .cm-placeholder': {
+          color: 'var(--app-code-editor-text)',
+        },
+        '.cm-placeholder': {
+          color: 'var(--app-code-editor-placeholder)',
         },
         '.cm-tooltip-lint': {
           fontFamily: 'inherit',
@@ -386,14 +393,43 @@ watch(
   --app-code-editor-height: v-bind('props.height || "100%"');
   --app-code-editor-min-height: v-bind('props.minHeight');
   --app-code-editor-max-height: v-bind('editorMaxHeight || "none"');
+  --app-code-editor-border: #d7dee8;
+  --app-code-editor-border-soft: #e5ecf4;
+  --app-code-editor-surface: #fbfcfe;
+  --app-code-editor-surface-strong: #ffffff;
+  --app-code-editor-toolbar: linear-gradient(90deg, #f8fbff 0%, #eff6ff 100%);
+  --app-code-editor-gutter-bg: #f3f6fb;
+  --app-code-editor-gutter-text: #7c8aa5;
+  --app-code-editor-active-line: rgba(226, 232, 240, 0.45);
+  --app-code-editor-active-gutter: #e8eef7;
+  --app-code-editor-text: #334155;
+  --app-code-editor-placeholder: #94a3b8;
+  --app-code-editor-label: #475569;
+  --app-code-editor-focus: #0f766e;
+}
+
+:global(:root[data-theme='dark']) .app-code-editor-shell {
+  --app-code-editor-border: rgba(148, 163, 184, 0.18);
+  --app-code-editor-border-soft: rgba(148, 163, 184, 0.14);
+  --app-code-editor-surface: rgba(30, 41, 59, 0.92);
+  --app-code-editor-surface-strong: rgba(22, 31, 49, 0.96);
+  --app-code-editor-toolbar: linear-gradient(90deg, rgba(30, 41, 59, 0.96) 0%, rgba(37, 52, 79, 0.92) 100%);
+  --app-code-editor-gutter-bg: rgba(19, 30, 49, 0.88);
+  --app-code-editor-gutter-text: #94a3b8;
+  --app-code-editor-active-line: rgba(82, 172, 255, 0.08);
+  --app-code-editor-active-gutter: rgba(82, 172, 255, 0.12);
+  --app-code-editor-text: #e2e8f0;
+  --app-code-editor-placeholder: #64748b;
+  --app-code-editor-label: #cbd5e1;
+  --app-code-editor-focus: #7dd3fc;
 }
 
 .app-code-editor {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
-  border: 1px solid #d7dee8;
+  border: 1px solid var(--app-code-editor-border);
   border-radius: 14px;
-  background: linear-gradient(180deg, #ffffff 0%, #f8fbff 100%);
+  background: linear-gradient(180deg, var(--app-code-editor-surface-strong) 0%, var(--app-code-editor-surface) 100%);
   overflow: hidden;
 }
 
@@ -408,8 +444,8 @@ watch(
   gap: 12px;
   min-height: 46px;
   padding: 0 12px;
-  border-bottom: 1px solid #e5ecf4;
-  background: linear-gradient(90deg, #f8fbff 0%, #eff6ff 100%);
+  border-bottom: 1px solid var(--app-code-editor-border-soft);
+  background: var(--app-code-editor-toolbar);
 }
 
 .app-code-editor__toolbar-left,
@@ -439,10 +475,10 @@ watch(
   align-items: center;
   min-height: 28px;
   padding: 0 10px;
-  border: 1px solid #d7dee8;
+  border: 1px solid var(--app-code-editor-border);
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.9);
-  color: #475569;
+  background: var(--app-code-editor-surface);
+  color: var(--app-code-editor-label);
   font-size: 12px;
   line-height: 1;
 }

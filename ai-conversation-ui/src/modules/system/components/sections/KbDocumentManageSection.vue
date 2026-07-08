@@ -3,6 +3,7 @@ import { ArrowLeft, Delete, EditPen, Plus, RefreshRight, Search, Upload, View } 
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { AppPagination } from '../../../../components'
 import { SERVICE_NAMES } from '../../../../config/services'
 import { getEnumLabel, loadServiceEnums } from '../../../../stores/enums'
 import {
@@ -68,7 +69,7 @@ const form = reactive({
   extText: '',
 })
 
-const pageSizeOptions = [10, 20, 50, 100, 200, 500]
+const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 const kbCode = computed(() => typeof route.params.sourceKey === 'string' ? route.params.sourceKey.trim() : '')
 const currentKbTitle = computed(() => kbCode.value || '知识库')
 const dialogTitle = computed(() => `${dialogMode.value === 'create' ? '新增' : '编辑'} KB 文档`)
@@ -518,14 +519,12 @@ onMounted(() => {
       </main>
 
       <footer class="kb-document-shell__footer">
-        <div class="kb-document-shell__footer-total">Total {{ total }}</div>
-        <el-pagination
+        <AppPagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
-          :pager-count="5"
-          layout="sizes, prev, pager, next"
           :total="total"
+          :pager-count="5"
           @current-change="handleCurrentPageChange"
           @size-change="handlePageSizeChange"
         />
@@ -611,10 +610,10 @@ onMounted(() => {
   grid-template-rows: auto minmax(0, 1fr) auto;
   flex: 1;
   min-height: 0;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.92);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
   overflow: hidden;
 }
 
@@ -623,7 +622,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 14px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .kb-document-shell__title {
@@ -633,13 +632,13 @@ onMounted(() => {
 
 .kb-document-shell__title h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 17px;
 }
 
 .kb-document-shell__title p {
   margin: 0;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
@@ -665,10 +664,37 @@ onMounted(() => {
   width: 240px;
 }
 
+.kb-document-shell__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.kb-document-shell__tools :deep(.el-input__inner),
+.kb-document-shell__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.kb-document-shell__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.kb-document-shell__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.kb-document-shell__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
 .kb-document-shell__main {
   min-height: 0;
   padding: 10px 12px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
@@ -676,12 +702,12 @@ onMounted(() => {
   display: grid;
   place-items: center;
   min-height: 260px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .kb-document-shell__state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .kb-document-grid {
@@ -694,9 +720,9 @@ onMounted(() => {
   display: grid;
   gap: 8px;
   padding: 10px 12px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 12px;
-  background: #fff;
+  background: var(--system-surface-solid);
 }
 
 .kb-document-card__head {
@@ -707,14 +733,14 @@ onMounted(() => {
 
 .kb-document-card__head h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
   line-height: 1.3;
 }
 
 .kb-document-card__head p {
   margin: 2px 0 0;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 11px;
   line-height: 1.3;
 }
@@ -731,7 +757,7 @@ onMounted(() => {
 }
 
 .kb-document-card__summary {
-  color: #334155;
+  color: var(--system-text);
   font-size: 12px;
   line-height: 1.45;
   word-break: break-all;
@@ -753,12 +779,12 @@ onMounted(() => {
 }
 
 .kb-document-card__meta-item span {
-  color: #94a3b8;
+  color: var(--system-text-faint);
   font-size: 11px;
 }
 
 .kb-document-card__meta-item strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 11px;
   line-height: 1.35;
   word-break: break-all;
@@ -777,17 +803,53 @@ onMounted(() => {
 .kb-document-shell__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   height: 40px;
   padding: 0 14px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
 }
 
-.kb-document-shell__footer-total {
-  color: #6b7280;
-  font-size: 12px;
+.kb-document-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.kb-document-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+}
+
+.kb-document-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.kb-document-page :deep(.el-dialog__body) {
+  background: var(--system-surface-strong);
+}
+
+.kb-document-page :deep(.el-dialog__footer) {
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.kb-document-dialog-form :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+}
+
+.kb-document-dialog-form :deep(.el-input__wrapper),
+.kb-document-dialog-form :deep(.el-textarea__inner),
+.kb-document-dialog-form :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
 }
 
 .kb-document-dialog-form :deep(.el-textarea__inner),
@@ -799,6 +861,23 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.kb-document-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.kb-document-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.kb-document-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
 }
 
 .kb-document-detail {
@@ -818,12 +897,12 @@ onMounted(() => {
 }
 
 .kb-document-detail__summary span {
-  color: #94a3b8;
+  color: var(--system-text-faint);
   font-size: 12px;
 }
 
 .kb-document-detail__summary strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 13px;
   word-break: break-all;
 }
@@ -835,7 +914,7 @@ onMounted(() => {
 
 .kb-document-detail__block h4 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
 }
 
@@ -843,8 +922,8 @@ onMounted(() => {
   margin: 0;
   padding: 12px;
   border-radius: 12px;
-  background: #f8fafc;
-  color: #334155;
+  background: var(--system-surface-muted);
+  color: var(--system-text);
   white-space: pre-wrap;
   word-break: break-word;
 }

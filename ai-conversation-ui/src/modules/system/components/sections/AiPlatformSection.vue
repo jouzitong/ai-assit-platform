@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { computed, reactive, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
+import { AppPagination } from '../../../../components'
 import {
   createAiKbStore,
   createAiModelManage,
@@ -34,7 +35,9 @@ type PlatformCard = {
   raw: AiModelManageItem | AiKbStoreItem
 }
 
+const validTabs: PlatformTab[] = ['model', 'kb']
 const activeTab = ref<PlatformTab>('model')
+const route = useRoute()
 const router = useRouter()
 const keyword = ref('')
 const pageSize = ref(20)
@@ -50,7 +53,7 @@ const statusUpdatingKey = ref('')
 const modelRecords = ref<AiModelManageItem[]>([])
 const kbRecords = ref<AiKbStoreItem[]>([])
 
-const pageSizeOptions = [10, 20, 50, 100, 200, 500]
+const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
 const modelForm = reactive({
   modelCode: '',
@@ -197,6 +200,11 @@ function parseJsonText(value: string, label: string) {
 
 function buildStatusUpdateKey(card: PlatformCard) {
   return `${card.entityType}:${card.id}`
+}
+
+function normalizeTab(value: unknown): PlatformTab {
+  const raw = Array.isArray(value) ? value[0] : value
+  return validTabs.includes(raw as PlatformTab) ? raw as PlatformTab : 'model'
 }
 
 function isCardStatusUpdating(card: PlatformCard) {
@@ -459,14 +467,15 @@ async function loadData() {
 }
 
 async function handleChangeTab(tab: PlatformTab) {
-  if (activeTab.value === tab) {
+  if (activeTab.value === tab && route.query.tab === tab) {
     return
   }
-  dialogVisible.value = false
-  activeTab.value = tab
-  keyword.value = ''
-  currentPage.value = 1
-  await loadData()
+  await router.replace({
+    query: {
+      ...route.query,
+      tab,
+    },
+  })
 }
 
 async function handleSearch() {
@@ -489,9 +498,30 @@ async function handlePageSizeChange(size: number) {
   await loadData()
 }
 
-onMounted(() => {
-  void loadData()
-})
+watch(
+  () => route.query.tab,
+  (value) => {
+    const nextTab = normalizeTab(value)
+    const rawTab = Array.isArray(value) ? value[0] : value
+
+    if (rawTab !== nextTab) {
+      void router.replace({
+        query: {
+          ...route.query,
+          tab: nextTab,
+        },
+      })
+      return
+    }
+
+    dialogVisible.value = false
+    activeTab.value = nextTab
+    keyword.value = ''
+    currentPage.value = 1
+    void loadData()
+  },
+  { immediate: true },
+)
 </script>
 
 <template>
@@ -599,14 +629,12 @@ onMounted(() => {
       </main>
 
       <footer class="ai-platform-shell__footer">
-        <div class="ai-platform-shell__footer-total">Total {{ total }}</div>
-        <el-pagination
+        <AppPagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
-          :pager-count="5"
-          layout="sizes, prev, pager, next"
           :total="total"
+          :pager-count="5"
           @current-change="handleCurrentPageChange"
           @size-change="handlePageSizeChange"
         />
@@ -712,10 +740,10 @@ onMounted(() => {
   grid-template-rows: auto minmax(0, 1fr) auto;
   flex: 1;
   min-height: 0;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
   overflow: hidden;
 }
 
@@ -725,7 +753,7 @@ onMounted(() => {
   justify-content: space-between;
   gap: 16px;
   padding: 12px 16px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .ai-platform-shell__tabs {
@@ -735,7 +763,16 @@ onMounted(() => {
 }
 
 .ai-platform-shell__tab {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text-soft);
   cursor: pointer;
+}
+
+.ai-platform-shell__tab.el-tag--primary {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
 }
 
 .ai-platform-shell__tools {
@@ -748,10 +785,41 @@ onMounted(() => {
   width: 260px;
 }
 
+.ai-platform-shell__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.ai-platform-shell__tools :deep(.el-input__inner),
+.ai-platform-shell__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.ai-platform-shell__tools :deep(.el-input__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.ai-platform-shell__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.ai-platform-shell__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.ai-platform-shell__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
 .ai-platform-shell__main {
   min-height: 0;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
@@ -759,12 +827,12 @@ onMounted(() => {
   display: grid;
   place-items: center;
   min-height: 260px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .ai-platform-shell__state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .ai-platform-shell__grid {
@@ -778,9 +846,9 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   padding: 14px;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--system-surface-solid);
 }
 
 .ai-platform-card--clickable {
@@ -788,8 +856,8 @@ onMounted(() => {
 }
 
 .ai-platform-card--clickable:hover {
-  border-color: #bfd4ff;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.08);
+  border-color: var(--system-accent-border);
+  box-shadow: var(--system-accent-shadow);
 }
 
 .ai-platform-card__head {
@@ -801,13 +869,13 @@ onMounted(() => {
 
 .ai-platform-card__head h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 15px;
 }
 
 .ai-platform-card__head p {
   margin: 4px 0 0;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
@@ -819,7 +887,7 @@ onMounted(() => {
 }
 
 .ai-platform-card__summary {
-  color: #334155;
+  color: var(--system-text);
   font-size: 13px;
   line-height: 1.6;
   word-break: break-all;
@@ -837,12 +905,12 @@ onMounted(() => {
 }
 
 .ai-platform-card__meta-item span {
-  color: #94a3b8;
+  color: var(--system-text-faint);
   font-size: 12px;
 }
 
 .ai-platform-card__meta-item strong {
-  color: #111827;
+  color: var(--system-title);
   font-size: 12px;
   word-break: break-all;
 }
@@ -859,7 +927,7 @@ onMounted(() => {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  color: #475569;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
@@ -872,23 +940,63 @@ onMounted(() => {
 .ai-platform-shell__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   height: 44px;
   padding: 0 16px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
 }
 
-.ai-platform-shell__footer-total {
-  color: #6b7280;
-  font-size: 12px;
-  white-space: nowrap;
+.ai-platform-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-.ai-platform-shell__footer-hint {
-  color: #94a3b8;
-  font-size: 12px;
+.ai-platform-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+}
+
+.ai-platform-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.ai-platform-page :deep(.el-dialog__body) {
+  background: var(--system-surface-strong);
+}
+
+.ai-platform-page :deep(.el-dialog__footer) {
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.ai-platform-dialog-form :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+}
+
+.ai-platform-dialog-form :deep(.el-input__wrapper),
+.ai-platform-dialog-form :deep(.el-textarea__inner),
+.ai-platform-dialog-form :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
+}
+
+.ai-platform-dialog-form :deep(.el-switch__core) {
+  background: var(--system-surface-muted);
+  border-color: var(--system-border);
+}
+
+.ai-platform-dialog-form :deep(.el-switch.is-checked .el-switch__core) {
+  background: var(--system-accent-text);
+  border-color: var(--system-accent-text);
 }
 
 .ai-platform-dialog-form :deep(.el-textarea__inner) {
@@ -899,6 +1007,23 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 8px;
+}
+
+.ai-platform-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.ai-platform-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.ai-platform-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
 }
 
 @media (max-width: 960px) {

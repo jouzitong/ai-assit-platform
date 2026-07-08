@@ -3,6 +3,7 @@ import { Connection, DataBoard, EditPen, Plus, RefreshRight, Search } from '@ele
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { AppPagination } from '../../../../components'
 import {
   createDbDataSource,
   searchDbDataSources,
@@ -29,7 +30,7 @@ const dialogMode = ref<DialogMode>('create')
 const editingId = ref<string | number | null>(null)
 const dataSources = ref<DbDataSourceItem[]>([])
 
-const pageSizeOptions = [10, 20, 50, 100, 200, 500]
+const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 const form = reactive(createEmptyForm())
 const sourceTypeOptions = computed(() => getEnumOptions('dbDataSourceType', SERVICE_NAMES.DB_ENGINE))
 const syncModeOptions = computed(() => getEnumOptions('dbDataSourceSyncMode', SERVICE_NAMES.DB_ENGINE))
@@ -449,13 +450,12 @@ onMounted(() => {
       </el-main>
 
       <el-footer class="data-source-layout__footer">
-        <el-pagination
+        <AppPagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
-          :pager-count="5"
-          layout="total, sizes, prev, pager, next"
           :total="total"
+          :pager-count="5"
           @current-change="handleCurrentPageChange"
           @size-change="handlePageSizeChange"
         />
@@ -623,10 +623,10 @@ onMounted(() => {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
 }
 
 .data-source-layout__header {
@@ -636,18 +636,18 @@ onMounted(() => {
   gap: 16px;
   height: 66px;
   padding: 0 16px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .data-source-layout__title h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
 }
 
 .data-source-layout__title p {
   margin: 3px 0 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -661,6 +661,57 @@ onMounted(() => {
   width: 280px;
 }
 
+.data-source-layout__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.data-source-layout__tools :deep(.el-input__wrapper:hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+}
+
+.data-source-layout__tools :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--system-accent-border);
+  box-shadow: 0 0 0 1px var(--system-accent-border);
+}
+
+.data-source-layout__tools :deep(.el-input__inner),
+.data-source-layout__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.data-source-layout__tools :deep(.el-input__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.data-source-layout__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.data-source-layout__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.data-source-layout__tools :deep(.el-button:not(.el-button--primary):hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+  color: var(--system-title);
+}
+
+.data-source-layout__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
+.data-source-layout__tools :deep(.el-button--primary:hover) {
+  filter: brightness(1.06);
+}
+
 .data-source-layout__main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(320px, 380px));
@@ -669,7 +720,7 @@ onMounted(() => {
   gap: 14px;
   min-height: 0;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
@@ -679,12 +730,12 @@ onMounted(() => {
   justify-content: center;
   min-height: 180px;
   padding: 24px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .data-source-state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .data-source-card {
@@ -692,18 +743,18 @@ onMounted(() => {
   gap: 12px;
   max-width: 380px;
   padding: 16px;
-  border: 1px solid #e8edf3;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  background: var(--system-surface-solid);
+  box-shadow: var(--system-shadow);
   cursor: pointer;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
 .data-source-card:hover,
 .data-source-card:focus-visible {
-  border-color: #c7d7fe;
-  box-shadow: 0 12px 24px rgba(37, 99, 235, 0.09);
+  border-color: var(--system-accent-border);
+  box-shadow: var(--system-accent-shadow);
   transform: translateY(-1px);
   outline: none;
 }
@@ -717,7 +768,7 @@ onMounted(() => {
 }
 
 .data-source-card__name {
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
@@ -725,12 +776,12 @@ onMounted(() => {
 
 .data-source-card__key {
   margin-top: 2px;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
 .data-source-card__summary {
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
   line-height: 1.6;
 }
@@ -745,7 +796,7 @@ onMounted(() => {
   align-items: center;
   gap: 6px;
   overflow: hidden;
-  color: #0f172a;
+  color: var(--system-title);
   font-size: 12px;
   line-height: 1.6;
   text-overflow: ellipsis;
@@ -776,8 +827,59 @@ onMounted(() => {
   justify-content: flex-end;
   height: 44px;
   padding: 0 16px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
+}
+
+.data-source-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.data-source-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+  box-shadow: 0 24px 56px rgba(2, 6, 23, 0.28);
+}
+
+.data-source-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.data-source-page :deep(.el-dialog__title) {
+  color: var(--system-title);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.data-source-page :deep(.el-dialog__headerbtn) {
+  top: 18px;
+  right: 18px;
+}
+
+.data-source-page :deep(.el-dialog__close) {
+  color: var(--system-text-muted);
+}
+
+.data-source-page :deep(.el-dialog__headerbtn:hover .el-dialog__close) {
+  color: var(--system-title);
+}
+
+.data-source-page :deep(.el-dialog__body) {
+  padding: 18px 20px 14px;
+  background: var(--system-surface-strong);
+}
+
+.data-source-page :deep(.el-dialog__footer) {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
 }
 
 .data-source-dialog :deep(.el-select) {
@@ -789,11 +891,62 @@ onMounted(() => {
   gap: 14px;
 }
 
+.data-source-dialog :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+  font-size: 13px;
+}
+
+.data-source-dialog :deep(.el-input__wrapper),
+.data-source-dialog :deep(.el-textarea__inner),
+.data-source-dialog :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
+}
+
+.data-source-dialog :deep(.el-input__wrapper:hover),
+.data-source-dialog :deep(.el-textarea__inner:hover),
+.data-source-dialog :deep(.el-select__wrapper:hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+}
+
+.data-source-dialog :deep(.el-input__wrapper.is-focus),
+.data-source-dialog :deep(.el-textarea__inner:focus),
+.data-source-dialog :deep(.el-select__wrapper.is-focused) {
+  border-color: var(--system-accent-border);
+  box-shadow: 0 0 0 1px var(--system-accent-border);
+}
+
+.data-source-dialog :deep(.el-input__inner),
+.data-source-dialog :deep(.el-textarea__inner),
+.data-source-dialog :deep(.el-select__selected-item),
+.data-source-dialog :deep(.el-select__placeholder),
+.data-source-dialog :deep(.el-input__count) {
+  color: var(--system-text);
+}
+
+.data-source-dialog :deep(.el-input__inner::placeholder),
+.data-source-dialog :deep(.el-textarea__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.data-source-dialog :deep(.el-switch__core) {
+  background: var(--system-surface-muted);
+  border-color: var(--system-border);
+}
+
+.data-source-dialog :deep(.el-switch.is-checked .el-switch__core) {
+  background: var(--system-accent-text);
+  border-color: var(--system-accent-text);
+}
+
 .data-source-dialog__section {
   padding: 14px 14px 8px;
-  border: 1px solid #e8edf3;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
 }
 
 .data-source-dialog__section-head {
@@ -802,13 +955,13 @@ onMounted(() => {
 
 .data-source-dialog__section-head h4 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
 }
 
 .data-source-dialog__section-head p {
   margin: 4px 0 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -826,6 +979,33 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.data-source-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.data-source-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.data-source-dialog__footer :deep(.el-button:not(.el-button--primary):hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+  color: var(--system-title);
+}
+
+.data-source-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
+.data-source-dialog__footer :deep(.el-button--primary:hover) {
+  filter: brightness(1.06);
 }
 
 @media (max-width: 1024px) {

@@ -2,6 +2,7 @@
 import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { AppPagination } from '../../../../components'
 import {
   createSystemSetting,
   deleteSystemSetting,
@@ -362,13 +363,12 @@ onMounted(() => {
       </el-main>
 
       <el-footer class="system-params-layout__footer">
-        <el-pagination
+        <AppPagination
           v-model:current-page="currentPage"
           v-model:page-size="pageSize"
           :page-sizes="pageSizeOptions"
-          :pager-count="5"
-          layout="total, sizes, prev, pager, next"
           :total="total"
+          :pager-count="5"
           @current-change="handleCurrentPageChange"
           @size-change="handlePageSizeChange"
         />
@@ -466,10 +466,10 @@ onMounted(() => {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
 }
 
 .system-params-layout__header {
@@ -479,18 +479,18 @@ onMounted(() => {
   gap: 16px;
   height: 66px;
   padding: 0 16px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .system-params-layout__title h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
 }
 
 .system-params-layout__title p {
   margin: 3px 0 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -504,6 +504,57 @@ onMounted(() => {
   width: 260px;
 }
 
+.system-params-layout__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.system-params-layout__tools :deep(.el-input__wrapper:hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+}
+
+.system-params-layout__tools :deep(.el-input__wrapper.is-focus) {
+  border-color: var(--system-accent-border);
+  box-shadow: 0 0 0 1px var(--system-accent-border);
+}
+
+.system-params-layout__tools :deep(.el-input__inner),
+.system-params-layout__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.system-params-layout__tools :deep(.el-input__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.system-params-layout__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.system-params-layout__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.system-params-layout__tools :deep(.el-button:not(.el-button--primary):hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+  color: var(--system-title);
+}
+
+.system-params-layout__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
+.system-params-layout__tools :deep(.el-button--primary:hover) {
+  filter: brightness(1.06);
+}
+
 .system-params-layout__main {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(280px, 320px));
@@ -512,7 +563,7 @@ onMounted(() => {
   gap: 14px;
   min-height: 0;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
@@ -522,12 +573,12 @@ onMounted(() => {
   justify-content: center;
   min-height: 180px;
   padding: 24px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .system-params-state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .system-params-card {
@@ -535,10 +586,10 @@ onMounted(() => {
   gap: 12px;
   max-width: 320px;
   padding: 16px;
-  border: 1px solid #e8edf3;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #fff;
-  box-shadow: 0 8px 18px rgba(15, 23, 42, 0.04);
+  background: var(--system-surface-solid);
+  box-shadow: var(--system-shadow);
 }
 
 .system-params-card__head,
@@ -550,7 +601,7 @@ onMounted(() => {
 }
 
 .system-params-card__key {
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
   font-weight: 600;
   line-height: 1.5;
@@ -558,14 +609,14 @@ onMounted(() => {
 }
 
 .system-params-card__desc {
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
   line-height: 1.6;
 }
 
 .system-params-card__value {
   overflow: hidden;
-  color: #0f172a;
+  color: var(--system-title);
   font-size: 13px;
   font-weight: 500;
   line-height: 1.5;
@@ -597,12 +648,123 @@ onMounted(() => {
   justify-content: flex-end;
   height: 44px;
   padding: 0 16px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
+}
+
+.system-params-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.system-params-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+  box-shadow: 0 24px 56px rgba(2, 6, 23, 0.28);
+}
+
+.system-params-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.system-params-page :deep(.el-dialog__title) {
+  color: var(--system-title);
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.system-params-page :deep(.el-dialog__headerbtn) {
+  top: 18px;
+  right: 18px;
+}
+
+.system-params-page :deep(.el-dialog__close) {
+  color: var(--system-text-muted);
+}
+
+.system-params-page :deep(.el-dialog__headerbtn:hover .el-dialog__close) {
+  color: var(--system-title);
+}
+
+.system-params-page :deep(.el-dialog__body) {
+  padding: 18px 20px 14px;
+  background: var(--system-surface-strong);
+}
+
+.system-params-page :deep(.el-dialog__footer) {
+  padding: 14px 20px 18px;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.system-params-dialog {
+  display: grid;
+  gap: 12px;
+}
+
+.system-params-dialog__form :deep(.el-form-item) {
+  margin-bottom: 16px;
+}
+
+.system-params-dialog__form :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+  font-size: 13px;
 }
 
 .system-params-dialog__form :deep(.el-select) {
   width: 100%;
+}
+
+.system-params-dialog__form :deep(.el-input__wrapper),
+.system-params-dialog__form :deep(.el-textarea__inner),
+.system-params-dialog__form :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
+}
+
+.system-params-dialog__form :deep(.el-input__wrapper:hover),
+.system-params-dialog__form :deep(.el-textarea__inner:hover),
+.system-params-dialog__form :deep(.el-select__wrapper:hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+}
+
+.system-params-dialog__form :deep(.el-input__wrapper.is-focus),
+.system-params-dialog__form :deep(.el-textarea__inner:focus),
+.system-params-dialog__form :deep(.el-select__wrapper.is-focused) {
+  border-color: var(--system-accent-border);
+  box-shadow: 0 0 0 1px var(--system-accent-border);
+}
+
+.system-params-dialog__form :deep(.el-input__inner),
+.system-params-dialog__form :deep(.el-textarea__inner),
+.system-params-dialog__form :deep(.el-select__selected-item),
+.system-params-dialog__form :deep(.el-select__placeholder),
+.system-params-dialog__form :deep(.el-input__count) {
+  color: var(--system-text);
+}
+
+.system-params-dialog__form :deep(.el-input__inner::placeholder),
+.system-params-dialog__form :deep(.el-textarea__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.system-params-dialog__form :deep(.el-switch__core) {
+  background: var(--system-surface-muted);
+  border-color: var(--system-border);
+}
+
+.system-params-dialog__form :deep(.el-switch.is-checked .el-switch__core) {
+  background: var(--system-accent-text);
+  border-color: var(--system-accent-text);
 }
 
 .system-params-dialog__grid {
@@ -622,6 +784,33 @@ onMounted(() => {
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.system-params-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.system-params-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.system-params-dialog__footer :deep(.el-button:not(.el-button--primary):hover) {
+  border-color: var(--system-accent-border);
+  background: var(--system-surface);
+  color: var(--system-title);
+}
+
+.system-params-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
+.system-params-dialog__footer :deep(.el-button--primary:hover) {
+  filter: brightness(1.06);
 }
 
 @media (max-width: 960px) {

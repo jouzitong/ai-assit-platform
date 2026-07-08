@@ -2,6 +2,7 @@
 import { MoreFilled, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
+import { AppPagination } from '../../../../components'
 import {
   createRenderComponent,
   deleteRenderComponent,
@@ -59,7 +60,7 @@ const componentForm = reactive({
   exampleJson: '',
 })
 
-const pageSizeOptions = [10, 20, 50, 100, 200, 500]
+const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
 const categoryOptions = computed(() => {
   return categoryRecords.value
@@ -443,16 +444,12 @@ onMounted(() => {
         </el-main>
 
         <el-footer class="component-manage-layout__footer">
-          <div class="component-manage-layout__footer-total">
-            Total {{ total }}
-          </div>
-          <el-pagination
+          <AppPagination
             v-model:current-page="currentPage"
             v-model:page-size="pageSize"
             :page-sizes="pageSizeOptions"
-            :pager-count="5"
-            layout="sizes, prev, pager, next"
             :total="total"
+            :pager-count="5"
             @current-change="handleCurrentPageChange"
             @size-change="handlePageSizeChange"
           />
@@ -527,23 +524,23 @@ onMounted(() => {
   min-height: 0;
   height: 100%;
   overflow: hidden;
-  border: 1px solid #e5e7eb;
+  border: 1px solid var(--system-border);
   border-radius: 18px;
-  background: rgba(255, 255, 255, 0.9);
-  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.05);
+  background: var(--system-surface-strong);
+  box-shadow: var(--system-shadow);
 }
 
 .component-manage-layout__aside {
   min-height: 0;
   padding: 14px 12px;
-  border-right: 1px solid #eef2f7;
-  background: #fbfcfd;
+  border-right: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
 .component-manage-layout__aside-title {
   margin-bottom: 8px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
   font-weight: 600;
 }
@@ -552,13 +549,13 @@ onMounted(() => {
   display: grid;
   gap: 4px;
   margin-bottom: 10px;
-  color: #64748b;
+  color: var(--system-text-soft);
   font-size: 12px;
 }
 
 .component-manage-layout__aside-error {
   margin-bottom: 8px;
-  color: #dc2626;
+  color: var(--system-danger);
   font-size: 12px;
 }
 
@@ -572,14 +569,14 @@ onMounted(() => {
   border: none;
   border-radius: 10px;
   background: transparent;
-  color: #374151;
+  color: var(--system-text);
   font-size: 13px;
   cursor: pointer;
 }
 
 .component-manage-category.is-active {
-  background: #eef4ff;
-  color: #1d4ed8;
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
 }
 
 .component-manage-category strong {
@@ -599,18 +596,18 @@ onMounted(() => {
   gap: 16px;
   height: 66px;
   padding: 0 16px;
-  border-bottom: 1px solid #eef2f7;
+  border-bottom: 1px solid var(--system-border-subtle);
 }
 
 .component-manage-layout__title h3 {
   margin: 0;
-  color: #111827;
+  color: var(--system-title);
   font-size: 16px;
 }
 
 .component-manage-layout__title p {
   margin: 3px 0 0;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -624,10 +621,41 @@ onMounted(() => {
   width: 240px;
 }
 
+.component-manage-layout__tools :deep(.el-input__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+}
+
+.component-manage-layout__tools :deep(.el-input__inner),
+.component-manage-layout__tools :deep(.el-input__prefix-inner) {
+  color: var(--system-text);
+}
+
+.component-manage-layout__tools :deep(.el-input__inner::placeholder) {
+  color: var(--system-text-faint);
+}
+
+.component-manage-layout__tools :deep(.el-button) {
+  border-radius: 10px;
+}
+
+.component-manage-layout__tools :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.component-manage-layout__tools :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
+}
+
 .component-manage-layout__main {
   min-height: 0;
   padding: 14px 16px;
-  background: #f8fafc;
+  background: var(--system-surface-muted);
   overflow-y: auto;
 }
 
@@ -635,12 +663,12 @@ onMounted(() => {
   display: grid;
   place-items: center;
   min-height: 240px;
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 13px;
 }
 
 .component-manage-layout__state--error {
-  color: #dc2626;
+  color: var(--system-danger);
 }
 
 .component-manage-layout__grid {
@@ -655,9 +683,9 @@ onMounted(() => {
   display: grid;
   gap: 10px;
   padding: 14px;
-  border: 1px solid #e8edf3;
+  border: 1px solid var(--system-border);
   border-radius: 14px;
-  background: #fff;
+  background: var(--system-surface-solid);
 }
 
 .component-manage-card__row,
@@ -669,14 +697,14 @@ onMounted(() => {
 }
 
 .component-manage-card__name {
-  color: #111827;
+  color: var(--system-title);
   font-size: 14px;
   font-weight: 600;
 }
 
 .component-manage-card__meta,
 .component-manage-card__info {
-  color: #6b7280;
+  color: var(--system-text-muted);
   font-size: 12px;
 }
 
@@ -695,13 +723,13 @@ onMounted(() => {
 }
 
 .component-manage-card__section label {
-  color: #94a3b8;
+  color: var(--system-text-faint);
   font-size: 12px;
 }
 
 .component-manage-card__section p {
   margin: 0;
-  color: #334155;
+  color: var(--system-text);
   font-size: 12px;
   line-height: 1.6;
   word-break: break-all;
@@ -730,7 +758,7 @@ onMounted(() => {
   border: none;
   border-radius: 999px;
   background: transparent;
-  color: #94a3b8;
+  color: var(--system-text-faint);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -739,8 +767,8 @@ onMounted(() => {
 }
 
 .component-manage-card__more:hover {
-  background: #dbeafe;
-  color: #2563eb;
+  background: var(--system-accent-bg-strong);
+  color: var(--system-accent-text);
 }
 
 .component-manage-card:hover .component-manage-card__more,
@@ -753,23 +781,75 @@ onMounted(() => {
 .component-manage-layout__footer {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   height: 44px;
   padding: 0 16px;
-  border-top: 1px solid #eef2f7;
-  background: #fff;
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
 }
 
-.component-manage-layout__footer-total {
-  color: #6b7280;
-  font-size: 12px;
-  white-space: nowrap;
+.system-settings-component-page :deep(.el-overlay-dialog) {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.system-settings-component-page :deep(.el-dialog) {
+  overflow: hidden;
+  border: 1px solid var(--system-border);
+  border-radius: 18px;
+  background: var(--system-surface-strong);
+}
+
+.system-settings-component-page :deep(.el-dialog__header) {
+  margin-right: 0;
+  padding: 18px 20px 14px;
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.system-settings-component-page :deep(.el-dialog__body) {
+  background: var(--system-surface-strong);
+}
+
+.system-settings-component-page :deep(.el-dialog__footer) {
+  border-top: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-gradient);
+}
+
+.system-settings-component-page :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+}
+
+.system-settings-component-page :deep(.el-input__wrapper),
+.system-settings-component-page :deep(.el-textarea__inner),
+.system-settings-component-page :deep(.el-select__wrapper) {
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
 }
 
 .component-manage-dialog__footer {
   display: flex;
   justify-content: flex-end;
+}
+
+.component-manage-dialog__footer :deep(.el-button) {
+  min-width: 76px;
+  border-radius: 10px;
+}
+
+.component-manage-dialog__footer :deep(.el-button:not(.el-button--primary)) {
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text);
+}
+
+.component-manage-dialog__footer :deep(.el-button--primary) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-text);
+  color: #08111f;
 }
 
 @media (max-width: 960px) {
