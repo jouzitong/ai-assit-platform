@@ -12,7 +12,6 @@ public interface RenderComponentContentMapper extends CrudMapper<RenderComponent
             SELECT *
             FROM render_component_content
             WHERE component_key = #{componentKey}
-              AND deleted = 0
             LIMIT 1
             """)
     RenderComponentContentEntity selectByComponentKey(String componentKey);

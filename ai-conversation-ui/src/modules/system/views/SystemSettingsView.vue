@@ -8,6 +8,7 @@ import ComponentManageSection from '../components/sections/ComponentManageSectio
 import DataSourceSection from '../components/sections/DataSourceSection.vue'
 import DataSourceTableSection from '../components/sections/DataSourceTableSection.vue'
 import KbDocumentManageSection from '../components/sections/KbDocumentManageSection.vue'
+import MetadataConfigSection from '../components/sections/MetadataConfigSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
 import WorkflowSection from '../components/sections/WorkflowSection.vue'
 
@@ -49,6 +50,14 @@ const sections: SettingsSection[] = [
     component: ComponentManageSection,
   },
   {
+    key: 'metadata-config',
+    label: '元数据配置',
+    icon: DataAnalysis,
+    title: '元数据配置',
+    description: '统一维护平台元数据项、分类结构和配置内容。',
+    component: MetadataConfigSection,
+  },
+  {
     key: 'ai-platform',
     label: 'AI平台管理',
     icon: Cpu,
@@ -74,7 +83,7 @@ const activeSection = computed(() => {
 const hasDataSourceDetail = computed(() => activeSection.value === 'data-source' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const hasAiPlatformKbDetail = computed(() => activeSection.value === 'ai-platform' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const currentSection = computed(() => sections.find((item) => item.key === activeSection.value) || sections[0])
-const hideHeroSections = new Set(['component-manage', 'system-params', 'workflow'])
+const hideHeroSections = new Set(['component-manage', 'metadata-config', 'system-params', 'workflow'])
 const shouldHideHero = computed(() => hideHeroSections.has(activeSection.value) || hasDataSourceDetail.value || hasAiPlatformKbDetail.value)
 
 async function navigateToSection(sectionKey: string) {
@@ -110,7 +119,9 @@ onMounted(() => {
         <p>{{ currentSection.description }}</p>
       </header>
 
-      <component :is="hasDataSourceDetail ? DataSourceTableSection : hasAiPlatformKbDetail ? KbDocumentManageSection : currentSection.component" />
+      <component
+        :is="hasDataSourceDetail ? DataSourceTableSection : hasAiPlatformKbDetail ? KbDocumentManageSection : currentSection.component"
+      />
     </main>
   </div>
 </template>

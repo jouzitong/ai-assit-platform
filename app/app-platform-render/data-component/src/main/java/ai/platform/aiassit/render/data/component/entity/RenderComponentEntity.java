@@ -8,6 +8,7 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 
@@ -23,18 +24,22 @@ import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 public class RenderComponentEntity extends AuditableEntity {
 
     /** 组件唯一标识。 */
+    @JdbcColumn(name = "key", comment = "组件唯一标识")
     @TableField("`key`")
     private String key;
 
     /** 组件名称。 */
+    @JdbcColumn(name = "name", comment = "组件名称")
     @TableField("name")
     private String name;
 
     /** 组件分类。 */
+    @JdbcColumn(name = "category", comment = "组件分类")
     @TableField("category")
     private String category;
 
     /** 组件状态。 */
+    @JdbcColumn(name = "status", comment = "组件状态")
     @TableField(value = "status", typeHandler = DefaultEnumTypeHandler.class)
     private EffectiveStatus status;
 }
