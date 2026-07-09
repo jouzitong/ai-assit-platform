@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeftBold, ArrowRightBold, Connection, Cpu, DataAnalysis, Setting, Share } from '@element-plus/icons-vue'
+import { ArrowLeftBold, ArrowRightBold, Connection, Cpu, DataAnalysis, Setting, Share, Tickets } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
@@ -7,6 +7,7 @@ import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
 import ComponentManageSection from '../components/sections/ComponentManageSection.vue'
 import DataSourceSection from '../components/sections/DataSourceSection.vue'
 import DataSourceTableSection from '../components/sections/DataSourceTableSection.vue'
+import ErrorCodeSection from '../components/sections/ErrorCodeSection.vue'
 import KbDocumentManageSection from '../components/sections/KbDocumentManageSection.vue'
 import MetadataConfigSection from '../components/sections/MetadataConfigSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
@@ -41,6 +42,14 @@ const sections: SettingsSection[] = [
     title: '数据源配置',
     description: '维护数据库连接、授权信息和查询可用范围。',
     component: DataSourceSection,
+  },
+  {
+    key: 'err-code',
+    label: '错误码管理',
+    icon: Tickets,
+    title: '错误码管理',
+    description: '维护系统错误码、HTTP 状态和国际化文案。',
+    component: ErrorCodeSection,
   },
   {
     key: 'component-manage',

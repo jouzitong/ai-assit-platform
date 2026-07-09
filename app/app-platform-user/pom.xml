@@ -46,6 +46,11 @@
                 <artifactId>app-platform-user-data-system-settings</artifactId>
                 <version>${app.platform.user.version}</version>
             </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-user-data-err-code</artifactId>
+                <version>${app.platform.user.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 
@@ -54,6 +59,7 @@
         <module>core</module>
         <module>system-settings-api</module>
         <module>data-system-settings</module>
+        <module>data-err-code</module>
         <module>boot</module>
     </modules>
 </project>
