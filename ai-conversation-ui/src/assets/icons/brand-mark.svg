@@ -1,21 +1,41 @@
-<svg width="96" height="96" viewBox="0 0 96 96" fill="none" xmlns="http://www.w3.org/2000/svg">
+<svg width="520" height="520" viewBox="0 0 520 520" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title desc">
+  <title id="title">智能问数 ZG 图标</title>
+  <desc id="desc">圆形数据问答图标，包含对话气泡、数据图表和智能节点。</desc>
+
   <defs>
-    <linearGradient id="brand-mark-accent" x1="10" y1="80" x2="74" y2="14" gradientUnits="userSpaceOnUse">
-      <stop offset="0" stop-color="#1D4ED8"/>
-      <stop offset="0.48" stop-color="#2563EB"/>
-      <stop offset="1" stop-color="#1FD4C9"/>
+    <linearGradient id="blueCyan" x1="108" y1="396" x2="399" y2="119" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#1557E6"/>
+      <stop offset="0.48" stop-color="#178AF2"/>
+      <stop offset="1" stop-color="#21D6D5"/>
     </linearGradient>
-    <filter id="brand-mark-shadow" x="0" y="0" width="96" height="96" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
-      <feDropShadow dx="0" dy="6" stdDeviation="8" flood-color="#C7D8F8" flood-opacity="0.4"/>
+
+    <filter id="softShadow" x="-20%" y="-20%" width="140%" height="140%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="12" stdDeviation="18" flood-color="#0B61E8" flood-opacity="0.14"/>
     </filter>
   </defs>
-  <g filter="url(#brand-mark-shadow)">
-    <path d="M12 27C12 17.6112 19.6112 10 29 10H59C68.3888 10 76 17.6112 76 27V36C76 38.7614 73.7614 41 71 41C68.2386 41 66 38.7614 66 36V27C66 23.134 62.866 20 59 20H29C25.134 20 22 23.134 22 27V53C22 56.866 25.134 60 29 60H52.2C53.349 60 54.4619 60.3956 55.3523 61.1205L62 66.5324V62.8C62 60.0386 64.2386 57.8 67 57.8C69.7614 57.8 72 60.0386 72 62.8V77C72 78.9745 70.8402 80.7652 69.0328 81.5664C67.2254 82.3676 65.1168 82.0301 63.6504 80.7054L49.271 68.2H29C19.6112 68.2 12 60.5888 12 51.2V27Z" fill="url(#brand-mark-accent)"/>
-    <rect x="34" y="39" width="8" height="22" rx="3" fill="url(#brand-mark-accent)"/>
-    <rect x="47" y="30" width="8" height="31" rx="3" fill="url(#brand-mark-accent)"/>
-    <rect x="60" y="21" width="8" height="40" rx="3" fill="url(#brand-mark-accent)"/>
-    <circle cx="66" cy="55" r="13" fill="white"/>
-    <circle cx="66" cy="55" r="9.5" stroke="url(#brand-mark-accent)" stroke-width="7"/>
-    <path d="M75.5 64.5L84 73" stroke="url(#brand-mark-accent)" stroke-width="7" stroke-linecap="round"/>
+
+  <g filter="url(#softShadow)">
+    <circle cx="260" cy="260" r="178" stroke="url(#blueCyan)" stroke-width="14" fill="none" opacity="0.95"/>
+
+    <circle cx="82" cy="260" r="18" fill="#1A63EB"/>
+    <circle cx="424" cy="88" r="16" fill="#19CFE0"/>
+    <circle cx="416" cy="385" r="16" fill="#168EF1"/>
+
+    <g transform="translate(260 260) scale(0.82) translate(-286 -288)">
+      <path d="M172 157H399C429 157 452 180 452 210V311C452 341 429 364 399 364H270L172 425L184 364H172C142 364 119 341 119 311V210C119 180 142 157 172 157Z" fill="#FFFFFF"/>
+      <path d="M172 157H399C429 157 452 180 452 210V311C452 341 429 364 399 364H270L172 425L184 364H172C142 364 119 341 119 311V210C119 180 142 157 172 157Z" stroke="url(#blueCyan)" stroke-width="28" stroke-linejoin="round"/>
+
+      <rect x="210" y="288" width="46" height="62" rx="6" fill="url(#blueCyan)"/>
+      <rect x="281" y="252" width="46" height="98" rx="6" fill="url(#blueCyan)"/>
+      <rect x="352" y="205" width="46" height="145" rx="6" fill="url(#blueCyan)"/>
+
+      <path d="M207 262L270 207L312 219L383 151" stroke="url(#blueCyan)" stroke-width="10" stroke-linecap="round" stroke-linejoin="round"/>
+      <circle cx="207" cy="262" r="14" fill="#1264EE"/>
+      <circle cx="270" cy="207" r="14" fill="#158BF2"/>
+      <circle cx="312" cy="219" r="14" fill="#159CF2"/>
+      <circle cx="383" cy="151" r="17" fill="#20CEDB"/>
+    </g>
+
+    <path d="M466 164L487 176L466 188L454 209L442 188L421 176L442 164L454 143L466 164Z" fill="#22D2D3" opacity="0.9"/>
   </g>
 </svg>

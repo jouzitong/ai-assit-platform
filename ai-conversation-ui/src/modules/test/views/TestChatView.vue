@@ -668,7 +668,7 @@ function clearSimulationTimer() {
   }
 }
 
-function scheduleNextSimulationEvent(delay = 3000) {
+function scheduleNextSimulationEvent(delay = 1000) {
   clearSimulationTimer()
   const stream = chatTransportProtocol.sampleEventStream as ProtocolEvent[]
   if (simulationEventIndex.value >= stream.length) {
@@ -1151,7 +1151,10 @@ onBeforeUnmount(() => {
                       <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
                       <div v-if="message.thinking?.length" class="chat-home-thinking">
                         <button
-                          class="chat-home-thinking__summary"
+                          :class="[
+                            'chat-home-thinking__summary',
+                            { 'is-running': message.thinkingStatus === 'running' },
+                          ]"
                           type="button"
                           @click="openThinkingDrawer(message.thinking)"
                         >

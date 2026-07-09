@@ -671,8 +671,8 @@
 .chat-home-shell.has-thinking-drawer .chat-home-center-column--conversation > .chat-home-assistant,
 .chat-home-shell.has-thinking-drawer .chat-home-center-column--conversation > .chat-home-message-list,
 .chat-home-shell.has-thinking-drawer .chat-home-center-column--conversation > .chat-home-followups {
-  width: min(920px, calc(100% - 48px));
-  margin-right: 24px;
+  width: min(760px, calc(100% - 48px));
+  margin-right: auto;
   margin-left: auto;
 }
 
@@ -920,20 +920,65 @@
 }
 
 .chat-home-thinking__summary {
+  --chat-thinking-active: var(--chat-primary, var(--chat-status-online));
+
+  position: relative;
   display: flex;
   align-items: center;
   justify-content: flex-start;
   gap: 8px;
   width: 100%;
-  min-height: 28px;
-  padding: 0;
-  border: none;
+  min-height: 30px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: 8px;
   background: transparent;
   color: var(--chat-text-muted);
   font-size: 13px;
   font-weight: 600;
   list-style: none;
   cursor: pointer;
+  overflow: hidden;
+  transition:
+    border-color 0.2s ease,
+    background-color 0.2s ease,
+    box-shadow 0.2s ease,
+    color 0.2s ease;
+}
+
+.chat-home-thinking__summary > * {
+  position: relative;
+  z-index: 1;
+}
+
+.chat-home-thinking__summary.is-running {
+  border-color: color-mix(in srgb, var(--chat-thinking-active) 18%, transparent);
+  background: color-mix(in srgb, var(--chat-thinking-active) 7%, var(--chat-panel-bg));
+  color: var(--chat-text-primary);
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--chat-thinking-active) 7%, transparent),
+    0 6px 18px color-mix(in srgb, var(--chat-thinking-active) 10%, transparent);
+}
+
+.chat-home-thinking__summary.is-running::after {
+  position: absolute;
+  right: 8px;
+  bottom: 0;
+  left: 8px;
+  height: 2px;
+  border-radius: 999px;
+  background:
+    linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in srgb, var(--chat-thinking-active) 18%, transparent) 24%,
+      color-mix(in srgb, var(--chat-thinking-active) 72%, transparent) 50%,
+      color-mix(in srgb, var(--chat-thinking-active) 18%, transparent) 76%,
+      transparent 100%
+    );
+  content: '';
+  transform: translateX(-110%);
+  animation: chat-thinking-summary-scan 1.6s ease-in-out infinite;
 }
 
 .chat-home-thinking__summary :deep(.el-icon) {
@@ -954,15 +999,53 @@
   flex: none;
   width: 12px;
   height: 12px;
-  border: 2px solid color-mix(in srgb, var(--chat-primary) 26%, transparent);
-  border-top-color: var(--chat-primary);
+  border: 2px solid color-mix(in srgb, var(--chat-thinking-active) 26%, transparent);
+  border-top-color: var(--chat-thinking-active);
   border-radius: 999px;
-  animation: chat-thinking-running-spin 0.8s linear infinite;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--chat-thinking-active) 24%, transparent);
+  animation:
+    chat-thinking-running-spin 0.8s linear infinite,
+    chat-thinking-running-pulse 1.4s ease-out infinite;
+}
+
+@keyframes chat-thinking-summary-scan {
+  0% {
+    transform: translateX(-110%);
+    opacity: 0;
+  }
+
+  18%,
+  76% {
+    opacity: 1;
+  }
+
+  100% {
+    transform: translateX(110%);
+    opacity: 0;
+  }
 }
 
 @keyframes chat-thinking-running-spin {
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes chat-thinking-running-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--chat-thinking-active) 26%, transparent);
+  }
+
+  70%,
+  100% {
+    box-shadow: 0 0 0 8px color-mix(in srgb, var(--chat-thinking-active) 0%, transparent);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-home-thinking__summary.is-running::after,
+  .chat-home-thinking__running {
+    animation: none;
   }
 }
 
@@ -1597,6 +1680,7 @@
 
   .chat-home-thinking-drawer {
     grid-column: 1;
+    width: 100%;
     height: min(70vh, 620px);
     border-left: 0;
     border-top: 1px solid var(--chat-panel-border);
