@@ -4,7 +4,9 @@ import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaExportFileDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaImportJobService;
 import ai.platform.aiassit.db.engine.meta.service.DbMetaWorkbookService;
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import jakarta.servlet.http.HttpServletResponse;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -63,7 +65,7 @@ public class DbMetaWorkbookController {
             @RequestParam("file") MultipartFile file
     ) throws IOException {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("导入文件不能为空");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_IMPORT_FILE);
         }
         return workbookService.importWorkbook(sourceKey, file);
     }
@@ -74,7 +76,7 @@ public class DbMetaWorkbookController {
             @RequestParam("file") MultipartFile file
     ) throws IOException {
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("导入文件不能为空");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_IMPORT_FILE);
         }
         return importJobService.streamImport(sourceKey, file);
     }

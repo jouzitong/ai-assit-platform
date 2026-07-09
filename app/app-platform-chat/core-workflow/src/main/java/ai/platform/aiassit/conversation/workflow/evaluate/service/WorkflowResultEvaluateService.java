@@ -13,11 +13,13 @@ import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.dto.ResponseFormat;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -89,7 +91,7 @@ public class WorkflowResultEvaluateService {
         ChatRequest request = buildRequest(context);
         ChatResponse result = aiExecutionDomainService.chat(request);
         if (result == null) {
-            throw new IllegalStateException("result evaluate failed");
+            throw BizException.of(AiChatBizCodeConstant.WORKFLOW_EXECUTION_FAILED, "result evaluate failed");
         }
         WorkflowEvaluationResponse response = parseResponse(result);
         response.setRequestId(result.getRequestId());
@@ -208,7 +210,7 @@ public class WorkflowResultEvaluateService {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (Exception ex) {
-            throw new IllegalStateException("failed to serialize result evaluate input", ex);
+            throw new BizException(ex);
         }
     }
 

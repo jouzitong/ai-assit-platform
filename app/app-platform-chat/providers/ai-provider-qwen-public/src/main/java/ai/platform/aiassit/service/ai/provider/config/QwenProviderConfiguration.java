@@ -1,8 +1,10 @@
 package ai.platform.aiassit.service.ai.provider.config;
 
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import com.aliyun.bailian20231229.Client;
 import com.aliyun.teaopenapi.models.Config;
 import io.micrometer.observation.ObservationRegistry;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiChatOptions;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
@@ -60,7 +62,7 @@ public class QwenProviderConfiguration {
 
     private String requireApiKey(QwenProperties properties) {
         if (!StringUtils.hasText(properties.getApiKey())) {
-            throw new IllegalStateException("ai.provider.qwen.api-key must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
         }
         return properties.getApiKey();
     }
@@ -73,7 +75,7 @@ public class QwenProviderConfiguration {
         if (StringUtils.hasText(value)) {
             return value;
         }
-        throw new IllegalStateException("ALIBABA_CLOUD_ACCESS_KEY_ID must not be empty");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ACCESS_KEY_ID);
     }
 
     private String resolveAccessKeySecret(QwenProperties properties) {
@@ -84,6 +86,6 @@ public class QwenProviderConfiguration {
         if (StringUtils.hasText(value)) {
             return value;
         }
-        throw new IllegalStateException("ALIBABA_CLOUD_ACCESS_KEY_SECRET must not be empty");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ACCESS_KEY_SECRET);
     }
 }

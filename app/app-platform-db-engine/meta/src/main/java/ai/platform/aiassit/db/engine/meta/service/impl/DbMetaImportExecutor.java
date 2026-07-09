@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportResultDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
@@ -10,6 +11,7 @@ import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryReques
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableIndexMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaQueryRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -163,7 +165,7 @@ public class DbMetaImportExecutor {
             existing.setColumnCount(columnCount);
             DbTableMetaDTO updated = tableMetaService.update(existing.getId(), existing);
             if (updated == null) {
-                throw new IllegalStateException("回写表字段数失败, id=" + existing.getId() + ", tableName=" + tableName);
+                throw BizException.of(DbEngineBizCodeConstant.DB_META_UPDATE_FAILED, tableName);
             }
         }
     }
@@ -221,7 +223,7 @@ public class DbMetaImportExecutor {
     private void updateExistingTable(String sourceKey, DbTableMetaDTO existing, DbMetaImportData.TableRow row) {
         DbTableMetaDTO updated = tableMetaService.update(existing.getId(), toTableDto(sourceKey, row, existing));
         if (updated == null) {
-            throw new IllegalStateException("更新表元数据失败, id=" + existing.getId() + ", tableName=" + row.getTableName());
+            throw BizException.of(DbEngineBizCodeConstant.DB_META_UPDATE_FAILED, row.getTableName());
         }
     }
 
@@ -249,7 +251,7 @@ public class DbMetaImportExecutor {
     private void updateExistingField(String sourceKey, DbTableFieldMetaDTO existing, DbMetaImportData.FieldRow row) {
         DbTableFieldMetaDTO updated = fieldMetaService.update(existing.getId(), toFieldDto(sourceKey, row, existing));
         if (updated == null) {
-            throw new IllegalStateException("更新字段元数据失败, id=" + existing.getId() + ", columnName=" + row.getColumnName());
+            throw BizException.of(DbEngineBizCodeConstant.DB_META_UPDATE_FAILED, row.getColumnName());
         }
     }
 
@@ -271,7 +273,7 @@ public class DbMetaImportExecutor {
     private void updateExistingIndex(String sourceKey, DbTableIndexMetaDTO existing, DbMetaImportData.IndexRow row) {
         DbTableIndexMetaDTO updated = indexMetaService.update(existing.getId(), toIndexDto(sourceKey, row, existing));
         if (updated == null) {
-            throw new IllegalStateException("更新索引元数据失败, id=" + existing.getId() + ", indexName=" + row.getIndexName());
+            throw BizException.of(DbEngineBizCodeConstant.DB_META_UPDATE_FAILED, row.getIndexName());
         }
     }
 
@@ -279,7 +281,7 @@ public class DbMetaImportExecutor {
         if (StringUtils.hasText(requestSourceKey)) {
             return requestSourceKey.trim();
         }
-        throw new IllegalArgumentException("缺少 sourceKey");
+        throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_SOURCE_KEY);
     }
 
     private LocalDateTime parseDateTime(String value) {
@@ -298,13 +300,13 @@ public class DbMetaImportExecutor {
     }
 
     private RuntimeException wrapImportException(Exception ex) throws java.io.IOException {
-        if (ex instanceof IllegalArgumentException illegalArgumentException) {
-            return illegalArgumentException;
+        if (ex instanceof BizException bizException) {
+            return bizException;
         }
         if (ex instanceof java.io.IOException ioException) {
             throw ioException;
         }
-        return new IllegalStateException("导入失败: " + resolveRootCauseMessage(ex), ex);
+        return new BizException(ex);
     }
 
     private String resolveRootCauseMessage(Throwable throwable) {

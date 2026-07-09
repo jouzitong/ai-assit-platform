@@ -10,6 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.dto.ResponseFormat;
 import ai.platform.aiassit.service.ai.api.dto.ToolDefinition;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
@@ -35,6 +36,7 @@ import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -298,13 +300,13 @@ public class RenderNode extends BaseWorkflowNode {
         try {
             return objectMapper.writeValueAsString(payload);
         } catch (Exception ex) {
-            throw new IllegalStateException("failed to serialize render input", ex);
+            throw new BizException(ex);
         }
     }
 
     private Map<String, Object> extractRenderJson(ChatResponse response) {
         if (response == null || CollectionUtils.isEmpty(response.getOutputs())) {
-            throw new IllegalArgumentException("render response is empty");
+            throw invalidWorkflowOutput("render response is empty");
         }
         for (OutputItem item : response.getOutputs()) {
             if (item == null) {
@@ -336,39 +338,39 @@ public class RenderNode extends BaseWorkflowNode {
                 // Try the next output item.
             }
         }
-        throw new IllegalArgumentException("render json output is missing");
+        throw invalidWorkflowOutput("render json output is missing");
     }
 
     private void validateRenderJson(Map<String, Object> renderJson) {
         if (renderJson == null || renderJson.isEmpty()) {
-            throw new IllegalArgumentException("render json is empty");
+            throw invalidWorkflowOutput("render json is empty");
         }
         if (!hasNodeIdentity(renderJson) && !(renderJson.get("children") instanceof List<?>)) {
-            throw new IllegalArgumentException("render json root must define component/type/name or children");
+            throw invalidWorkflowOutput("render json root must define component/type/name or children");
         }
         validateRenderNode(renderJson, "$");
     }
 
     private void validateRenderNode(Object node, String path) {
         if (!(node instanceof Map<?, ?> nodeMap)) {
-            throw new IllegalArgumentException("render node at " + path + " must be an object");
+            throw invalidWorkflowOutput("render node at " + path + " must be an object");
         }
         Object children = nodeMap.get("children");
         if (children == null) {
             return;
         }
         if (!(children instanceof List<?> childList)) {
-            throw new IllegalArgumentException(path + ".children must be a list");
+            throw invalidWorkflowOutput(path + ".children must be a list");
         }
         for (int i = 0; i < childList.size(); i++) {
             Object child = childList.get(i);
             if (!(child instanceof Map<?, ?> childMap)) {
-                throw new IllegalArgumentException(path + ".children[" + i + "] must be an object");
+                throw invalidWorkflowOutput(path + ".children[" + i + "] must be an object");
             }
             @SuppressWarnings("unchecked")
             Map<String, Object> childNode = (Map<String, Object>) childMap;
             if (!hasNodeIdentity(childNode) && !(childNode.get("children") instanceof List<?>)) {
-                throw new IllegalArgumentException(path + ".children[" + i + "] must define component/type/name or children");
+                throw invalidWorkflowOutput(path + ".children[" + i + "] must define component/type/name or children");
             }
             validateRenderNode(childNode, path + ".children[" + i + "]");
         }
@@ -566,7 +568,7 @@ public class RenderNode extends BaseWorkflowNode {
         try {
             return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(renderJson);
         } catch (Exception ex) {
-            throw new IllegalStateException("failed to serialize render json", ex);
+            throw new BizException(ex);
         }
     }
 
@@ -595,5 +597,9 @@ public class RenderNode extends BaseWorkflowNode {
             }
         }
         return "gpt-5.5";
+    }
+
+    private BizException invalidWorkflowOutput(String message) {
+        return BizException.of(AiChatBizCodeConstant.INVALID_WORKFLOW_OUTPUT, message);
     }
 }

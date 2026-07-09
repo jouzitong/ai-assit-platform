@@ -3,6 +3,7 @@ package ai.platform.aiassit.service.ai.provider.client;
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.provider.config.QwenProperties;
 import com.aliyun.bailian20231229.Client;
 import com.aliyun.bailian20231229.models.AddFileRequest;
@@ -23,6 +24,7 @@ import com.aliyun.bailian20231229.models.SubmitIndexJobResponse;
 import com.aliyun.teaopenapi.models.Config;
 import com.aliyun.teautil.models.RuntimeOptions;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.arthena.framework.common.utils.JacksonJsonUtils;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -112,7 +114,7 @@ public class QwenKnowledgeBaseClient {
             // 文档对象为空或正文内容为空时，无法生成有效知识片段，直接记录为失败。
             if (document == null || !StringUtils.hasText(document.getContent())) {
                 String documentId = resolveDocumentId(document, i);
-                throw new IllegalArgumentException("kbUpsert document content must not be empty, docId=" + documentId);
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CONTENT);
             }
             String documentId = resolveDocumentId(document, i);
             // 先把业务文档写入临时文件，再通过百炼文件上传流程得到 fileId。
@@ -135,7 +137,7 @@ public class QwenKnowledgeBaseClient {
         }
         // 如果没有创建出知识库，且没有任何文档成功导入，则整体导入视为失败。
         if (!StringUtils.hasText(targetKbId) && accepted == 0) {
-            throw new IllegalStateException("kbUpsert failed: no document imported");
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_UPSERT_FAILED, "no document imported");
         }
         log.debug("qwen kb upsert finished, workspaceId={}, kbId={}, accepted={}, failed={}",
                 workspaceId, targetKbId, accepted, 0);
@@ -225,7 +227,7 @@ public class QwenKnowledgeBaseClient {
         if (StringUtils.hasText(properties.getWorkspaceId())) {
             return properties.getWorkspaceId();
         }
-        throw new IllegalStateException("qwen bailian workspaceId is required");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_WORKSPACE_ID);
     }
 
     /**
@@ -242,7 +244,7 @@ public class QwenKnowledgeBaseClient {
         if (StringUtils.hasText(properties.getBailianEndpoint())) {
             return properties.getBailianEndpoint();
         }
-        throw new IllegalStateException("qwen bailian kbEndpoint is required");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ENDPOINT);
     }
 
     private Client resolveBailianClient(RequestMeta meta) throws Exception {
@@ -265,7 +267,7 @@ public class QwenKnowledgeBaseClient {
         if (StringUtils.hasText(value)) {
             return value;
         }
-        throw new IllegalStateException("ALIBABA_CLOUD_ACCESS_KEY_ID must not be empty");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ACCESS_KEY_ID);
     }
 
     private String resolveAccessKeySecret() {
@@ -276,7 +278,7 @@ public class QwenKnowledgeBaseClient {
         if (StringUtils.hasText(value)) {
             return value;
         }
-        throw new IllegalStateException("ALIBABA_CLOUD_ACCESS_KEY_SECRET must not be empty");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ACCESS_KEY_SECRET);
     }
 
     /**
@@ -325,7 +327,7 @@ public class QwenKnowledgeBaseClient {
             );
             // addFile 成功后必须返回 fileId，否则后续无法创建或追加索引。
             if (!StringUtils.hasText(fileId)) {
-                throw new IllegalStateException("bailian addFile returned empty fileId");
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "empty fileId");
             }
             log.debug("qwen kb upload document finished, workspaceId={}, documentId={}, fileId={}",
                     workspaceId, documentId, fileId);
@@ -369,7 +371,7 @@ public class QwenKnowledgeBaseClient {
     private void uploadFile(String uploadUrl, Map<String, String> headers, Path file) throws IOException {
         // 上传地址为空时无法执行 PUT 上传，直接参数校验失败。
         if (!StringUtils.hasText(uploadUrl)) {
-            throw new IllegalArgumentException("uploadUrl must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_UPLOAD_URL);
         }
         log.debug("qwen kb upload file start, fileName={}, headerCount={}",
                 file.getFileName(), headers == null ? 0 : headers.size());
@@ -396,7 +398,7 @@ public class QwenKnowledgeBaseClient {
         // 上传完成后检查 HTTP 状态码，非 200 认为上传失败。
         int responseCode = connection.getResponseCode();
         if (responseCode != 200) {
-            throw new IllegalStateException("bailian upload failed, responseCode=" + responseCode);
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "upload responseCode=" + responseCode);
         }
         log.debug("qwen kb upload file finished, fileName={}, responseCode={}", file.getFileName(), responseCode);
     }
@@ -430,7 +432,7 @@ public class QwenKnowledgeBaseClient {
         String kbId = Objects.toString(response.getBody().getData().getId(), null);
         // 创建成功后必须返回 IndexId，否则无法继续提交构建任务。
         if (!StringUtils.hasText(kbId)) {
-            throw new IllegalStateException("bailian createIndex returned empty indexId");
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "empty indexId");
         }
         log.debug("qwen kb create index response, workspaceId={}, kbId={}", workspaceId, kbId);
 
@@ -485,7 +487,7 @@ public class QwenKnowledgeBaseClient {
     private List<IndexedDocument> waitForIndexJob(Client client, String workspaceId, String kbId, String jobId) throws Exception {
         // 没有 jobId 就无法查询异步任务状态，直接视为异常。
         if (!StringUtils.hasText(jobId)) {
-            throw new IllegalStateException("bailian index job id must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_INDEX_JOB_ID);
         }
         // 计算最大等待截止时间，避免无限轮询。
         long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(properties.getKbJobTimeoutMs());
@@ -506,13 +508,13 @@ public class QwenKnowledgeBaseClient {
             }
             // 明确失败状态直接抛出异常，不再继续等待。
             if ("FAILED".equalsIgnoreCase(status) || "ERROR".equalsIgnoreCase(status)) {
-                throw new IllegalStateException("bailian index job failed, jobId=" + jobId);
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "index job failed, jobId=" + jobId);
             }
             // 控制轮询频率，并设置最小 200ms 间隔，避免过于频繁调用接口。
             Thread.sleep(Math.max(properties.getKbPollIntervalMs(), 200));
         }
         // 超过最大等待时间仍未完成，认为任务超时。
-        throw new IllegalStateException("bailian index job timeout, jobId=" + jobId);
+        throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "index job timeout, jobId=" + jobId);
     }
 
     private List<IndexedDocument> extractIndexedDocuments(Object data) {

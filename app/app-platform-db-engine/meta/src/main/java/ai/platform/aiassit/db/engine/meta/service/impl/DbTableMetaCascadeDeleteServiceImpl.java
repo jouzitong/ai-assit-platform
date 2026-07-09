@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaCascadeDeleteResultDTO;
@@ -12,6 +13,7 @@ import ai.platform.aiassit.db.engine.meta.service.DbTableFieldMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableIndexMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaCascadeDeleteService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -38,8 +40,10 @@ public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DbTableMetaCascadeDeleteResultDTO delete(DbTableMetaCascadeDeleteRequest request) {
-        String sourceKey = requireText(request == null ? null : request.getSourceKey(), "sourceKey 不能为空");
-        String tableName = requireText(request == null ? null : request.getTableName(), "tableName 不能为空");
+        String sourceKey = requireText(request == null ? null : request.getSourceKey(),
+                DbEngineBizCodeConstant.REQUIRED_SOURCE_KEY);
+        String tableName = requireText(request == null ? null : request.getTableName(),
+                DbEngineBizCodeConstant.REQUIRED_TABLE_NAME);
 
         List<DbTableFieldMetaDTO> fields = fieldMetaService.queryAll(buildFieldQuery(sourceKey, tableName));
         int deletedFieldCount = 0;
@@ -98,9 +102,9 @@ public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDe
         return query;
     }
 
-    private String requireText(String value, String message) {
+    private String requireText(String value, Integer code) {
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException(message);
+            throw BizException.illegalParam(code);
         }
         return value.trim();
     }

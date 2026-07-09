@@ -8,6 +8,7 @@ import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
@@ -31,6 +32,7 @@ import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -487,12 +489,12 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                         requireSessionTitle,
                         validationError);
                 if (attempt == maxRetry) {
-                    throw new IllegalArgumentException("planning result parse failed: " + validationError, ex);
+                    throw invalidWorkflowOutput("planning result parse failed: " + validationError, ex);
                 }
                 currentText = retryPlanningWithFeedback(currentText, validationError, requireSessionTitle);
             }
         }
-        throw new IllegalArgumentException("planning result parse failed: " + validationError);
+        throw invalidWorkflowOutput("planning result parse failed: " + validationError);
     }
 
     private int resolvePlanningStructureMaxRetry() {
@@ -544,58 +546,58 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private void validatePlanningResult(PlanningResult result, boolean requireSessionTitle) {
         if (result == null) {
-            throw new IllegalArgumentException("result is null");
+            throw invalidWorkflowOutput("result is null");
         }
         if (!StringUtils.hasText(result.getTitle()) && requireSessionTitle) {
-            throw new IllegalArgumentException("title is required for new conversation");
+            throw invalidWorkflowOutput("title is required for new conversation");
         }
         if (result.getSubject() == null) {
-            throw new IllegalArgumentException("subject is required");
+            throw invalidWorkflowOutput("subject is required");
         }
         if (!StringUtils.hasText(result.getSubject().getName())) {
-            throw new IllegalArgumentException("subject.name is required");
+            throw invalidWorkflowOutput("subject.name is required");
         }
         if (!StringUtils.hasText(result.getSubject().getValue())) {
-            throw new IllegalArgumentException("subject.value is required");
+            throw invalidWorkflowOutput("subject.value is required");
         }
         if (result.getSubject().getScore() == null) {
-            throw new IllegalArgumentException("subject.score is required");
+            throw invalidWorkflowOutput("subject.score is required");
         }
         if (result.getFilters() == null) {
-            throw new IllegalArgumentException("filters is required");
+            throw invalidWorkflowOutput("filters is required");
         }
         if (result.getIntent() == null) {
-            throw new IllegalArgumentException("intent is required");
+            throw invalidWorkflowOutput("intent is required");
         }
         if (!StringUtils.hasText(result.getIntent().getType())) {
-            throw new IllegalArgumentException("intent.type is required");
+            throw invalidWorkflowOutput("intent.type is required");
         }
         if (!StringUtils.hasText(result.getIntent().getName())) {
-            throw new IllegalArgumentException("intent.name is required");
+            throw invalidWorkflowOutput("intent.name is required");
         }
         if (result.getRender() == null) {
-            throw new IllegalArgumentException("render is required");
+            throw invalidWorkflowOutput("render is required");
         }
         if (!StringUtils.hasText(result.getRender().getType())) {
-            throw new IllegalArgumentException("render.type is required");
+            throw invalidWorkflowOutput("render.type is required");
         }
         if (!StringUtils.hasText(result.getRender().getName())) {
-            throw new IllegalArgumentException("render.name is required");
+            throw invalidWorkflowOutput("render.name is required");
         }
         if (result.getAmbiguity() == null) {
-            throw new IllegalArgumentException("ambiguity is required");
+            throw invalidWorkflowOutput("ambiguity is required");
         }
         if (result.getAmbiguity().getHasAmbiguity() == null) {
-            throw new IllegalArgumentException("ambiguity.hasAmbiguity is required");
+            throw invalidWorkflowOutput("ambiguity.hasAmbiguity is required");
         }
         if (result.getAmbiguity().getItems() == null) {
-            throw new IllegalArgumentException("ambiguity.items is required");
+            throw invalidWorkflowOutput("ambiguity.items is required");
         }
         if (Boolean.TRUE.equals(result.getAmbiguity().getHasAmbiguity()) && result.getAmbiguity().getItems().isEmpty()) {
-            throw new IllegalArgumentException("ambiguity.items must not be empty when ambiguity.hasAmbiguity is true");
+            throw invalidWorkflowOutput("ambiguity.items must not be empty when ambiguity.hasAmbiguity is true");
         }
         if (result.getExt() == null) {
-            throw new IllegalArgumentException("ext is required");
+            throw invalidWorkflowOutput("ext is required");
         }
     }
 
@@ -971,7 +973,7 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String cleanJson(String text) {
         if (!StringUtils.hasText(text)) {
-            throw new IllegalArgumentException("planning output is empty");
+            throw invalidWorkflowOutput("planning output is empty");
         }
         String cleaned = text.trim();
         cleaned = cleaned.replace("```json", "");
@@ -1043,6 +1045,14 @@ public class QueryPlanningNode extends BaseWorkflowNode {
 
     private String generateCode(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private BizException invalidWorkflowOutput(String message) {
+        return BizException.of(AiChatBizCodeConstant.INVALID_WORKFLOW_OUTPUT, message);
+    }
+
+    private BizException invalidWorkflowOutput(String message, Throwable cause) {
+        return BizException.of(AiChatBizCodeConstant.INVALID_WORKFLOW_OUTPUT, message + ": " + cause.getMessage());
     }
 
 }

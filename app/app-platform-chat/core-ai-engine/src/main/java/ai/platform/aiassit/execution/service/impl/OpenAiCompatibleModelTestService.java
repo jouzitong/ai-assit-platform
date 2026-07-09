@@ -79,7 +79,8 @@ public class OpenAiCompatibleModelTestService implements AiModelTestService {
                     .build();
             HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
             if (response.statusCode() < 200 || response.statusCode() >= 300) {
-                throw new IllegalStateException("模型调用失败：" + response.statusCode() + " " + extractErrorMessage(response.body()));
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                        response.statusCode() + " " + extractErrorMessage(response.body()));
             }
 
             result.setAnswer(extractAnswer(response.body()));

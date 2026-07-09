@@ -11,6 +11,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.dto.ResponseFormat;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
@@ -25,6 +26,7 @@ import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -137,7 +139,7 @@ public class ConversationIntentAnalyzeService {
             ChatRequest request = buildRequest(context, knowledgeContext, response, attempt, config);
             ChatResponse result = aiExecutionDomainService.chat(request);
             if (result == null) {
-                throw new IllegalStateException("base intent analyze failed");
+                throw BizException.of(AiChatBizCodeConstant.WORKFLOW_EXECUTION_FAILED, "base intent analyze failed");
             }
             response = parseResponse(result, command);
             response.setRequestId(result.getRequestId());

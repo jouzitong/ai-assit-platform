@@ -10,6 +10,7 @@ import org.athena.framework.minio.model.PresignedUrlResult;
 import org.athena.framework.minio.model.PutObjectRequest;
 import org.athena.framework.minio.model.StoredObject;
 import org.athena.framework.minio.service.ObjectStorageService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.Assert;
 
@@ -55,7 +56,7 @@ public class FileStorageFacade {
             response.setContent(inputStream.readAllBytes());
             return response;
         } catch (IOException e) {
-            throw new IllegalStateException("download file failed", e);
+            throw new BizException(e);
         }
     }
 

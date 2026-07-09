@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaExportFileDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
@@ -13,6 +14,7 @@ import ai.platform.aiassit.db.engine.meta.service.DbMetaWorkbookService;
 import ai.platform.aiassit.db.engine.meta.service.importer.DbMetaImportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
 import org.apache.poi.ss.usermodel.Comment;
@@ -166,7 +168,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         DbMetaImportService importService = importServices.stream()
                 .filter(service -> service.supports(file))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("暂不支持的导入文件格式: " + resolveFilename(file)));
+                .orElseThrow(() -> BizException.illegalParam(DbEngineBizCodeConstant.INVALID_IMPORT_FORMAT, resolveFilename(file)));
         DbMetaImportData importData = importService.parse(sourceKey, file);
         return importExecutor.importData(sourceKey, file, importService.getFormat(), importData);
     }
@@ -697,14 +699,15 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
 
     private void validateTemplateConfig(DbMetaWorkbookTemplateConfig config) {
         if (config == null || CollectionUtils.isEmpty(config.getSheets())) {
-            throw new IllegalStateException("工作簿模板配置缺少 sheets");
+            throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "missing sheets");
         }
         for (DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig : config.getSheets()) {
             if (!StringUtils.hasText(sheetConfig.getKey()) || !StringUtils.hasText(sheetConfig.getName())) {
-                throw new IllegalStateException("工作簿模板 sheet 缺少 key 或 name");
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "sheet missing key or name");
             }
             if (CollectionUtils.isEmpty(sheetConfig.getColumns())) {
-                throw new IllegalStateException("工作簿模板 sheet[" + sheetConfig.getKey() + "] 缺少 columns");
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID,
+                        "sheet[" + sheetConfig.getKey() + "] missing columns");
             }
         }
     }
@@ -721,7 +724,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             validateTemplateConfig(config);
             return config;
         } catch (IOException ex) {
-            throw new IllegalStateException("加载工作簿模板配置失败: " + resource.getDescription(), ex);
+            throw new BizException(ex);
         }
     }
 
@@ -731,7 +734,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
             if (externalResource.exists()) {
                 return externalResource;
             }
-            throw new IllegalStateException("工作簿模板配置不存在: " + templateConfigLocation);
+            throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_NOT_FOUND, templateConfigLocation);
         }
         return resourceLoader.getResource("classpath:" + TEMPLATE_CONFIG_CLASSPATH);
     }
@@ -761,7 +764,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
     private int requiredColumnIndex(Map<String, Integer> columnIndexMap, String columnKey) {
         Integer columnIndex = columnIndexMap.get(columnKey);
         if (columnIndex == null) {
-            throw new IllegalStateException("工作簿模板缺少列配置: " + columnKey);
+            throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "missing column " + columnKey);
         }
         return columnIndex;
     }
@@ -878,7 +881,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         if ("json".equals(normalized) || "excel".equals(normalized) || "xlsx".equals(normalized)) {
             return "xlsx".equals(normalized) ? "excel" : normalized;
         }
-        throw new IllegalArgumentException("暂不支持的导出格式: " + format);
+        throw BizException.illegalParam(DbEngineBizCodeConstant.INVALID_EXPORT_FORMAT, format);
     }
 
     private String buildFilename(String sourceKey, String format) {
@@ -911,7 +914,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         private DbMetaWorkbookTemplateConfig.SheetConfig getRequiredSheetConfig(String sheetKey) {
             DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = sheetConfigByKey.get(sheetKey);
             if (sheetConfig == null) {
-                throw new IllegalStateException("工作簿模板缺少 sheet: " + sheetKey);
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "missing sheet " + sheetKey);
             }
             return sheetConfig;
         }
@@ -919,7 +922,7 @@ public class DbMetaWorkbookServiceImpl implements DbMetaWorkbookService {
         private DbMetaWorkbookTemplateConfig.SheetConfig getRequiredSheetConfig(String sheetKey, SheetMode sheetMode) {
             DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = getOptionalSheetConfig(sheetKey, sheetMode);
             if (sheetConfig == null) {
-                throw new IllegalStateException("工作簿模板缺少 sheet: " + sheetKey);
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "missing sheet " + sheetKey);
             }
             return sheetConfig;
         }

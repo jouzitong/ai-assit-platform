@@ -1,5 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.DbMetaImportJobEntity;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportJobProgressDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbMetaImportProgressSummaryDTO;
@@ -16,6 +17,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.api.model.UserContext;
 import org.athena.framework.security.auth.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
@@ -125,7 +127,7 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
             DbMetaImportService importService = importServices.stream()
                     .filter(service -> service.supports(storedFile))
                     .findFirst()
-                    .orElseThrow(() -> new IllegalArgumentException("暂不支持的导入文件格式: " + job.getFileName()));
+                    .orElseThrow(() -> BizException.illegalParam(DbEngineBizCodeConstant.INVALID_IMPORT_FORMAT, job.getFileName()));
             DbMetaImportData importData = importService.parse(job.getSourceKey(), storedFile);
 
             notifyProgress(updateJob(job, entity -> {
@@ -217,10 +219,10 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
 
     private DbMetaImportJobEntity createPendingJob(String sourceKey, MultipartFile file) {
         if (!StringUtils.hasText(sourceKey)) {
-            throw new IllegalArgumentException("缺少 sourceKey");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_SOURCE_KEY);
         }
         if (file == null || file.isEmpty()) {
-            throw new IllegalArgumentException("导入文件不能为空");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_IMPORT_FILE);
         }
         DbMetaImportJobEntity job = DbMetaImportJobEntity.builder()
                 .jobId(UUID.randomUUID().toString())
@@ -264,12 +266,12 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
             mutator.mutate(current);
             current.setRecentMessagesJson(writeRecentMessages(readRecentMessages(current.getRecentMessagesJson())));
             if (jobMapper.updateById(current) <= 0) {
-                throw new IllegalStateException("更新导入任务失败: " + current.getJobId());
+                throw BizException.of(DbEngineBizCodeConstant.DB_META_UPDATE_FAILED, current.getJobId());
             }
             return current;
         });
         if (latest == null) {
-            throw new IllegalStateException("更新导入任务失败: " + job.getJobId());
+            throw BizException.of(DbEngineBizCodeConstant.DB_META_UPDATE_FAILED, job.getJobId());
         }
         copyJobState(latest, job);
         return latest;
@@ -313,7 +315,7 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
         DbMetaImportJobEntity entity = jobMapper.selectOne(new LambdaQueryWrapper<DbMetaImportJobEntity>()
                 .eq(DbMetaImportJobEntity::getJobId, jobId));
         if (entity == null) {
-            throw new IllegalArgumentException("导入任务不存在: " + jobId);
+            throw BizException.of(DbEngineBizCodeConstant.IMPORT_JOB_NOT_FOUND, jobId);
         }
         return entity;
     }
@@ -375,7 +377,7 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
         try {
             return objectMapper.writeValueAsString(messages == null ? List.of() : messages);
         } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("序列化导入任务 recentMessages 失败", ex);
+            throw new BizException(ex);
         }
     }
 
@@ -398,7 +400,7 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
         try {
             return objectMapper.writeValueAsString(result);
         } catch (JsonProcessingException ex) {
-            throw new IllegalStateException("序列化导入任务 result 失败", ex);
+            throw new BizException(ex);
         }
     }
 

@@ -1,9 +1,11 @@
 package ai.platform.aiassit.db.engine.meta.service.impl;
 
 import ai.platform.aiassit.db.engine.meta.entity.excel.DbMetaWorkbookTemplateConfig;
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.importer.DbMetaImportData;
 import ai.platform.aiassit.db.engine.meta.service.importer.DbMetaImportService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.arthena.framework.common.exception.BizException;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.DataFormatter;
 import org.apache.poi.ss.usermodel.Row;
@@ -176,11 +178,13 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
 
     private String readRequiredString(Row row, Integer index, DataFormatter formatter, String sheetName, int rowIndex, String fieldName) {
         if (index == null) {
-            throw new IllegalArgumentException("sheet[" + sheetName + "] 缺少列 " + fieldName);
+            throw BizException.illegalParam(DbEngineBizCodeConstant.INVALID_WORKBOOK_FIELD,
+                    "sheet[" + sheetName + "] missing column " + fieldName);
         }
         String value = readString(row, index, formatter);
         if (!StringUtils.hasText(value)) {
-            throw new IllegalArgumentException("sheet[" + sheetName + "] 第 " + (rowIndex + 1) + " 行缺少必填字段 " + fieldName);
+            throw BizException.illegalParam(DbEngineBizCodeConstant.INVALID_WORKBOOK_FIELD,
+                    "sheet[" + sheetName + "] row " + (rowIndex + 1) + " missing required field " + fieldName);
         }
         return value;
     }
@@ -225,7 +229,7 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
         if ("false".equals(normalized) || "0".equals(normalized) || "no".equals(normalized) || "否".equals(normalized)) {
             return false;
         }
-        throw new IllegalArgumentException("布尔值解析失败: " + value);
+        throw BizException.illegalParam(DbEngineBizCodeConstant.INVALID_BOOLEAN_VALUE, value);
     }
 
     private Map<String, Integer> buildSheetColumnIndexMap(
@@ -256,14 +260,15 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
 
     private void validateTemplateConfig(DbMetaWorkbookTemplateConfig config) {
         if (config == null || CollectionUtils.isEmpty(config.getSheets())) {
-            throw new IllegalStateException("工作簿模板配置缺少 sheets");
+            throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "missing sheets");
         }
         for (DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig : config.getSheets()) {
             if (!StringUtils.hasText(sheetConfig.getKey()) || !StringUtils.hasText(sheetConfig.getName())) {
-                throw new IllegalStateException("工作簿模板 sheet 缺少 key 或 name");
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "sheet missing key or name");
             }
             if (CollectionUtils.isEmpty(sheetConfig.getColumns())) {
-                throw new IllegalStateException("工作簿模板 sheet[" + sheetConfig.getKey() + "] 缺少 columns");
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID,
+                        "sheet[" + sheetConfig.getKey() + "] missing columns");
             }
         }
     }
@@ -280,7 +285,7 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
             validateTemplateConfig(config);
             return config;
         } catch (IOException ex) {
-            throw new IllegalStateException("加载工作簿模板配置失败: " + resource.getDescription(), ex);
+            throw new BizException(ex);
         }
     }
 
@@ -290,7 +295,7 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
             if (externalResource.exists()) {
                 return externalResource;
             }
-            throw new IllegalStateException("工作簿模板配置不存在: " + templateConfigLocation);
+            throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_NOT_FOUND, templateConfigLocation);
         }
         return resourceLoader.getResource("classpath:" + TEMPLATE_CONFIG_CLASSPATH);
     }
@@ -329,7 +334,7 @@ public class DbMetaExcelImportServiceImpl implements DbMetaImportService {
         private DbMetaWorkbookTemplateConfig.SheetConfig getRequiredSheetConfig(String sheetKey) {
             DbMetaWorkbookTemplateConfig.SheetConfig sheetConfig = sheetConfigByKey.get(sheetKey);
             if (sheetConfig == null) {
-                throw new IllegalStateException("工作簿模板缺少 sheet: " + sheetKey);
+                throw BizException.of(DbEngineBizCodeConstant.TEMPLATE_CONFIG_INVALID, "missing sheet " + sheetKey);
             }
             return sheetConfig;
         }

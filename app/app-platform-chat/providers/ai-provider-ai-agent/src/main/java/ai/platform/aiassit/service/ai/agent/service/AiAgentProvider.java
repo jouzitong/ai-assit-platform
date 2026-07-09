@@ -4,6 +4,7 @@ import ai.platform.aiassit.service.ai.agent.config.AiAgentProperties;
 import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.Usage;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.FinishReason;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
@@ -13,6 +14,7 @@ import ai.platform.aiassit.service.ai.spi.AiChatService;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -48,7 +50,7 @@ public class AiAgentProvider implements AiChatService {
     @Override
     public void chatStream(ProviderChatRequest request, ChatStreamObserver observer) {
         if (observer == null) {
-            throw new IllegalArgumentException("observer must not be null");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_OBSERVER);
         }
         try {
             ChatResponse response = chat(request);

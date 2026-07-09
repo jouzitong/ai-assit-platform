@@ -6,7 +6,7 @@ package ai.platform.aiassit.service.ai.api.constant;
  * <p>编码规范：YY_XX_####
  * <ul>
  *     <li>YY: 大方向（53=AI 聊天域）</li>
- *     <li>XX: 小方向（01=必填缺失，03=资源不存在）</li>
+ *     <li>XX: 小方向（01=必填缺失，02=取值非法，03=资源不存在，04=状态或约束冲突，06=系统处理失败）</li>
  *     <li>####: 具体业务编号</li>
  * </ul>
  */
@@ -21,13 +21,37 @@ public interface AiChatBizCodeConstant {
     Integer REQUIRED_BASE_URL = 53_01_0006;
     Integer REQUIRED_API_MODEL = 53_01_0007;
     Integer REQUIRED_API_KEY = 53_01_0008;
+    Integer REQUIRED_OBSERVER = 53_01_0009;
+    Integer REQUIRED_MODEL_CODE = 53_01_0010;
+    Integer REQUIRED_MODEL_NAME = 53_01_0011;
+    Integer REQUIRED_AI_AGENT_PYTHON_COMMAND = 53_01_0012;
+    Integer REQUIRED_AI_AGENT_SCRIPT_PATH = 53_01_0013;
+    Integer REQUIRED_WORKSPACE_ID = 53_01_0014;
+    Integer REQUIRED_KB_ENDPOINT = 53_01_0015;
+    Integer REQUIRED_ACCESS_KEY_ID = 53_01_0016;
+    Integer REQUIRED_ACCESS_KEY_SECRET = 53_01_0017;
+    Integer REQUIRED_UPLOAD_URL = 53_01_0018;
+    Integer REQUIRED_INDEX_JOB_ID = 53_01_0019;
+    Integer REQUIRED_KB_ID = 53_01_0020;
+    Integer REQUIRED_DOCUMENT_ID = 53_01_0021;
+    Integer REQUIRED_CONTENT = 53_01_0022;
+
+    // 53_02_xxxx 参数取值非法
+    Integer INVALID_WORKFLOW_OUTPUT = 53_02_0001;
 
     // 53_03_xxxx 资源不存在
     Integer CONVERSATION_NOT_FOUND = 53_03_0001;
     Integer CONVERSATION_ROUND_NOT_FOUND = 53_03_0002;
     Integer AI_CHAT_SERVICE_NOT_FOUND = 53_03_0003;
     Integer KNOWLEDGE_SERVICE_NOT_FOUND = 53_03_0004;
+    Integer MODEL_CONFIG_NOT_FOUND = 53_03_0005;
 
     // 53_06_xxxx 系统处理异常
     Integer WORKFLOW_EXECUTION_FAILED = 53_06_0001;
+    Integer MODEL_CONFIG_SAVE_FAILED = 53_06_0002;
+    Integer PROVIDER_UPSERT_FAILED = 53_06_0003;
+    Integer PROVIDER_DELETE_FAILED = 53_06_0004;
+    Integer PROVIDER_SEARCH_FAILED = 53_06_0005;
+    Integer PROVIDER_PROCESS_FAILED = 53_06_0006;
+    Integer PROVIDER_RESPONSE_INVALID = 53_06_0007;
 }

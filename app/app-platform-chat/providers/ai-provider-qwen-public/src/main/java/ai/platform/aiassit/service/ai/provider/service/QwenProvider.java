@@ -11,6 +11,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassit.service.ai.api.dto.Usage;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.FinishReason;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
@@ -28,6 +29,7 @@ import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbSearchRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbUpsertRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderRerankRequest;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
 import org.springframework.ai.chat.messages.SystemMessage;
@@ -116,7 +118,7 @@ public class QwenProvider implements AiChatService, KnowledgeService {
     public KbUpsertResponse kbUpsert(ProviderKbUpsertRequest request) {
         List<KbDocument> documents = safeList(request.getDocuments());
         if (documents.isEmpty()) {
-            throw new IllegalArgumentException("kbUpsert documents must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CONTENT);
         }
         try {
             String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
@@ -130,18 +132,18 @@ public class QwenProvider implements AiChatService, KnowledgeService {
             response.setDocumentIdMappings(result.documentIdMappings());
             return response;
         } catch (Exception ex) {
-            throw new IllegalStateException("Qwen knowledge base upsert failed", ex);
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_UPSERT_FAILED, ex.getMessage());
         }
     }
 
     @Override
     public KbDeleteResponse kbDelete(ProviderKbDeleteRequest request) {
         if (!StringUtils.hasText(request.getKbId())) {
-            throw new IllegalArgumentException("kbDelete kbId must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ID);
         }
         List<String> documentIds = safeList(request.getDocumentIds());
         if (documentIds.isEmpty()) {
-            throw new IllegalArgumentException("kbDelete documentIds must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_DOCUMENT_ID);
         }
         try {
             String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
@@ -151,17 +153,17 @@ public class QwenProvider implements AiChatService, KnowledgeService {
             response.setDeleted(deleted);
             return response;
         } catch (Exception ex) {
-            throw new IllegalStateException("Qwen knowledge base delete failed", ex);
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_DELETE_FAILED, ex.getMessage());
         }
     }
 
     @Override
     public KbSearchResponse kbSearch(ProviderKbSearchRequest request) {
         if (!StringUtils.hasText(request.getKbId())) {
-            throw new IllegalArgumentException("kbSearch kbId must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ID);
         }
         if (!StringUtils.hasText(request.getQuery())) {
-            throw new IllegalArgumentException("kbSearch query must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
         try {
             String workspaceId = knowledgeBaseClient.resolveWorkspaceId(request.getMeta());
@@ -170,7 +172,7 @@ public class QwenProvider implements AiChatService, KnowledgeService {
             response.setItems(knowledgeBaseClient.search(workspaceId, request.getKbId(), request.getQuery(), request.getTopK(), request.getMeta()));
             return response;
         } catch (Exception ex) {
-            throw new IllegalStateException("Qwen knowledge base search failed", ex);
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_SEARCH_FAILED, ex.getMessage());
         }
     }
 

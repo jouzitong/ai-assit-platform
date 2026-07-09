@@ -5,6 +5,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgePreviewDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgeSyncDTO;
@@ -19,6 +20,7 @@ import ai.platform.aiassit.db.engine.meta.service.DbTableKnowledgeSyncService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
 import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.web.vo.R;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -59,7 +61,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
     @Override
     public DbTableKnowledgeSyncDTO sync(DbTableKnowledgeSyncRequest request) {
         if (request == null || !StringUtils.hasText(request.getSourceKey())) {
-            throw new IllegalArgumentException("sourceKey 不能为空");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_SOURCE_KEY);
         }
         String sourceKey = request.getSourceKey().trim();
         String tableName = StringUtils.hasText(request.getTableName()) ? request.getTableName().trim() : null;
@@ -137,7 +139,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
                     KB_ID_SETTING_KEY,
                     response == null ? null : response.getCode(),
                     response != null && StringUtils.hasText(response.getData()));
-            throw new IllegalStateException("未配置系统参数 dbEngine.kb.kbId");
+            throw BizException.of(DbEngineBizCodeConstant.KB_ID_SETTING_MISSING, KB_ID_SETTING_KEY);
         }
         return response.getData().trim();
     }
@@ -154,7 +156,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
                 .toList();
         if (tables.isEmpty()) {
             log.warn("no db table metadata found for knowledge sync, sourceKey={}, tableName={}", sourceKey, tableName);
-            throw new IllegalArgumentException("未找到可同步的数据表元信息");
+            throw BizException.of(DbEngineBizCodeConstant.SYNC_TABLE_META_NOT_FOUND);
         }
         return tables;
     }
@@ -200,7 +202,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
                     table.getTableName(),
                     response == null ? null : response.getCode(),
                     response != null && response.getData() != null);
-            throw new IllegalStateException("知识库同步失败: " + table.getTableName());
+            throw BizException.of(DbEngineBizCodeConstant.KB_SYNC_FAILED, table.getTableName());
         }
         return response.getData();
     }

@@ -8,6 +8,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
@@ -29,6 +30,7 @@ import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -393,12 +395,12 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
             } catch (Exception ex) {
                 validationError = ex.getMessage();
                 if (attempt == PRE_GENERATE_PARSE_MAX_RETRY) {
-                    throw new IllegalArgumentException("sql pre-generate result parse failed: " + validationError, ex);
+                    throw invalidWorkflowOutput("sql pre-generate result parse failed: " + validationError, ex);
                 }
                 currentText = retrySqlPreGenerateWithFeedback(context, planningResult, knowledgeSearchResponse, currentText, validationError);
             }
         }
-        throw new IllegalArgumentException("sql pre-generate result parse failed: " + validationError);
+        throw invalidWorkflowOutput("sql pre-generate result parse failed: " + validationError);
     }
 
     private ChatRequest buildSqlPreGenerateRequest(ConversationRuntimeContext context,
@@ -487,19 +489,19 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
 
     private void validateSqlPreGenerateResult(SqlPreGenerateResult result) {
         if (result == null) {
-            throw new IllegalArgumentException("result is null");
+            throw invalidWorkflowOutput("result is null");
         }
         if (result.getMainTable() == null) {
-            throw new IllegalArgumentException("mainTable is required");
+            throw invalidWorkflowOutput("mainTable is required");
         }
         if (result.getRelationTables() == null) {
-            throw new IllegalArgumentException("relationTables is required");
+            throw invalidWorkflowOutput("relationTables is required");
         }
         if (result.getFilters() == null) {
-            throw new IllegalArgumentException("filters is required");
+            throw invalidWorkflowOutput("filters is required");
         }
         if (result.getProblems() == null) {
-            throw new IllegalArgumentException("problems is required");
+            throw invalidWorkflowOutput("problems is required");
         }
         if (result.getMainTable().getKnowledgeHits() == null) {
             result.getMainTable().setKnowledgeHits(new ArrayList<>());
@@ -562,7 +564,7 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
 
     private String cleanJson(String text) {
         if (!StringUtils.hasText(text)) {
-            throw new IllegalArgumentException("sql pre-generate output is empty");
+            throw invalidWorkflowOutput("sql pre-generate output is empty");
         }
         String cleaned = text.trim();
         cleaned = cleaned.replace("```json", "");
@@ -722,5 +724,13 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
             return apiModel.trim();
         }
         return "qwen-math-turbo";
+    }
+
+    private BizException invalidWorkflowOutput(String message) {
+        return BizException.of(AiChatBizCodeConstant.INVALID_WORKFLOW_OUTPUT, message);
+    }
+
+    private BizException invalidWorkflowOutput(String message, Throwable cause) {
+        return BizException.of(AiChatBizCodeConstant.INVALID_WORKFLOW_OUTPUT, message + ": " + cause.getMessage());
     }
 }

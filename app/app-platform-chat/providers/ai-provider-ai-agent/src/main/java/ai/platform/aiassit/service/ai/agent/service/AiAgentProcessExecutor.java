@@ -1,11 +1,13 @@
 package ai.platform.aiassit.service.ai.agent.service;
 
 import ai.platform.aiassit.service.ai.agent.config.AiAgentProperties;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.context.SystemContext;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.api.model.UserContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -101,7 +103,7 @@ public class AiAgentProcessExecutor {
             if (!finished) {
                 log.warn("ai agent process timeout, timeoutMs={}, scriptPath={}", timeoutMs, scriptPath);
                 process.destroyForcibly();
-                throw new IllegalStateException("ai agent python process timeout");
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "python process timeout");
             }
             String stdout = readAll(process.getInputStream());
             String stderr = readAll(process.getErrorStream());
@@ -110,21 +112,24 @@ public class AiAgentProcessExecutor {
                     exitValue, stdout.length(), stderr.length());
             if (exitValue != 0) {
                 log.error("ai agent process failed, exitValue={}, stderr={}", exitValue, safeError(stderr));
-                throw new IllegalStateException("ai agent python process failed: " + safeError(stderr));
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, safeError(stderr));
             }
             if (!StringUtils.hasText(stdout)) {
                 log.error("ai agent process returned empty output, stderr={}", safeError(stderr));
-                throw new IllegalStateException("ai agent python process returned empty output");
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "empty output");
             }
             JsonNode result = objectMapper.readTree(stdout);
             log.info("ai agent process parsed output successfully");
             return result;
         } catch (Exception ex) {
+            if (ex instanceof BizException bizException) {
+                throw bizException;
+            }
             log.error("ai agent provider execute failed, scriptPath={}, model={}",
                     scriptPath,
                     StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getDefaultModel(),
                     ex);
-            throw new IllegalStateException("ai agent provider execute failed", ex);
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, ex.getMessage());
         }
     }
 
@@ -159,10 +164,10 @@ public class AiAgentProcessExecutor {
 
     private void validate(AiAgentProperties properties) {
         if (!StringUtils.hasText(properties.getApiKey())) {
-            throw new IllegalStateException("ai.provider.ai-agent.api-key must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
         }
         if (!StringUtils.hasText(properties.getPythonCommand())) {
-            throw new IllegalStateException("ai.provider.ai-agent.python-command must not be empty");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_AI_AGENT_PYTHON_COMMAND);
         }
     }
 
@@ -182,8 +187,7 @@ public class AiAgentProcessExecutor {
             log.debug("ai agent script path resolved from development path, scriptPath={}", developmentPath);
             return developmentPath;
         }
-        throw new IllegalStateException(
-                "ai.provider.ai-agent.script-path must not be empty when the external python project is not available");
+        throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_AI_AGENT_SCRIPT_PATH);
     }
 
     private String readAll(java.io.InputStream inputStream) throws IOException {

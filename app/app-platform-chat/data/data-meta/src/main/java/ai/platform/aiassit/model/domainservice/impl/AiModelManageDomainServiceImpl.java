@@ -7,7 +7,9 @@ import ai.platform.aiassit.model.entity.req.AiModelManageQueryRequest;
 import ai.platform.aiassit.model.entity.vo.AiModelManageVO;
 import ai.platform.aiassit.model.mapper.AiModelManageMapper;
 import ai.platform.aiassit.model.service.AiModelConfigService;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.data.jdbc.vo.PageInfo;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.springframework.stereotype.Service;
@@ -43,7 +45,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
     public AiModelManageVO get(Long id) {
         AiModelManageVO vo = aiModelManageMapper.selectByModelId(id);
         if (vo == null) {
-            throw new IllegalStateException("模型配置不存在");
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND);
         }
         if (vo.getApiKeyMasked() == null) {
             AiModelConfigDTO current = aiModelConfigService.get(id);
@@ -59,7 +61,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
 
         AiModelConfigDTO createdModel = aiModelConfigService.add(toModelConfigDTO(dto, null, true));
         if (createdModel == null) {
-            throw new IllegalStateException("新增模型配置失败");
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_SAVE_FAILED, "add");
         }
         return get(createdModel.getId());
     }
@@ -74,7 +76,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
 
         AiModelConfigDTO updatedModel = aiModelConfigService.update(id, toModelConfigDTO(payload, currentModel, true));
         if (updatedModel == null) {
-            throw new IllegalStateException("更新模型配置失败");
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_SAVE_FAILED, "update");
         }
         return get(id);
     }
@@ -89,7 +91,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
 
         AiModelConfigDTO editedModel = aiModelConfigService.edit(id, toModelConfigDTO(payload, currentModel, false));
         if (editedModel == null) {
-            throw new IllegalStateException("编辑模型配置失败");
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_SAVE_FAILED, "edit");
         }
         return get(id);
     }
@@ -137,23 +139,23 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
 
     private void validateModelPayload(AiModelManageDTO dto) {
         if (!StringUtils.hasText(dto.getModelCode())) {
-            throw new IllegalArgumentException("模型编码不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MODEL_CODE);
         }
         if (!StringUtils.hasText(dto.getModelName())) {
-            throw new IllegalArgumentException("模型名称不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MODEL_NAME);
         }
         if (!StringUtils.hasText(dto.getApiModel())) {
-            throw new IllegalArgumentException("Provider 模型标识不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_MODEL);
         }
         if (dto.getId() == null && !StringUtils.hasText(dto.getApiKey())) {
-            throw new IllegalArgumentException("新增模型凭证时必须提供 API Key");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
         }
     }
 
     private AiModelConfigDTO requireModel(Long id) {
         AiModelConfigDTO current = aiModelConfigService.get(id);
         if (current == null) {
-            throw new IllegalStateException("模型配置不存在");
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND);
         }
         return current;
     }

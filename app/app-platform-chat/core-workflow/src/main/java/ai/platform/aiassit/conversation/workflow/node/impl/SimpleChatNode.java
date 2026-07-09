@@ -9,6 +9,7 @@ import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
@@ -23,6 +24,7 @@ import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
@@ -76,7 +78,7 @@ public class SimpleChatNode extends BaseWorkflowNode {
 
             String answer = extractAnswer(response);
             if (!StringUtils.hasText(answer)) {
-                throw new IllegalArgumentException("simple chat answer is empty");
+                throw invalidWorkflowOutput("simple chat answer is empty");
             }
 
             context.setRenderedAnswer(answer);
@@ -246,6 +248,10 @@ public class SimpleChatNode extends BaseWorkflowNode {
                         : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                 null
         );
+    }
+
+    private BizException invalidWorkflowOutput(String message) {
+        return BizException.of(AiChatBizCodeConstant.INVALID_WORKFLOW_OUTPUT, message);
     }
 
 }

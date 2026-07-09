@@ -3,11 +3,13 @@ package ai.platform.aiassit.db.engine.meta.service.impl;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgePreviewDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.service.DbTableFieldMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableKnowledgePreviewService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -32,10 +34,10 @@ public class DbTableKnowledgePreviewServiceImpl implements DbTableKnowledgePrevi
     @Override
     public DbTableKnowledgePreviewDTO preview(String sourceKey, String tableName) {
         if (!StringUtils.hasText(sourceKey)) {
-            throw new IllegalArgumentException("sourceKey 不能为空");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_SOURCE_KEY);
         }
         if (!StringUtils.hasText(tableName)) {
-            throw new IllegalArgumentException("tableName 不能为空");
+            throw BizException.illegalParam(DbEngineBizCodeConstant.REQUIRED_TABLE_NAME);
         }
 
         DbTableMetaDTO tableMeta = findTable(sourceKey, tableName);
@@ -59,7 +61,7 @@ public class DbTableKnowledgePreviewServiceImpl implements DbTableKnowledgePrevi
         return tableMetaService.queryAll(query).stream()
                 .filter(item -> tableName.equals(item.getTableName()))
                 .findFirst()
-                .orElseThrow(() -> new IllegalArgumentException("未找到对应的数据表元信息"));
+                .orElseThrow(() -> BizException.of(DbEngineBizCodeConstant.TABLE_META_NOT_FOUND, tableName));
     }
 
     private List<DbTableFieldMetaDTO> findFields(String sourceKey, String tableName) {
