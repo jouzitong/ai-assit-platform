@@ -1,5 +1,8 @@
 package ai.platform.aiassit.model.controller;
 
+import ai.platform.aiassit.execution.dto.AiModelTestChatRequestDTO;
+import ai.platform.aiassit.execution.dto.AiModelTestChatResultVO;
+import ai.platform.aiassit.execution.service.AiModelTestService;
 import ai.platform.aiassit.model.domainservice.AiModelManageDomainService;
 import ai.platform.aiassit.model.entity.dto.AiModelManageDTO;
 import ai.platform.aiassit.model.entity.req.AiModelManageQueryRequest;
@@ -20,9 +23,12 @@ import org.springframework.web.bind.annotation.RestController;
 public class AiModelManageController {
 
     private final AiModelManageDomainService domainService;
+    private final AiModelTestService modelTestService;
 
-    public AiModelManageController(AiModelManageDomainService domainService) {
+    public AiModelManageController(AiModelManageDomainService domainService,
+                                   AiModelTestService modelTestService) {
         this.domainService = domainService;
+        this.modelTestService = modelTestService;
     }
 
     @PostMapping("/_search")
@@ -38,6 +44,11 @@ public class AiModelManageController {
     @PostMapping
     public AiModelManageVO add(@RequestBody AiModelManageDTO dto) {
         return domainService.add(dto);
+    }
+
+    @PostMapping("/_test-chat")
+    public AiModelTestChatResultVO testChat(@RequestBody AiModelTestChatRequestDTO request) {
+        return modelTestService.testChat(request);
     }
 
     @PutMapping("/{id}")

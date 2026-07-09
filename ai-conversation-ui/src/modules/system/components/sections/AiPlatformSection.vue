@@ -1,7 +1,7 @@
 <script setup lang="ts">
-import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { ChatDotRound, Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppPagination } from '../../../../components'
 import {
@@ -13,16 +13,23 @@ import {
   editAiModelManage,
   searchAiKbStores,
   searchAiModelManages,
+  testAiModelChat,
   updateAiKbStore,
   updateAiModelManage,
   type AiKbStoreItem,
   type AiKbStoreUpsertPayload,
   type AiModelManageItem,
+  type AiModelTestChatMessage,
   type AiModelManageUpsertPayload,
 } from '../../api/aiPlatform'
 
 type PlatformTab = 'model' | 'kb'
 type DialogMode = 'create' | 'edit'
+type TestChatMessage = AiModelTestChatMessage & {
+  id: string
+  status?: 'success' | 'error'
+  durationMs?: number
+}
 type PlatformCard = {
   id: string | number
   entityType: PlatformTab
@@ -50,6 +57,12 @@ const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
 const editingId = ref<string | number | null>(null)
 const statusUpdatingKey = ref('')
+const testDialogVisible = ref(false)
+const testingChat = ref(false)
+const testInput = ref('')
+const testContextKey = ref('')
+const testMessagesRef = ref<HTMLElement | null>(null)
+const testMessages = ref<TestChatMessage[]>([])
 const modelRecords = ref<AiModelManageItem[]>([])
 const kbRecords = ref<AiKbStoreItem[]>([])
 
@@ -282,6 +295,24 @@ function buildModelPayload(): AiModelManageUpsertPayload {
   }
 }
 
+function buildModelTestPayload() {
+  const extJson = parseJsonText(modelForm.extJsonText, '扩展配置')
+  return {
+    id: dialogMode.value === 'edit' ? editingId.value : null,
+    providerCode: normalizeText(modelForm.providerCode) || undefined,
+    baseUrl: normalizeText(modelForm.baseUrl) || undefined,
+    apiModel: normalizeText(modelForm.apiModel) || undefined,
+    apiKey: normalizeText(modelForm.apiKey) || undefined,
+    messages: testMessages.value
+      .filter(item => item.role === 'system' || item.role === 'user' || item.role === 'assistant')
+      .map(item => ({
+        role: item.role,
+        content: item.content,
+      })),
+    extJson,
+  }
+}
+
 function buildKbPayload(): AiKbStoreUpsertPayload {
   const tags = kbForm.tagsText
     .split(/[\n,，]+/)
@@ -326,6 +357,115 @@ function validateCurrentForm() {
   }
 
   return ''
+}
+
+function validateModelTestForm() {
+  if (!normalizeText(modelForm.baseUrl)) {
+    return '请输入 Base URL'
+  }
+  if (!normalizeText(modelForm.apiModel)) {
+    return '请输入 Provider 模型标识'
+  }
+  if (dialogMode.value === 'create' && !normalizeText(modelForm.apiKey)) {
+    return '新增模型测试时必须填写 API Key'
+  }
+  return ''
+}
+
+function buildTestContextKey() {
+  return [
+    dialogMode.value,
+    editingId.value ?? 'new',
+    normalizeText(modelForm.providerCode),
+    normalizeText(modelForm.baseUrl),
+    normalizeText(modelForm.apiModel),
+  ].join('|')
+}
+
+function createTestMessage(role: TestChatMessage['role'], content: string, extra: Partial<TestChatMessage> = {}): TestChatMessage {
+  return {
+    id: `${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    role,
+    content,
+    ...extra,
+  }
+}
+
+function openTestDialog() {
+  const validationError = validateModelTestForm()
+  if (validationError) {
+    ElMessage.error(validationError)
+    return
+  }
+  try {
+    parseJsonText(modelForm.extJsonText, '扩展配置')
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '扩展配置格式不正确')
+    return
+  }
+
+  const nextContextKey = buildTestContextKey()
+  if (testContextKey.value !== nextContextKey) {
+    testContextKey.value = nextContextKey
+    testMessages.value = []
+    testInput.value = ''
+  }
+  testDialogVisible.value = true
+}
+
+function clearTestMessages() {
+  testMessages.value = []
+}
+
+async function scrollTestMessagesToBottom() {
+  await nextTick()
+  if (testMessagesRef.value) {
+    testMessagesRef.value.scrollTop = testMessagesRef.value.scrollHeight
+  }
+}
+
+async function sendTestMessage() {
+  const content = testInput.value.trim()
+  if (!content || testingChat.value) {
+    return
+  }
+  const validationError = validateModelTestForm()
+  if (validationError) {
+    ElMessage.error(validationError)
+    return
+  }
+
+  testMessages.value.push(createTestMessage('user', content))
+  void scrollTestMessagesToBottom()
+  testInput.value = ''
+  testingChat.value = true
+  try {
+    const payload = buildModelTestPayload()
+    const result = await testAiModelChat(payload)
+    if (result?.success) {
+      testMessages.value.push(createTestMessage('assistant', result.answer || '模型返回为空', {
+        status: 'success',
+        durationMs: result.durationMs,
+      }))
+      void scrollTestMessagesToBottom()
+      return
+    }
+    testMessages.value.push(createTestMessage('assistant', result?.errorMessage || '模型连接测试失败', {
+      status: 'error',
+      durationMs: result?.durationMs,
+    }))
+    void scrollTestMessagesToBottom()
+  }
+  catch (error) {
+    testMessages.value.push(createTestMessage('assistant', error instanceof Error ? error.message : '模型连接测试失败', {
+      status: 'error',
+    }))
+    void scrollTestMessagesToBottom()
+  }
+  finally {
+    testingChat.value = false
+  }
 }
 
 async function handleSubmitDialog() {
@@ -719,11 +859,70 @@ watch(
       <template #footer>
         <div class="ai-platform-dialog__footer">
           <el-button @click="closeDialog">取消</el-button>
+          <el-button v-if="activeTab === 'model'" plain :loading="testingChat" @click="openTestDialog">
+            <el-icon><ChatDotRound /></el-icon>
+            测试对话
+          </el-button>
           <el-button type="primary" :loading="saving" @click="handleSubmitDialog">
             {{ dialogMode === 'create' ? '确认新增' : '确认保存' }}
           </el-button>
         </div>
       </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="testDialogVisible"
+      :title="`测试模型连接 - ${modelForm.apiModel || modelForm.modelName || '未命名模型'}`"
+      width="760px"
+      destroy-on-close
+    >
+      <div class="ai-platform-test-chat">
+        <div class="ai-platform-test-chat__meta">
+          <el-tag size="small" effect="plain">{{ modelForm.providerCode || '未配置 Provider' }}</el-tag>
+          <span>{{ modelForm.baseUrl || '-' }}</span>
+        </div>
+        <div ref="testMessagesRef" class="ai-platform-test-chat__messages">
+          <div v-if="!testMessages.length" class="ai-platform-test-chat__empty">
+            输入一条消息，测试当前模型配置是否能正常返回。
+          </div>
+          <div
+            v-for="message in testMessages"
+            :key="message.id"
+            :class="[
+              'ai-platform-test-chat__message',
+              `ai-platform-test-chat__message--${message.role}`,
+              { 'ai-platform-test-chat__message--error': message.status === 'error' },
+            ]"
+          >
+            <div class="ai-platform-test-chat__bubble">
+              <div class="ai-platform-test-chat__role">
+                {{ message.role === 'user' ? '你' : 'AI' }}
+                <span v-if="message.durationMs"> · {{ message.durationMs }}ms</span>
+              </div>
+              <div class="ai-platform-test-chat__content">{{ message.content }}</div>
+            </div>
+          </div>
+          <div v-if="testingChat" class="ai-platform-test-chat__loading">模型响应中...</div>
+        </div>
+        <div class="ai-platform-test-chat__composer">
+          <el-input
+            v-model="testInput"
+            type="textarea"
+            :rows="3"
+            resize="none"
+            placeholder="输入测试内容"
+            @keydown.enter.exact.prevent="sendTestMessage"
+          />
+          <div class="ai-platform-test-chat__actions">
+            <el-button plain :disabled="testingChat || !testMessages.length" @click="clearTestMessages">
+              清空上下文
+            </el-button>
+            <el-button type="primary" :loading="testingChat" :disabled="!testInput.trim()" @click="sendTestMessage">
+              发送
+            </el-button>
+          </div>
+        </div>
+      </div>
     </el-dialog>
   </section>
 </template>
@@ -1024,6 +1223,121 @@ watch(
   border-color: var(--system-accent-border);
   background: var(--system-primary-button-bg);
   color: var(--system-primary-button-text);
+}
+
+.ai-platform-test-chat {
+  display: grid;
+  grid-template-rows: auto minmax(260px, 48vh) auto;
+  gap: 12px;
+}
+
+.ai-platform-test-chat__meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  color: var(--system-text-soft);
+  font-size: 12px;
+}
+
+.ai-platform-test-chat__meta span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-platform-test-chat__messages {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 12px;
+  border: 1px solid var(--system-border-subtle);
+  border-radius: 12px;
+  background: var(--system-surface-muted);
+  overflow-y: auto;
+}
+
+.ai-platform-test-chat__empty,
+.ai-platform-test-chat__loading {
+  display: grid;
+  place-items: center;
+  min-height: 120px;
+  color: var(--system-text-muted);
+  font-size: 13px;
+}
+
+.ai-platform-test-chat__loading {
+  min-height: 36px;
+}
+
+.ai-platform-test-chat__message {
+  display: flex;
+}
+
+.ai-platform-test-chat__message--user {
+  justify-content: flex-end;
+}
+
+.ai-platform-test-chat__message--assistant {
+  justify-content: flex-start;
+}
+
+.ai-platform-test-chat__bubble {
+  max-width: min(86%, 560px);
+  padding: 10px 12px;
+  border: 1px solid var(--system-border);
+  border-radius: 12px;
+  background: var(--system-surface-solid);
+  color: var(--system-text);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.ai-platform-test-chat__message--user .ai-platform-test-chat__bubble {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg);
+}
+
+.ai-platform-test-chat__message--error .ai-platform-test-chat__bubble {
+  border-color: color-mix(in srgb, var(--system-danger) 55%, var(--system-border));
+  background: color-mix(in srgb, var(--system-danger) 10%, var(--system-surface-solid));
+  color: var(--system-danger);
+}
+
+.ai-platform-test-chat__role {
+  margin-bottom: 4px;
+  color: var(--system-text-faint);
+  font-size: 12px;
+}
+
+.ai-platform-test-chat__message--error .ai-platform-test-chat__role {
+  color: var(--system-danger);
+}
+
+.ai-platform-test-chat__content {
+  white-space: pre-wrap;
+}
+
+.ai-platform-test-chat__composer {
+  display: grid;
+  gap: 10px;
+}
+
+.ai-platform-test-chat__composer :deep(.el-textarea__inner) {
+  background: var(--system-surface-muted);
+  border-color: var(--system-border);
+  color: var(--system-text);
+  box-shadow: none;
+}
+
+.ai-platform-test-chat__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 @media (max-width: 960px) {

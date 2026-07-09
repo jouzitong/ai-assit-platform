@@ -34,6 +34,30 @@ export interface AiModelManageUpsertPayload {
   extJson?: Record<string, unknown> | null
 }
 
+export interface AiModelTestChatMessage {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}
+
+export interface AiModelTestChatPayload {
+  id?: string | number | null
+  providerCode?: string
+  baseUrl?: string
+  apiModel?: string
+  apiKey?: string
+  messages: AiModelTestChatMessage[]
+  extJson?: Record<string, unknown> | null
+}
+
+export interface AiModelTestChatResult {
+  success?: boolean
+  durationMs?: number
+  providerCode?: string
+  apiModel?: string
+  answer?: string
+  errorMessage?: string
+}
+
 export interface AiKbStoreItem {
   id: string | number
   kbCode?: string
@@ -205,6 +229,13 @@ export function updateAiModelManage(id: string | number, payload: AiModelManageU
 export function deleteAiModelManage(id: string | number) {
   return request<boolean>(`${AI_MODEL_MANAGE_API_PREFIX}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+export function testAiModelChat(payload: AiModelTestChatPayload) {
+  return request<AiModelTestChatResult>(`${AI_MODEL_MANAGE_API_PREFIX}/_test-chat`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

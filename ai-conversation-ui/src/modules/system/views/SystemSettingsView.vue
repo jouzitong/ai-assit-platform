@@ -84,8 +84,6 @@ const activeSection = computed(() => {
 const hasDataSourceDetail = computed(() => activeSection.value === 'data-source' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const hasAiPlatformKbDetail = computed(() => activeSection.value === 'ai-platform' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
 const currentSection = computed(() => sections.find((item) => item.key === activeSection.value) || sections[0])
-const hideHeroSections = new Set(['component-manage', 'metadata-config', 'system-params', 'workflow'])
-const shouldHideHero = computed(() => hideHeroSections.has(activeSection.value) || hasDataSourceDetail.value || hasAiPlatformKbDetail.value)
 
 async function navigateToSection(sectionKey: string) {
   if (activeSection.value === sectionKey) {
@@ -137,11 +135,6 @@ onMounted(() => {
     </button>
 
     <main class="system-settings-content">
-      <header v-if="!shouldHideHero" class="system-settings-hero">
-        <h2>{{ currentSection.title }}</h2>
-        <p>{{ currentSection.description }}</p>
-      </header>
-
       <component
         :is="hasDataSourceDetail ? DataSourceTableSection : hasAiPlatformKbDetail ? KbDocumentManageSection : currentSection.component"
       />
@@ -191,22 +184,6 @@ onMounted(() => {
   min-height: 0;
   padding: 10px;
   overflow-y: auto;
-}
-
-.system-settings-hero {
-  padding: 4px 0 16px;
-}
-
-.system-settings-hero h2 {
-  margin: 6px 0 4px;
-  color: var(--system-title);
-}
-
-.system-settings-hero p {
-  margin: 0;
-  color: var(--system-text-muted);
-  font-size: 13px;
-  line-height: 1.55;
 }
 
 @media (max-width: 960px) {
