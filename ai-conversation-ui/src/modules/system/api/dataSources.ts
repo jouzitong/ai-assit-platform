@@ -109,6 +109,15 @@ export interface KnowledgeSyncResult {
   unchangedCount?: number
 }
 
+export interface DbDataSourceTestConnectionResult {
+  success?: boolean
+  message?: string
+  databaseProductName?: string
+  databaseProductVersion?: string
+  catalog?: string
+  schema?: string
+}
+
 export interface DbTableMetaItem {
   id: string | number
   sourceKey?: string
@@ -227,6 +236,13 @@ export function createDbDataSource(payload: DbDataSourceUpsertPayload) {
 export function updateDbDataSource(id: string | number, payload: DbDataSourceUpsertPayload) {
   return request(`${DATA_SOURCE_API_PREFIX}/${id}`, {
     method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function testDbDataSourceConnection(payload: DbDataSourceUpsertPayload) {
+  return request<DbDataSourceTestConnectionResult>(`${DB_ACCESS_API_PREFIX}/test-connection`, {
+    method: 'POST',
     body: JSON.stringify(payload),
   })
 }

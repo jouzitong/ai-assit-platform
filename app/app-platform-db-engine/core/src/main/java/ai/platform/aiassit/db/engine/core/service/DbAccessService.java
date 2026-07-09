@@ -16,10 +16,13 @@ import ai.platform.aiassit.db.engine.executor.spi.result.QueryResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.SaveTableColumnsResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.SaveTableResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.TestConnectionResult;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbDataSourceDTO;
 
 public interface DbAccessService {
 
     TestConnectionResult testConnection(String sourceKey);
+
+    TestConnectionResult testConnection(DbDataSourceDTO dataSource);
 
     ListTablesResult listTables(String sourceKey, ListTablesRequest request);
 

@@ -8,6 +8,7 @@ import {
   createDbDataSource,
   searchDbDataSources,
   syncDbTableKnowledge,
+  testDbDataSourceConnection,
   type DbDataSourceItem,
   updateDbDataSource,
 } from '../../api/dataSources'
@@ -23,6 +24,7 @@ const currentPage = ref(1)
 const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
+const testing = ref(false)
 const knowledgeSyncSubmitting = ref(false)
 const errorMessage = ref('')
 const dialogVisible = ref(false)
@@ -221,8 +223,14 @@ function closeDialog() {
   dialogVisible.value = false
 }
 
-function emptyToUndefined(value: string) {
-  return value.trim() ? value.trim() : undefined
+function emptyToUndefined(value: unknown) {
+  if (value === null || value === undefined) {
+    return undefined
+  }
+  if (typeof value === 'string') {
+    return value.trim() ? value.trim() : undefined
+  }
+  return value
 }
 
 function normalizeNumber(value: string | number) {
@@ -259,6 +267,18 @@ function validateForm() {
   if (!form.sourceType) {
     return '请选择数据源类型'
   }
+  if (form.attributesText.trim()) {
+    try {
+      JSON.parse(form.attributesText)
+    }
+    catch {
+      return '扩展属性必须是合法 JSON'
+    }
+  }
+  return ''
+}
+
+function validateTestForm() {
   if (form.attributesText.trim()) {
     try {
       JSON.parse(form.attributesText)
@@ -330,6 +350,26 @@ async function handleSubmitForm() {
   }
   finally {
     saving.value = false
+  }
+}
+
+async function handleTestConnection() {
+  const validationError = validateTestForm()
+  if (validationError) {
+    ElMessage.error(validationError)
+    return
+  }
+
+  testing.value = true
+  try {
+    const result = await testDbDataSourceConnection(buildPayload())
+    ElMessage.success(result?.message || '连接测试成功')
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '连接测试失败')
+  }
+  finally {
+    testing.value = false
   }
 }
 
@@ -465,7 +505,7 @@ onMounted(() => {
     <el-dialog
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新增数据源' : '编辑数据源'"
-      width="860"
+      width="900"
       draggable
       overflow
       destroy-on-close
@@ -587,15 +627,15 @@ onMounted(() => {
           </header>
           <div class="data-source-dialog__grid">
             <el-form-item label="摘要说明" class="data-source-dialog__span-2">
-              <el-input v-model="form.summary" type="textarea" :rows="2" />
+              <el-input v-model="form.summary" type="textarea" :rows="1" />
             </el-form-item>
 
             <el-form-item label="备注" class="data-source-dialog__span-2">
-              <el-input v-model="form.remark" type="textarea" :rows="2" />
+              <el-input v-model="form.remark" type="textarea" :rows="1" />
             </el-form-item>
 
             <el-form-item label="扩展属性(JSON)" class="data-source-dialog__span-2">
-              <el-input v-model="form.attributesText" type="textarea" :rows="4" />
+              <el-input v-model="form.attributesText" type="textarea" :rows="3" />
             </el-form-item>
           </div>
         </section>
@@ -603,8 +643,11 @@ onMounted(() => {
 
       <template #footer>
         <div class="data-source-dialog__footer">
-          <el-button @click="closeDialog">取消</el-button>
-          <el-button type="primary" :loading="saving" @click="handleSubmitForm">确认</el-button>
+          <el-button :loading="testing" @click="handleTestConnection">测试</el-button>
+          <div class="data-source-dialog__footer-actions">
+            <el-button @click="closeDialog">取消</el-button>
+            <el-button type="primary" :loading="saving" @click="handleSubmitForm">保存</el-button>
+          </div>
         </div>
       </template>
     </el-dialog>
@@ -838,6 +881,10 @@ onMounted(() => {
 }
 
 .data-source-page :deep(.el-dialog) {
+  display: flex;
+  flex-direction: column;
+  max-height: calc(100vh - 64px);
+  padding: 0;
   overflow: hidden;
   border: 1px solid var(--system-border);
   border-radius: 18px;
@@ -847,7 +894,7 @@ onMounted(() => {
 
 .data-source-page :deep(.el-dialog__header) {
   margin-right: 0;
-  padding: 18px 20px 14px;
+  padding: 14px 18px 12px;
   border-bottom: 1px solid var(--system-border-subtle);
   background: var(--system-surface-gradient);
 }
@@ -859,8 +906,8 @@ onMounted(() => {
 }
 
 .data-source-page :deep(.el-dialog__headerbtn) {
-  top: 18px;
-  right: 18px;
+  top: 14px;
+  right: 16px;
 }
 
 .data-source-page :deep(.el-dialog__close) {
@@ -872,12 +919,16 @@ onMounted(() => {
 }
 
 .data-source-page :deep(.el-dialog__body) {
-  padding: 18px 20px 14px;
+  flex: 1;
+  min-height: 0;
+  padding: 12px 16px;
   background: var(--system-surface-strong);
+  overflow-y: auto;
 }
 
 .data-source-page :deep(.el-dialog__footer) {
-  padding: 14px 20px 18px;
+  flex-shrink: 0;
+  padding: 10px 16px 12px;
   border-top: 1px solid var(--system-border-subtle);
   background: var(--system-surface-gradient);
 }
@@ -888,17 +939,34 @@ onMounted(() => {
 
 .data-source-dialog {
   display: grid;
-  gap: 14px;
+  gap: 10px;
 }
 
 .data-source-dialog :deep(.el-form-item__label) {
+  min-height: 18px;
+  margin-bottom: 4px;
+  padding: 0;
   color: var(--system-text-soft);
-  font-size: 13px;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.data-source-dialog :deep(.el-form-item) {
+  margin-bottom: 0;
 }
 
 .data-source-dialog :deep(.el-input__wrapper),
-.data-source-dialog :deep(.el-textarea__inner),
 .data-source-dialog :deep(.el-select__wrapper) {
+  min-height: 32px;
+  background: var(--system-surface-muted);
+  border: 1px solid var(--system-border);
+  box-shadow: none;
+  color: var(--system-text);
+}
+
+.data-source-dialog :deep(.el-textarea__inner) {
+  min-height: 32px;
+  padding: 6px 10px;
   background: var(--system-surface-muted);
   border: 1px solid var(--system-border);
   box-shadow: none;
@@ -943,32 +1011,32 @@ onMounted(() => {
 }
 
 .data-source-dialog__section {
-  padding: 14px 14px 8px;
+  padding: 10px 12px 12px;
   border: 1px solid var(--system-border);
-  border-radius: 14px;
+  border-radius: 12px;
   background: var(--system-surface-muted);
 }
 
 .data-source-dialog__section-head {
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .data-source-dialog__section-head h4 {
   margin: 0;
   color: var(--system-title);
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .data-source-dialog__section-head p {
-  margin: 4px 0 0;
+  margin: 2px 0 0;
   color: var(--system-text-muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .data-source-dialog__grid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px 16px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px 12px;
 }
 
 .data-source-dialog__span-2 {
@@ -977,7 +1045,14 @@ onMounted(() => {
 
 .data-source-dialog__footer {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.data-source-dialog__footer-actions {
+  display: flex;
+  align-items: center;
   gap: 10px;
 }
 

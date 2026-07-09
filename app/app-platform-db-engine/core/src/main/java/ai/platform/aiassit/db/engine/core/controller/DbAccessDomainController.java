@@ -11,6 +11,8 @@ import ai.platform.aiassit.db.engine.executor.spi.model.DbColumnMeta;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbTableMeta;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTableColumnsRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTablesRequest;
+import ai.platform.aiassit.db.engine.executor.spi.result.TestConnectionResult;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbDataSourceDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryRequest;
@@ -55,6 +57,11 @@ public class DbAccessDomainController {
         this.dbAccessService = dbAccessService;
         this.tableMetaService = tableMetaService;
         this.tableFieldMetaService = tableFieldMetaService;
+    }
+
+    @PostMapping("/test-connection")
+    public R<TestConnectionResult> testConnection(@RequestBody DbDataSourceDTO request) {
+        return R.ok(dbAccessService.testConnection(request));
     }
 
     @PostMapping("/tables")

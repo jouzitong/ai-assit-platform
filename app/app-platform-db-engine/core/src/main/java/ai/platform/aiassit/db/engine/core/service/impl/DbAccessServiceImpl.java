@@ -56,6 +56,16 @@ public class DbAccessServiceImpl implements DbAccessService {
     }
 
     @Override
+    public TestConnectionResult testConnection(DbDataSourceDTO dataSource) {
+        try {
+            DbAccessContext context = contextAssembler.toContext(dataSource);
+            return resolveProvider(context).createExecutor(context).testConnection();
+        } catch (DbAccessException ex) {
+            throw toBizException(ex);
+        }
+    }
+
+    @Override
     public ListTablesResult listTables(String sourceKey, ListTablesRequest request) {
         try {
             return getExecutor(sourceKey).listTables(request);
