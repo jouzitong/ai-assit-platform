@@ -15,11 +15,9 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.annotation.PreDestroy;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
-import org.athena.framework.security.api.model.UserContext;
-import org.athena.framework.security.auth.core.context.SecurityContextHolder;
+import org.arthena.framework.common.thread.AsyncTaskManager;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -37,8 +35,6 @@ import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -52,25 +48,22 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
     private final DbMetaImportExecutor importExecutor;
     private final DbMetaImportJobMapper jobMapper;
     private final ObjectMapper objectMapper;
+    private final AsyncTaskManager asyncTaskManager;
     private final TransactionTemplate requiresNewTransactionTemplate;
-    private final ExecutorService jobExecutorService = Executors.newSingleThreadExecutor(runnable -> {
-        Thread thread = new Thread(runnable);
-        thread.setName("db-meta-import-job");
-        thread.setDaemon(true);
-        return thread;
-    });
 
     public DbMetaImportJobServiceImpl(
             List<DbMetaImportService> importServices,
             DbMetaImportExecutor importExecutor,
             DbMetaImportJobMapper jobMapper,
             ObjectMapper objectMapper,
+            AsyncTaskManager asyncTaskManager,
             PlatformTransactionManager transactionManager
     ) {
         this.importServices = importServices;
         this.importExecutor = importExecutor;
         this.jobMapper = jobMapper;
         this.objectMapper = objectMapper;
+        this.asyncTaskManager = asyncTaskManager;
         this.requiresNewTransactionTemplate = new TransactionTemplate(transactionManager);
         this.requiresNewTransactionTemplate.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
     }
@@ -85,10 +78,8 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
         emitter.onError(ex -> closed.set(true));
         sendProgressEvent(emitter, closed, "progress", toProgressDTO(job));
 
-        UserContext userContext = SecurityContextHolder.get();
         Path tempFile = createTempFile(file, job.getFileName());
-        jobExecutorService.submit(() -> {
-            SecurityContextHolder.set(userContext);
+        asyncTaskManager.submit(() -> {
             try {
                 runJob(job.getJobId(), tempFile, progress -> {
                     String eventName = resolveEventName(progress);
@@ -100,16 +91,11 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
                         }
                     }
                 });
-            } finally {
-                SecurityContextHolder.clear();
+            } catch (Exception e) {
+                log.error("streamImport error", e);
             }
         });
         return emitter;
-    }
-
-    @PreDestroy
-    public void shutdown() {
-        jobExecutorService.shutdownNow();
     }
 
     private void runJob(String jobId, Path tempFile, JobProgressConsumer progressConsumer) {
