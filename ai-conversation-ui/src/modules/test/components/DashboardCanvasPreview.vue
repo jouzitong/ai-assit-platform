@@ -12,6 +12,7 @@ import type { ListRendererSchema } from '../../../application/renderers/list/typ
 const previewRef = ref<HTMLElement | null>(null)
 const isFullscreen = ref(false)
 const isFallbackFullscreen = ref(false)
+const previousBodyOverflow = ref<string | null>(null)
 
 const layout = ref<DashboardCanvasItem[]>([
   { id: 'risk-list', title: '异常任务列表', x: 0, y: 0, w: 6, h: 4, minW: 4, minH: 3 },
@@ -91,32 +92,34 @@ const syncFullscreenState = () => {
   if (isFallbackFullscreen.value) {
     return
   }
-  isFullscreen.value = document.fullscreenElement === previewRef.value
+  isFullscreen.value = document.fullscreenElement === document.documentElement
+}
+
+const enterFallbackFullscreen = () => {
+  if (previousBodyOverflow.value === null) {
+    previousBodyOverflow.value = document.body.style.overflow
+  }
+  document.body.style.overflow = 'hidden'
+  isFallbackFullscreen.value = true
+  isFullscreen.value = true
+}
+
+const exitFallbackFullscreen = () => {
+  isFallbackFullscreen.value = false
+  isFullscreen.value = false
+  if (previousBodyOverflow.value !== null) {
+    document.body.style.overflow = previousBodyOverflow.value
+    previousBodyOverflow.value = null
+  }
 }
 
 const toggleFullscreen = async () => {
-  if (!previewRef.value) {
-    return
-  }
-
   if (isFallbackFullscreen.value) {
-    isFallbackFullscreen.value = false
-    isFullscreen.value = false
+    exitFallbackFullscreen()
     return
   }
 
-  if (document.fullscreenElement === previewRef.value) {
-    await document.exitFullscreen()
-    return
-  }
-
-  if (typeof previewRef.value.requestFullscreen === 'function') {
-    await previewRef.value.requestFullscreen()
-    return
-  }
-
-  isFallbackFullscreen.value = true
-  isFullscreen.value = true
+  enterFallbackFullscreen()
 }
 
 onMounted(() => {
@@ -125,6 +128,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('fullscreenchange', syncFullscreenState)
+  exitFallbackFullscreen()
 })
 </script>
 
@@ -133,7 +137,7 @@ onBeforeUnmount(() => {
     ref="previewRef"
     :class="[
       'dashboard-canvas-preview',
-      { 'is-fullscreen': isFallbackFullscreen },
+      { 'is-fullscreen': isFullscreen },
     ]"
   >
     <header class="dashboard-canvas-preview__header">
