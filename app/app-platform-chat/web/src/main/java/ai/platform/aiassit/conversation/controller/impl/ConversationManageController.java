@@ -96,6 +96,6 @@ public class ConversationManageController implements IConversationManageControll
         if (userContext != null && userContext.subject() != null) {
             return userContext.subject().userId();
         }
-        throw BizException.of(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
+        throw BizException.ofStatus(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
     }
 }

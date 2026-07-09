@@ -59,7 +59,7 @@ public class OpenWebUiAuthController {
         );
         AuthenticationResult result = authenticationFacade.authenticate(authenticationRequest);
         if (!result.success() || result.context() == null || result.context().session() == null) {
-            throw BizException.of(ErrCodeConstant.LOGIN_FAILED, HttpStatus.UNAUTHORIZED.value());
+            throw BizException.ofStatus(ErrCodeConstant.LOGIN_FAILED, HttpStatus.UNAUTHORIZED.value());
         }
         return toSessionUserResponse(result.context(), result.context().session().tokenId(), false);
     }
@@ -69,7 +69,7 @@ public class OpenWebUiAuthController {
     public SessionUserInfoResponse getSessionUser(HttpServletRequest request) {
         UserContext userContext = SystemContext.getUserContext();
         if (userContext == null || userContext.subject() == null) {
-            throw BizException.of(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
+            throw BizException.ofStatus(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
         }
         return toSessionUserResponse(userContext, credentialExtractor.extractToken(request), true);
     }

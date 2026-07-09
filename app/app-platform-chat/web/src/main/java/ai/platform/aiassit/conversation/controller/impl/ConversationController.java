@@ -99,7 +99,7 @@ public class ConversationController implements IConversationController {
         if (userContext != null && userContext.subject() != null) {
             return userContext.subject().userId();
         }
-        throw BizException.of(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
+        throw BizException.ofStatus(ErrCodeConstant.LOGIN_FAILED, HttpStatus.UNAUTHORIZED.value());
     }
 
     private String resolveSessionName(String message) {
