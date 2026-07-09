@@ -19,7 +19,9 @@ import ai.platform.aiassit.chat.history.enums.AiChatActorType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
 import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.apache.commons.collections4.CollectionUtils;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.auth.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Service;
 
@@ -62,10 +64,10 @@ public class ConversationPreparationService {
     private void prepareConversationRuntimeContext(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         if (command == null) {
-            throw new IllegalArgumentException("query command is required");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
         }
         if (!org.springframework.util.StringUtils.hasText(command.getMessage())) {
-            throw new IllegalArgumentException("message is required");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
 
         String sessionCode = command.getSessionCode();
@@ -82,7 +84,7 @@ public class ConversationPreparationService {
         } else {
             session = loadSession(sessionCode, userId);
             if (session == null) {
-                throw new IllegalArgumentException("conversation not found: " + sessionCode);
+                throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND, sessionCode);
             }
             sessionMessages = loadSessionMessages(sessionCode, userId);
             sessionArtifacts = loadSessionArtifacts(sessionCode, userId);

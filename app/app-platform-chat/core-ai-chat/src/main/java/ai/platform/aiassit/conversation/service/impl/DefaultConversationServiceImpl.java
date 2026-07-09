@@ -19,6 +19,8 @@ import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -62,7 +64,7 @@ public class DefaultConversationServiceImpl implements ConversationService {
     @Override
     public ConversationDetailResponse detailConversation(ConversationDetailRequest request) {
         if (request == null || !StringUtils.hasText(request.getSessionCode())) {
-            throw new IllegalArgumentException("sessionCode is required");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_SESSION_CODE);
         }
 
         ConversationDetailResponse response = new ConversationDetailResponse();
@@ -123,14 +125,14 @@ public class DefaultConversationServiceImpl implements ConversationService {
 
     private AiChatSessionDTO loadConversationSession(String sessionCode, Long userId) {
         if (!StringUtils.hasText(sessionCode)) {
-            throw new IllegalArgumentException("sessionCode is required");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_SESSION_CODE);
         }
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
         AiChatSessionDTO session = sessionService.get(query);
         if (session == null) {
-            throw new IllegalArgumentException("conversation not found");
+            throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
         }
         return session;
     }

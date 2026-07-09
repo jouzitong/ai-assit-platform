@@ -8,7 +8,9 @@ import ai.platform.aiassit.execution.properties.AiCoreProperties;
 import ai.platform.aiassit.execution.convert.AiProviderRequestMapper;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import ai.platform.aiassit.execution.validator.AiRequestValidator;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.spi.AiChatService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
 import org.springframework.stereotype.Service;
@@ -54,7 +56,7 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     public void chatStream(ChatRequest request, ChatStreamObserver observer) {
         validator.validateChat(request);
         if (observer == null) {
-            throw new IllegalArgumentException("chatStream observer must not be null");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
         }
         resolveChatService(request.getProvider()).chatStream(requestMapper.mapChat(request, properties), observer);
     }
@@ -83,14 +85,14 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
         ProviderType providerType = requestedProvider;
         if (providerType == null) {
             if (properties.isStrictProvider()) {
-                throw new IllegalArgumentException("provider is required when ai.core.strict-provider=true");
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_PROVIDER);
             }
             providerType = properties.getDefaultProvider();
         }
 
         AiChatService service = chatServices.get(providerType);
         if (service == null) {
-            throw new IllegalStateException("AI chat service not found or not enabled: " + providerType);
+            throw BizException.of(AiChatBizCodeConstant.AI_CHAT_SERVICE_NOT_FOUND, providerType);
         }
         return service;
     }

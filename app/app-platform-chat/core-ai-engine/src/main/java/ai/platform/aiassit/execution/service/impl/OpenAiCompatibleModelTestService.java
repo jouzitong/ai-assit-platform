@@ -6,8 +6,10 @@ import ai.platform.aiassit.execution.dto.AiModelTestChatResultVO;
 import ai.platform.aiassit.execution.service.AiModelTestService;
 import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -97,16 +99,16 @@ public class OpenAiCompatibleModelTestService implements AiModelTestService {
                                          String apiKey,
                                          List<AiModelTestChatMessageDTO> messages) {
         if (!StringUtils.hasText(baseUrl)) {
-            throw new IllegalArgumentException("Base URL 不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_BASE_URL);
         }
         if (!StringUtils.hasText(apiModel)) {
-            throw new IllegalArgumentException("Provider 模型标识不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_MODEL);
         }
         if (!StringUtils.hasText(apiKey)) {
-            throw new IllegalArgumentException("API Key 不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
         }
         if (messages == null || messages.stream().noneMatch(message -> StringUtils.hasText(message.getContent()))) {
-            throw new IllegalArgumentException("测试消息不能为空");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
     }
 

@@ -15,8 +15,10 @@ import ai.platform.aiassit.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.ProviderType;
 import ai.platform.aiassit.service.ai.spi.KnowledgeService;
+import org.arthena.framework.common.exception.BizException;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -78,14 +80,14 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         ProviderType providerType = requestedProvider;
         if (providerType == null) {
             if (properties.isStrictProvider()) {
-                throw new IllegalArgumentException("provider is required when ai.core.strict-provider=true");
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_PROVIDER);
             }
             providerType = properties.getDefaultProvider();
         }
 
         KnowledgeService service = knowledgeServices.get(providerType);
         if (service == null) {
-            throw new IllegalStateException("knowledge service not found or not enabled: " + providerType);
+            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, providerType);
         }
         return service;
     }

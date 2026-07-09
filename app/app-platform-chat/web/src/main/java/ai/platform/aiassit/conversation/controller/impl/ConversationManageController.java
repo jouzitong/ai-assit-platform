@@ -13,7 +13,7 @@ import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import lombok.AllArgsConstructor;
 import org.arthena.framework.common.constant.ErrCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
-import org.arthena.framework.common.exception.base.BaseHttpRuntimeException;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.api.model.UserContext;
 import org.springframework.http.HttpStatus;
 import org.springframework.util.StringUtils;
@@ -96,6 +96,6 @@ public class ConversationManageController implements IConversationManageControll
         if (userContext != null && userContext.subject() != null) {
             return userContext.subject().userId();
         }
-        throw new BaseHttpRuntimeException(HttpStatus.UNAUTHORIZED.value(), ErrCodeConstant.UNAUTHORIZED);
+        throw BizException.of(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
     }
 }

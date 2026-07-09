@@ -7,7 +7,7 @@ import lombok.EqualsAndHashCode;
 import org.apache.commons.lang3.StringUtils;
 import org.arthena.framework.common.constant.ErrCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
-import org.arthena.framework.common.exception.base.BaseHttpRuntimeException;
+import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.api.auth.AuthenticationRequest;
 import org.athena.framework.security.api.auth.AuthenticationResult;
 import org.athena.framework.security.api.model.AuthorizationSnapshot;
@@ -59,7 +59,7 @@ public class OpenWebUiAuthController {
         );
         AuthenticationResult result = authenticationFacade.authenticate(authenticationRequest);
         if (!result.success() || result.context() == null || result.context().session() == null) {
-            throw new BaseHttpRuntimeException(HttpStatus.UNAUTHORIZED.value(), ErrCodeConstant.LOGIN_FAILED);
+            throw BizException.of(ErrCodeConstant.LOGIN_FAILED, HttpStatus.UNAUTHORIZED.value());
         }
         return toSessionUserResponse(result.context(), result.context().session().tokenId(), false);
     }
@@ -69,7 +69,7 @@ public class OpenWebUiAuthController {
     public SessionUserInfoResponse getSessionUser(HttpServletRequest request) {
         UserContext userContext = SystemContext.getUserContext();
         if (userContext == null || userContext.subject() == null) {
-            throw new BaseHttpRuntimeException(HttpStatus.UNAUTHORIZED.value(), ErrCodeConstant.UNAUTHORIZED);
+            throw BizException.of(ErrCodeConstant.UNAUTHORIZED, HttpStatus.UNAUTHORIZED.value());
         }
         return toSessionUserResponse(userContext, credentialExtractor.extractToken(request), true);
     }

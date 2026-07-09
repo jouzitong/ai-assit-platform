@@ -17,6 +17,8 @@ import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
+import org.arthena.framework.common.exception.BizException;
 import org.arthena.framework.common.thread.AsyncTaskManager;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
@@ -76,7 +78,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
             workflowEngine.run(context);
             String error = context.get(ConversationRuntimeContextKeys.Common.ERROR);
             if (StringUtils.hasText(error)) {
-                emitter.completeWithError(new IllegalStateException(error));
+                emitter.completeWithError(BizException.of(AiChatBizCodeConstant.WORKFLOW_EXECUTION_FAILED, error));
                 return;
             }
             context.publishCompleteEvent(
@@ -105,11 +107,11 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         try {
             AiChatSessionDTO session = loadSession(request == null ? null : request.getSessionCode(), userId);
             if (session == null) {
-                throw new IllegalArgumentException("conversation not found");
+                throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
             }
             AiChatRoundDTO round = loadRound(request == null ? null : request.getRoundCode(), session.getSessionCode(), userId);
             if (round == null) {
-                throw new IllegalArgumentException("round not found");
+                throw BizException.of(AiChatBizCodeConstant.CONVERSATION_ROUND_NOT_FOUND);
             }
             String answer = loadLatestAssistantAnswer(round.getRoundCode(), session.getSessionCode(), userId);
 
@@ -161,7 +163,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
         if (!StringUtils.hasText(sessionCode)) {
-            throw new IllegalArgumentException("sessionCode is required");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_SESSION_CODE);
         }
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
@@ -171,7 +173,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     private AiChatRoundDTO loadRound(String roundCode, String sessionCode, Long userId) {
         if (!StringUtils.hasText(roundCode)) {
-            throw new IllegalArgumentException("roundCode is required");
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ROUND_CODE);
         }
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setRoundCode(roundCode);
