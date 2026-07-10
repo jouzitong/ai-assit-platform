@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { useResponsiveOverlayTarget } from '../../../composables/useResponsiveViewport'
 
 defineOptions({
   inheritAttrs: false,
@@ -52,6 +53,7 @@ const normalizedLayout = computed(() => {
 })
 
 const shouldHidePagination = computed(() => props.hideOnSinglePage && props.total <= props.pageSize)
+const responsiveOverlayTarget = useResponsiveOverlayTarget()
 
 const handleCurrentPageChange = (value: number) => {
   emit('update:currentPage', value)
@@ -77,6 +79,7 @@ const handlePageSizeChange = (value: number) => {
         class="app-pagination__size-select"
         :model-value="props.pageSize"
         :disabled="props.disabled"
+        :append-to="responsiveOverlayTarget"
         popper-class="app-pagination__size-popper"
         @update:model-value="handlePageSizeChange"
       >
@@ -121,6 +124,20 @@ const handlePageSizeChange = (value: number) => {
   justify-content: space-between;
   gap: 16px;
   width: 100%;
+  min-width: 0;
+}
+
+@container application-list-layout (max-width: 560px) {
+  .app-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .app-pagination__controls {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-start;
+  }
 }
 
 .app-pagination__total {

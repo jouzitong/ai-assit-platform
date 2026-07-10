@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { AppCodeEditor } from '../../../components'
+import { AppJsonTree } from '../../../components/basic'
 import { findApplicationRenderer } from '../../../application/registry'
 import {
   buildDbQueryListRequest,
@@ -27,8 +29,10 @@ import type {
   RendererAction,
   RendererQueryState,
 } from '../../../application/renderers/list/types'
+import type { RuntimeRendererEvent } from '../../../application/runtime'
 
 const RENDER_META_CODE = 'default_config.meta.list.test'
+const DEVELOPER_MODE_STORAGE_KEY = 'ai-conversation-ui-developer-mode'
 
 const baseSchema: ListRendererSchema = {
   id: 'render-runtime-default-config-list',
@@ -248,6 +252,8 @@ const schemaState = ref<ListRendererSchema>(cloneSchema(baseSchema))
 const renderDocumentState = ref<Record<string, unknown> | null>(null)
 const metadataDialogVisible = ref(false)
 const metadataSaving = ref(false)
+const contextPanelVisible = ref(false)
+const developerModeEnabled = ref(false)
 const metadataDraft = ref(stringifySchema(schemaState.value))
 const normalizedSchema = computed(() => normalizeSchema(schemaState.value))
 const runtimeDocument = computed(() => ({
@@ -277,6 +283,7 @@ const rendererState = reactive<ApplicationRendererState>({
 const runtimeErrorMessage = ref('')
 const lastRuntimeQuery = ref<Partial<RendererQueryState>>(buildRuntimeQuery(queryState))
 const lastRequestBody = ref(buildDbQueryListRequest(normalizedSchema.value, lastRuntimeQuery.value))
+const lastLoadedRequestSignature = ref('')
 const runtimeScope = reactive(createRenderRuntimeScope({
   code: RENDER_META_CODE,
   document: runtimeDocument.value,
@@ -294,27 +301,36 @@ watch(
   { deep: true },
 )
 
-const summaryCards = computed(() => [
-  { key: 'total', label: '总记录', value: resolvedData.value.total || 0, accent: '#60a5fa' },
-  { key: 'page', label: '当前页', value: queryState.page, accent: '#34d399' },
-  { key: 'size', label: '分页大小', value: queryState.pageSize, accent: '#f59e0b' },
-  { key: 'rows', label: '当前行数', value: resolvedData.value.records?.length || 0, accent: '#a78bfa' },
-])
+const developerActions = computed<NonNullable<ListRendererSchema['actions']>>(() => {
+  if (!developerModeEnabled.value) {
+    return []
+  }
 
-const runtimeRendererSchema = computed<ListRendererSchema>(() => ({
-  ...normalizedSchema.value,
-  actions: [
-    ...(normalizedSchema.value.actions || []).filter((action) => action.action !== 'METADATA'),
+  return [
     {
       key: '__metadata__',
       name: '元数据配置',
       action: 'METADATA',
       type: 'info',
     },
+    {
+      key: '__runtime_context__',
+      name: '',
+      action: 'DEBUG_CONTEXT',
+      icon: 'operation',
+      type: 'info',
+    },
+  ]
+})
+
+const runtimeRendererSchema = computed<ListRendererSchema>(() => ({
+  ...normalizedSchema.value,
+  actions: [
+    ...(normalizedSchema.value.actions || []).filter((action) =>
+      action.action !== 'METADATA' && action.action !== 'DEBUG_CONTEXT',
+    ),
+    ...developerActions.value,
   ],
-  summary: {
-    cards: summaryCards.value,
-  },
 }))
 
 function buildRuntimeQuery(query: Partial<RendererQueryState>) {
@@ -381,14 +397,26 @@ async function loadRuntimeDocument() {
   })
 }
 
-async function loadRendererData(query: Partial<RendererQueryState>) {
+async function loadRendererData(
+  query: Partial<RendererQueryState>,
+  eventOrOptions?: RuntimeRendererEvent | { force?: boolean },
+) {
+  const runtimeQuery = buildRuntimeQuery(query)
+  const requestBody = buildDbQueryListRequest(normalizedSchema.value, runtimeQuery)
+  const requestSignature = JSON.stringify(requestBody)
+  const forceReload = isForceReload(eventOrOptions)
+
+  if (!forceReload && lastLoadedRequestSignature.value === requestSignature) {
+    lastRuntimeQuery.value = runtimeQuery
+    lastRequestBody.value = requestBody
+    return
+  }
+
   rendererState.loading = true
   rendererState.error = undefined
   runtimeErrorMessage.value = ''
-
-  const runtimeQuery = buildRuntimeQuery(query)
   lastRuntimeQuery.value = runtimeQuery
-  lastRequestBody.value = buildDbQueryListRequest(normalizedSchema.value, runtimeQuery)
+  lastRequestBody.value = requestBody
 
   try {
     const payload = await resolveRendererRuntimeData(normalizedSchema.value.component, {
@@ -407,6 +435,7 @@ async function loadRendererData(query: Partial<RendererQueryState>) {
       data: resolvedData.value,
       state: rendererState,
     })
+    lastLoadedRequestSignature.value = requestSignature
     rendererState.empty = (resolvedData.value.records?.length || 0) === 0
   } catch (error) {
     const message = error instanceof Error ? error.message : '列表数据加载失败'
@@ -419,7 +448,26 @@ async function loadRendererData(query: Partial<RendererQueryState>) {
   }
 }
 
+function isForceReload(eventOrOptions?: RuntimeRendererEvent | { force?: boolean }) {
+  if (!eventOrOptions) {
+    return false
+  }
+
+  if ('force' in eventOrOptions) {
+    return Boolean(eventOrOptions.force)
+  }
+
+  if (eventOrOptions.type === 'action') {
+    const payload = eventOrOptions.payload as { action?: RendererAction } | undefined
+    return payload?.action?.action === 'RELOAD'
+  }
+
+  return false
+}
+
 onMounted(async () => {
+  developerModeEnabled.value = readDeveloperModeEnabled()
+
   try {
     await loadRuntimeDocument()
   } catch (error) {
@@ -469,8 +517,19 @@ function handleReload(nextQuery: RendererQueryState) {
 function executeRuntimeAction(payload: { action: RendererAction; row?: Record<string, unknown> }) {
   const { action, row } = payload
   if (action.action === 'METADATA') {
+    if (!developerModeEnabled.value) {
+      return
+    }
     metadataDraft.value = stringifySchema(schemaState.value)
     metadataDialogVisible.value = true
+    return
+  }
+
+  if (action.action === 'DEBUG_CONTEXT') {
+    if (!developerModeEnabled.value) {
+      return
+    }
+    contextPanelVisible.value = true
     return
   }
 
@@ -491,6 +550,10 @@ function buildRuntimeEventSource(event: string) {
     componentId: normalizedSchema.value.id,
     event,
   }
+}
+
+function readDeveloperModeEnabled() {
+  return window.localStorage.getItem(DEVELOPER_MODE_STORAGE_KEY) === '1'
 }
 
 const runtimeEventDispatcher = createRuntimeEventDispatcher({
@@ -603,16 +666,27 @@ function stringifySchema(schema: ListRendererSchema) {
         @item-action="handleItemAction"
       />
 
-      <section class="test-render-runtime-view__runtime-context">
-        <div class="test-render-runtime-view__context-card">
-          <h2>Runtime Context</h2>
-          <pre>{{ JSON.stringify(runtimeContext, null, 2) }}</pre>
+      <teleport to="body">
+        <div
+          v-if="contextPanelVisible"
+          class="test-render-runtime-view__context-layer"
+          @click.self="contextPanelVisible = false"
+        >
+          <aside class="test-render-runtime-view__context-panel">
+            <header class="test-render-runtime-view__context-header">
+              <h2>Runtime Context</h2>
+              <el-button text @click="contextPanelVisible = false">关闭</el-button>
+            </header>
+            <div class="test-render-runtime-view__context-body">
+              <div class="test-render-runtime-view__context-meta">
+                <span class="test-render-runtime-view__context-meta-label">核心组件</span>
+                <span class="test-render-runtime-view__context-meta-value">{{ normalizedSchema.component }}</span>
+              </div>
+              <AppJsonTree :value="runtimeContext" label="SCOPE" />
+            </div>
+          </aside>
         </div>
-        <div class="test-render-runtime-view__context-card">
-          <h2>Resolved Records</h2>
-          <pre>{{ JSON.stringify(resolvedData.records?.slice(0, 3) || [], null, 2) }}</pre>
-        </div>
-      </section>
+      </teleport>
 
       <el-dialog
         v-model="metadataDialogVisible"
@@ -626,12 +700,14 @@ function stringifySchema(schema: ListRendererSchema) {
           <el-button @click="handleResetMetadata">恢复默认</el-button>
         </div>
 
-        <el-input
+        <AppCodeEditor
           v-model="metadataDraft"
-          type="textarea"
-          :rows="24"
+          format="json"
+          height="520px"
+          min-height="520px"
+          toolbar-label="JSON"
+          :show-format-switcher="false"
           class="test-render-runtime-view__metadata-input"
-          spellcheck="false"
         />
 
         <template #footer>
@@ -647,40 +723,8 @@ function stringifySchema(schema: ListRendererSchema) {
 
 <style scoped>
 .test-render-runtime-view {
+  height: 100%;
   min-width: 0;
-}
-
-.test-render-runtime-view__runtime-context {
-  display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
-  gap: 16px;
-  margin-top: 16px;
-}
-
-.test-render-runtime-view__context-card {
-  min-width: 0;
-  padding: 16px 18px;
-  border: 1px solid var(--el-border-color-light);
-  border-radius: 8px;
-  background: var(--el-bg-color);
-}
-
-.test-render-runtime-view__context-card h2 {
-  margin: 0 0 10px;
-  font-size: 14px;
-  color: var(--app-title);
-}
-
-.test-render-runtime-view__context-card pre {
-  max-height: 360px;
-  margin: 0;
-  overflow: auto;
-  white-space: pre-wrap;
-  word-break: break-word;
-  font-size: 12px;
-  line-height: 1.6;
-  color: var(--app-text-muted);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
 }
 
 .test-render-runtime-view__runtime-error {
@@ -704,19 +748,97 @@ function stringifySchema(schema: ListRendererSchema) {
   gap: 12px;
 }
 
-:deep(.test-render-runtime-view__metadata-input textarea) {
-  min-height: 520px;
+.test-render-runtime-view__metadata-input {
+  width: 100%;
+}
+
+.test-render-runtime-view__context-layer {
+  position: fixed;
+  inset: 0;
+  z-index: 2100;
+  pointer-events: auto;
+}
+
+.test-render-runtime-view__context-panel {
+  position: fixed;
+  top: 88px;
+  right: 28px;
+  width: min(372px, calc(100vw - 56px));
+  max-height: calc(100vh - 116px);
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  border: 1px solid var(--el-border-color-light);
+  border-radius: 8px;
+  background: var(--el-bg-color);
+  box-shadow: var(--el-box-shadow-dark);
+}
+
+.test-render-runtime-view__context-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.test-render-runtime-view__context-header h2 {
+  margin: 0;
+  font-size: 15px;
+  color: var(--app-title);
+}
+
+.test-render-runtime-view__context-body {
+  min-height: 0;
+  overflow: auto;
+  max-height: calc(100vh - 172px);
+  padding: 12px 16px 16px;
+}
+
+.test-render-runtime-view__context-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+  padding: 8px 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 6px;
+  background: var(--el-fill-color-extra-light);
+}
+
+.test-render-runtime-view__context-meta-label {
+  flex: 0 0 auto;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
+}
+
+.test-render-runtime-view__context-meta-value {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  color: var(--el-text-color-primary);
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  line-height: 1.55;
 }
 
 @media (max-width: 960px) {
-  .test-render-runtime-view__runtime-context {
-    grid-template-columns: 1fr;
-  }
-
   .test-render-runtime-view__metadata-toolbar {
     flex-direction: column;
+  }
+
+  .test-render-runtime-view__context-panel {
+    top: 64px;
+    right: 12px;
+    max-height: calc(100vh - 76px);
+    width: calc(100vw - 24px);
+  }
+
+  .test-render-runtime-view__context-body {
+    max-height: calc(100vh - 132px);
   }
 }
 </style>

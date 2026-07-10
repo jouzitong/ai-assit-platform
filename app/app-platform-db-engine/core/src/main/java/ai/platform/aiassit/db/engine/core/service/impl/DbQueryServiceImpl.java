@@ -45,6 +45,7 @@ import java.util.stream.Collectors;
 public class DbQueryServiceImpl implements DbQueryService {
 
     private static final int DEFAULT_MAX_ROWS = 1000;
+    private static final String MAIN_TABLE_ALIAS = "main";
     private static final String RELATION_FIELD_ALIAS_PREFIX = "__rel__";
     private static final String RELATION_FIELD_ALIAS_DELIMITER = "__";
     private static final String RELATION_FIELD_PATH_DOT_TOKEN = "__dot__";
@@ -72,13 +73,13 @@ public class DbQueryServiceImpl implements DbQueryService {
                 .append(buildFromClause(table, relations));
         List<String> conditions = new ArrayList<>();
         if (request != null && request.getId() != null) {
-            conditions.add(wrapIdentifier("id") + " = " + toSqlLiteral(request.getId()));
+            conditions.add(buildMainFieldSql("id") + " = " + toSqlLiteral(request.getId()));
         }
         if (request != null) {
-            conditions.addAll(buildFilterConditions(request.getFilterDict(), request.getFilterExpr()));
+            conditions.addAll(buildFilterConditions(request.getFilterDict(), request.getFilterExpr(), relations));
         }
         appendWhere(sql, conditions);
-        appendOrderBy(sql, sorts);
+        appendOrderBy(sql, sorts, relations);
         sql.append(" LIMIT 1");
         QueryResult result = runQuery(sql.toString(), 1);
         DbQueryGetResponse response = new DbQueryGetResponse();
@@ -97,7 +98,8 @@ public class DbQueryServiceImpl implements DbQueryService {
         int pageSize = normalizePageSize(request == null ? null : request.getPageSize());
         List<String> conditions = buildFilterConditions(
                 request == null ? null : request.getFilterDict(),
-                request == null ? null : request.getFilterExpr()
+                request == null ? null : request.getFilterExpr(),
+                relations
         );
 
         StringBuilder sql = new StringBuilder("SELECT ")
@@ -105,7 +107,7 @@ public class DbQueryServiceImpl implements DbQueryService {
                 .append(" FROM ")
                 .append(buildFromClause(table, relations));
         appendWhere(sql, conditions);
-        appendOrderBy(sql, request == null || request.getExt() == null ? List.of() : request.getExt().getSorts());
+        appendOrderBy(sql, request == null || request.getExt() == null ? List.of() : request.getExt().getSorts(), relations);
         sql.append(" LIMIT ").append((page - 1) * pageSize).append(", ").append(pageSize);
 
         QueryResult result = runQuery(sql.toString(), pageSize);
@@ -191,9 +193,10 @@ public class DbQueryServiceImpl implements DbQueryService {
                 .append(buildFromClause(table, relations));
         appendWhere(sql, buildFilterConditions(
                 request == null ? null : request.getFilterDict(),
-                request == null ? null : request.getFilterExpr()
+                request == null ? null : request.getFilterExpr(),
+                relations
         ));
-        appendOrderBy(sql, request == null ? null : request.getSorts());
+        appendOrderBy(sql, request == null ? null : request.getSorts(), relations);
 
         QueryResult result = runQuery(sql.toString(), DEFAULT_MAX_ROWS);
         List<Map<String, Object>> rows = result.getRows();
@@ -302,25 +305,27 @@ public class DbQueryServiceImpl implements DbQueryService {
     ) {
         List<String> selectItems = new ArrayList<>();
         List<String> groupByItems = new ArrayList<>();
+        Set<String> relationKeys = resolveRelationKeys(relations);
         if (!CollectionUtils.isEmpty(dimensions)) {
             for (DbQueryCountDimension dimension : dimensions) {
                 String field = requireIdentifier(dimension.getField(), "dimension field");
+                String fieldSql = buildFieldSql(field, relationKeys);
                 String alias = resolveDimensionAlias(dimension);
-                selectItems.add(wrapIdentifier(field) + " AS " + wrapIdentifier(alias));
-                groupByItems.add(wrapIdentifier(field));
+                selectItems.add(fieldSql + " AS " + wrapIdentifier(alias));
+                groupByItems.add(fieldSql);
             }
         }
         if (CollectionUtils.isEmpty(metrics)) {
             selectItems.add("COUNT(1) AS " + wrapIdentifier("count"));
         } else {
             for (DbQueryCountMetric metric : metrics) {
-                selectItems.add(buildMetricSql(metric));
+                selectItems.add(buildMetricSql(metric, relationKeys));
             }
         }
 
         int safePage = normalizePage(page);
         int safePageSize = normalizePageSize(pageSize);
-        List<String> whereConditions = buildFilterConditions(filterDict, filterExpr);
+        List<String> whereConditions = buildFilterConditions(filterDict, filterExpr, relations);
         StringBuilder sql = new StringBuilder("SELECT ")
                 .append(String.join(", ", selectItems))
                 .append(" FROM ")
@@ -329,17 +334,17 @@ public class DbQueryServiceImpl implements DbQueryService {
         if (!groupByItems.isEmpty()) {
             sql.append(" GROUP BY ").append(String.join(", ", groupByItems));
         }
-        appendHaving(sql, buildWhereConditions(having));
-        appendOrderBy(sql, sorts);
+        appendHaving(sql, buildAliasConditions(having));
+        appendOrderByAliases(sql, sorts);
         sql.append(" LIMIT ").append((safePage - 1) * safePageSize).append(", ").append(safePageSize);
         return new QueryBundle(sql.toString(), safePageSize, safePage, safePageSize, !groupByItems.isEmpty());
     }
 
-    private String buildMetricSql(DbQueryCountMetric metric) {
+    private String buildMetricSql(DbQueryCountMetric metric, Set<String> relationKeys) {
         String func = valueOrDefault(metric == null ? null : metric.getFunc(), "count").toUpperCase(Locale.ROOT);
         String alias = resolveMetricAlias(metric);
         String field = metric == null ? null : metric.getField();
-        String target = "COUNT".equals(func) && !StringUtils.hasText(field) ? "1" : wrapIdentifier(requireIdentifier(field, "metric field"));
+        String target = "COUNT".equals(func) && !StringUtils.hasText(field) ? "1" : buildFieldSql(requireIdentifier(field, "metric field"), relationKeys);
         return func + "(" + target + ") AS " + wrapIdentifier(alias);
     }
 
@@ -354,7 +359,9 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private String buildFromClause(String table, List<DbQueryRelation> relations) {
-        StringBuilder fromClause = new StringBuilder(wrapIdentifier(table));
+        StringBuilder fromClause = new StringBuilder(wrapIdentifier(table))
+                .append(" ")
+                .append(MAIN_TABLE_ALIAS);
         if (CollectionUtils.isEmpty(relations)) {
             return fromClause.toString();
         }
@@ -364,7 +371,7 @@ public class DbQueryServiceImpl implements DbQueryService {
                     .append(" ")
                     .append(wrapIdentifier(requireModel(relation == null ? null : relation.getModel())))
                     .append(" ")
-                    .append(wrapIdentifier(requireRelationKey(relation)))
+                    .append(requireRelationKey(relation))
                     .append(" ON ")
                     .append(buildJoinConditionSql(relation));
         }
@@ -379,8 +386,8 @@ public class DbQueryServiceImpl implements DbQueryService {
         }
         List<String> conditions = new ArrayList<>();
         for (Map.Entry<String, String> entry : on.entrySet()) {
-            String leftField = wrapIdentifier(requireIdentifier(entry.getKey(), "relation on left field"));
-            String rightField = wrapIdentifier(qualifyRelationField(relationKey, entry.getValue(), "relation on right field"));
+            String leftField = buildMainFieldSql(requireIdentifier(entry.getKey(), "relation on left field"));
+            String rightField = buildRelationFieldSql(relationKey, entry.getValue(), "relation on right field");
             conditions.add(leftField + " = " + rightField);
         }
         Map<String, Object> filter = relation == null ? null : relation.getFilter();
@@ -393,7 +400,7 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private String buildRelationFilterCondition(String relationKey, String field, Object value) {
-        String qualifiedField = wrapIdentifier(qualifyRelationField(relationKey, field, "relation filter field"));
+        String qualifiedField = buildRelationFieldSql(relationKey, field, "relation filter field");
         if (value == null) {
             return qualifiedField + " IS NULL";
         }
@@ -416,7 +423,7 @@ public class DbQueryServiceImpl implements DbQueryService {
 
     private String buildSelectClause(List<String> fields, List<DbQueryRelation> relations) {
         if (CollectionUtils.isEmpty(fields)) {
-            return "*";
+            return MAIN_TABLE_ALIAS + ".*";
         }
         Set<String> relationKeys = resolveRelationKeys(relations);
         return fields.stream()
@@ -426,21 +433,25 @@ public class DbQueryServiceImpl implements DbQueryService {
 
     private String buildSelectItem(String field, Set<String> relationKeys) {
         String identifier = requireIdentifier(field, "field");
-        String wrapped = wrapIdentifier(identifier);
         String relationKey = extractRelationKey(identifier, relationKeys);
         if (relationKey == null) {
-            return wrapped;
+            return buildMainFieldSql(identifier);
         }
+        String wrapped = buildRelationFieldSql(relationKey, relationFieldPath(identifier), "relation field");
         return wrapped + " AS " + wrapIdentifier(encodeRelationFieldAlias(relationKey, relationFieldPath(identifier)));
     }
 
     private List<String> buildWhereConditions(Map<String, ?> filters) {
+        return buildAliasConditions(filters);
+    }
+
+    private List<String> buildWhereConditions(Map<String, ?> filters, Set<String> relationKeys) {
         List<String> conditions = new ArrayList<>();
         if (filters == null || filters.isEmpty()) {
             return conditions;
         }
         for (Map.Entry<String, ?> entry : filters.entrySet()) {
-            String field = wrapIdentifier(requireIdentifier(entry.getKey(), "filter field"));
+            String field = buildFieldSql(requireIdentifier(entry.getKey(), "filter field"), relationKeys);
             DbQueryFilterCondition condition = normalizeFilterCondition(entry.getValue());
             String op = condition == null || !StringUtils.hasText(condition.getOp()) ? "eq" : condition.getOp().trim().toLowerCase(Locale.ROOT);
             Object value = condition == null ? null : condition.getValue();
@@ -450,16 +461,21 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private List<String> buildFilterConditions(Map<String, ?> filterDict, String filterExpr) {
+        return buildFilterConditions(filterDict, filterExpr, List.of());
+    }
+
+    private List<String> buildFilterConditions(Map<String, ?> filterDict, String filterExpr, List<DbQueryRelation> relations) {
         if (filterDict == null || filterDict.isEmpty()) {
             if (StringUtils.hasText(filterExpr)) {
                 throw BizException.of();
             }
             return List.of();
         }
+        Set<String> relationKeys = resolveRelationKeys(relations);
         if (!StringUtils.hasText(filterExpr)) {
-            return buildWhereConditions(filterDict);
+            return buildWhereConditions(filterDict, relationKeys);
         }
-        Map<String, String> conditionSqlMap = buildConditionSqlMap(filterDict);
+        Map<String, String> conditionSqlMap = buildConditionSqlMap(filterDict, relationKeys);
         FilterExprParser parser = new FilterExprParser(filterExpr, conditionSqlMap);
         String combinedCondition = parser.parse();
         if (!conditionSqlMap.keySet().equals(parser.getReferencedIdentifiers())) {
@@ -469,13 +485,17 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private Map<String, String> buildConditionSqlMap(Map<String, ?> filterDict) {
+        return buildConditionSqlMap(filterDict, Set.of());
+    }
+
+    private Map<String, String> buildConditionSqlMap(Map<String, ?> filterDict, Set<String> relationKeys) {
         Map<String, String> conditionSqlMap = new LinkedHashMap<>();
         for (Map.Entry<String, ?> entry : filterDict.entrySet()) {
             String key = requireIdentifier(entry.getKey(), "filter key");
             DbQueryFilterCondition condition = normalizeFilterCondition(entry.getValue());
             String op = condition == null || !StringUtils.hasText(condition.getOp()) ? "eq" : condition.getOp().trim().toLowerCase(Locale.ROOT);
             Object value = condition == null ? null : condition.getValue();
-            conditionSqlMap.put(key, buildAtomicCondition(wrapIdentifier(key), op, value));
+            conditionSqlMap.put(key, buildAtomicCondition(buildFieldSql(key, relationKeys), op, value));
         }
         return conditionSqlMap;
     }
@@ -552,6 +572,31 @@ public class DbQueryServiceImpl implements DbQueryService {
     }
 
     private void appendOrderBy(StringBuilder sql, List<DbQuerySort> sorts) {
+        appendOrderByAliases(sql, sorts);
+    }
+
+    private void appendOrderBy(StringBuilder sql, List<DbQuerySort> sorts, List<DbQueryRelation> relations) {
+        appendOrderBy(sql, sorts, resolveRelationKeys(relations));
+    }
+
+    private void appendOrderBy(StringBuilder sql, List<DbQuerySort> sorts, Set<String> relationKeys) {
+        if (CollectionUtils.isEmpty(sorts)) {
+            return;
+        }
+        List<String> items = new ArrayList<>();
+        for (DbQuerySort sort : sorts) {
+            if (sort == null || !StringUtils.hasText(sort.getField())) {
+                continue;
+            }
+            String direction = "DESC".equalsIgnoreCase(sort.getOrder()) ? "DESC" : "ASC";
+            items.add(buildFieldSql(requireIdentifier(sort.getField(), "sort field"), relationKeys) + " " + direction);
+        }
+        if (!items.isEmpty()) {
+            sql.append(" ORDER BY ").append(String.join(", ", items));
+        }
+    }
+
+    private void appendOrderByAliases(StringBuilder sql, List<DbQuerySort> sorts) {
         if (CollectionUtils.isEmpty(sorts)) {
             return;
         }
@@ -566,6 +611,40 @@ public class DbQueryServiceImpl implements DbQueryService {
         if (!items.isEmpty()) {
             sql.append(" ORDER BY ").append(String.join(", ", items));
         }
+    }
+
+    private List<String> buildAliasConditions(Map<String, ?> filters) {
+        List<String> conditions = new ArrayList<>();
+        if (filters == null || filters.isEmpty()) {
+            return conditions;
+        }
+        for (Map.Entry<String, ?> entry : filters.entrySet()) {
+            String field = wrapIdentifier(requireIdentifier(entry.getKey(), "filter field"));
+            DbQueryFilterCondition condition = normalizeFilterCondition(entry.getValue());
+            String op = condition == null || !StringUtils.hasText(condition.getOp()) ? "eq" : condition.getOp().trim().toLowerCase(Locale.ROOT);
+            Object value = condition == null ? null : condition.getValue();
+            conditions.add(buildAtomicCondition(field, op, value));
+        }
+        return conditions;
+    }
+
+    private String buildFieldSql(String identifier, Set<String> relationKeys) {
+        String relationKey = extractRelationKey(identifier, relationKeys);
+        if (relationKey == null) {
+            return buildMainFieldSql(identifier);
+        }
+        return buildRelationFieldSql(relationKey, relationFieldPath(identifier), "relation field");
+    }
+
+    private String buildMainFieldSql(String field) {
+        String safeField = requireIdentifier(field, "main table field");
+        return safeField.contains(".") ? safeField : MAIN_TABLE_ALIAS + "." + safeField;
+    }
+
+    private String buildRelationFieldSql(String relationKey, String field, String label) {
+        String safeRelationKey = requireIdentifier(relationKey, "relation key");
+        String safeField = requireIdentifier(field, label);
+        return safeField.contains(".") ? safeField : safeRelationKey + "." + safeField;
     }
 
     private String requireModel(String model) {
@@ -744,11 +823,6 @@ public class DbQueryServiceImpl implements DbQueryService {
             return null;
         }
         return new DecodedRelationField(relationKey, fieldPath);
-    }
-
-    private String qualifyRelationField(String relationKey, String field, String label) {
-        String identifier = requireIdentifier(field, label);
-        return identifier.contains(".") ? identifier : relationKey + "." + identifier;
     }
 
     private String resolveJoinType(String joinType) {

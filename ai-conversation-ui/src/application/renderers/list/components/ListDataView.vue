@@ -89,7 +89,11 @@ const getRowKey = (row: Record<string, unknown>, index: number) =>
 
 <style scoped>
 .list-data-view {
+  display: flex;
+  flex: 1;
+  width: 100%;
   min-width: 0;
+  min-height: 0;
 }
 
 .list-data-view__cards {
@@ -134,7 +138,17 @@ const getRowKey = (row: Record<string, unknown>, index: number) =>
 }
 
 .list-data-view__table {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   border-radius: 24px;
   overflow: hidden;
+}
+
+@container application-list-layout (max-width: 560px) {
+  .list-data-view__cards {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 </style>

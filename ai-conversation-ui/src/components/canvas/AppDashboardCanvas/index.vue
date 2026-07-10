@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref } from 'vue'
+import { useResponsiveInteractionScale } from '../../../composables/useResponsiveViewport'
 import type { DashboardCanvasItem } from './types'
 
 type CanvasInteraction = {
@@ -10,6 +11,7 @@ type CanvasInteraction = {
   origin: DashboardCanvasItem
   columnWidth: number
   rowStep: number
+  viewportScale: number
 }
 
 const props = withDefaults(defineProps<{
@@ -33,6 +35,7 @@ const props = withDefaults(defineProps<{
 const layout = defineModel<DashboardCanvasItem[]>('layout', { default: () => [] })
 const canvasRef = ref<HTMLElement | null>(null)
 const activeInteraction = ref<CanvasInteraction | null>(null)
+const responsiveInteractionScale = useResponsiveInteractionScale()
 
 const canvasStyle = computed(() => {
   const rowCount = Math.max(
@@ -58,11 +61,11 @@ const patchItem = (id: string, patch: Partial<DashboardCanvasItem>) => {
   layout.value = layout.value.map((item) => item.id === id ? { ...item, ...patch } : item)
 }
 
-const resolveColumnWidth = () => {
+const resolveColumnWidth = (viewportScale: number) => {
   if (!canvasRef.value) {
     return 1
   }
-  const canvasWidth = canvasRef.value.getBoundingClientRect().width
+  const canvasWidth = canvasRef.value.getBoundingClientRect().width / viewportScale
   return (canvasWidth - (props.columns - 1) * props.gap) / props.columns
 }
 
@@ -72,14 +75,16 @@ const startInteraction = (item: DashboardCanvasItem, type: CanvasInteraction['ty
   }
   event.preventDefault()
   event.stopPropagation()
+  const viewportScale = responsiveInteractionScale.value
   activeInteraction.value = {
     id: item.id,
     type,
     startClientX: event.clientX,
     startClientY: event.clientY,
     origin: { ...item },
-    columnWidth: resolveColumnWidth(),
+    columnWidth: resolveColumnWidth(viewportScale),
     rowStep: props.rowHeight + props.gap,
+    viewportScale,
   }
   window.addEventListener('pointermove', handlePointerMove)
   window.addEventListener('pointerup', stopInteraction)
@@ -91,8 +96,10 @@ const handlePointerMove = (event: PointerEvent) => {
     return
   }
 
-  const deltaColumns = Math.round((event.clientX - interaction.startClientX) / (interaction.columnWidth + props.gap))
-  const deltaRows = Math.round((event.clientY - interaction.startClientY) / interaction.rowStep)
+  const deltaX = (event.clientX - interaction.startClientX) / interaction.viewportScale
+  const deltaY = (event.clientY - interaction.startClientY) / interaction.viewportScale
+  const deltaColumns = Math.round(deltaX / (interaction.columnWidth + props.gap))
+  const deltaRows = Math.round(deltaY / interaction.rowStep)
   const { origin } = interaction
 
   if (interaction.type === 'drag') {
@@ -161,6 +168,7 @@ onBeforeUnmount(stopInteraction)
   grid-auto-rows: var(--dashboard-canvas-row-height);
   gap: var(--dashboard-canvas-gap);
   width: 100%;
+  min-width: 0;
   min-height: 100%;
   padding: var(--dashboard-canvas-gap);
   overflow: auto;

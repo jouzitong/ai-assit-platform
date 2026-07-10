@@ -16,11 +16,13 @@ const isFullscreen = computed(() => route.meta.fullscreen === true)
 
 <style scoped>
 .default-layout {
+  height: 100%;
   min-height: 100vh;
 }
 
 .default-layout__content {
-  padding: 32px;
+  height: 100%;
+  padding: 10px;
 }
 
 .default-layout--fullscreen .default-layout__content {

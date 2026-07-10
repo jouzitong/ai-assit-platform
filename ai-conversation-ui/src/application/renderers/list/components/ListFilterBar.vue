@@ -261,6 +261,7 @@ const handleReset = () => {
           class="list-filter-bar__component"
           @update:model-value="updateFilter(filter.key, $event)"
           @change="handleFilterChange(filter, $event)"
+          @confirm="handleFilterEnter(filter)"
           @keyup.enter="handleFilterEnter(filter)"
         />
       </el-form-item>
@@ -282,10 +283,10 @@ const handleReset = () => {
 }
 
 .list-filter-bar__component {
-  min-width: 180px;
+  min-width: min(180px, 100%);
 }
 
-@media (max-width: 768px) {
+@container application-list-layout (max-width: 768px) {
   :deep(.el-form) {
     display: flex;
     flex-direction: column;

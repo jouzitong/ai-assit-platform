@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useResponsiveOverlayTarget } from '../../../composables/useResponsiveViewport'
 import AppFieldShell from '../shared/AppFieldShell.vue'
 
 type TreeOption = {
@@ -14,7 +16,7 @@ defineOptions({
   inheritAttrs: false,
 })
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue?: string | number | Array<string | number> | null
     data?: TreeOption[]
@@ -30,6 +32,8 @@ withDefaults(
     block?: boolean
     required?: boolean
     labelPosition?: 'left' | 'inner'
+    teleported?: boolean
+    appendTo?: string | HTMLElement
   }>(),
   {
     modelValue: null,
@@ -45,6 +49,10 @@ withDefaults(
     labelPosition: 'inner',
   },
 )
+
+const responsiveOverlayTarget = useResponsiveOverlayTarget()
+const resolvedTeleported = computed(() => props.teleported ?? true)
+const resolvedAppendTo = computed(() => props.appendTo ?? responsiveOverlayTarget.value)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | number | Array<string | number> | null]
@@ -72,6 +80,8 @@ const emit = defineEmits<{
       :multiple="multiple"
       :check-strictly="checkStrictly"
       :render-after-expand="renderAfterExpand"
+      :teleported="resolvedTeleported"
+      :append-to="resolvedAppendTo"
       style="width: 100%"
       v-bind="$attrs"
       @update:model-value="emit('update:modelValue', $event)"

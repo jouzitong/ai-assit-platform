@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed } from 'vue'
+import { useResponsiveOverlayTarget } from '../../../composables/useResponsiveViewport'
 import AppFieldShell from '../shared/AppFieldShell.vue'
 
 type SelectOption = {
@@ -11,7 +13,7 @@ defineOptions({
   inheritAttrs: false,
 })
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue?: string | number | boolean | Array<string | number | boolean> | null
     options?: SelectOption[]
@@ -26,6 +28,8 @@ withDefaults(
     block?: boolean
     required?: boolean
     labelPosition?: 'left' | 'inner'
+    teleported?: boolean
+    appendTo?: string | HTMLElement
   }>(),
   {
     modelValue: null,
@@ -40,6 +44,10 @@ withDefaults(
     labelPosition: 'inner',
   },
 )
+
+const responsiveOverlayTarget = useResponsiveOverlayTarget()
+const resolvedTeleported = computed(() => props.teleported ?? true)
+const resolvedAppendTo = computed(() => props.appendTo ?? responsiveOverlayTarget.value)
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | number | boolean | Array<string | number | boolean> | null]
@@ -65,6 +73,8 @@ const emit = defineEmits<{
       :disabled="disabled"
       :filterable="filterable"
       :multiple="multiple"
+      :teleported="resolvedTeleported"
+      :append-to="resolvedAppendTo"
       v-bind="$attrs"
       @update:model-value="emit('update:modelValue', $event)"
       @change="emit('change', $event)"

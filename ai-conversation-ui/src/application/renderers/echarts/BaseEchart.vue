@@ -97,6 +97,8 @@ defineExpose({
 <style scoped>
 .base-echart {
   position: relative;
+  max-width: 100%;
+  min-width: 0;
   min-height: 220px;
   border-radius: 24px;
   overflow: hidden;

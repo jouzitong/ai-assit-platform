@@ -57,7 +57,12 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
 
 <style scoped>
 .render-json-runtime-host {
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
+  container: render-json-runtime / inline-size;
 }
 
 .render-json-runtime-host__state {

@@ -10,6 +10,7 @@ import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/vi
 import { lintGutter, linter, type Diagnostic } from '@codemirror/lint'
 import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { useResponsiveOverlayTarget } from '../../../composables/useResponsiveViewport'
 import AppFieldShell from '../shared/AppFieldShell.vue'
 
 defineOptions({
@@ -81,6 +82,7 @@ const editorRef = ref<HTMLElement | null>(null)
 const editorView = ref<EditorView | null>(null)
 const diagnostics = ref<Diagnostic[]>([])
 const checking = ref(true)
+const responsiveOverlayTarget = useResponsiveOverlayTarget()
 let diagnosticsTimer: number | null = null
 
 const editableCompartment = new Compartment()
@@ -365,6 +367,7 @@ watch(
             size="small"
             class="app-code-editor__format"
             :disabled="disabled || readonly"
+            :append-to="responsiveOverlayTarget"
           >
             <el-option
               v-for="item in toolbarFormats"
@@ -406,6 +409,9 @@ watch(
   --app-code-editor-placeholder: var(--app-editor-placeholder);
   --app-code-editor-label: var(--app-editor-label);
   --app-code-editor-focus: var(--app-editor-focus);
+  min-width: 0;
+  max-width: 100%;
+  container: app-code-editor / inline-size;
 }
 
 .app-code-editor {
@@ -415,6 +421,8 @@ watch(
   border-radius: 14px;
   background: linear-gradient(180deg, var(--app-code-editor-surface-strong) 0%, var(--app-code-editor-surface) 100%);
   overflow: hidden;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .app-code-editor--disabled {
@@ -437,6 +445,7 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+  min-width: 0;
 }
 
 .app-code-editor__format {
@@ -480,5 +489,19 @@ watch(
 
 .app-code-editor__surface :deep(.cm-scroller) {
   overflow: auto;
+}
+
+@container app-code-editor (max-width: 420px) {
+  .app-code-editor__toolbar {
+    align-items: stretch;
+    flex-direction: column;
+    padding: 8px 12px;
+  }
+
+  .app-code-editor__format,
+  .app-code-editor__format :deep(.el-select__wrapper) {
+    width: 100%;
+    min-width: 0;
+  }
 }
 </style>

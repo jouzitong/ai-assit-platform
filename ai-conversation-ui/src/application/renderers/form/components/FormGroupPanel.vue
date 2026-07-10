@@ -87,7 +87,7 @@ const gridStyle = computed(() => ({
   gap: 16px;
 }
 
-@media (max-width: 960px) {
+@container application-form-layout (max-width: 960px) {
   .form-group-panel__grid {
     grid-template-columns: 1fr !important;
   }

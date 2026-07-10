@@ -88,7 +88,7 @@ const toButtonType = (type?: FormRendererAction['type']) => type || 'default'
   justify-content: flex-end;
 }
 
-@media (max-width: 768px) {
+@container application-form-layout (max-width: 768px) {
   .form-header-bar__main {
     flex-direction: column;
   }

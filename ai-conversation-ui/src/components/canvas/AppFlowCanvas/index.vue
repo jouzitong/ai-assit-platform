@@ -111,7 +111,9 @@ watch(
 <style scoped>
 .app-flow-canvas {
   width: 100%;
+  max-width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
   background: var(--chat-main-bg);

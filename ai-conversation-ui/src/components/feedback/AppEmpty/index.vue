@@ -15,6 +15,9 @@ defineProps<{
   display: flex;
   align-items: center;
   justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   min-height: 160px;
   border: 1px dashed var(--app-border);
   border-radius: 16px;

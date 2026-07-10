@@ -15,6 +15,9 @@ defineProps<{
 
 <style scoped>
 .app-dialog {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 16px;
   background: var(--app-surface-solid);

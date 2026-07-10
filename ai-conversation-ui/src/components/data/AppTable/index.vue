@@ -17,6 +17,9 @@ defineProps<{
 
 <style scoped>
 .app-table {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   border: 1px solid var(--color-border);
   border-radius: 16px;
   overflow: hidden;

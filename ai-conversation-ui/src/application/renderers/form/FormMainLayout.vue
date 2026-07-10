@@ -80,7 +80,10 @@ function handleFieldChange(payload: { key: string; value: unknown }) {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  width: 100%;
+  min-width: 0;
   min-height: 100%;
+  container: application-form-layout / inline-size;
 }
 
 .form-main-layout--workbench {

@@ -24,6 +24,7 @@ import ai.platform.aiassit.db.engine.executor.spi.result.QueryResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.SaveTableColumnsResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.SaveTableResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.TestConnectionResult;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -43,6 +44,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+@Slf4j
 public class MysqlDbAccessExecutor implements DbAccessExecutor {
 
     private static final String LIST_TABLES_SQL = """
@@ -180,6 +182,7 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
             throw new DbAccessException("查询请求不能为空");
         }
         String sql = MysqlSqlGuard.validateQuery(request.getSql());
+        log.debug("查询 SQL: {}", sql);
         Instant start = Instant.now();
         try (Connection connection = connectionSupport.openConnection(context);
              Statement statement = connection.createStatement()) {

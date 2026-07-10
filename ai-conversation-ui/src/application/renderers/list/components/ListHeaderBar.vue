@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { Operation } from '@element-plus/icons-vue'
 import type { ListRendererSchema, RendererAction } from '../types'
 
 defineProps<{
@@ -10,6 +11,12 @@ const emit = defineEmits<{
 }>()
 
 const toButtonType = (type?: RendererAction['type']) => type || 'default'
+const resolveActionIcon = (action: RendererAction) => {
+  if (action.icon === 'operation') {
+    return Operation
+  }
+  return undefined
+}
 </script>
 
 <template>
@@ -17,12 +24,6 @@ const toButtonType = (type?: RendererAction['type']) => type || 'default'
     <div class="list-header-bar__main">
       <div>
         <h2 class="list-header-bar__title">{{ schema.title }}</h2>
-        <div class="list-header-bar__meta">
-          <el-tag size="small" effect="plain">{{ schema.component }}</el-tag>
-          <el-tag v-if="schema.datasource?.model" size="small" type="info" effect="plain">
-            {{ schema.datasource.model }}
-          </el-tag>
-        </div>
       </div>
       <div v-if="schema.actions?.length" class="list-header-bar__actions">
         <el-button
@@ -30,9 +31,14 @@ const toButtonType = (type?: RendererAction['type']) => type || 'default'
           :key="action.key"
           :type="toButtonType(action.type)"
           :disabled="action.disabled"
+          :circle="Boolean(resolveActionIcon(action) && !action.name)"
+          :title="action.name"
           @click="emit('action', action)"
         >
-          {{ action.name }}
+          <el-icon v-if="resolveActionIcon(action)">
+            <component :is="resolveActionIcon(action)" />
+          </el-icon>
+          <span v-if="action.name">{{ action.name }}</span>
         </el-button>
       </div>
     </div>
@@ -60,13 +66,6 @@ const toButtonType = (type?: RendererAction['type']) => type || 'default'
   color: var(--app-title);
 }
 
-.list-header-bar__meta {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-top: 10px;
-}
-
 .list-header-bar__actions {
   display: flex;
   flex-wrap: wrap;
@@ -74,7 +73,7 @@ const toButtonType = (type?: RendererAction['type']) => type || 'default'
   gap: 12px;
 }
 
-@media (max-width: 768px) {
+@container application-list-layout (max-width: 768px) {
   .list-header-bar__main {
     flex-direction: column;
   }

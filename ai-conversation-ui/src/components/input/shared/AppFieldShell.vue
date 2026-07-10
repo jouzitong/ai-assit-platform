@@ -69,9 +69,8 @@ const props = defineProps<{
   display: inline-flex;
   flex-direction: column;
   gap: 8px;
-  min-width: 0;
   width: 100%;
-  min-width: var(--app-field-min-width);
+  min-width: min(var(--app-field-min-width), 100%);
   max-width: var(--app-field-max-width);
 }
 

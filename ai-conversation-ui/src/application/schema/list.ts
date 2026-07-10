@@ -5,6 +5,7 @@ export interface RendererAction {
   name: string
   action: string
   type?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | ''
+  icon?: 'operation' | string
   disabled?: boolean
 }
 

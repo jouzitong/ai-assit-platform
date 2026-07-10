@@ -46,18 +46,25 @@ withDefaults(
   display: flex;
   flex-direction: column;
   gap: 20px;
-  padding: 24px;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  padding: 10px;
   background: var(--workbench-shell-bg);
   border-radius: 28px;
+  container: application-list-layout / inline-size;
 }
 
 .single-list-layout--workbench {
-  min-height: calc(100vh - 64px);
+  min-height: 100%;
   background: var(--workbench-shell-bg);
 }
 
 .single-list-layout__body {
+  display: flex;
+  flex: 1;
   min-width: 0;
+  min-height: 0;
 }
 
 .single-list-layout__body--tree {
@@ -68,10 +75,14 @@ withDefaults(
 
 .single-list-layout__tree,
 .single-list-layout__content {
+  flex: 1;
   min-width: 0;
+  min-height: 0;
 }
 
 .single-list-layout__content-card {
+  width: 100%;
+  height: 100%;
   border-radius: 28px;
   display: flex;
   flex-direction: column;
@@ -80,7 +91,7 @@ withDefaults(
 
 .single-list-layout--workbench .single-list-layout__content-card {
   border: 1px solid var(--workbench-panel-border);
-  background: var(--workbench-panel-bg);
+  background: var(--workbench-shell-bg);
   box-shadow: var(--workbench-panel-shadow);
 }
 
@@ -114,10 +125,13 @@ withDefaults(
   --el-text-color-regular: var(--workbench-pagination-text);
 }
 
-.single-list-layout--workbench :deep(.el-card__body) {
+.single-list-layout :deep(.el-card__body) {
   display: flex;
+  flex: 1;
   flex-direction: column;
   gap: 20px;
+  min-height: 0;
+  padding: 10px;
 }
 
 .single-list-layout__pagination {
@@ -126,11 +140,7 @@ withDefaults(
   margin-top: 20px;
 }
 
-@media (max-width: 960px) {
-  .single-list-layout {
-    padding: 16px;
-  }
-
+@container application-list-layout (max-width: 960px) {
   .single-list-layout__body--tree {
     grid-template-columns: 1fr;
   }

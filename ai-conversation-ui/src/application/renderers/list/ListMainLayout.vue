@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
+import { AppPagination } from '../../../components'
 import { SingleListLayout } from '../../layout'
 import ListDataView from './components/ListDataView.vue'
 import ListFilterBar from './components/ListFilterBar.vue'
@@ -173,13 +174,12 @@ const handlePageSizeChange = (pageSize: number) => {
     />
 
     <template #pagination>
-      <el-pagination
-        background
-        layout="total, sizes, prev, pager, next"
-        :current-page="queryState.page"
-        :page-size="queryState.pageSize"
-        :page-sizes="normalizedSchema.list_config?.pagination?.pageSizeOptions || [10, 20, 30, 50]"
+      <AppPagination
+        v-model:current-page="queryState.page"
+        v-model:page-size="queryState.pageSize"
+        :page-sizes="normalizedSchema.list_config?.pagination?.pageSizeOptions || [5, 10, 20, 30, 50]"
         :total="resolvedTotal"
+        :pager-count="5"
         @current-change="handlePageChange"
         @size-change="handlePageSizeChange"
       />
