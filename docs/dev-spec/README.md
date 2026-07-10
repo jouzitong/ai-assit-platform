@@ -18,8 +18,6 @@
   - 适用于通用组件封装、组件职责边界、组件复用方式相关任务。
 - [Application 开发规范](./detail/frontend/application.md)
   - 适用于 `src/application` 下 schema、registry、renderer、component manifest 的边界和扩展方式。
-- [Render JSON 低代码解析架构规范](./detail/frontend/render-json-runtime.md)
-  - 适用于 Render JSON 的读取、协议校验与升级、节点解析、运行时上下文、数据解析和组件渲染。
 
 ### 后端
 

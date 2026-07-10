@@ -25,4 +25,10 @@ export const testRoutes: RouteRecordRaw[] = [
     meta: { title: 'Chat Interaction Test', fullscreen: true },
     component: () => import('../../modules/test/views/TestChatView.vue'),
   },
+  {
+    path: '/test/render-runtime',
+    name: 'test-render-runtime',
+    meta: { title: 'Render Runtime Test' },
+    component: () => import('../../modules/test/views/TestRenderRuntimeView.vue'),
+  },
 ]

@@ -80,7 +80,7 @@
 - 排序来源：`ext.sorts`
 - 关联来源：`ext.relations`
 - 总数统计：通过 `queryTotal(...)` 额外执行一条 `COUNT(1)` SQL
-- 返回结构：`records` 中每条记录同样支持关联对象嵌套
+- 返回结构：分页数据放在 `list`，分页信息放在 `pageInfo.{ total, size, page }`，其中每条列表记录同样支持关联对象嵌套
 
 ### 4.3 `query.count`
 

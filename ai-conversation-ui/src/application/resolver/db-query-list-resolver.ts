@@ -29,6 +29,29 @@ function isDirectJsonDatasource(datasource: ListRendererSchema['datasource']): d
   return datasource?.type === 'direct-json'
 }
 
+function compactFilterDict(filters?: Record<string, unknown>) {
+  if (!filters) {
+    return {}
+  }
+
+  return Object.entries(filters).reduce<Record<string, unknown>>((acc, [key, value]) => {
+    if (value == null) {
+      return acc
+    }
+
+    if (typeof value === 'string' && value.trim() === '') {
+      return acc
+    }
+
+    if (Array.isArray(value) && value.length === 0) {
+      return acc
+    }
+
+    acc[key] = value
+    return acc
+  }, {})
+}
+
 export function buildDbQueryListRequest(
   schema: ListRendererSchema,
   query: Partial<RendererQueryState> = {},
@@ -45,8 +68,8 @@ export function buildDbQueryListRequest(
     title: datasource.title || schema.title,
     model: datasource.model,
     filter_dict: {
-      ...(datasource.filter_dict || {}),
-      ...(query.filters || {}),
+      ...compactFilterDict(datasource.filter_dict),
+      ...compactFilterDict(query.filters),
     },
     filterExpr: datasource.filterExpr,
     ext: datasource.ext,
@@ -56,10 +79,13 @@ export function buildDbQueryListRequest(
 }
 
 export function parseDbQueryListResponse(response: DbQueryListResponse): ResolvedListRendererData {
+  const records = Array.isArray(response.list) ? response.list : []
+  const total = Number(response.pageInfo?.total ?? records.length)
+
   return {
     data: {
-      records: response.records || [],
-      total: response.total || 0,
+      records,
+      total,
     },
     summary: response.summary || {},
   }

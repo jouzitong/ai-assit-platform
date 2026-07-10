@@ -102,6 +102,11 @@ export interface KnowledgeSyncPayload {
   tableName?: string
 }
 
+export interface KnowledgePreviewResult {
+  type?: string
+  content?: string
+}
+
 export interface KnowledgeSyncResult {
   totalCount?: number
   createdCount?: number
@@ -251,6 +256,16 @@ export function syncDbTableKnowledge(payload: KnowledgeSyncPayload) {
   return request<KnowledgeSyncResult>(`${TABLE_META_API_PREFIX}/knowledge-sync`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function previewDbTableKnowledge(sourceKey: string, tableName: string) {
+  return request<KnowledgePreviewResult>(`${TABLE_META_API_PREFIX}/knowledge-preview`, {
+    method: 'GET',
+    query: {
+      sourceKey,
+      tableName,
+    },
   })
 }
 

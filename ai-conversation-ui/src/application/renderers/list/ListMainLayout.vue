@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
+import { SingleListLayout } from '../../layout'
 import ListDataView from './components/ListDataView.vue'
 import ListFilterBar from './components/ListFilterBar.vue'
 import ListHeaderBar from './components/ListHeaderBar.vue'
@@ -42,14 +43,22 @@ const emit = defineEmits<{
 }>()
 
 const normalizedSchema = computed(() => normalizeSchema(props.schema))
+const schemaQuerySignature = computed(() =>
+  JSON.stringify({
+    component: normalizedSchema.value.component,
+    activeTab: normalizedSchema.value.tab?.activeTab,
+    filterKeys: (normalizedSchema.value.filters || []).map((filter) => filter.key),
+    pageSize: normalizedSchema.value.list_config?.pagination?.pageSize,
+    itemType: normalizedSchema.value.list_config?.itemType,
+  }),
+)
 const queryState = reactive<RendererQueryState>(createDefaultQueryState(normalizedSchema.value))
 
 watch(
-  normalizedSchema,
-  (schema) => {
-    Object.assign(queryState, createDefaultQueryState(schema))
+  schemaQuerySignature,
+  () => {
+    Object.assign(queryState, createDefaultQueryState(normalizedSchema.value))
   },
-  { deep: true },
 )
 
 watch(
@@ -116,154 +125,64 @@ const handlePageSizeChange = (pageSize: number) => {
 </script>
 
 <template>
-  <section class="list-main-layout" :class="`list-main-layout--${variant}`">
-    <ListHeaderBar :schema="normalizedSchema" @action="handleAction" />
+  <SingleListLayout
+    :variant="variant"
+    :show-tree="showTree"
+    :pagination-enabled="paginationEnabled"
+  >
+    <template #header>
+      <ListHeaderBar :schema="normalizedSchema" @action="handleAction" />
+    </template>
 
-    <ListTabsBar
-      :model-value="queryState.activeTab"
-      :tab="normalizedSchema.tab"
-      @update:model-value="handleTabChange"
+    <template #tabs>
+      <ListTabsBar
+        :model-value="queryState.activeTab"
+        :tab="normalizedSchema.tab"
+        @update:model-value="handleTabChange"
+      />
+    </template>
+
+    <template #tree>
+      <ListTreePanel
+        :config="normalizedSchema.tree"
+        :data="resolvedTreeData"
+        :selected-key="queryState.selectedTreeKey"
+        @select="handleTreeSelect"
+      />
+    </template>
+
+    <template #filters>
+      <ListFilterBar
+        :filters="normalizedSchema.filters || []"
+        :model-value="queryState.filters"
+        @update:model-value="handleFilterChange"
+        @submit="handleSearch"
+        @reset="handleReset"
+      />
+    </template>
+
+    <template #summary>
+      <ListSummaryBar :cards="summaryCards" />
+    </template>
+
+    <ListDataView
+      :schema="normalizedSchema"
+      :records="resolvedRecords"
+      :loading="resolvedLoading"
+      @item-action="handleItemAction"
     />
 
-    <div class="list-main-layout__body" :class="{ 'list-main-layout__body--tree': showTree }">
-      <aside v-if="showTree" class="list-main-layout__tree">
-        <ListTreePanel
-          :config="normalizedSchema.tree"
-          :data="resolvedTreeData"
-          :selected-key="queryState.selectedTreeKey"
-          @select="handleTreeSelect"
-        />
-      </aside>
-
-      <div class="list-main-layout__content">
-        <el-card shadow="never" class="list-main-layout__content-card">
-          <ListFilterBar
-            :filters="normalizedSchema.filters || []"
-            :model-value="queryState.filters"
-            @update:model-value="handleFilterChange"
-            @submit="handleSearch"
-            @reset="handleReset"
-          />
-
-          <ListSummaryBar :cards="summaryCards" />
-
-          <ListDataView
-            :schema="normalizedSchema"
-            :records="resolvedRecords"
-            :loading="resolvedLoading"
-            @item-action="handleItemAction"
-          />
-
-          <div v-if="paginationEnabled" class="list-main-layout__pagination">
-            <el-pagination
-              background
-              layout="total, sizes, prev, pager, next"
-              :current-page="queryState.page"
-              :page-size="queryState.pageSize"
-              :page-sizes="normalizedSchema.list_config?.pagination?.pageSizeOptions || [10, 20, 30, 50]"
-              :total="resolvedTotal"
-              @current-change="handlePageChange"
-              @size-change="handlePageSizeChange"
-            />
-          </div>
-        </el-card>
-      </div>
-    </div>
-  </section>
+    <template #pagination>
+      <el-pagination
+        background
+        layout="total, sizes, prev, pager, next"
+        :current-page="queryState.page"
+        :page-size="queryState.pageSize"
+        :page-sizes="normalizedSchema.list_config?.pagination?.pageSizeOptions || [10, 20, 30, 50]"
+        :total="resolvedTotal"
+        @current-change="handlePageChange"
+        @size-change="handlePageSizeChange"
+      />
+    </template>
+  </SingleListLayout>
 </template>
-
-<style scoped>
-.list-main-layout {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-  padding: 24px;
-  background: var(--workbench-shell-bg);
-  border-radius: 28px;
-}
-
-.list-main-layout--workbench {
-  min-height: calc(100vh - 64px);
-  background: var(--workbench-shell-bg);
-}
-
-.list-main-layout__body {
-  min-width: 0;
-}
-
-.list-main-layout__body--tree {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
-}
-
-.list-main-layout__tree,
-.list-main-layout__content {
-  min-width: 0;
-}
-
-.list-main-layout__content-card {
-  border-radius: 28px;
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.list-main-layout--workbench .list-main-layout__content-card {
-  border: 1px solid var(--workbench-panel-border);
-  background: var(--workbench-panel-bg);
-  box-shadow: var(--workbench-panel-shadow);
-}
-
-.list-main-layout--workbench :deep(.list-header-bar__title) {
-  color: var(--workbench-title);
-}
-
-.list-main-layout--workbench :deep(.list-tabs-bar .el-tabs__item) {
-  color: var(--workbench-tab-text);
-}
-
-.list-main-layout--workbench :deep(.list-tabs-bar .el-tabs__item.is-active) {
-  color: var(--workbench-tab-active);
-}
-
-.list-main-layout--workbench :deep(.list-filter-bar) {
-  border: 0;
-  background: var(--workbench-filter-bg);
-}
-
-.list-main-layout--workbench :deep(.list-data-view__table) {
-  --el-table-bg-color: var(--workbench-table-bg);
-  --el-table-tr-bg-color: var(--workbench-table-row-bg);
-  --el-table-header-bg-color: var(--workbench-table-header-bg);
-  --el-table-border-color: var(--workbench-table-border);
-  --el-table-text-color: var(--workbench-table-text);
-  --el-table-header-text-color: var(--workbench-table-header-text);
-}
-
-.list-main-layout--workbench :deep(.el-pagination) {
-  --el-text-color-regular: var(--workbench-pagination-text);
-}
-
-.list-main-layout--workbench :deep(.el-card__body) {
-  display: flex;
-  flex-direction: column;
-  gap: 20px;
-}
-
-.list-main-layout__pagination {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: 20px;
-}
-
-@media (max-width: 960px) {
-  .list-main-layout {
-    padding: 16px;
-  }
-
-  .list-main-layout__body--tree {
-    grid-template-columns: 1fr;
-  }
-}
-</style>

@@ -1,6 +1,5 @@
 package ai.platform.aiassit.db.engine.api.dto;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -11,14 +10,19 @@ import java.util.Map;
 @Data
 public class DbQueryListResponse {
 
-    private Long total = 0L;
+    private List<Map<String, Object>> list = new ArrayList<>();
 
-    private Integer page = 1;
-
-    @JsonProperty("page_size")
-    private Integer pageSize = 10;
-
-    private List<Map<String, Object>> records = new ArrayList<>();
+    private PageInfo pageInfo = new PageInfo();
 
     private Map<String, Object> summary = new LinkedHashMap<>();
+
+    @Data
+    public static class PageInfo {
+
+        private Long total = 0L;
+
+        private Integer size = 10;
+
+        private Integer page = 1;
+    }
 }

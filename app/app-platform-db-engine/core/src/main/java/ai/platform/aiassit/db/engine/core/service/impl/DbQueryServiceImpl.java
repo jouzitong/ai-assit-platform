@@ -112,10 +112,12 @@ public class DbQueryServiceImpl implements DbQueryService {
         long total = queryTotal(table, relations, conditions);
 
         DbQueryListResponse response = new DbQueryListResponse();
-        response.setPage(page);
-        response.setPageSize(pageSize);
-        response.setTotal(total);
-        response.setRecords(transformRows(result.getRows()));
+        response.setList(transformRows(result.getRows()));
+        DbQueryListResponse.PageInfo pageInfo = new DbQueryListResponse.PageInfo();
+        pageInfo.setPage(page);
+        pageInfo.setSize(pageSize);
+        pageInfo.setTotal(total);
+        response.setPageInfo(pageInfo);
         return response;
     }
 

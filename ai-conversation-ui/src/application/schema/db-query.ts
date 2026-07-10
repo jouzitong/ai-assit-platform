@@ -52,10 +52,12 @@ export interface DbQueryListRequest extends DbQueryBaseRequest {
 }
 
 export interface DbQueryListResponse {
-  total?: number
-  page?: number
-  page_size?: number
-  records?: Record<string, unknown>[]
+  list?: Record<string, unknown>[]
+  pageInfo?: {
+    total?: number
+    size?: number
+    page?: number
+  }
   summary?: Record<string, unknown>
 }
 
