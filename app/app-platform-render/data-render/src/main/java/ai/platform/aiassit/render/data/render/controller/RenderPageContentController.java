@@ -12,6 +12,8 @@ import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Collections;
+
 @RestController
 @RequestMapping("/api/v1/renderPageContents")
 public class RenderPageContentController {
@@ -35,7 +37,7 @@ public class RenderPageContentController {
         RenderPageContentDTO content = renderPageContentService.queryByPageCode(code);
         RenderPageContentVO vo = new RenderPageContentVO();
         vo.setPageCode(page.getCode());
-        vo.setContent(content == null ? "{}" : content.getContent());
+        vo.setContent(content == null ? Collections.emptyMap() : content.getContent());
         return vo;
     }
 }

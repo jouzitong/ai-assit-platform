@@ -5,6 +5,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.AuditableDTO;
 
+import java.util.Map;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class RenderPageManageVO extends AuditableDTO {
@@ -17,5 +19,5 @@ public class RenderPageManageVO extends AuditableDTO {
 
     private EffectiveStatus status;
 
-    private String content;
+    private Map<String, Object> content;
 }

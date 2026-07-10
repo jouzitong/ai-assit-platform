@@ -5,6 +5,7 @@ const RENDER_PAGE_API_PREFIX = `${getBackendService(SERVICE_NAMES.RENDER).gatewa
 const RENDER_PAGE_CATEGORY_API_PREFIX = `${getBackendService(SERVICE_NAMES.RENDER).gatewayPrefix}/api/v1/render/page-categories`
 
 export type RenderPageStatus = 1 | 2 | 3 | 'DRAFT' | 'PUBLISHED' | 'DISABLED' | string | number
+export type RenderPageContent = Record<string, unknown>
 
 export interface RenderPageItem {
   id: string | number
@@ -12,7 +13,7 @@ export interface RenderPageItem {
   name?: string
   categoryCode?: string
   status?: RenderPageStatus
-  content?: string
+  content?: RenderPageContent
   createTime?: string
   updateTime?: string
   createdBy?: string | number
@@ -65,7 +66,7 @@ export interface RenderPageUpsertPayload {
   name: string
   categoryCode?: string
   status?: RenderPageStatus
-  content?: string
+  content?: RenderPageContent
 }
 
 export function searchRenderPages(payload: RenderPageQueryPayload = {}) {

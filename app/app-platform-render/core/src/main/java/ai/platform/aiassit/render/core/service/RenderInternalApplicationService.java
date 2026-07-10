@@ -17,12 +17,18 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.Collections;
+import java.util.Map;
+
 /**
  * Render 内部页面应用服务。
  */
 @Service
 @Slf4j
 public class RenderInternalApplicationService {
+
+    private static final String CREATE_SNAPSHOT_DESCRIPTION = "create";
+    private static final String UPDATE_SNAPSHOT_DESCRIPTION = "update";
 
     private final RenderPageService renderPageService;
     private final RenderPageContentService renderPageContentService;
@@ -61,10 +67,10 @@ public class RenderInternalApplicationService {
         RenderPageDTO createdPage = renderPageService.add(page);
         log.info("渲染页面基础信息创建完成，code={}, pageId={}", code, createdPage.getId());
 
-        String content = normalizeContent(request.getContent());
+        Map<String, Object> content = normalizeContent(request.getContent());
         renderPageContentService.add(buildContentDto(code, content));
-        renderPageSnapshotService.add(buildSnapshotDto(code, content));
-        log.info("渲染页面内容创建完成，code={}, contentLength={}", code, content.length());
+        renderPageSnapshotService.add(buildSnapshotDto(code, content, CREATE_SNAPSHOT_DESCRIPTION));
+        log.info("渲染页面内容创建完成，code={}, contentKeys={}", code, content.size());
         return toDetail(createdPage, content);
     }
 
@@ -80,20 +86,20 @@ public class RenderInternalApplicationService {
 
         RenderPageContentDTO existingContent = renderPageContentService.queryByPageCode(code);
         log.debug("渲染页面内容查询完成，code={}, exists={}", code, existingContent != null);
-        String finalContent = resolveContent(request.getContent(), existingContent == null ? null : existingContent.getContent());
+        Map<String, Object> finalContent = resolveContent(request.getContent(), existingContent == null ? null : existingContent.getContent());
         if (existingContent == null) {
             renderPageContentService.add(buildContentDto(code, finalContent));
-            log.info("渲染页面内容不存在，已创建内容记录，code={}, contentLength={}", code, finalContent.length());
+            log.info("渲染页面内容不存在，已创建内容记录，code={}, contentKeys={}", code, finalContent.size());
         } else {
             RenderPageContentDTO updateContent = new RenderPageContentDTO();
             updateContent.setPageCode(code);
             updateContent.setContent(finalContent);
             renderPageContentService.update(existingContent.getId(), updateContent);
-            log.info("渲染页面内容更新完成，code={}, contentId={}, contentLength={}", code, existingContent.getId(), finalContent.length());
+            log.info("渲染页面内容更新完成，code={}, contentId={}, contentKeys={}", code, existingContent.getId(), finalContent.size());
         }
 
-        renderPageSnapshotService.add(buildSnapshotDto(code, finalContent));
-        log.info("渲染页面快照创建完成，code={}, contentLength={}", code, finalContent.length());
+        renderPageSnapshotService.add(buildSnapshotDto(code, finalContent, UPDATE_SNAPSHOT_DESCRIPTION));
+        log.info("渲染页面快照创建完成，code={}, contentKeys={}", code, finalContent.size());
         return toDetail(updatedPage, finalContent);
     }
 
@@ -102,9 +108,9 @@ public class RenderInternalApplicationService {
         log.debug("开始查询渲染页面详情，code={}", code);
         RenderPageDTO page = requirePage(code);
         RenderPageContentDTO content = renderPageContentService.queryByPageCode(code);
-        String contentValue = content == null ? null : content.getContent();
-        log.debug("渲染页面详情查询完成，code={}, pageId={}, hasContent={}, contentLength={}",
-                code, page.getId(), contentValue != null, contentValue == null ? 0 : contentValue.length());
+        Map<String, Object> contentValue = content == null ? null : content.getContent();
+        log.debug("渲染页面详情查询完成，code={}, pageId={}, hasContent={}, contentKeys={}",
+                code, page.getId(), contentValue != null, contentValue == null ? 0 : contentValue.size());
         return toDetail(page, contentValue);
     }
 
@@ -117,21 +123,23 @@ public class RenderInternalApplicationService {
         return page;
     }
 
-    private RenderPageContentDTO buildContentDto(String code, String content) {
+    private RenderPageContentDTO buildContentDto(String code, Map<String, Object> content) {
         RenderPageContentDTO dto = new RenderPageContentDTO();
         dto.setPageCode(code);
         dto.setContent(content);
         return dto;
     }
 
-    private RenderPageSnapshotDTO buildSnapshotDto(String code, String content) {
+    private RenderPageSnapshotDTO buildSnapshotDto(String code, Map<String, Object> content, String description) {
         RenderPageSnapshotDTO dto = new RenderPageSnapshotDTO();
         dto.setPageCode(code);
+        dto.setSnapshotVersion(renderPageSnapshotService.nextSnapshotVersion(code));
+        dto.setDescription(description);
         dto.setContent(content);
         return dto;
     }
 
-    private RenderDetailDTO toDetail(RenderPageDTO page, String content) {
+    private RenderDetailDTO toDetail(RenderPageDTO page, Map<String, Object> content) {
         RenderDetailDTO dto = new RenderDetailDTO();
         dto.setCode(page.getCode());
         dto.setName(page.getName());
@@ -163,15 +171,15 @@ public class RenderInternalApplicationService {
         return StringUtils.hasText(value) ? value.trim() : null;
     }
 
-    private String normalizeContent(String content) {
-        return StringUtils.hasText(content) ? content : "{}";
+    private Map<String, Object> normalizeContent(Map<String, Object> content) {
+        return content == null ? Collections.emptyMap() : content;
     }
 
-    private String resolveContent(String incoming, String existing) {
+    private Map<String, Object> resolveContent(Map<String, Object> incoming, Map<String, Object> existing) {
         if (incoming != null) {
             return normalizeContent(incoming);
         }
-        return existing == null ? "{}" : existing;
+        return normalizeContent(existing);
     }
 
     private String resolveCategoryCode(String incoming, String existing) {

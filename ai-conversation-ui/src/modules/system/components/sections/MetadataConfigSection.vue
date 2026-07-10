@@ -12,6 +12,7 @@ import {
   searchRenderPages,
   type RenderPageCategoryTreeItem,
   type RenderPageCategoryUpsertPayload,
+  type RenderPageContent,
   type RenderPageItem,
   type RenderPageStatus,
   type RenderPageTreeResult,
@@ -128,11 +129,11 @@ function formatDateTime(value?: string) {
   return String(value).replace('T', ' ').slice(0, 19)
 }
 
-function formatPreview(value?: string) {
+function formatPreview(value?: RenderPageContent) {
   if (!value) {
     return '暂无内容'
   }
-  const normalized = value.replace(/\s+/g, ' ').trim()
+  const normalized = JSON.stringify(value).replace(/\s+/g, ' ').trim()
   return normalized.length > 120 ? `${normalized.slice(0, 120)}...` : normalized
 }
 
@@ -397,7 +398,7 @@ function openEditMetadataDialog(record: {
   metadataForm.name = record.name
   metadataForm.categoryCode = record.categoryCode === '未分类' ? '' : record.categoryCode
   metadataForm.status = raw?.status ?? EFFECTIVE_STATUS_DRAFT
-  metadataForm.content = raw?.content || ''
+  metadataForm.content = raw?.content ? JSON.stringify(raw.content, null, 2) : ''
   metadataDialogVisible.value = true
 }
 
@@ -429,6 +430,21 @@ async function submitMetadataForm() {
     ElMessage.warning('请输入元数据名称')
     return
   }
+  let content: RenderPageContent = {}
+  if (metadataForm.content.trim()) {
+    try {
+      const parsed = JSON.parse(metadataForm.content) as unknown
+      if (!parsed || Array.isArray(parsed) || typeof parsed !== 'object') {
+        ElMessage.warning('内容必须是 JSON 对象')
+        return
+      }
+      content = parsed as RenderPageContent
+    }
+    catch {
+      ElMessage.warning('内容不是合法 JSON')
+      return
+    }
+  }
 
   metadataSubmitting.value = true
   try {
@@ -437,7 +453,7 @@ async function submitMetadataForm() {
       name: metadataForm.name.trim(),
       categoryCode: metadataForm.categoryCode.trim() || undefined,
       status: metadataForm.status,
-      content: metadataForm.content,
+      content,
     }
     if (metadataDialogMode.value === 'create') {
       await createRenderPage(payload)

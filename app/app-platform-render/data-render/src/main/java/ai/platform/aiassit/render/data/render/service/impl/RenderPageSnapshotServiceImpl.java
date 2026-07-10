@@ -24,4 +24,10 @@ public class RenderPageSnapshotServiceImpl
     protected IConvert<RenderPageSnapshotEntity, RenderPageSnapshotDTO> convert() {
         return convert;
     }
+
+    @Override
+    public Integer nextSnapshotVersion(String pageCode) {
+        Integer maxVersion = baseMapper.selectMaxSnapshotVersion(pageCode);
+        return maxVersion == null ? 1 : maxVersion + 1;
+    }
 }

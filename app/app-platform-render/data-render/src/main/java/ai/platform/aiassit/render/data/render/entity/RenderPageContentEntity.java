@@ -2,12 +2,15 @@ package ai.platform.aiassit.render.data.render.entity;
 
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
+import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+
+import java.util.Map;
 
 /**
  * 渲染页面当前内容实体。
@@ -17,7 +20,7 @@ import org.athena.framework.data.mybatis.entity.AuditableEntity;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName("render_page_content")
+@TableName(value = "render_page_content", autoResultMap = true)
 public class RenderPageContentEntity extends AuditableEntity {
 
     /** 页面编码。 */
@@ -25,6 +28,6 @@ public class RenderPageContentEntity extends AuditableEntity {
     private String pageCode;
 
     /** 当前页面 JSON 内容。 */
-    @TableField("content")
-    private String content;
+    @TableField(value = "content", typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> content;
 }

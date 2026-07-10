@@ -3,6 +3,8 @@ package ai.platform.aiassit.render.api.dto;
 import ai.platform.aiassit.render.api.enums.EffectiveStatus;
 import lombok.Data;
 
+import java.util.Map;
+
 /**
  * 渲染页面详情。
  */
@@ -22,5 +24,5 @@ public class RenderDetailDTO {
     private EffectiveStatus status;
 
     /** 当前页面内容。 */
-    private String content;
+    private Map<String, Object> content;
 }

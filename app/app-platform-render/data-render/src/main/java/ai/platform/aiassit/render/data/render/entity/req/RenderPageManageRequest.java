@@ -3,6 +3,8 @@ package ai.platform.aiassit.render.data.render.entity.req;
 import ai.platform.aiassit.render.api.enums.EffectiveStatus;
 import lombok.Data;
 
+import java.util.Map;
+
 @Data
 public class RenderPageManageRequest {
 
@@ -14,5 +16,5 @@ public class RenderPageManageRequest {
 
     private EffectiveStatus status;
 
-    private String content;
+    private Map<String, Object> content;
 }

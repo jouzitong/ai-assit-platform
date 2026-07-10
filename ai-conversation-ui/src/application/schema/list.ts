@@ -1,4 +1,4 @@
-import type { DbQueryListDatasource } from './db-query'
+import type { DbQueryListDatasource, DbQueryOperation } from './db-query'
 
 export interface RendererAction {
   key: string
@@ -31,6 +31,12 @@ export interface RendererFilter {
   type?: 'text' | 'select' | 'date' | 'daterange'
   component?: string
   placeholder?: string
+  query?: {
+    field?: string
+    op?: DbQueryOperation
+    submitOnChange?: boolean
+    submitOnEnter?: boolean
+  }
   list?: Array<{ key: string; value: string | number | boolean; disabled?: boolean }>
   selector?: {
     model: string
@@ -49,6 +55,10 @@ export interface RendererFilter {
     teleported?: boolean
     checkStrictly?: boolean
     renderAfterExpand?: boolean
+    submitOnChange?: boolean
+    submitOnEnter?: boolean
+    operators?: Array<{ label: string; value: string }>
+    defaultOperator?: string
     styles?: Record<string, string | number>
     className?: string
     [key: string]: unknown
@@ -100,8 +110,13 @@ export interface RendererListConfig {
 }
 
 export interface RendererHooks {
+  beforeEvent?: string
+  afterEvent?: string
+  onQueryChange?: string
   beforeLoad?: string
   afterLoad?: string
+  beforeAction?: string
+  afterAction?: string
 }
 
 export interface ListRendererSchema {

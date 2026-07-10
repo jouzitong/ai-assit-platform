@@ -99,17 +99,19 @@ Registry 不应该定义：
 
 ## 5. Resolver 定义
 
-Resolver 是 Schema 与 Renderer 之间的数据解析层。它负责统一处理 datasource、bindings、原始响应和组件数据形态，避免每个 renderer 重复实现数据解析。
+Resolver 是 Render JSON 结构与 Runtime 执行链路之间的结构解析层。它负责统一处理 datasource、bindings、query 参数和组件数据形态，避免每个 renderer 重复实现结构解析。
 
 Resolver 应该定义：
 
-- 根据 `schema.datasource` 读取查询意图，调用页面 service、查询引擎或运行时上下文中的数据源。
+- 根据 `schema.datasource` 读取查询意图，结合 Runtime SCOPE 中的 query/params 生成 request plan。
 - 数据库查询类 datasource 默认对齐后端 `DbQueryApi` 契约，使用 `model`、`filter_dict`、`filterExpr`、`page`、`page_size`、`ext.fields`、`ext.relations`、`ext.sorts` 等字段。
-- 静态或外部已准备好的 JSON 数据使用 `direct-json` datasource，resolver 只做结构归一化，不发起请求。
+- 静态或外部已准备好的 JSON 数据使用 `direct-json` datasource，resolver 生成 `direct-json` request plan 或结构归一化结果，不发起远程请求。
 - 根据 `schema.bindings` 把原始数据映射为 renderer 的 `data`。
 - 为 renderer 统一产出 `{ schema, data, state }` 结构。
 - 统一处理 `loading`、`error`、`empty` 等运行时状态。
 - 支持 `direct-json`、`binding`、`db-query-list`、`computed` 等解析方式时，新增解析方式只改 resolver，不改具体 renderer。
+- 列表 filter 的输入值先进入运行时 `query.filters`，再由 resolver 映射到 datasource 请求；filter 可以用 `query.field` 改写后端字段名，用 `query.op` 声明 `like`、`in` 等操作符。
+- 当 datasource 已声明 `filterExpr` 时，resolver 必须把运行时 filter key 合并进表达式，避免后端只解析固定条件而忽略用户输入。
 
 Resolver 不应该定义：
 
@@ -117,8 +119,26 @@ Resolver 不应该定义：
 - 具体页面的私有业务流程。
 - renderer 内部展示细节。
 - 可执行字符串形式的业务函数。
+- 直接调用后端接口；远程请求统一交给 Data Requester。
 
 Renderer 不直接依赖 resolver。动态渲染入口或页面容器先调用 resolver 得到 props，再通过 registry 找到组件并渲染。
+
+## 5.1 Data Requester 定义
+
+Data Requester 是 Runtime 下的数据请求执行层。它只消费 resolver 产出的 request plan，并把原始响应交回 parser/binding。
+
+Data Requester 应该定义：
+
+- 根据 request plan 的 `type` 分发请求，例如 `db-query-list`、`direct-json`、`tree-query`、`remote-options`。
+- 统一处理真实请求地址、HTTP method、请求体、鉴权请求头、trace id 和错误抛出。
+- 保持 request plan 可观测，便于 SCOPE 展示、调试和事件后重新请求。
+
+Data Requester 不应该定义：
+
+- renderer 的 DOM 和展示逻辑。
+- filter UI 触发策略。
+- 按钮 action 的业务含义。
+- Render JSON 协议升级和节点解析。
 
 ## 6. Manifest 定义
 
@@ -138,7 +158,8 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - Renderer props 必须明确稳定，优先使用 `schema + data props + loading/readonly/total` 这类受控输入。
 - 新 renderer 优先接收统一入口 `{ schema, data, state }`；已有 renderer 可以保留旧 props，但应由 registry 或宿主层适配到统一入口。
 - Renderer 只负责展示、局部交互和事件抛出，不直接请求后端。
-- Renderer 通过 `emit` 抛出 `action`、`change`、`reload`、`queryChange` 等语义事件，由上层页面或运行时容器处理。
+- Renderer 通过 `emit` 抛出 `action`、`itemAction`、`reload`、`queryChange`、`valueChange`、`submit`、`reset` 等语义事件，由 Runtime 的 Event Dispatcher 统一处理。
+- 语义一致的操作必须复用同一个事件名，例如列表筛选、树节点选择、分页变化都可以归一为 `queryChange` 或 `reload`；只有组件特有交互才新增私有事件名。
 - Renderer 内部子组件只服务当前 renderer，不直接被页面跨层引用；需要跨页面复用时再上升为公共组件。
 - Renderer 内部的默认值、字段取值、展示格式化等纯逻辑可以放在本 renderer 的 `schema.ts`。
 
@@ -146,21 +167,27 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 
 - `layout/` 代表系统支持的布局方式，是 Render JSON 中的容器型节点实现层。
 - Layout 负责“怎么摆”，例如单列表壳、双栏布局、分组区块、页签容器、仪表盘网格；它决定 children 的编排、分区和外层风格。
-- Runtime 负责“怎么跑”，它是 Render JSON 的程序入口，负责读取文档、校验与升级、构建上下文、解析节点并把节点分发给 `layout` 或 `renderers`。
+- Runtime 负责“怎么跑”，它是 Render JSON 的程序入口，负责按 code 加载 Render JSON、校验与升级、构建 SCOPE、解析节点、分发节点到 `layout`/`renderers`，并通过 Event Dispatcher 处理 renderer 抛出的操作事件。
+- Runtime SCOPE 是全局运行时上下文，至少包含 `code`、`document`、`schema`、`query`、`params`、`requestPlans`、`data`、`state`、`events`。resolver、Data Requester、Event Dispatcher、Hook Runner 都通过 SCOPE 协作，不让 renderer 直接持有业务状态。
+- Event Dispatcher 属于 Runtime 层，负责把 renderer 的语义事件解释成上下文更新、resolver 重新加载、action 执行、hook 执行、局部 state 更新或路由跳转。
+- Event Dispatcher 接收统一事件结构 `{ type, source, payload, meta }`；`source` 至少应能表达 renderer key、componentId 和原始事件名，便于日志、权限、hook 和调试。
+- Runtime Hook 是 Event Dispatcher 流程里的扩展点，适合承载 `beforeEvent`、`afterEvent`、`onQueryChange`、`beforeLoad`、`afterLoad`、`beforeAction`、`afterAction` 等跨组件逻辑。
 - Layout 不负责协议读取、版本迁移、请求调度、错误恢复和节点注册查找。
-- Runtime 不负责定义具体视觉风格，不把业务布局样式硬编码在入口层。
+- Runtime 不负责定义具体视觉风格，不把业务布局样式硬编码在入口层；页面私有动作可以通过 action executor 回调接入 Runtime，但不要写进 renderer。
 - 容器节点优先交给 `layout/`，内容节点优先交给 `renderers/`，不要把两类职责混在同一个组件里。
 - 第一个 Layout 应优先从已有 renderer 中抽离“稳定的容器壳”，而不是新建一份平行的大组件。
 
 ## 9. 数据与动作
 
 - 列表查询、表单提交、动作执行由页面 service 或运行时容器负责。
+- 组件操作事件先进入 Event Dispatcher；Dispatcher 判断需要加载数据时才调用 resolver，resolver 不直接处理按钮点击、弹窗、跳转、权限判断等操作含义。
 - `schema.datasource` 只声明模型、过滤、排序、关联等查询意图，不直接写接口地址。
 - 列表型 datasource 优先映射到 `POST /dbEngine/api/v1/query.list`，后端响应以 `list` 和 `pageInfo.{ total, size, page }` 表达分页结果，再由 resolver 转成 renderer 的 `data`。
 - `direct-json` 列表数据使用最简单的 `{ records, total, ... }` 结构；resolver 统一转成 renderer 的 `data`。
 - 关联查询使用 `ext.relations[{ key, model, type, on, filter }]`，不要在前端 schema 中再定义 `foreign_key/local_key` 这类平行结构。
+- filter 触发查询由 schema 声明：选择器、树选择、日期类 filter 默认 `change` 后触发 reload；输入类 filter 默认回车触发 reload。特殊场景可通过 `filter.query.submitOnChange`、`filter.query.submitOnEnter` 或 `filter.options.submitOnChange`、`filter.options.submitOnEnter` 覆盖。
 - `schema.actions[].action` 表达业务动作 key，`schema.actions[].type` 只表达按钮视觉类型。
-- 行内动作、顶部动作、表单动作统一通过事件抛出，不在 renderer 内部直接执行。
+- 行内动作、顶部动作、表单动作统一通过事件抛出，由 Event Dispatcher 分发给通用 action executor 或页面私有 action executor，不在 renderer 内部直接执行。
 - 枚举、选择器、远程数据源等能力在协议未稳定前，只保留声明字段和 TODO，不提前写死单一实现。
 
 ## 10. 命名要求

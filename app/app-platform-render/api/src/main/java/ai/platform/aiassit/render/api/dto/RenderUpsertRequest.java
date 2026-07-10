@@ -4,6 +4,8 @@ import ai.platform.aiassit.render.api.enums.EffectiveStatus;
 import lombok.Data;
 import lombok.ToString;
 
+import java.util.Map;
+
 /**
  * 渲染页面新增或更新请求。
  */
@@ -34,10 +36,10 @@ public class RenderUpsertRequest {
     /**
      * 页面内容。
      */
-    private String content;
+    private Map<String, Object> content;
 
     public long getContentLength() {
-        return content == null ? 0 : content.length();
+        return content == null ? 0 : content.size();
     }
 
 }

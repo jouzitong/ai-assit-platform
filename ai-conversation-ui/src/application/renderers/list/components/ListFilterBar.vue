@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, watch } from 'vue'
+import { AppFilterOperatorInput } from '../../../../components/basic'
 import {
   AppDatePicker,
   AppInput,
@@ -23,7 +24,7 @@ const emit = defineEmits<{
 const localFilters = reactive<Record<string, unknown>>({})
 
 const FILTER_COMPONENT_MAP = {
-  'zg-input': AppInput,
+  'zg-input': AppFilterOperatorInput,
   'zg-selector': AppSelect,
   'zg-selector-tree': AppSelectTree,
   'zg-input-date': AppDatePicker,
@@ -31,7 +32,7 @@ const FILTER_COMPONENT_MAP = {
 } as const
 
 const DEFAULT_COMPONENT_BY_TYPE = {
-  text: AppInput,
+  text: AppFilterOperatorInput,
   select: AppSelect,
   date: AppDatePicker,
   daterange: AppDatePicker,
@@ -51,6 +52,13 @@ watch(
 const updateFilter = (key: string, value: unknown) => {
   localFilters[key] = value
   emit('update:modelValue', { ...localFilters })
+}
+
+const handleFilterChange = (filter: RendererFilter, value: unknown) => {
+  updateFilter(filter.key, value)
+  if (shouldSubmitOnChange(filter)) {
+    emit('submit')
+  }
 }
 
 const resolveSelectOptions = (filter: RendererFilter) => {
@@ -160,6 +168,14 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     }
   }
 
+  if (!filter.component || filter.component === 'zg-input' || filter.type === 'text') {
+    return {
+      ...commonProps,
+      operators: componentProps.operators ?? componentOptions.operators,
+      defaultOperator: componentProps.defaultOperator ?? componentOptions.defaultOperator ?? filter.query?.op ?? 'like',
+    }
+  }
+
   return commonProps
 }
 
@@ -184,6 +200,29 @@ const buildPlaceholder = (filter: RendererFilter) => {
 
 const isInputLikeFilter = (filter: RendererFilter) =>
   !filter.component || filter.component === 'zg-input'
+
+const isSelectLikeFilter = (filter: RendererFilter) =>
+  filter.component === 'zg-selector'
+  || filter.component === 'zg-selector-tree'
+  || filter.type === 'select'
+  || filter.type === 'date'
+  || filter.type === 'daterange'
+
+const shouldSubmitOnChange = (filter: RendererFilter) =>
+  filter.query?.submitOnChange
+  ?? filter.options?.submitOnChange
+  ?? isSelectLikeFilter(filter)
+
+const shouldSubmitOnEnter = (filter: RendererFilter) =>
+  filter.query?.submitOnEnter
+  ?? filter.options?.submitOnEnter
+  ?? isInputLikeFilter(filter)
+
+const handleFilterEnter = (filter: RendererFilter) => {
+  if (shouldSubmitOnEnter(filter)) {
+    emit('submit')
+  }
+}
 
 const filterEntries = computed(() =>
   props.filters.map((filter) => ({
@@ -221,7 +260,8 @@ const handleReset = () => {
           v-bind="filter.renderProps"
           class="list-filter-bar__component"
           @update:model-value="updateFilter(filter.key, $event)"
-          @keyup.enter="isInputLikeFilter(filter) ? emit('submit') : undefined"
+          @change="handleFilterChange(filter, $event)"
+          @keyup.enter="handleFilterEnter(filter)"
         />
       </el-form-item>
       <el-form-item class="list-filter-bar__actions">

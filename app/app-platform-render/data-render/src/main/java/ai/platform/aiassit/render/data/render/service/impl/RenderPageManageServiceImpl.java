@@ -25,6 +25,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -38,7 +39,8 @@ import java.util.stream.Collectors;
 @Service
 public class RenderPageManageServiceImpl implements RenderPageManageService {
 
-    private static final String DEFAULT_PAGE_CONTENT = "{}";
+    private static final String CREATE_SNAPSHOT_DESCRIPTION = "create";
+    private static final String UPDATE_SNAPSHOT_DESCRIPTION = "update";
 
     private final RenderPageService renderPageService;
     private final RenderPageContentService renderPageContentService;
@@ -107,9 +109,9 @@ public class RenderPageManageServiceImpl implements RenderPageManageService {
         page.setStatus(defaultStatus(request == null ? null : request.getStatus()));
         RenderPageDTO created = renderPageService.add(page);
 
-        String content = normalizePageContent(request == null ? null : request.getContent());
+        Map<String, Object> content = normalizePageContent(request == null ? null : request.getContent());
         renderPageContentService.add(buildPageContent(created.getCode(), content));
-        renderPageSnapshotService.add(buildSnapshot(created.getCode(), content));
+        renderPageSnapshotService.add(buildSnapshot(created.getCode(), content, CREATE_SNAPSHOT_DESCRIPTION));
         return toManageVO(created, renderPageContentService.queryByPageCode(created.getCode()));
     }
 
@@ -132,7 +134,7 @@ public class RenderPageManageServiceImpl implements RenderPageManageService {
         RenderPageDTO updated = renderPageService.update(id, payload);
 
         RenderPageContentDTO existingContent = renderPageContentService.queryByPageCode(existing.getCode());
-        String finalContent = request == null || request.getContent() == null
+        Map<String, Object> finalContent = request == null || request.getContent() == null
                 ? normalizePageContent(existingContent == null ? null : existingContent.getContent())
                 : normalizePageContent(request.getContent());
 
@@ -144,7 +146,7 @@ public class RenderPageManageServiceImpl implements RenderPageManageService {
             contentPayload.setContent(finalContent);
             renderPageContentService.update(existingContent.getId(), contentPayload);
         }
-        renderPageSnapshotService.add(buildSnapshot(finalCode, finalContent));
+        renderPageSnapshotService.add(buildSnapshot(finalCode, finalContent, UPDATE_SNAPSHOT_DESCRIPTION));
         return toManageVO(updated, renderPageContentService.queryByPageCode(finalCode));
     }
 
@@ -292,16 +294,18 @@ public class RenderPageManageServiceImpl implements RenderPageManageService {
         return vo;
     }
 
-    private RenderPageContentDTO buildPageContent(String code, String content) {
+    private RenderPageContentDTO buildPageContent(String code, Map<String, Object> content) {
         RenderPageContentDTO dto = new RenderPageContentDTO();
         dto.setPageCode(code);
         dto.setContent(content);
         return dto;
     }
 
-    private RenderPageSnapshotDTO buildSnapshot(String code, String content) {
+    private RenderPageSnapshotDTO buildSnapshot(String code, Map<String, Object> content, String description) {
         RenderPageSnapshotDTO dto = new RenderPageSnapshotDTO();
         dto.setPageCode(code);
+        dto.setSnapshotVersion(renderPageSnapshotService.nextSnapshotVersion(code));
+        dto.setDescription(description);
         dto.setContent(content);
         return dto;
     }
@@ -324,8 +328,8 @@ public class RenderPageManageServiceImpl implements RenderPageManageService {
         return status == null ? EffectiveStatus.DRAFT : status;
     }
 
-    private String normalizePageContent(String content) {
-        return StringUtils.hasText(content) ? content : DEFAULT_PAGE_CONTENT;
+    private Map<String, Object> normalizePageContent(Map<String, Object> content) {
+        return content == null ? Collections.emptyMap() : content;
     }
 
     private String normalizeNullable(String value) {

@@ -51,6 +51,8 @@ CREATE TABLE IF NOT EXISTS render_page_content (
 CREATE TABLE IF NOT EXISTS render_page_snapshot (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     page_code VARCHAR(64) NOT NULL COMMENT '页面编码',
+    snapshot_version INT NOT NULL DEFAULT 1 COMMENT '快照业务版本号',
+    description VARCHAR(512) DEFAULT NULL COMMENT '快照描述',
     content MEDIUMTEXT NOT NULL COMMENT '页面JSON快照',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -58,5 +60,6 @@ CREATE TABLE IF NOT EXISTS render_page_snapshot (
     updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '更新者',
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记',
-    KEY idx_render_page_snapshot_page_code (page_code)
+    KEY idx_render_page_snapshot_page_code (page_code),
+    KEY idx_render_page_snapshot_version (page_code, snapshot_version)
 ) COMMENT='渲染页面快照表';
