@@ -56,7 +56,7 @@ const sections: SettingsSection[] = [
     label: '组件管理',
     icon: DataAnalysis,
     title: '组件管理',
-    description: '管理渲染组件、业务组件和页面素材的装配能力。',
+    description: '将 Application 组件配置为可检索、可同步的系统数字资产。',
     component: ComponentManageSection,
   },
   {

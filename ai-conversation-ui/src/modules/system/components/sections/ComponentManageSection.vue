@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { MoreFilled, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { AppPagination } from '../../../../components'
+import ComponentAssetEditorDialog from '../component-manage/views/ComponentAssetEditorDialog.vue'
+import {
+  getComponentAssetCardInfo,
+  type ComponentAssetSubmission,
+} from '../component-manage/service/componentAsset'
 import {
   createRenderComponent,
   deleteRenderComponent,
@@ -12,7 +17,6 @@ import {
   type RenderComponentCategoryItem,
   type RenderComponentItem,
   type RenderComponentStatus,
-  type RenderComponentUpsertPayload,
   updateRenderComponent,
 } from '../../api/renderComponents'
 
@@ -21,7 +25,7 @@ withDefaults(defineProps<{
   description?: string
 }>(), {
   title: '组件管理',
-  description: '已对接组件实体表，支持真实分类、搜索和分页。',
+  description: '将 Application 组件配置为可检索、可同步的系统数字资产。',
 })
 
 const EFFECTIVE_STATUS_DRAFT = 1
@@ -43,21 +47,13 @@ const componentDialogVisible = ref(false)
 const componentDialogMode = ref<'create' | 'edit'>('create')
 const componentSubmitting = ref(false)
 const editingComponentId = ref<string | number | null>(null)
+const editingComponent = ref<RenderComponentItem | null>(null)
 const summary = ref({
   total: 0,
   published: 0,
   draft: 0,
   disabled: 0,
   categories: 0,
-})
-
-const componentForm = reactive({
-  key: '',
-  name: '',
-  category: '',
-  status: EFFECTIVE_STATUS_DRAFT as RenderComponentStatus,
-  docMarkdown: '',
-  exampleJson: '',
 })
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
@@ -82,18 +78,26 @@ const componentCategories = computed(() => {
 })
 
 const filteredComponentRecords = computed(() => {
-  return componentRecords.value.map((record) => ({
-    id: record.id,
-    key: record.key || '-',
-    name: record.name || '未命名组件',
-    category: record.category || '未分类',
-    status: formatStatus(record.status),
-    statusType: resolveStatusType(record.status),
-    updatedAt: formatDateTime(record.updateTime || record.createTime),
-    updatedBy: record.updatedBy || record.createdBy || '-',
-    docPreview: formatPreview(record.docMarkdown),
-    examplePreview: formatPreview(record.exampleJson),
-  }))
+  return componentRecords.value.map((record) => {
+    const asset = getComponentAssetCardInfo(record)
+    return {
+      id: record.id,
+      key: record.key || '-',
+      name: record.name || '未命名组件',
+      category: record.category || '未分类',
+      status: formatStatus(record.status),
+      statusType: resolveStatusType(record.status),
+      updatedAt: formatDateTime(record.updateTime || record.createTime),
+      updatedBy: record.updatedBy || record.createdBy || '-',
+      sourceName: asset.sourceName,
+      sourceKey: asset.sourceKey,
+      parameterCount: asset.parameterCount,
+      knowledgeBaseCode: asset.knowledgeBaseCode || '待指定知识库',
+      documentSize: record.docMarkdown?.length || 0,
+      isAsset: asset.isAsset,
+      assetLabel: asset.isAsset ? '数字资产' : '历史配置',
+    }
+  })
 })
 
 function resolveTotal(payloadTotal?: number) {
@@ -106,14 +110,6 @@ function formatDateTime(value?: string) {
     return '-'
   }
   return String(value).replace('T', ' ').slice(0, 19)
-}
-
-function formatPreview(value?: string) {
-  if (!value) {
-    return '暂无内容'
-  }
-  const normalized = value.replace(/\s+/g, ' ').trim()
-  return normalized.length > 88 ? `${normalized.slice(0, 88)}...` : normalized
 }
 
 function formatStatus(status?: RenderComponentStatus) {
@@ -142,14 +138,9 @@ function resolveStatusType(status?: RenderComponentStatus) {
   return ''
 }
 
-function resetComponentForm() {
+function resetComponentEditor() {
   editingComponentId.value = null
-  componentForm.key = ''
-  componentForm.name = ''
-  componentForm.category = ''
-  componentForm.status = EFFECTIVE_STATUS_DRAFT
-  componentForm.docMarkdown = ''
-  componentForm.exampleJson = ''
+  editingComponent.value = null
 }
 
 async function loadSummary() {
@@ -243,7 +234,7 @@ async function handleSelectCategory(categoryKey: string) {
 }
 
 function handleCreateComponent() {
-  resetComponentForm()
+  resetComponentEditor()
   componentDialogMode.value = 'create'
   componentDialogVisible.value = true
 }
@@ -255,14 +246,13 @@ function openEditComponentDialog(record: {
   category: string
 }) {
   const raw = componentRecords.value.find(item => item.id === record.id)
+  if (!raw) {
+    ElMessage.error('未找到可编辑的组件数据')
+    return
+  }
   componentDialogMode.value = 'edit'
   editingComponentId.value = record.id
-  componentForm.key = record.key === '-' ? '' : record.key
-  componentForm.name = record.name
-  componentForm.category = record.category === '未分类' ? '' : record.category
-  componentForm.status = raw?.status ?? EFFECTIVE_STATUS_DRAFT
-  componentForm.docMarkdown = raw?.docMarkdown || ''
-  componentForm.exampleJson = raw?.exampleJson || ''
+  editingComponent.value = raw
   componentDialogVisible.value = true
 }
 
@@ -285,38 +275,21 @@ async function handleDeleteComponent(record: { id: string | number, name: string
   }
 }
 
-async function submitComponentForm() {
-  if (!componentForm.key.trim()) {
-    ElMessage.warning('请输入组件标识')
-    return
-  }
-  if (!componentForm.name.trim()) {
-    ElMessage.warning('请输入组件名称')
-    return
-  }
-
+async function submitComponentForm(payload: ComponentAssetSubmission) {
   componentSubmitting.value = true
   try {
-    const payload: RenderComponentUpsertPayload = {
-      key: componentForm.key.trim(),
-      name: componentForm.name.trim(),
-      category: componentForm.category.trim() || undefined,
-      status: componentForm.status,
-      docMarkdown: componentForm.docMarkdown,
-      exampleJson: componentForm.exampleJson,
-    }
     if (componentDialogMode.value === 'create') {
       await createRenderComponent(payload)
-      ElMessage.success('组件已创建')
+      ElMessage.success('组件数字资产已创建')
     } else {
-      if (!editingComponentId.value) {
+      if (editingComponentId.value == null) {
         throw new Error('未找到可编辑的组件')
       }
       await updateRenderComponent(editingComponentId.value, payload)
-      ElMessage.success('组件已更新')
+      ElMessage.success('组件数字资产已更新')
     }
     componentDialogVisible.value = false
-    resetComponentForm()
+    resetComponentEditor()
     await loadPageData()
   }
   catch (error) {
@@ -375,7 +348,7 @@ onMounted(() => {
             </el-button>
             <el-button type="primary" @click="handleCreateComponent">
               <el-icon><Plus /></el-icon>
-              新建组件
+              新建资产
             </el-button>
           </div>
         </el-header>
@@ -402,6 +375,9 @@ onMounted(() => {
                   <div class="component-manage-card__meta">{{ record.key }}</div>
                 </div>
                 <div class="component-manage-card__actions">
+                  <el-tag size="small" effect="plain" :type="record.isAsset ? 'success' : 'info'">
+                    {{ record.assetLabel }}
+                  </el-tag>
                   <el-tag size="small" effect="plain" :type="record.statusType">
                     {{ record.status }}
                   </el-tag>
@@ -431,12 +407,14 @@ onMounted(() => {
               </div>
               <div class="component-manage-card__content">
                 <div class="component-manage-card__section">
-                  <label>文档</label>
-                  <p>{{ record.docPreview }}</p>
+                  <label>Application 来源</label>
+                  <p>{{ record.sourceName }}</p>
+                  <code v-if="record.sourceKey" class="component-manage-card__source-key">{{ record.sourceKey }}</code>
                 </div>
                 <div class="component-manage-card__section">
-                  <label>示例</label>
-                  <p>{{ record.examplePreview }}</p>
+                  <label>知识资产</label>
+                  <p>{{ record.parameterCount }} 个参数 · {{ record.documentSize.toLocaleString() }} 字符文档</p>
+                  <small>{{ record.knowledgeBaseCode }}</small>
                 </div>
               </div>
             </div>
@@ -458,58 +436,15 @@ onMounted(() => {
     </el-container>
   </section>
 
-  <el-dialog
+  <ComponentAssetEditorDialog
     v-model="componentDialogVisible"
-    :title="componentDialogMode === 'create' ? '新建组件' : '编辑组件'"
-    width="620px"
-    @closed="resetComponentForm"
-  >
-    <el-form label-width="88px">
-      <el-form-item label="组件标识">
-        <el-input v-model="componentForm.key" placeholder="请输入组件 Key" />
-      </el-form-item>
-      <el-form-item label="组件名称">
-        <el-input v-model="componentForm.name" placeholder="请输入组件名称" />
-      </el-form-item>
-      <el-form-item label="分类">
-        <el-select
-          v-model="componentForm.category"
-          allow-create
-          clearable
-          default-first-option
-          filterable
-          placeholder="请输入或选择分类"
-          style="width: 100%"
-        >
-          <el-option
-            v-for="option in categoryOptions"
-            :key="option.value"
-            :label="option.label"
-            :value="option.value"
-          />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="状态">
-        <el-select v-model="componentForm.status" placeholder="请选择状态" style="width: 100%">
-          <el-option label="草稿" :value="EFFECTIVE_STATUS_DRAFT" />
-          <el-option label="已发布" :value="EFFECTIVE_STATUS_PUBLISHED" />
-          <el-option label="已停用" :value="EFFECTIVE_STATUS_DISABLED" />
-        </el-select>
-      </el-form-item>
-      <el-form-item label="说明文档">
-        <el-input v-model="componentForm.docMarkdown" type="textarea" :rows="8" placeholder="请输入组件文档" />
-      </el-form-item>
-      <el-form-item label="示例 JSON">
-        <el-input v-model="componentForm.exampleJson" type="textarea" :rows="8" placeholder="请输入示例 JSON" />
-      </el-form-item>
-    </el-form>
-    <template #footer>
-      <div class="component-manage-dialog__footer">
-        <el-button @click="componentDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="componentSubmitting" @click="submitComponentForm">保存</el-button>
-      </div>
-    </template>
-  </el-dialog>
+    :mode="componentDialogMode"
+    :initial-value="editingComponent"
+    :category-options="categoryOptions"
+    :submitting="componentSubmitting"
+    @closed="resetComponentEditor"
+    @submit="submitComponentForm"
+  />
 </template>
 
 <style scoped>
@@ -735,10 +670,25 @@ onMounted(() => {
   word-break: break-all;
 }
 
+.component-manage-card__section small,
+.component-manage-card__source-key {
+  width: fit-content;
+  max-width: 100%;
+  overflow: hidden;
+  color: var(--system-text-muted);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.component-manage-card__source-key {
+  color: var(--system-accent-text);
+}
+
 .component-manage-card__actions {
   display: flex;
   align-items: center;
-  gap: 0;
+  gap: 6px;
 }
 
 .component-manage-card__more-anchor {
@@ -786,70 +736,6 @@ onMounted(() => {
   padding: 0 16px;
   border-top: 1px solid var(--system-border-subtle);
   background: var(--system-surface-solid);
-}
-
-.system-settings-component-page :deep(.el-overlay-dialog) {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.system-settings-component-page :deep(.el-dialog) {
-  overflow: hidden;
-  border: 1px solid var(--system-border);
-  border-radius: 18px;
-  background: var(--system-surface-strong);
-}
-
-.system-settings-component-page :deep(.el-dialog__header) {
-  margin-right: 0;
-  padding: 18px 20px 14px;
-  border-bottom: 1px solid var(--system-border-subtle);
-  background: var(--system-surface-gradient);
-}
-
-.system-settings-component-page :deep(.el-dialog__body) {
-  background: var(--system-surface-strong);
-}
-
-.system-settings-component-page :deep(.el-dialog__footer) {
-  border-top: 1px solid var(--system-border-subtle);
-  background: var(--system-surface-gradient);
-}
-
-.system-settings-component-page :deep(.el-form-item__label) {
-  color: var(--system-text-soft);
-}
-
-.system-settings-component-page :deep(.el-input__wrapper),
-.system-settings-component-page :deep(.el-textarea__inner),
-.system-settings-component-page :deep(.el-select__wrapper) {
-  background: var(--system-surface-muted);
-  border: 1px solid var(--system-border);
-  box-shadow: none;
-  color: var(--system-text);
-}
-
-.component-manage-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.component-manage-dialog__footer :deep(.el-button) {
-  min-width: 76px;
-  border-radius: 10px;
-}
-
-.component-manage-dialog__footer :deep(.el-button:not(.el-button--primary)) {
-  border-color: var(--system-border);
-  background: var(--system-surface-muted);
-  color: var(--system-text);
-}
-
-.component-manage-dialog__footer :deep(.el-button--primary) {
-  border-color: var(--system-accent-border);
-  background: var(--system-primary-button-bg);
-  color: var(--system-primary-button-text);
 }
 
 @media (max-width: 960px) {

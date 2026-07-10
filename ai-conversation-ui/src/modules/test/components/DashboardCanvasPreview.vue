@@ -23,7 +23,7 @@ const layout = ref<DashboardCanvasItem[]>([
 const listSchema: ListRendererSchema = {
   id: 'dashboard-list-demo',
   title: '异常任务列表',
-  component: 'common-list',
+  component: 'zg-common-list',
   tab: {
     activeTab: 'all',
     tabs: [

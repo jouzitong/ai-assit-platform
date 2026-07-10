@@ -1,0 +1,205 @@
+{
+  "id": "task-center-list",
+  "version": "1.0.0",
+  "title": "任务中心",
+  "component": "zg-common-tree-list",
+  "tree": {
+    "component": "group-list",
+    "title": "任务组列表"
+  },
+  "tab": {
+    "activeTab": "all",
+    "tabs": [
+      {
+        "key": "all",
+        "label": "全部"
+      },
+      {
+        "key": "mine",
+        "label": "我的"
+      }
+    ]
+  },
+  "datasource": {
+    "key": "ai_kb_document",
+    "type": "db-query-list",
+    "title": "知识文档列表",
+    "model": "ai_kb_document",
+    "filter_dict": {
+      "status": 1,
+      "is_delete": 0
+    },
+    "filterExpr": "status and is_delete",
+    "page": 1,
+    "page_size": 10,
+    "ext": {
+      "fields": [
+        "id",
+        "title",
+        "owner",
+        "deadline",
+        "priority",
+        "tag.title"
+      ],
+      "relations": [
+        {
+          "key": "tag",
+          "model": "ai_kb_document_tag",
+          "type": "left",
+          "on": {
+            "id": "document_id"
+          },
+          "filter": {
+            "status": 1,
+            "is_delete": 0
+          }
+        }
+      ],
+      "sorts": [
+        {
+          "field": "id",
+          "order": "desc"
+        }
+      ]
+    }
+  },
+  "filters": [
+    {
+      "key": "title",
+      "label": "标题",
+      "component": "zg-input",
+      "placeholder": "请输入标题"
+    },
+    {
+      "key": "owner",
+      "label": "负责人",
+      "component": "zg-selector",
+      "list": [
+        {
+          "key": "zhou",
+          "value": "zhou"
+        },
+        {
+          "key": "amy",
+          "value": "amy"
+        }
+      ],
+      "options": {
+        "multiple": true,
+        "filterable": true,
+        "clearable": true,
+        "styles": {
+          "width": "240px"
+        }
+      }
+    }
+  ],
+  "fields": [
+    {
+      "key": "id",
+      "name": "id",
+      "label": "ID",
+      "field": [
+        "id"
+      ],
+      "options": {
+        "styles": {
+          "text-align": "center",
+          "width": 8
+        },
+        "className": "text-center"
+      }
+    },
+    {
+      "key": "title",
+      "name": "title",
+      "label": "任务",
+      "field": [
+        "tag",
+        "title"
+      ],
+      "options": {
+        "styles": {
+          "text-align": "left",
+          "width": 20
+        },
+        "className": "text-left"
+      }
+    },
+    {
+      "key": "owner",
+      "name": "owner",
+      "label": "负责人",
+      "field": [
+        "owner"
+      ]
+    },
+    {
+      "key": "deadline",
+      "name": "deadline",
+      "label": "截止时间",
+      "field": [
+        "deadline"
+      ]
+    },
+    {
+      "key": "priority",
+      "name": "priority",
+      "label": "优先级",
+      "field": [
+        "priority"
+      ]
+    }
+  ],
+  "actions": [
+    {
+      "key": "create",
+      "name": "新建",
+      "action": "CREATE",
+      "type": "primary"
+    }
+  ],
+  "summary": {
+    "cards": [
+      {
+        "key": "pending",
+        "label": "待处理",
+        "value": 6,
+        "accent": "#f59e0b"
+      },
+      {
+        "key": "running",
+        "label": "进行中",
+        "value": 3,
+        "accent": "#60a5fa"
+      }
+    ]
+  },
+  "list_config": {
+    "variant": "workbench",
+    "itemType": "table",
+    "actionColumns": [
+      {
+        "key": "view",
+        "name": "查看",
+        "action": "VIEW",
+        "type": "primary"
+      },
+      {
+        "key": "delete",
+        "name": "删除",
+        "action": "DELETE",
+        "type": "danger"
+      }
+    ],
+    "pagination": {
+      "enabled": true,
+      "pageSize": 10,
+      "pageSizeOptions": [
+        10,
+        20,
+        50
+      ]
+    }
+  }
+}

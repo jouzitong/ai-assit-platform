@@ -8,6 +8,8 @@ import ListTabsBar from './components/ListTabsBar.vue'
 import ListTreePanel from './components/ListTreePanel.vue'
 import { createDefaultQueryState, normalizeSchema, shouldShowTree } from './schema'
 import type {
+  ApplicationRendererState,
+  ListRendererData,
   ListRendererSchema,
   RendererAction,
   RendererQueryState,
@@ -17,6 +19,8 @@ import type {
 const props = withDefaults(
   defineProps<{
     schema: ListRendererSchema
+    data?: Partial<ListRendererData>
+    state?: ApplicationRendererState
     records?: Record<string, unknown>[]
     treeData?: RendererTreeNode[]
     loading?: boolean
@@ -60,6 +64,10 @@ const showTree = computed(() => shouldShowTree(normalizedSchema.value))
 const paginationEnabled = computed(() => normalizedSchema.value.list_config?.pagination?.enabled)
 const variant = computed(() => normalizedSchema.value.list_config?.variant || 'default')
 const summaryCards = computed(() => normalizedSchema.value.summary?.cards || [])
+const resolvedRecords = computed(() => props.data?.records || props.records)
+const resolvedTreeData = computed(() => props.data?.treeData || props.treeData)
+const resolvedLoading = computed(() => props.state?.loading ?? props.loading)
+const resolvedTotal = computed(() => props.data?.total ?? props.total)
 
 const handleAction = (action: RendererAction) => {
   emit('action', action)
@@ -121,7 +129,7 @@ const handlePageSizeChange = (pageSize: number) => {
       <aside v-if="showTree" class="list-main-layout__tree">
         <ListTreePanel
           :config="normalizedSchema.tree"
-          :data="treeData"
+          :data="resolvedTreeData"
           :selected-key="queryState.selectedTreeKey"
           @select="handleTreeSelect"
         />
@@ -141,8 +149,8 @@ const handlePageSizeChange = (pageSize: number) => {
 
           <ListDataView
             :schema="normalizedSchema"
-            :records="records"
-            :loading="loading"
+            :records="resolvedRecords"
+            :loading="resolvedLoading"
             @item-action="handleItemAction"
           />
 
@@ -153,7 +161,7 @@ const handlePageSizeChange = (pageSize: number) => {
               :current-page="queryState.page"
               :page-size="queryState.pageSize"
               :page-sizes="normalizedSchema.list_config?.pagination?.pageSizeOptions || [10, 20, 30, 50]"
-              :total="total"
+              :total="resolvedTotal"
               @current-change="handlePageChange"
               @size-change="handlePageSizeChange"
             />

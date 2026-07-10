@@ -11,7 +11,7 @@ export function normalizeSchema(schema: ListRendererSchema): ListRendererSchema 
   return {
     ...schema,
     title: schema.title || '未命名列表',
-    component: schema.component || 'common-list',
+    component: schema.component || 'zg-common-list',
     filters: schema.filters || [],
     fields: schema.fields || [],
     actions: schema.actions || [],
@@ -73,7 +73,9 @@ export function shouldShowTree(schema: ListRendererSchema) {
   }
 
   const normalized = normalizeSchema(schema)
-  return normalized.component === 'common-tree-list' || Boolean(normalized.tree?.component)
+  return normalized.component === 'zg-common-tree-list'
+    || normalized.component === 'common-tree-list'
+    || Boolean(normalized.tree?.component)
 }
 
 export function getFieldValue(row: Record<string, unknown>, field: RendererField) {

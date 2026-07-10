@@ -84,7 +84,7 @@ const nodes = ref<Node<RendererNodeData>[]>(buildNodes(false))
 const listSchema: ListRendererSchema = {
   id: 'canvas-list-demo',
   title: '异常任务列表',
-  component: 'common-list',
+  component: 'zg-common-list',
   tab: {
     activeTab: 'all',
     tabs: [

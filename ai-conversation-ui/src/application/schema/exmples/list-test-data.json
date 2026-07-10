@@ -1,0 +1,22 @@
+{
+  "records": [
+    {
+      "id": "TASK-001",
+      "title": "资金链路核对",
+      "owner": "Risk Ops",
+      "status": "进行中",
+      "priority": "P1"
+    },
+    {
+      "id": "TASK-002",
+      "title": "登录失败地区拆分",
+      "owner": "Data",
+      "status": "待处理",
+      "priority": "P2"
+    }
+  ],
+  "total": 2,
+  "summary": {
+    "source": "list-test-data"
+  }
+}

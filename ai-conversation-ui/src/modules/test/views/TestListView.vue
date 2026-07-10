@@ -28,7 +28,7 @@ const baseSchema: ListRendererSchema = {
   id: 'qwerty12345678aeswrtyui3234',
   version: '1.0.0',
   title: '任务中心',
-  component: 'common-tree-list',
+  component: 'zg-common-tree-list',
   tree: {
     component: 'group-list',
     title: '任务组列表',
@@ -42,26 +42,30 @@ const baseSchema: ListRendererSchema = {
   },
   datasource: {
     key: 'ai_kb_document',
-    type: 'system',
+    type: 'db-query-list',
     model: 'ai_kb_document',
     filter_dict: {
       status: 1,
       is_delete: 0,
     },
-    filterExpr: '(status and is_delete) or xx_field',
-    relations: [
-      {
-        key: 'tag',
-        model: 'ai_kb_document_tag',
-        type: 'left',
-        foreign_key: 'document_id',
-        local_key: 'id',
-        filter_dict: {
-          status: 1,
-          is_delete: 0,
+    filterExpr: 'status and is_delete',
+    ext: {
+      fields: ['id', 'title', 'owner', 'deadline', 'priority', 'tag.title'],
+      relations: [
+        {
+          key: 'tag',
+          model: 'ai_kb_document_tag',
+          type: 'left',
+          on: {
+            id: 'document_id',
+          },
+          filter: {
+            status: 1,
+            is_delete: 0,
+          },
         },
-      },
-    ],
+      ],
+    },
   },
   filters: [
     {
