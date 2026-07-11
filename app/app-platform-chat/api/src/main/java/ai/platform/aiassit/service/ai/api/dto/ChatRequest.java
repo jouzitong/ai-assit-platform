@@ -2,7 +2,7 @@ package ai.platform.aiassit.service.ai.api.dto;
 
 import lombok.Data;
 
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -15,8 +15,10 @@ import java.util.Map;
 @Data
 public class ChatRequest implements Serializable {
 
-    /** 指定 AI 平台，允许为空（由核心路由层自动选择） */
-    private ProviderType provider;
+    /** 指定对话客户端类型，允许为空（由核心路由层自动选择） */
+    private AiChatClientType clientType;
+    /** 本地模型配置编码；指定时由运行时从模型实体解析客户端和远端模型。 */
+    private String modelCode;
     /** 目标模型名称 */
     private String model;
     /** 对话消息列表，通常至少包含一条 user 消息 */

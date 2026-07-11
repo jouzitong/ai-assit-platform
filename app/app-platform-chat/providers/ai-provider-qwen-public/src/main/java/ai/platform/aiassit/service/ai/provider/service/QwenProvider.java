@@ -15,7 +15,8 @@ import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.FinishReason;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.service.ai.provider.client.QwenKnowledgeBaseClient;
@@ -42,6 +43,9 @@ import org.springframework.ai.openai.OpenAiChatModel;
 import org.springframework.ai.openai.OpenAiEmbeddingOptions;
 import org.springframework.ai.openai.OpenAiEmbeddingModel;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.ai.openai.api.OpenAiApi;
+import org.springframework.ai.retry.RetryUtils;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
@@ -73,22 +77,27 @@ public class QwenProvider implements AiChatService, KnowledgeService {
     }
 
     @Override
-    public ProviderType providerType() {
-        return ProviderType.DASHSCOPE;
+    public AiChatClientType chatClientType() {
+        return AiChatClientType.SPRING_AI;
+    }
+
+    @Override
+    public AiKnowledgeClientType knowledgeClientType() {
+        return AiKnowledgeClientType.BAILIAN;
     }
 
     @Override
     public ChatResponse chat(ProviderChatRequest request) {
-        log.debug("chat request: {}", request);
+        log.debug("chat request received, model={}, messageCount={}", request.getModel(), safeList(request.getMessages()).size());
         Prompt prompt = new Prompt(toSpringMessages(request.getMessages()), toChatOptions(request));
-        org.springframework.ai.chat.model.ChatResponse aiResponse = chatModel.call(prompt);
+        org.springframework.ai.chat.model.ChatResponse aiResponse = resolveChatModel(request).call(prompt);
         return toChatResponse(aiResponse);
     }
 
     @Override
     public void chatStream(ProviderChatRequest request, ChatStreamObserver observer) {
         Prompt prompt = new Prompt(toSpringMessages(request.getMessages()), toChatOptions(request));
-        Flux<org.springframework.ai.chat.model.ChatResponse> stream = chatModel.stream(prompt);
+        Flux<org.springframework.ai.chat.model.ChatResponse> stream = resolveChatModel(request).stream(prompt);
         try {
             stream.doOnNext(item -> emitChunk(observer, item))
                     .doOnError(observer::onError)
@@ -209,6 +218,24 @@ public class QwenProvider implements AiChatService, KnowledgeService {
             builder.maxTokens(request.getMaxTokens());
         }
         return builder.build();
+    }
+
+    private OpenAiChatModel resolveChatModel(ProviderChatRequest request) {
+        if (!StringUtils.hasText(request.getBaseUrl()) || !StringUtils.hasText(request.getApiKey())) {
+            return chatModel;
+        }
+        OpenAiApi api = OpenAiApi.builder()
+                .baseUrl(request.getBaseUrl().trim())
+                .apiKey(request.getApiKey().trim())
+                .build();
+        return OpenAiChatModel.builder()
+                .openAiApi(api)
+                .defaultOptions(OpenAiChatOptions.builder()
+                        .model(resolveModel(request.getModel(), properties.getDefaultModel()))
+                        .build())
+                .retryTemplate(RetryUtils.DEFAULT_RETRY_TEMPLATE)
+                .observationRegistry(ObservationRegistry.NOOP)
+                .build();
     }
 
     private ChatResponse toChatResponse(org.springframework.ai.chat.model.ChatResponse aiResponse) {

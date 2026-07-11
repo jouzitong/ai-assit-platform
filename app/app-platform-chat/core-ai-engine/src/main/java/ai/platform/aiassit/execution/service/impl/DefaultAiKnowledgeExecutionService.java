@@ -15,79 +15,128 @@ import ai.platform.aiassit.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
+import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.spi.KnowledgeService;
+import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.util.StringUtils;
 
 import java.util.EnumMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 @RestController
 public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionService, AiVectorExecutionApi {
 
-    private final Map<ProviderType, KnowledgeService> knowledgeServices = new EnumMap<>(ProviderType.class);
+    private final Map<AiKnowledgeClientType, KnowledgeService> knowledgeServices = new EnumMap<>(AiKnowledgeClientType.class);
     private final AiCoreProperties properties;
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
+    private final AiKbStoreService kbStoreService;
 
     public DefaultAiKnowledgeExecutionService(List<KnowledgeService> knowledgeServices,
                                               AiCoreProperties properties,
                                               AiRequestValidator validator,
-                                              AiProviderRequestMapper requestMapper) {
+                                              AiProviderRequestMapper requestMapper,
+                                              AiKbStoreService kbStoreService) {
         for (KnowledgeService service : knowledgeServices) {
-            this.knowledgeServices.put(service.providerType(), service);
+            this.knowledgeServices.put(service.knowledgeClientType(), service);
         }
         this.properties = properties;
         this.validator = validator;
         this.requestMapper = requestMapper;
+        this.kbStoreService = kbStoreService;
     }
 
     @Override
     public EmbedResponse embed(@RequestBody EmbedRequest request) {
         validator.validateEmbed(request);
-        return resolveKnowledgeService(request.getProvider()).embed(requestMapper.mapEmbed(request, properties));
+        return resolveKnowledgeService(request.getClientType()).embed(requestMapper.mapEmbed(request, properties));
     }
 
     @Override
     public RerankResponse rerank(@RequestBody RerankRequest request) {
         validator.validateRerank(request);
-        return resolveKnowledgeService(request.getProvider()).rerank(requestMapper.mapRerank(request, properties));
+        return resolveKnowledgeService(request.getClientType()).rerank(requestMapper.mapRerank(request, properties));
     }
 
     @Override
     public KbUpsertResponse kbUpsert(KbUpsertRequest request) {
         validator.validateKbUpsert(request);
-        return resolveKnowledgeService(null).kbUpsert(requestMapper.mapKbUpsert(request));
+        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId());
+        request.setMeta(mergeStoreMeta(store, request.getMeta()));
+        request.setKbId(store.getProviderKbId());
+        return resolveKnowledgeService(store.getClientType()).kbUpsert(requestMapper.mapKbUpsert(request));
     }
 
     @Override
     public KbDeleteResponse kbDelete(KbDeleteRequest request) {
         validator.validateKbDelete(request);
-        return resolveKnowledgeService(null).kbDelete(requestMapper.mapKbDelete(request));
+        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId());
+        request.setMeta(mergeStoreMeta(store, request.getMeta()));
+        request.setKbId(store.getProviderKbId());
+        return resolveKnowledgeService(store.getClientType()).kbDelete(requestMapper.mapKbDelete(request));
     }
 
     @Override
     public KbSearchResponse kbSearch(KbSearchRequest request) {
         validator.validateKbSearch(request);
-        return resolveKnowledgeService(null).kbSearch(requestMapper.mapKbSearch(request));
+        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId());
+        request.setMeta(mergeStoreMeta(store, request.getMeta()));
+        request.setKbId(store.getProviderKbId());
+        return resolveKnowledgeService(store.getClientType()).kbSearch(requestMapper.mapKbSearch(request));
     }
 
-    private KnowledgeService resolveKnowledgeService(ProviderType requestedProvider) {
-        ProviderType providerType = requestedProvider;
-        if (providerType == null) {
-            if (properties.isStrictProvider()) {
-                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_PROVIDER);
+    private AiKbStoreDTO requireKnowledgeStore(String kbCode) {
+        AiKbStoreDTO store = kbStoreService.getByKbCode(kbCode);
+        if (store == null) {
+            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, kbCode);
+        }
+        if (!Boolean.TRUE.equals(store.getEnabled())) {
+            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, kbCode);
+        }
+        if (store.getClientType() == null) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KNOWLEDGE_CLIENT_TYPE);
+        }
+        return store;
+    }
+
+    private RequestMeta mergeStoreMeta(AiKbStoreDTO store, RequestMeta requestMeta) {
+        RequestMeta merged = requestMeta == null ? new RequestMeta() : requestMeta;
+        Map<String, Object> ext = new LinkedHashMap<>();
+        if (merged.getExt() != null) {
+            ext.putAll(merged.getExt());
+        }
+        if (store.getExtJson() != null) {
+            ext.putAll(store.getExtJson());
+        }
+        if (StringUtils.hasText(store.getUrl())) {
+            ext.put("kbEndpoint", store.getUrl().trim());
+        }
+        ext.put("localKbCode", store.getKbCode());
+        ext.put("providerKbId", store.getProviderKbId());
+        merged.setExt(ext);
+        return merged;
+    }
+
+    private KnowledgeService resolveKnowledgeService(AiKnowledgeClientType requestedClientType) {
+        AiKnowledgeClientType clientType = requestedClientType;
+        if (clientType == null) {
+            if (properties.isStrictClientType()) {
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KNOWLEDGE_CLIENT_TYPE);
             }
-            providerType = properties.getDefaultProvider();
+            clientType = properties.getDefaultKnowledgeClientType();
         }
 
-        KnowledgeService service = knowledgeServices.get(providerType);
+        KnowledgeService service = knowledgeServices.get(clientType);
         if (service == null) {
-            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, providerType);
+            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, clientType);
         }
         return service;
     }

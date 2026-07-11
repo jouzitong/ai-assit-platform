@@ -10,7 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.config.WorkflowProperties;
@@ -242,9 +242,9 @@ public class QueryPlanningNode extends BaseWorkflowNode {
             );
 
             ChatRequest planningRequest = buildPlanningRequest(command, context, historyMessages);
-            log.info("query planning request built, sessionCode={}, provider={}, model={}, messageCount={}",
+            log.info("query planning request built, sessionCode={}, clientType={}, model={}, messageCount={}",
                     context.getSession().getSessionCode(),
-                    planningRequest.getProvider(),
+                    planningRequest.getClientType(),
                     planningRequest.getModel(),
                     CollectionUtils.isEmpty(planningRequest.getMessages()) ? 0 : planningRequest.getMessages().size());
 
@@ -339,7 +339,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                                              ConversationRuntimeContext context,
                                              List<AiChatMessageDTO> historyMessages) {
         ChatRequest request = new ChatRequest();
-        request.setProvider(resolveProviderType(command));
+        request.setClientType(resolveChatClientType(command));
+        request.setModelCode(command.getApiModel());
         request.setModel(resolveActualModel(command.getApiModel()));
 
         List<ChatMessage> messages = new ArrayList<>();
@@ -510,7 +511,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                                              boolean requireSessionTitle) {
         log.info("retry query planning with feedback, requireSessionTitle={}, validationError={}", requireSessionTitle, validationError);
         ChatRequest retryRequest = new ChatRequest();
-        retryRequest.setProvider(ProviderType.DASHSCOPE);
+        retryRequest.setClientType(AiChatClientType.SPRING_AI);
+        retryRequest.setModelCode(null);
         retryRequest.setModel(resolveActualModel(null));
 
         List<ChatMessage> messages = new ArrayList<>();
@@ -1002,23 +1004,8 @@ public class QueryPlanningNode extends BaseWorkflowNode {
                 .orElse("");
     }
 
-    private ProviderType resolveProviderType(ConversationQueryCommand command) {
-        String apiModel = command == null ? null : command.getApiModel();
-        if (StringUtils.hasText(apiModel) && apiModel.toLowerCase(Locale.ROOT).contains("qwen")) {
-            return ProviderType.DASHSCOPE;
-        }
-        return ProviderType.DASHSCOPE;
-    }
-
-    private ProviderType resolveProviderType(String providerCode) {
-        if (!StringUtils.hasText(providerCode)) {
-            return ProviderType.DASHSCOPE;
-        }
-        try {
-            return ProviderType.valueOf(providerCode.trim().toUpperCase(Locale.ROOT));
-        } catch (Exception ex) {
-            return ProviderType.DASHSCOPE;
-        }
+    private AiChatClientType resolveChatClientType(ConversationQueryCommand command) {
+        return AiChatClientType.SPRING_AI;
     }
 
     private int resolveMaxTokens(String apiModel) {

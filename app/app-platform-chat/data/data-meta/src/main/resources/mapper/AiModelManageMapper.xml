@@ -8,8 +8,7 @@
         <id property="id" column="id"/>
         <result property="modelCode" column="model_code"/>
         <result property="modelName" column="model_name"/>
-        <result property="providerCode" column="provider_code"/>
-        <result property="providerName" column="provider_name"/>
+        <result property="clientType" column="client_type" javaType="ai.platform.aiassit.service.ai.api.enums.AiChatClientType" typeHandler="org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler"/>
         <result property="baseUrl" column="base_url"/>
         <result property="apiModel" column="api_model"/>
         <result property="enabled" column="enabled"/>
@@ -25,8 +24,7 @@
         m.id,
         m.model_code,
         m.model_name,
-        m.provider_code,
-        m.provider_name,
+        m.client_type,
         m.base_url,
         m.api_model,
         m.enabled,
@@ -50,8 +48,8 @@
 
     <sql id="AggregateWhere">
         <if test="query != null">
-            <if test="query.providerCode != null and query.providerCode != ''">
-                AND m.provider_code = #{query.providerCode}
+            <if test="query.clientType != null">
+                AND m.client_type = #{query.clientType,javaType=ai.platform.aiassit.service.ai.api.enums.AiChatClientType,typeHandler=org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler}
             </if>
             <if test="query.modelCode != null and query.modelCode != ''">
                 AND m.model_code = #{query.modelCode}
@@ -64,8 +62,6 @@
                     m.model_code LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.model_name LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.api_model LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR m.provider_code LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR m.provider_name LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.base_url LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.ext_json LIKE CONCAT('%', #{query.keyword}, '%')
                 )

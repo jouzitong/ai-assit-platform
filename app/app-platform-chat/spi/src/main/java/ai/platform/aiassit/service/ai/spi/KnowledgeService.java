@@ -5,7 +5,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderEmbedRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbDeleteRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbSearchRequest;
@@ -21,11 +21,11 @@ import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderRerankRequest;
 public interface KnowledgeService {
 
     /**
-     * 获取当前 AI 提供方类型。
+     * 获取当前知识库客户端类型。
      *
-     * @return AI 提供方类型
+     * @return 知识库客户端类型
      */
-    ProviderType providerType();
+    AiKnowledgeClientType knowledgeClientType();
 
     /**
      * 执行文本向量化请求。

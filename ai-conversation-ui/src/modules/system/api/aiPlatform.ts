@@ -11,8 +11,7 @@ export interface AiModelManageItem {
   id: string | number
   modelCode?: string
   modelName?: string
-  providerCode?: string
-  providerName?: string
+  clientType?: number
   baseUrl?: string
   apiModel?: string
   enabled?: boolean
@@ -25,8 +24,7 @@ export interface AiModelManageItem {
 export interface AiModelManageUpsertPayload {
   modelCode?: string
   modelName?: string
-  providerCode?: string
-  providerName?: string
+  clientType?: number
   baseUrl?: string
   apiModel?: string
   enabled?: boolean
@@ -41,7 +39,7 @@ export interface AiModelTestChatMessage {
 
 export interface AiModelTestChatPayload {
   id?: string | number | null
-  providerCode?: string
+  clientType?: number
   baseUrl?: string
   apiModel?: string
   apiKey?: string
@@ -52,7 +50,7 @@ export interface AiModelTestChatPayload {
 export interface AiModelTestChatResult {
   success?: boolean
   durationMs?: number
-  providerCode?: string
+  clientType?: number
   apiModel?: string
   answer?: string
   errorMessage?: string
@@ -62,6 +60,7 @@ export interface AiKbStoreItem {
   id: string | number
   kbCode?: string
   kbName?: string
+  clientType?: number
   providerKbId?: string
   enabled?: boolean
   tags?: string[]
@@ -74,6 +73,7 @@ export interface AiKbStoreItem {
 export interface AiKbStoreUpsertPayload {
   kbCode?: string
   kbName?: string
+  clientType?: number
   providerKbId?: string
   enabled?: boolean
   tags?: string[]
@@ -180,7 +180,7 @@ export interface AiModelManageQueryPayload {
   page?: number
   size?: number
   keyword?: string
-  providerCode?: string
+  clientType?: number
   enabled?: boolean
 }
 

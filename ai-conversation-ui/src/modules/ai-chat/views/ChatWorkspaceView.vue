@@ -108,8 +108,8 @@ const currentGroupId = computed(() =>
 )
 const activeConversation = computed(() => currentSessionCode.value)
 const selectedModelLabel = computed(() => {
-  const matchedModel = modelOptions.value.find((item) => item.apiModel === selectedModel.value)
-  return matchedModel?.apiModel || matchedModel?.modelName || matchedModel?.modelCode || selectedModel.value || '选择模型'
+  const matchedModel = modelOptions.value.find((item) => item.modelCode === selectedModel.value)
+  return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || selectedModel.value || '选择模型'
 })
 const pinnedConversations = computed(() =>
   conversationList.value.map((conversation) => ({
@@ -196,7 +196,7 @@ async function loadEnabledModelList() {
   modelOptions.value = Array.isArray(models) ? models : []
   if (!selectedModel.value) {
     const firstModel = modelOptions.value[0]
-    selectedModel.value = firstModel?.apiModel || firstModel?.modelName || firstModel?.modelCode || 'gpt-4.1'
+    selectedModel.value = firstModel?.modelCode || ''
   }
 }
 
@@ -294,7 +294,7 @@ async function handlePrimaryAction() {
     await streamChatCompletion(
       {
         sessionCode: currentSessionCode.value || undefined,
-        apiModel: selectedModel.value || undefined,
+        modelCode: selectedModel.value || undefined,
         message,
         attachments: [],
         tools: [],

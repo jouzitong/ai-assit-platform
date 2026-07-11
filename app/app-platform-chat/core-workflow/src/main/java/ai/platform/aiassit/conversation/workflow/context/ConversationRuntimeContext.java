@@ -398,11 +398,24 @@ public class ConversationRuntimeContext implements Serializable {
                              String delta,
                              String status,
                              Map<String, Object> ext) {
+        publishEvent(eventType, null, source, phase, message, answer, delta, status, ext);
+    }
+
+    public void publishEvent(String eventType,
+                             String progressType,
+                             String source,
+                             String phase,
+                             String message,
+                             String answer,
+                             String delta,
+                             String status,
+                             Map<String, Object> ext) {
         if (emitter == null) {
             return;
         }
         ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
         event.setEventType(eventType);
+        event.setProgressType(progressType);
         event.setSource(source);
         event.setPhase(phase);
         event.setRequestId(command == null ? null : command.getTraceId());
@@ -427,6 +440,15 @@ public class ConversationRuntimeContext implements Serializable {
 
     public void publishProgressEvent(String source, String phase, String message, Map<String, Object> ext) {
         publishEvent(ConversationEventTypes.PROGRESS, source, phase, message, null, null, STATUS_RUNNING, ext);
+    }
+
+    public void publishActivityEvent(String source,
+                                     String phase,
+                                     String message,
+                                     String status,
+                                     Map<String, Object> ext) {
+        publishEvent(ConversationEventTypes.PROGRESS, "ACTIVITY", source, phase, message,
+                null, null, StringUtils.hasText(status) ? status : STATUS_RUNNING, ext);
     }
 
     public void publishAnswerEvent(String source, String phase, String message, String answer, String delta, String status) {

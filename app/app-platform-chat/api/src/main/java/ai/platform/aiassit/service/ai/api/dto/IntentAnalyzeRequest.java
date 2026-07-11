@@ -1,6 +1,6 @@
 package ai.platform.aiassit.service.ai.api.dto;
 
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -12,7 +12,7 @@ import java.util.Map;
 @Data
 public class IntentAnalyzeRequest implements Serializable {
 
-    private ProviderType provider;
+    private AiChatClientType clientType;
 
     private String model;
 

@@ -1,5 +1,6 @@
 package ai.platform.aiassit.model.entity.vo;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.AuditableDTO;
@@ -14,9 +15,7 @@ public class AiModelManageVO extends AuditableDTO {
 
     private String modelName;
 
-    private String providerCode;
-
-    private String providerName;
+    private AiChatClientType clientType;
 
     private String baseUrl;
 

@@ -2,8 +2,7 @@ CREATE TABLE IF NOT EXISTS ai_model_config (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     model_code VARCHAR(64) NOT NULL COMMENT '模型编码',
     model_name VARCHAR(128) NOT NULL COMMENT '模型名称',
-    provider_code VARCHAR(64) DEFAULT NULL COMMENT '所属提供商编码',
-    provider_name VARCHAR(128) DEFAULT NULL COMMENT '提供商名称',
+    client_type INT NOT NULL COMMENT '对话客户端类型：1=SPRING_AI,2=AI_AGENT',
     base_url VARCHAR(512) DEFAULT NULL COMMENT '提供商请求基础地址',
     api_model VARCHAR(128) NOT NULL COMMENT '提供商侧模型标识',
     enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '启用状态：true启用，false禁用',
@@ -16,5 +15,5 @@ CREATE TABLE IF NOT EXISTS ai_model_config (
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记：0未删除，1已删除',
     UNIQUE KEY uk_model_code (model_code),
-    KEY idx_provider_code (provider_code)
+    KEY idx_client_type (client_type)
 ) COMMENT='AI模型配置表';

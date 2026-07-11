@@ -1,7 +1,7 @@
 package ai.platform.aiassit.service.ai.spi;
 
 import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 
@@ -13,11 +13,11 @@ import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 public interface AiChatService {
 
     /**
-     * 获取当前 AI 提供方类型。
+     * 获取当前对话客户端类型。
      *
-     * @return AI 提供方类型
+     * @return 对话客户端类型
      */
-    ProviderType providerType();
+    AiChatClientType chatClientType();
 
     /**
      * 执行普通对话请求。

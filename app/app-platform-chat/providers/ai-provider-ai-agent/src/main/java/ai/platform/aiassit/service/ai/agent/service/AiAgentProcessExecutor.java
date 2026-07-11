@@ -13,10 +13,8 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.io.BufferedReader;
-import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.OutputStreamWriter;
-import java.io.Reader;
 import java.io.Writer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -27,6 +25,9 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 @Slf4j
 @Component
@@ -57,6 +58,12 @@ public class AiAgentProcessExecutor {
     }
 
     public JsonNode execute(AiAgentProperties properties, ProviderChatRequest request) {
+        return executeStream(properties, request, frame -> { });
+    }
+
+    public JsonNode executeStream(AiAgentProperties properties,
+                                  ProviderChatRequest request,
+                                  Consumer<JsonNode> frameConsumer) {
         validate(properties);
         Path scriptPath = resolveScriptPath(properties);
         long timeoutMs = resolveTimeoutMs(properties, request);
@@ -99,26 +106,30 @@ public class AiAgentProcessExecutor {
             try (Writer writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
                 objectMapper.writeValue(writer, buildPayload(properties, request));
             }
+            AtomicReference<JsonNode> resultRef = new AtomicReference<>();
+            CompletableFuture<Void> stdoutFuture = CompletableFuture.runAsync(
+                    () -> readFrames(process, frameConsumer, resultRef));
+            CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(
+                    () -> readText(process.getErrorStream()));
             boolean finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
             if (!finished) {
                 log.warn("ai agent process timeout, timeoutMs={}, scriptPath={}", timeoutMs, scriptPath);
                 process.destroyForcibly();
                 throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "python process timeout");
             }
-            String stdout = readAll(process.getInputStream());
-            String stderr = readAll(process.getErrorStream());
+            stdoutFuture.join();
+            String stderr = stderrFuture.join();
             int exitValue = process.exitValue();
-            log.info("ai agent process finished, exitValue={}, stdoutLength={}, stderrLength={}",
-                    exitValue, stdout.length(), stderr.length());
+            log.info("ai agent process finished, exitValue={}, stderrLength={}", exitValue, stderr.length());
             if (exitValue != 0) {
                 log.error("ai agent process failed, exitValue={}, stderr={}", exitValue, safeError(stderr));
                 throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, safeError(stderr));
             }
-            if (!StringUtils.hasText(stdout)) {
+            JsonNode result = resultRef.get();
+            if (result == null) {
                 log.error("ai agent process returned empty output, stderr={}", safeError(stderr));
                 throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "empty output");
             }
-            JsonNode result = objectMapper.readTree(stdout);
             log.info("ai agent process parsed output successfully");
             return result;
         } catch (Exception ex) {
@@ -130,6 +141,54 @@ public class AiAgentProcessExecutor {
                     StringUtils.hasText(request.getModel()) ? request.getModel() : properties.getDefaultModel(),
                     ex);
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, ex.getMessage());
+        }
+    }
+
+    private void readFrames(Process process,
+                            Consumer<JsonNode> frameConsumer,
+                            AtomicReference<JsonNode> resultRef) {
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (!StringUtils.hasText(line)) {
+                    continue;
+                }
+                JsonNode frame = objectMapper.readTree(line);
+                String type = frame.path("type").asText();
+                if (!StringUtils.hasText(type)) {
+                    resultRef.set(frame);
+                } else if ("result".equalsIgnoreCase(type)) {
+                    resultRef.set(frame.get("data"));
+                } else if ("error".equalsIgnoreCase(type)) {
+                    throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                            frame.path("message").asText("ai agent execution failed"));
+                } else {
+                    frameConsumer.accept(frame);
+                }
+            }
+        } catch (Exception ex) {
+            if (ex instanceof BizException bizException) {
+                throw bizException;
+            }
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, ex.getMessage());
+        }
+    }
+
+    private String readText(java.io.InputStream inputStream) {
+        StringBuilder builder = new StringBuilder();
+        try (BufferedReader reader = new BufferedReader(
+                new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
+            String line;
+            while ((line = reader.readLine()) != null) {
+                if (builder.length() > 0) {
+                    builder.append('\n');
+                }
+                builder.append(line);
+            }
+            return builder.toString();
+        } catch (Exception ex) {
+            return ex.getMessage() == null ? "" : ex.getMessage();
         }
     }
 
@@ -188,18 +247,6 @@ public class AiAgentProcessExecutor {
             return developmentPath;
         }
         throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_AI_AGENT_SCRIPT_PATH);
-    }
-
-    private String readAll(java.io.InputStream inputStream) throws IOException {
-        StringBuilder builder = new StringBuilder();
-        try (Reader reader = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8))) {
-            char[] buffer = new char[2048];
-            int len;
-            while ((len = reader.read(buffer)) != -1) {
-                builder.append(buffer, 0, len);
-            }
-        }
-        return builder.toString();
     }
 
     private String safeError(String stderr) {

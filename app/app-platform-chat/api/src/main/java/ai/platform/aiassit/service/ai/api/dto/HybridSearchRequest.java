@@ -1,6 +1,6 @@
 package ai.platform.aiassit.service.ai.api.dto;
 
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -10,7 +10,7 @@ import java.util.Map;
 @Data
 public class HybridSearchRequest implements Serializable {
 
-    private ProviderType provider;
+    private AiKnowledgeClientType clientType;
 
     private String kbId;
 

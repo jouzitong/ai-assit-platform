@@ -1,5 +1,6 @@
 package ai.platform.aiassit.service.ai.api.dto;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 
 import java.util.Map;
@@ -13,9 +14,7 @@ public class AiModelConfigDTO {
 
     private String modelName;
 
-    private String providerCode;
-
-    private String providerName;
+    private AiChatClientType clientType;
 
     private String baseUrl;
 

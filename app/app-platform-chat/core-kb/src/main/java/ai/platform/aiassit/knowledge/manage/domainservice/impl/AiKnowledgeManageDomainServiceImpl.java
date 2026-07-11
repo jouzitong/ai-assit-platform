@@ -1,5 +1,6 @@
 package ai.platform.aiassit.knowledge.manage.domainservice.impl;
 
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.constant.AiKbBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
@@ -20,6 +21,7 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
@@ -121,6 +123,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         AiKbStoreDTO store = new AiKbStoreDTO();
         store.setKbCode(kbCode);
         store.setKbName(request.getKbName().trim());
+        store.setClientType(request.getClientType());
         store.setProviderKbId(trimToNull(request.getProviderKbId()));
         store.setEnabled(request.getEnabled() == null ? Boolean.TRUE : request.getEnabled());
         store.setTags(normalizeTags(request.getTags()));
@@ -538,6 +541,9 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbCode);
         }
         Map<String, Object> storeExt = copyMap(store.getExtJson());
+        if (StringUtils.hasText(store.getUrl())) {
+            storeExt.put("kbEndpoint", store.getUrl().trim());
+        }
         requireExtText(storeExt, "workspaceId");
         requireExtText(storeExt, "kbEndpoint");
 
@@ -562,7 +568,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         }
 
         KbUpsertRequest upsertRequest = new KbUpsertRequest();
-        upsertRequest.setKbId(trimToNull(store.getProviderKbId()));
+        upsertRequest.setKbId(store.getKbCode());
         upsertRequest.setDocuments(aiDocuments);
         upsertRequest.setMeta(buildPublishMeta(store, storeExt));
         markDocumentsSyncing(acceptedDocuments);
@@ -824,6 +830,9 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (!StringUtils.hasText(request.getKbName())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_NAME);
         }
+        if (request.getClientType() == null) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KNOWLEDGE_CLIENT_TYPE);
+        }
     }
 
     private AiKbStoreDTO requireStore(String kbId) {
@@ -979,6 +988,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         AiKbInfoDTO dto = new AiKbInfoDTO();
         dto.setKbId(store.getKbCode());
         dto.setKbName(store.getKbName());
+        dto.setClientType(store.getClientType());
         dto.setProviderKbId(store.getProviderKbId());
         dto.setEnabled(store.getEnabled());
         dto.setTags(store.getTags());

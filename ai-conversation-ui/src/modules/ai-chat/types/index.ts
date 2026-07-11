@@ -60,7 +60,7 @@ export interface ChatMessageItem {
 
 export interface ChatQueryPayload {
   sessionCode?: string
-  apiModel?: string
+  modelCode?: string
   message: string
   attachments?: unknown[]
   tools?: unknown[]
@@ -71,8 +71,7 @@ export interface ChatEnabledModel {
   modelCode?: string
   modelName?: string
   apiModel?: string
-  providerCode?: string
-  providerName?: string
+  clientType?: number
 }
 
 export interface ChatStreamEvent {

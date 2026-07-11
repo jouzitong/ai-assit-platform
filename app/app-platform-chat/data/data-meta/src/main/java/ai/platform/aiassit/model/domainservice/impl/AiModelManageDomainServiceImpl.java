@@ -8,6 +8,7 @@ import ai.platform.aiassit.model.entity.vo.AiModelManageVO;
 import ai.platform.aiassit.model.mapper.AiModelManageMapper;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.data.jdbc.vo.PageInfo;
@@ -107,16 +108,19 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         model.setId(dto.getId());
         model.setModelCode(trimToNull(dto.getModelCode()));
         model.setModelName(trimToNull(dto.getModelName()));
-        model.setProviderCode(trimToNull(dto.getProviderCode()));
-        model.setProviderName(trimToNull(dto.getProviderName()));
-        model.setBaseUrl(trimToNull(dto.getBaseUrl()));
+        model.setClientType(dto.getClientType());
+        model.setBaseUrl(dto.getClientType() == AiChatClientType.SPRING_AI ? trimToNull(dto.getBaseUrl()) : null);
         model.setApiModel(trimToNull(dto.getApiModel()));
         model.setEnabled(dto.getEnabled());
-        String apiKey = trimToNull(dto.getApiKey());
-        if (StringUtils.hasText(apiKey)) {
-            model.setApiKey(apiKey);
-        } else if (current != null) {
-            model.setApiKey(current.getApiKey());
+        if (dto.getClientType() == AiChatClientType.SPRING_AI) {
+            String apiKey = trimToNull(dto.getApiKey());
+            if (StringUtils.hasText(apiKey)) {
+                model.setApiKey(apiKey);
+            } else if (current != null) {
+                model.setApiKey(current.getApiKey());
+            }
+        } else {
+            model.setApiKey(null);
         }
         model.setExtJson(chooseValue(copyMap(dto.getExtJson()), current == null ? null : current.getExtJson(), replaceNulls));
         return model;
@@ -127,8 +131,7 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         merged.setId(current.getId());
         merged.setModelCode(chooseValue(trimToNull(incoming.getModelCode()), current.getModelCode(), replaceNulls));
         merged.setModelName(chooseValue(trimToNull(incoming.getModelName()), current.getModelName(), replaceNulls));
-        merged.setProviderCode(chooseValue(trimToNull(incoming.getProviderCode()), current.getProviderCode(), replaceNulls));
-        merged.setProviderName(chooseValue(trimToNull(incoming.getProviderName()), current.getProviderName(), replaceNulls));
+        merged.setClientType(chooseValue(incoming.getClientType(), current.getClientType(), replaceNulls));
         merged.setBaseUrl(chooseValue(trimToNull(incoming.getBaseUrl()), current.getBaseUrl(), replaceNulls));
         merged.setApiModel(chooseValue(trimToNull(incoming.getApiModel()), current.getApiModel(), replaceNulls));
         merged.setEnabled(chooseValue(incoming.getEnabled(), current.getEnabled(), replaceNulls));
@@ -144,11 +147,19 @@ public class AiModelManageDomainServiceImpl implements AiModelManageDomainServic
         if (!StringUtils.hasText(dto.getModelName())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MODEL_NAME);
         }
+        if (dto.getClientType() == null) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CHAT_CLIENT_TYPE);
+        }
         if (!StringUtils.hasText(dto.getApiModel())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_MODEL);
         }
-        if (dto.getId() == null && !StringUtils.hasText(dto.getApiKey())) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
+        if (dto.getClientType() == AiChatClientType.SPRING_AI) {
+            if (!StringUtils.hasText(dto.getBaseUrl())) {
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_BASE_URL);
+            }
+            if (dto.getId() == null && !StringUtils.hasText(dto.getApiKey())) {
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
+            }
         }
     }
 

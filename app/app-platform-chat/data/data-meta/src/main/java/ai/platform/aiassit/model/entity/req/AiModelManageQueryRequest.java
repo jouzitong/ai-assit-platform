@@ -1,5 +1,6 @@
 package ai.platform.aiassit.model.entity.req;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;
@@ -10,7 +11,7 @@ public class AiModelManageQueryRequest extends BaseRequest {
 
     private String keyword;
 
-    private String providerCode;
+    private AiChatClientType clientType;
 
     private String modelCode;
 

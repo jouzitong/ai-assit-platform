@@ -165,7 +165,8 @@ public class ConversationIntentAnalyzeService {
                                      IntentAnalyzeConfig config) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
-        request.setProvider(null);
+        request.setClientType(null);
+        request.setModelCode(command.getApiModel());
         request.setModel(command.getApiModel());
         request.setMessages(buildMessages(context, knowledgeContext, previousResponse, attempt));
         request.setResponseFormat(buildResponseFormat());

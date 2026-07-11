@@ -7,7 +7,7 @@ import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.conversation.workflow.constants.ConversationQueryExtKeys;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
@@ -185,7 +185,8 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
     private ChatRequest buildRequest(ConversationRuntimeContext context, UserMessageContext userMessageContext) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
-        request.setProvider(resolveProviderType(command == null ? null : command.getApiModel()));
+        request.setClientType(AiChatClientType.SPRING_AI);
+        request.setModelCode(command == null ? null : command.getApiModel());
         request.setModel(resolveActualModel(command == null ? null : command.getApiModel()));
         request.setMessages(buildMessages(userMessageContext));
 
@@ -292,13 +293,6 @@ public class ChatMessageSummarySkill implements IWorkflowNodeSkill {
             cleaned = cleaned.substring(0, cleaned.length() - 3).trim();
         }
         return cleaned;
-    }
-
-    private ProviderType resolveProviderType(String apiModel) {
-        if (StringUtils.hasText(apiModel) && apiModel.toLowerCase(Locale.ROOT).contains("qwen")) {
-            return ProviderType.DASHSCOPE;
-        }
-        return ProviderType.DASHSCOPE;
     }
 
     private int resolveMaxTokens(String apiModel) {

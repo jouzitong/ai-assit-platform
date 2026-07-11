@@ -153,7 +153,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         response.setSessionCode(context.getSession() == null ? null : context.getSession().getSessionCode());
         response.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
         response.setModelCode(context.getRound() == null ? null : context.getRound().getModelCode());
-        response.setProviderCode(null);
+        response.setClientType(null);
         response.setAnswer(context.getRenderedAnswer());
         response.setStatus(context.getRound() == null ? null : context.getRound().getStatus());
         String error = context.get(ConversationRuntimeContextKeys.Common.ERROR);

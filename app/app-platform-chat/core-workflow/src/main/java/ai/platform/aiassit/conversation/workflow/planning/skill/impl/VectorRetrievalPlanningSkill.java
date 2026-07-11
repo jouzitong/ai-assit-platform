@@ -110,7 +110,7 @@ public class VectorRetrievalPlanningSkill implements QueryPlanningSkill {
 
     private HybridSearchResponse fetchVectorHits(ConversationQueryCommand command, ConversationRuntimeContext context, String kbId) {
         HybridSearchRequest request = new HybridSearchRequest();
-        request.setProvider(null);
+        request.setClientType(null);
         request.setKbId(kbId);
         request.setQuery(buildRetrievalQuery(command, context));
         request.setKeywordEnabled(Boolean.FALSE);

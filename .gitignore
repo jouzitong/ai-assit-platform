@@ -54,3 +54,9 @@ build/
 **/*ddl.sql
 
 **/node_modules/
+
+### Python local runtime ###
+**/.venv/
+**/*.egg-info/
+**/__pycache__/
+**/*.pyc

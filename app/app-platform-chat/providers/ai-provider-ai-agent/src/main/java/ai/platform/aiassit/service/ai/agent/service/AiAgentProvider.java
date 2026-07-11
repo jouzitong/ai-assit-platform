@@ -7,7 +7,7 @@ import ai.platform.aiassit.service.ai.api.dto.Usage;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.FinishReason;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.service.ai.spi.AiChatService;
@@ -21,6 +21,7 @@ import org.springframework.util.StringUtils;
 
 import java.util.Iterator;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
@@ -36,8 +37,8 @@ public class AiAgentProvider implements AiChatService {
     }
 
     @Override
-    public ProviderType providerType() {
-        return ProviderType.AI_AGENT;
+    public AiChatClientType chatClientType() {
+        return AiChatClientType.AI_AGENT;
     }
 
     @Override
@@ -53,19 +54,53 @@ public class AiAgentProvider implements AiChatService {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_OBSERVER);
         }
         try {
-            ChatResponse response = chat(request);
+            AtomicBoolean receivedDelta = new AtomicBoolean(false);
+            JsonNode responseNode = processExecutor.executeStream(properties, request,
+                    frame -> {
+                        ChatChunk chunk = toStreamChunk(frame);
+                        if (StringUtils.hasText(chunk.getDelta())) {
+                            receivedDelta.set(true);
+                        }
+                        observer.onChunk(chunk);
+                    });
+            ChatResponse response = toChatResponse(responseNode);
             String text = extractText(response);
-            if (StringUtils.hasText(text)) {
+            if (!receivedDelta.get() && StringUtils.hasText(text)) {
                 ChatChunk chunk = new ChatChunk();
                 chunk.setRequestId(response.getRequestId());
                 chunk.setOutputType(OutputType.TEXT);
                 chunk.setDelta(text);
+                chunk.setEventType("answer_delta");
                 observer.onChunk(chunk);
             }
             observer.onComplete();
         } catch (Exception ex) {
             observer.onError(ex);
         }
+    }
+
+    private ChatChunk toStreamChunk(JsonNode frame) {
+        ChatChunk chunk = new ChatChunk();
+        chunk.setRequestId(text(frame, "requestId"));
+        String type = text(frame, "type");
+        if ("activity".equalsIgnoreCase(type)) {
+            chunk.setEventType("progress");
+            chunk.setProgressType("ACTIVITY");
+            chunk.setSource(text(frame, "source"));
+            chunk.setPhase(text(frame, "phase"));
+            chunk.setStatus(text(frame, "status"));
+            chunk.setMessage(text(frame, "message"));
+            JsonNode extNode = frame.get("ext");
+            if (extNode != null && extNode.isObject()) {
+                extNode.fields().forEachRemaining(entry ->
+                        chunk.getExt().put(entry.getKey(), simpleValue(entry.getValue())));
+            }
+        } else {
+            chunk.setEventType("answer_delta");
+            chunk.setOutputType(OutputType.TEXT);
+            chunk.setDelta(text(frame, "delta"));
+        }
+        return chunk;
     }
 
     private ChatResponse toChatResponse(JsonNode node) {

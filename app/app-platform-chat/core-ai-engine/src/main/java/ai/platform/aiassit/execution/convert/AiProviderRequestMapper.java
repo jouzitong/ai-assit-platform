@@ -7,6 +7,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.RerankRequest;
 import ai.platform.aiassit.execution.properties.AiCoreProperties;
+import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderEmbedRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbDeleteRequest;
@@ -35,8 +36,22 @@ public class AiProviderRequestMapper {
      * @return Provider 聊天请求参数
      */
     public ProviderChatRequest mapChat(ChatRequest request, AiCoreProperties properties) {
+        return mapChat(request, properties, null);
+    }
+
+    /**
+     * 将统一对话请求映射为 Provider 请求，并优先使用模型实体解析出的连接信息。
+     */
+    public ProviderChatRequest mapChat(ChatRequest request,
+                                       AiCoreProperties properties,
+                                       AiModelConfigDTO modelConfig) {
         ProviderChatRequest target = new ProviderChatRequest();
-        target.setModel(resolveModel(request.getModel(), properties.getDefaultChatModel()));
+        target.setModel(resolveModel(modelConfig == null ? request.getModel() : modelConfig.getApiModel(),
+                properties.getDefaultChatModel()));
+        if (modelConfig != null) {
+            target.setBaseUrl(modelConfig.getBaseUrl());
+            target.setApiKey(modelConfig.getApiKey());
+        }
         target.setMessages(request.getMessages());
         target.setTools(request.getTools());
         target.setResponseFormat(request.getResponseFormat());

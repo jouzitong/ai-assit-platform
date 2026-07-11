@@ -1,5 +1,6 @@
 package ai.platform.aiassit.service.ai.api.dto;
 
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -15,6 +16,9 @@ public class AiKbInfoDTO implements Serializable {
 
     /** 知识库名称。 */
     private String kbName;
+
+    /** 知识库客户端类型。 */
+    private AiKnowledgeClientType clientType;
 
     /** AI 侧知识库标识。 */
     private String providerKbId;

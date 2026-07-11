@@ -1,5 +1,6 @@
 package ai.platform.aiassit.knowledge.manage.entity.dto;
 
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
@@ -14,6 +15,8 @@ public class AiKbStoreDTO extends BaseDTO {
     private String kbCode;
 
     private String kbName;
+
+    private AiKnowledgeClientType clientType;
 
     private String providerKbId;
 

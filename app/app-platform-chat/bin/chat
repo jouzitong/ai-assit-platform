@@ -11,20 +11,63 @@ PID_DIR="${BASE_DIR}/pid"
 PID_FILE="${PID_DIR}/${APP_NAME}.pid"
 LOG_DIR="${BASE_DIR}/logs/ai-assit/chat"
 PYTHON_DIR="${BASE_DIR}/python"
+PYTHON_VENV_DIR="${PYTHON_DIR}/.venv"
+PYTHON_PROJECT_FILE="${PYTHON_DIR}/pyproject.toml"
+PYTHON_DEPENDENCY_STAMP="${PYTHON_VENV_DIR}/.dependency-stamp"
+PYTHON_BOOTSTRAP_COMMAND="${AI_AGENT_PYTHON_BOOTSTRAP_COMMAND:-python3}"
 CONFIG_DIR="${BASE_DIR}/config"
 LIB_DIR="${BASE_DIR}/lib,${BASE_DIR}/celib"
 
 mkdir -p "${PID_DIR}" "${LOG_DIR}"
 
-BOOT_JAR="$(find "${BASE_DIR}" -maxdepth 1 -name '*.jar' | head -n 1)"
-if [[ -z "${BOOT_JAR}" ]]; then
-  echo "boot jar not found in ${BASE_DIR}" >&2
-  exit 1
-fi
-
 usage() {
-  echo "Usage: $0 {start|stop|restart|status} [profile]"
+  echo "Usage: $0 {start|stop|restart|status|init-python} [profile]"
   exit 1
+}
+
+dependency_fingerprint() {
+  if command -v sha256sum > /dev/null 2>&1; then
+    sha256sum "${PYTHON_PROJECT_FILE}" | awk '{print $1}'
+  else
+    shasum -a 256 "${PYTHON_PROJECT_FILE}" | awk '{print $1}'
+  fi
+}
+
+prepare_python() {
+  if [[ ! -f "${PYTHON_PROJECT_FILE}" ]]; then
+    echo "python project not found, skip initialization: ${PYTHON_PROJECT_FILE}"
+    return 0
+  fi
+  if ! command -v "${PYTHON_BOOTSTRAP_COMMAND}" > /dev/null 2>&1; then
+    echo "python bootstrap command not found: ${PYTHON_BOOTSTRAP_COMMAND}" >&2
+    exit 1
+  fi
+  if ! "${PYTHON_BOOTSTRAP_COMMAND}" -c 'import sys; raise SystemExit(0 if sys.version_info >= (3, 11) else 1)'; then
+    echo "Python 3.11 or newer is required for AI Agent" >&2
+    exit 1
+  fi
+
+  if [[ ! -x "${PYTHON_VENV_DIR}/bin/python" ]]; then
+    echo "creating AI Agent virtual environment"
+    "${PYTHON_BOOTSTRAP_COMMAND}" -m venv "${PYTHON_VENV_DIR}"
+  fi
+
+  local expected_fingerprint current_fingerprint=""
+  expected_fingerprint="$(dependency_fingerprint)"
+  if [[ -f "${PYTHON_DEPENDENCY_STAMP}" ]]; then
+    current_fingerprint="$(cat "${PYTHON_DEPENDENCY_STAMP}")"
+  fi
+  if [[ "${expected_fingerprint}" != "${current_fingerprint}" ]]; then
+    echo "installing AI Agent Python dependencies"
+    "${PYTHON_VENV_DIR}/bin/python" -m pip install \
+      --disable-pip-version-check \
+      --upgrade \
+      "${PYTHON_DIR}"
+    echo "${expected_fingerprint}" > "${PYTHON_DEPENDENCY_STAMP}"
+  fi
+
+  "${PYTHON_VENV_DIR}/bin/python" -c 'import agents, quickjs'
+  echo "AI Agent Python runtime is ready"
 }
 
 get_pid() {
@@ -41,9 +84,18 @@ get_pid() {
 
 start() {
   local profile="${1:-dev}"
+  local boot_jar
   if pid="$(get_pid)"; then
     echo "${APP_NAME} is already running with pid ${pid}"
     return 0
+  fi
+
+  prepare_python
+
+  boot_jar="$(find "${BASE_DIR}" -maxdepth 1 -name '*.jar' | head -n 1)"
+  if [[ -z "${boot_jar}" ]]; then
+    echo "boot jar not found in ${BASE_DIR}" >&2
+    exit 1
   fi
 
   local java_opts=(
@@ -57,10 +109,11 @@ start() {
     "-Dlogging.config=${CONFIG_DIR}/logback-spring.xml"
     "-Dai.provider.ai-agent.script-path=${PYTHON_DIR}/agent_provider/main.py"
     "-Dai.provider.ai-agent.working-directory=${PYTHON_DIR}"
+    "-Dai.provider.ai-agent.python-command=${PYTHON_VENV_DIR}/bin/python"
     "-Dspring.profiles.active=${profile}"
   )
 
-  nohup "${JAVA_CMD}" "${java_opts[@]}" -jar "${BOOT_JAR}" \
+  nohup "${JAVA_CMD}" "${java_opts[@]}" -jar "${boot_jar}" \
     --spring.config.additional-location="optional:file:${CONFIG_DIR}/" \
     > "${LOG_DIR}/console.out" 2>&1 &
 
@@ -99,6 +152,9 @@ case "${1:-}" in
     ;;
   status)
     status
+    ;;
+  init-python)
+    prepare_python
     ;;
   *)
     usage

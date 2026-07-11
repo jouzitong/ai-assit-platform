@@ -23,6 +23,67 @@ TOOL_REGISTRY = {
 }
 
 
+def _emit(frame: dict[str, Any]) -> None:
+    sys.stdout.write(json.dumps(frame, ensure_ascii=False) + "\n")
+    sys.stdout.flush()
+
+
+def _item_ext(item: Any, event_name: str) -> dict[str, Any]:
+    raw_item = getattr(item, "raw_item", None)
+    tool_name = (
+        getattr(raw_item, "name", None)
+        or getattr(item, "name", None)
+        or getattr(raw_item, "type", None)
+    )
+    call_id = getattr(raw_item, "call_id", None) or getattr(item, "call_id", None)
+    return {
+        "activity": event_name,
+        "toolName": tool_name,
+        "callId": call_id,
+        "itemType": getattr(item, "type", None),
+    }
+
+
+def _emit_run_item_event(event: Any) -> None:
+    name = str(getattr(event, "name", "") or "")
+    if name in {"tool_called", "tool_search_called"}:
+        _emit({
+            "type": "activity",
+            "source": "AI_AGENT",
+            "phase": "RUNNING",
+            "status": "RUNNING",
+            "message": "AI Agent 正在调用工具",
+            "ext": _item_ext(event.item, name),
+        })
+    elif name in {"tool_output", "tool_search_output_created"}:
+        _emit({
+            "type": "activity",
+            "source": "AI_AGENT",
+            "phase": "COMPLETED",
+            "status": "SUCCESS",
+            "message": "AI Agent 工具调用完成",
+            "ext": _item_ext(event.item, name),
+        })
+    elif name == "handoff_requested":
+        _emit({
+            "type": "activity",
+            "source": "AI_AGENT",
+            "phase": "RUNNING",
+            "status": "RUNNING",
+            "message": "AI Agent 正在切换执行角色",
+            "ext": _item_ext(event.item, name),
+        })
+    elif name == "handoff_occured":
+        _emit({
+            "type": "activity",
+            "source": "AI_AGENT",
+            "phase": "COMPLETED",
+            "status": "SUCCESS",
+            "message": "AI Agent 执行角色切换完成",
+            "ext": _item_ext(event.item, name),
+        })
+
+
 def _build_transcript(messages: list[dict[str, Any]]) -> tuple[str, str]:
     system_parts: list[str] = []
     conversation_parts: list[str] = []
@@ -130,13 +191,49 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
     instructions = _append_json_instruction(instructions, payload.get("responseFormat"))
     model = payload.get("model") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
     enabled_tool_names, enabled_tools = _resolve_enabled_tools(payload)
+    _emit({
+        "type": "activity",
+        "source": "AI_AGENT",
+        "phase": "STARTED",
+        "status": "RUNNING",
+        "message": "AI Agent 已开始执行",
+        "ext": {"activity": "agent_run", "enabledTools": enabled_tool_names},
+    })
     agent = Agent(
         name="AI Agent Provider",
         instructions=instructions or "Answer the user's request clearly and concisely.",
         model=model,
         tools=enabled_tools,
     )
-    result = await Runner.run(agent, transcript or "USER: ")
+    _emit({
+        "type": "activity",
+        "source": "AI_AGENT",
+        "phase": "RUNNING",
+        "status": "RUNNING",
+        "message": "AI Agent 正在推理并调用工具",
+        "ext": {"activity": "agent_run", "enabledTools": enabled_tool_names},
+    })
+    result = Runner.run_streamed(agent, transcript or "USER: ")
+    async for event in result.stream_events():
+        event_type = getattr(event, "type", None)
+        if event_type == "raw_response_event":
+            data = getattr(event, "data", None)
+            if getattr(data, "type", None) == "response.output_text.delta":
+                delta = getattr(data, "delta", None)
+                if delta:
+                    _emit({"type": "delta", "delta": delta})
+        elif event_type == "run_item_stream_event":
+            _emit_run_item_event(event)
+        elif event_type == "agent_updated_stream_event":
+            agent_name = getattr(getattr(event, "new_agent", None), "name", None)
+            _emit({
+                "type": "activity",
+                "source": "AI_AGENT",
+                "phase": "RUNNING",
+                "status": "RUNNING",
+                "message": "AI Agent 已切换执行角色",
+                "ext": {"activity": "agent_updated", "agentName": agent_name},
+            })
     final_output = result.final_output
     outputs = _build_outputs(final_output, payload.get("responseFormat"))
     provider_meta = {
@@ -144,7 +241,7 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
         "raw_type": type(final_output).__name__,
         "enabled_tools": enabled_tool_names,
     }
-    return {
+    response = {
         "requestId": str(uuid.uuid4()),
         "model": model,
         "finishReason": "STOP",
@@ -156,12 +253,31 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
         },
         "providerMeta": provider_meta,
     }
+    _emit({
+        "type": "activity",
+        "source": "AI_AGENT",
+        "phase": "COMPLETED",
+        "status": "SUCCESS",
+        "message": "AI Agent 执行完成",
+        "ext": {"activity": "agent_run", "enabledTools": enabled_tool_names},
+    })
+    return response
 
 
 def main() -> None:
-    payload = json.load(sys.stdin)
-    result = asyncio.run(_run(payload))
-    json.dump(result, sys.stdout, ensure_ascii=False)
+    try:
+        payload = json.load(sys.stdin)
+        result = asyncio.run(_run(payload))
+        _emit({"type": "result", "data": result})
+    except Exception as exc:
+        _emit({
+            "type": "error",
+            "source": "AI_AGENT",
+            "phase": "FAILED",
+            "status": "FAILED",
+            "message": str(exc),
+        })
+        raise
 
 
 if __name__ == "__main__":

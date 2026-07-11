@@ -10,7 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowNodeCapabilityConfig;
@@ -408,7 +408,8 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
                                                    KbSearchResponse knowledgeSearchResponse) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
-        request.setProvider(resolveProviderType(command == null ? null : command.getApiModel()));
+        request.setClientType(AiChatClientType.SPRING_AI);
+        request.setModelCode(command == null ? null : command.getApiModel());
         request.setModel(resolveActualModel(command == null ? null : command.getApiModel()));
 
         List<ChatMessage> messages = new ArrayList<>();
@@ -579,7 +580,8 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
 
     private ChatRequest buildRequest(ConversationQueryCommand command, ConversationRuntimeContext context) {
         ChatRequest request = new ChatRequest();
-        request.setProvider(resolveProviderType(command.getApiModel()));
+        request.setClientType(AiChatClientType.SPRING_AI);
+        request.setModelCode(command.getApiModel());
         request.setModel(resolveActualModel(command.getApiModel()));
 
         List<ChatMessage> messages = new ArrayList<>();
@@ -706,13 +708,6 @@ public class SqlPreGenerateNode extends BaseWorkflowNode {
         normalized = normalized.replace("```SQL", "");
         normalized = normalized.replace("```", "");
         return normalized.trim();
-    }
-
-    private ProviderType resolveProviderType(String apiModel) {
-        if (StringUtils.hasText(apiModel) && apiModel.toLowerCase(Locale.ROOT).contains("qwen")) {
-            return ProviderType.DASHSCOPE;
-        }
-        return ProviderType.DASHSCOPE;
     }
 
     private int resolveMaxTokens(String apiModel) {

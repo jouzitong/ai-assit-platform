@@ -7,6 +7,7 @@ import ai.platform.aiassit.execution.service.AiModelTestService;
 import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.arthena.framework.common.exception.BizException;
@@ -51,7 +52,10 @@ public class OpenAiCompatibleModelTestService implements AiModelTestService {
             AiModelConfigDTO current = request != null && request.getId() != null
                     ? aiModelConfigService.get(request.getId())
                     : null;
-            String providerCode = trimToNull(request == null ? null : request.getProviderCode());
+            AiChatClientType clientType = request == null ? null : request.getClientType();
+            if (clientType == null && current != null) {
+                clientType = current.getClientType();
+            }
             String baseUrl = chooseValue(trimToNull(request == null ? null : request.getBaseUrl()),
                     current == null ? null : current.getBaseUrl(), false);
             String apiModel = chooseValue(trimToNull(request == null ? null : request.getApiModel()),
@@ -59,10 +63,10 @@ public class OpenAiCompatibleModelTestService implements AiModelTestService {
             String apiKey = chooseValue(trimToNull(request == null ? null : request.getApiKey()),
                     current == null ? null : current.getApiKey(), false);
 
-            result.setProviderCode(providerCode);
+            result.setClientType(clientType);
             result.setApiModel(apiModel);
 
-            validateTestChatPayload(baseUrl, apiModel, apiKey, request == null ? null : request.getMessages());
+            validateTestChatPayload(clientType, baseUrl, apiModel, apiKey, request == null ? null : request.getMessages());
 
             Map<String, Object> payload = new LinkedHashMap<>();
             payload.put("model", apiModel);
@@ -95,10 +99,18 @@ public class OpenAiCompatibleModelTestService implements AiModelTestService {
         }
     }
 
-    private void validateTestChatPayload(String baseUrl,
+    private void validateTestChatPayload(AiChatClientType clientType,
+                                         String baseUrl,
                                          String apiModel,
                                          String apiKey,
                                          List<AiModelTestChatMessageDTO> messages) {
+        if (clientType == null) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CHAT_CLIENT_TYPE);
+        }
+        if (clientType != AiChatClientType.SPRING_AI) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                    "当前测试仅支持 Spring AI 客户端");
+        }
         if (!StringUtils.hasText(baseUrl)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_BASE_URL);
         }

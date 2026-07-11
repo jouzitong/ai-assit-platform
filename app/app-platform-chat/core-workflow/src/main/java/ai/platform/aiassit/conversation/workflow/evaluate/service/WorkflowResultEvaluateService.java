@@ -103,7 +103,8 @@ public class WorkflowResultEvaluateService {
     private ChatRequest buildRequest(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
-        request.setProvider(null);
+        request.setClientType(null);
+        request.setModelCode(command.getApiModel());
         request.setModel(command.getApiModel());
         request.setMessages(buildMessages(context));
         request.setResponseFormat(buildResponseFormat());

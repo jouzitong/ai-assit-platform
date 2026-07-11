@@ -6,9 +6,10 @@
 
     <select id="selectEnabledModels" resultType="ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO">
         SELECT
+            m.model_code AS modelCode,
+            m.model_name AS modelName,
             m.api_model AS apiModel,
-            m.provider_code AS providerCode,
-            m.provider_name AS providerName,
+            m.client_type AS clientType,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxContextTokens')) AS SIGNED) AS maxContextTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxOutputTokens')) AS SIGNED) AS maxOutputTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED) AS priority

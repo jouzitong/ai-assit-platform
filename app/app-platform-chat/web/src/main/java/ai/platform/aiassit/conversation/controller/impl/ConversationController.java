@@ -68,7 +68,7 @@ public class ConversationController implements IConversationController {
     private ConversationQueryCommand buildCommand(ConversationQueryRequest request) {
         ConversationQueryCommand command = new ConversationQueryCommand();
         command.setSessionCode(request == null ? null : request.getSessionCode());
-        command.setApiModel(request == null ? null : request.getApiModel());
+        command.setApiModel(request == null ? null : request.getModelCode());
         command.setMessage(request == null ? null : request.getMessage());
         command.setAttachments(request == null || request.getAttachments() == null ? List.of() : request.getAttachments());
         command.setTools(request == null || request.getTools() == null ? List.of() : request.getTools());

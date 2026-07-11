@@ -12,8 +12,6 @@ import org.athena.framework.data.jdbc.convert.IConvert;
 import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.service.BaseMapperService;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
-
 import java.util.List;
 
 @Service
@@ -38,13 +36,26 @@ public class AiModelConfigServiceImpl
     }
 
     @Override
+    public AiModelConfigDTO getByModelCode(String modelCode) {
+        if (!org.springframework.util.StringUtils.hasText(modelCode)) {
+            return null;
+        }
+        AiMetaQueryRequest query = new AiMetaQueryRequest();
+        query.setModelCode(modelCode.trim());
+        query.setPage(1);
+        query.setSize(1);
+        List<AiModelConfigDTO> records = queryAll(query);
+        return records.isEmpty() ? null : records.get(0);
+    }
+
+    @Override
     protected <Query extends BaseRequest> QueryWrapper<AiModelConfigEntity> buildQuery(Query query) {
         QueryWrapper<AiModelConfigEntity> wrapper = super.buildQuery(query);
         if (query instanceof AiMetaQueryRequest req) {
-            if (StringUtils.hasText(req.getProviderCode())) {
-                wrapper.lambda().eq(AiModelConfigEntity::getProviderCode, req.getProviderCode());
+            if (req.getClientType() != null) {
+                wrapper.lambda().eq(AiModelConfigEntity::getClientType, req.getClientType());
             }
-            if (StringUtils.hasText(req.getModelCode())) {
+            if (org.springframework.util.StringUtils.hasText(req.getModelCode())) {
                 wrapper.lambda().eq(AiModelConfigEntity::getModelCode, req.getModelCode());
             }
             if (req.getEnabled() != null) {

@@ -1,5 +1,6 @@
 package ai.platform.aiassit.execution.dto;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -11,7 +12,7 @@ public class AiModelTestChatRequestDTO {
 
     private Long id;
 
-    private String providerCode;
+    private AiChatClientType clientType;
 
     private String baseUrl;
 

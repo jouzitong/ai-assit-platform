@@ -19,6 +19,12 @@ import java.util.Map;
  */
 @Data
 public class ProviderChatRequest {
+    /** 当前模型实体解析出的服务地址，不对外暴露。 */
+    private String baseUrl;
+
+    /** 当前模型实体解析出的 API Key，不对外暴露且不得写入日志。 */
+    private String apiKey;
+
     /**
      * 模型名称。
      *

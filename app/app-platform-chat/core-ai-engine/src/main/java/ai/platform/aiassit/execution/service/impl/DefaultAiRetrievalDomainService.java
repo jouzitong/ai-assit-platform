@@ -154,7 +154,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
 
     private ChatRequest buildIntentAnalyzeChatRequest(IntentAnalyzeRequest request) {
         ChatRequest chatRequest = new ChatRequest();
-        chatRequest.setProvider(request.getProvider());
+        chatRequest.setClientType(request.getClientType());
         chatRequest.setModel(request.getModel());
         chatRequest.setMeta(copyMeta(request.getMeta()));
         chatRequest.getMeta().setScene(StringUtils.hasText(request.getScene())
@@ -325,7 +325,7 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
 
     private void rerankHits(HybridSearchRequest request, HybridSearchResponse response) {
         RerankRequest rerankRequest = new RerankRequest();
-        rerankRequest.setProvider(request.getProvider());
+        rerankRequest.setClientType(request.getClientType());
         rerankRequest.setQuery(request.getQuery());
         rerankRequest.setTopN(resolveTopK(request));
         rerankRequest.setMeta(copyMeta(request.getMeta()));

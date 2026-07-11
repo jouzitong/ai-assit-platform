@@ -115,7 +115,8 @@ public class SimpleChatNode extends BaseWorkflowNode {
     private ChatRequest buildRequest(ConversationRuntimeContext context) {
         ConversationQueryCommand command = context.getCommand();
         ChatRequest request = new ChatRequest();
-        request.setProvider(null);
+        request.setClientType(null);
+        request.setModelCode(command == null ? null : command.getApiModel());
         request.setModel(command == null ? null : command.getApiModel());
         request.setMessages(buildMessages(context));
 

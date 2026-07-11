@@ -21,7 +21,7 @@ import java.util.Map;
  * <p>设计原则如下：</p>
  * <p>1. 前端只传“用户输入”和“用户显式选择”的内容。</p>
  * <p>2. 用户身份、traceId、scene、默认会话名等由 controller 或服务端自动补齐。</p>
- * <p>3. 模型参数只允许传 apiModel，且允许为空；为空时后端自动选择默认模型。</p>
+ * <p>3. 模型参数只允许传 modelCode，且允许为空；为空时后端自动选择默认模型。</p>
  * <p>4. 文件、工具等可扩展能力通过强类型列表与 ext 兜底扩展共同承载。</p>
  */
 @Data
@@ -37,13 +37,13 @@ public class ConversationQueryRequest extends BaseRequest {
     private String sessionCode;
 
     /**
-     * 前端期望使用的模型 apiModel。
+     * 前端期望使用的模型配置编码。
      *
-     * <p>该字段对应模型配置中的 apiModel，是前端唯一允许直接指定的模型参数。</p>
-     * <p>可为空；为空时由后端自动选取默认模型。后端不会要求前端传内部 modelCode、providerCode
-     * 或其他底层执行参数。</p>
+     * <p>该字段对应模型配置中的 modelCode，是前端唯一允许直接指定的模型参数。</p>
+     * <p>可为空；为空时由后端自动选取默认模型。后端会根据该实体解析客户端类型、连接地址、凭据
+     * 与远端模型标识。</p>
      */
-    private String apiModel;
+    private String modelCode;
 
     /**
      * 用户输入的消息内容。

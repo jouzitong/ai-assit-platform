@@ -2,12 +2,14 @@ package ai.platform.aiassit.execution.service.impl;
 
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.execution.properties.AiCoreProperties;
 import ai.platform.aiassit.execution.convert.AiProviderRequestMapper;
 import ai.platform.aiassit.execution.service.AiExecutionDomainService;
 import ai.platform.aiassit.execution.validator.AiRequestValidator;
+import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
+import ai.platform.aiassit.model.service.AiModelConfigService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.spi.AiChatService;
 import org.arthena.framework.common.exception.BizException;
@@ -25,31 +27,35 @@ import java.util.concurrent.atomic.AtomicReference;
 @Service
 public class DefaultAiExecutionDomainService implements AiExecutionDomainService {
 
-    private final Map<ProviderType, AiChatService> chatServices = new EnumMap<>(ProviderType.class);
+    private final Map<AiChatClientType, AiChatService> chatServices = new EnumMap<>(AiChatClientType.class);
     private final AiCoreProperties properties;
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
+    private final AiModelConfigService modelConfigService;
     private final ScheduleMonitor scheduleMonitor;
 
     public DefaultAiExecutionDomainService(List<AiChatService> aiChatServices,
                                            AiCoreProperties properties,
                                            AiRequestValidator validator,
                                            AiProviderRequestMapper requestMapper,
+                                           AiModelConfigService modelConfigService,
                                            ObjectProvider<ScheduleMonitor> scheduleMonitorProvider) {
         for (AiChatService service : aiChatServices) {
-            this.chatServices.put(service.providerType(), service);
+            this.chatServices.put(service.chatClientType(), service);
         }
         this.properties = properties;
         this.validator = validator;
         this.requestMapper = requestMapper;
+        this.modelConfigService = modelConfigService;
         this.scheduleMonitor = scheduleMonitorProvider.getIfAvailable();
     }
 
     @Override
     public ChatResponse chat(ChatRequest request) {
         validator.validateChat(request);
-        return resolveChatService(request.getProvider())
-                .chat(requestMapper.mapChat(request, properties));
+        ResolvedChatRequest resolved = resolveChatRequest(request);
+        return resolveChatService(resolved.clientType())
+                .chat(requestMapper.mapChat(request, properties, resolved.modelConfig()));
     }
 
     @Override
@@ -58,7 +64,8 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
         if (observer == null) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
         }
-        resolveChatService(request.getProvider()).chatStream(requestMapper.mapChat(request, properties), observer);
+        ResolvedChatRequest resolved = resolveChatRequest(request);
+        resolveChatService(resolved.clientType()).chatStream(requestMapper.mapChat(request, properties, resolved.modelConfig()), observer);
     }
 
     @Override
@@ -81,19 +88,37 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
         taskIdRef.set(taskId);
     }
 
-    private AiChatService resolveChatService(ProviderType requestedProvider) {
-        ProviderType providerType = requestedProvider;
-        if (providerType == null) {
-            if (properties.isStrictProvider()) {
-                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_PROVIDER);
+    private AiChatService resolveChatService(AiChatClientType requestedClientType) {
+        AiChatClientType clientType = requestedClientType;
+        if (clientType == null) {
+            if (properties.isStrictClientType()) {
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CHAT_CLIENT_TYPE);
             }
-            providerType = properties.getDefaultProvider();
+            clientType = properties.getDefaultChatClientType();
         }
 
-        AiChatService service = chatServices.get(providerType);
+        AiChatService service = chatServices.get(clientType);
         if (service == null) {
-            throw BizException.of(AiChatBizCodeConstant.AI_CHAT_SERVICE_NOT_FOUND, providerType);
+            throw BizException.of(AiChatBizCodeConstant.AI_CHAT_SERVICE_NOT_FOUND, clientType);
         }
         return service;
+    }
+
+    private ResolvedChatRequest resolveChatRequest(ChatRequest request) {
+        String modelCode = request.getModelCode();
+        AiModelConfigDTO modelConfig = modelConfigService.getByModelCode(modelCode);
+        if (modelConfig != null) {
+            if (!Boolean.TRUE.equals(modelConfig.getEnabled())) {
+                throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, modelCode);
+            }
+            if (modelConfig.getClientType() == null) {
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CHAT_CLIENT_TYPE);
+            }
+            return new ResolvedChatRequest(modelConfig.getClientType(), modelConfig);
+        }
+        return new ResolvedChatRequest(request.getClientType(), null);
+    }
+
+    private record ResolvedChatRequest(AiChatClientType clientType, AiModelConfigDTO modelConfig) {
     }
 }

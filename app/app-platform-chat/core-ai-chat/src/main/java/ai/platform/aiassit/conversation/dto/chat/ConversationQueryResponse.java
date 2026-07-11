@@ -1,5 +1,6 @@
 package ai.platform.aiassit.conversation.dto.chat;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 
 import java.util.HashMap;
@@ -16,7 +17,7 @@ public class ConversationQueryResponse {
 
     private String modelCode;
 
-    private String providerCode;
+    private AiChatClientType clientType;
 
     private String answer;
 

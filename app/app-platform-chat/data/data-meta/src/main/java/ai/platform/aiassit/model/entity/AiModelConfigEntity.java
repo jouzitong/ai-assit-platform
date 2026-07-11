@@ -1,5 +1,6 @@
 package ai.platform.aiassit.model.entity;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -9,6 +10,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 
 import java.util.Map;
 
@@ -34,15 +36,12 @@ public class AiModelConfigEntity extends AuditableEntity {
     @TableField("model_name")
     private String modelName;
     /**
-     * 所属提供商编码。
+     * 对话客户端类型。
+     *
+     * <p>运行时据此选择客户端 Driver；不表示模型供应商。</p>
      */
-    @TableField("provider_code")
-    private String providerCode;
-    /**
-     * 提供商名称。
-     */
-    @TableField("provider_name")
-    private String providerName;
+    @TableField(value = "client_type", typeHandler = DefaultEnumTypeHandler.class)
+    private AiChatClientType clientType;
     /**
      * 提供商请求基础地址。
      */

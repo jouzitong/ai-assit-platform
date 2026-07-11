@@ -1,5 +1,6 @@
 package ai.platform.aiassit.execution.dto;
 
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import lombok.Data;
 
 @Data
@@ -9,7 +10,7 @@ public class AiModelTestChatResultVO {
 
     private Long durationMs;
 
-    private String providerCode;
+    private AiChatClientType clientType;
 
     private String apiModel;
 

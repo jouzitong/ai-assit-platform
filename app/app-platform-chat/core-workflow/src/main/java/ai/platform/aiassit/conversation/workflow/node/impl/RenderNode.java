@@ -13,8 +13,10 @@ import ai.platform.aiassit.service.ai.api.dto.ToolDefinition;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.api.enums.OutputType;
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.service.ai.api.enums.ResponseFormatType;
+import ai.platform.aiassit.service.ai.api.stream.ChatChunk;
+import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.bean.NodeResult;
 import ai.platform.aiassit.conversation.workflow.constants.ConversationRuntimeContextKeys;
@@ -47,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * 渲染节点，负责构建结构化 render json，并写入最终产物。
@@ -109,7 +112,7 @@ public class RenderNode extends BaseWorkflowNode {
             ChatRequest request = buildRenderRequest(command, context);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setRequest(request);
 
-            ChatResponse response = aiExecutionDomainService.chat(request);
+            ChatResponse response = executeAgentStream(request, context);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setResponse(response);
 
             Map<String, Object> renderJson = extractRenderJson(response);
@@ -170,6 +173,76 @@ public class RenderNode extends BaseWorkflowNode {
         }
     }
 
+    private ChatResponse executeAgentStream(ChatRequest request, ConversationRuntimeContext context) {
+        StringBuilder answer = new StringBuilder();
+        AtomicReference<String> requestId = new AtomicReference<>();
+        AtomicReference<Throwable> error = new AtomicReference<>();
+        aiExecutionDomainService.chatStream(request, new ChatStreamObserver() {
+            @Override
+            public void onChunk(ChatChunk chunk) {
+                if (chunk == null) {
+                    return;
+                }
+                if (StringUtils.hasText(chunk.getRequestId())) {
+                    requestId.set(chunk.getRequestId());
+                }
+                if ("progress".equalsIgnoreCase(chunk.getEventType())
+                        && "ACTIVITY".equalsIgnoreCase(chunk.getProgressType())) {
+                    Map<String, Object> ext = new LinkedHashMap<>(chunk.getExt());
+                    ext.putIfAbsent("nodeCode", WorkflowNodeCodes.RENDER.getNodeCode());
+                    context.publishActivityEvent(
+                            StringUtils.hasText(chunk.getSource()) ? chunk.getSource() : ConversationEventSources.RENDER,
+                            chunk.getPhase(),
+                            chunk.getMessage(),
+                            chunk.getStatus(),
+                            ext
+                    );
+                    return;
+                }
+                if (StringUtils.hasText(chunk.getDelta())) {
+                    answer.append(chunk.getDelta());
+                    context.publishAnswerEvent(
+                            ConversationEventSources.RENDER,
+                            ConversationEventPhases.RUNNING,
+                            "正在生成 Render JSON",
+                            null,
+                            chunk.getDelta(),
+                            "RUNNING"
+                    );
+                }
+            }
+
+            @Override
+            public void onComplete() {
+                // The provider call is synchronous; completion is observed after chatStream returns.
+            }
+
+            @Override
+            public void onError(Throwable throwable) {
+                error.set(throwable);
+            }
+        });
+        if (error.get() != null) {
+            if (error.get() instanceof RuntimeException runtimeException) {
+                throw runtimeException;
+            }
+            if (error.get() instanceof Exception exception) {
+                throw new BizException(exception);
+            }
+            throw new IllegalStateException(error.get());
+        }
+        if (!StringUtils.hasText(answer)) {
+            throw invalidWorkflowOutput("render response is empty");
+        }
+        ChatResponse response = new ChatResponse();
+        response.setRequestId(requestId.get());
+        OutputItem output = new OutputItem();
+        output.setType(OutputType.TEXT);
+        output.setText(answer.toString());
+        response.getOutputs().add(output);
+        return response;
+    }
+
     @Override
     public String code() {
         return WorkflowNodeCodes.RENDER.getNodeCode();
@@ -182,7 +255,7 @@ public class RenderNode extends BaseWorkflowNode {
 
     private ChatRequest buildRenderRequest(ConversationQueryCommand command, ConversationRuntimeContext context) {
         ChatRequest request = new ChatRequest();
-        request.setProvider(ProviderType.AI_AGENT);
+        request.setClientType(AiChatClientType.AI_AGENT);
         request.setModel(resolveAgentModel(command));
         request.setMessages(List.of(
                 buildMessage(MessageRole.SYSTEM, RENDER_PROMPT),

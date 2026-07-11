@@ -71,8 +71,7 @@ const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 const modelForm = reactive({
   modelCode: '',
   modelName: '',
-  providerCode: '',
-  providerName: '',
+  clientType: 1,
   baseUrl: '',
   apiModel: '',
   apiKey: '',
@@ -83,6 +82,7 @@ const modelForm = reactive({
 const kbForm = reactive({
   kbCode: '',
   kbName: '',
+  clientType: 1,
   providerKbId: '',
   url: '',
   tagsText: '',
@@ -95,6 +95,24 @@ const tabOptions = [
   { key: 'kb' as const, label: '知识库管理' },
 ]
 
+const chatClientTypeOptions = [
+  { value: 1, label: '通用 Spring AI 客户端' },
+  { value: 2, label: 'AI Agent 客户端' },
+]
+
+const knowledgeClientTypeOptions = [
+  { value: 1, label: '百炼知识库客户端' },
+  { value: 2, label: 'Rawflow 知识库客户端（暂未实现）' },
+]
+
+function resolveChatClientTypeName(clientType?: number) {
+  return chatClientTypeOptions.find(item => item.value === clientType)?.label || '未配置客户端类型'
+}
+
+function resolveKnowledgeClientTypeName(clientType?: number) {
+  return knowledgeClientTypeOptions.find(item => item.value === clientType)?.label || '未配置客户端类型'
+}
+
 const isEditableTab = computed(() => activeTab.value === 'model' || activeTab.value === 'kb')
 const currentTabLabel = computed(() => {
   return activeTab.value === 'model' ? '模型' : '知识库'
@@ -102,8 +120,8 @@ const currentTabLabel = computed(() => {
 const currentDialogTitle = computed(() => `${dialogMode.value === 'create' ? '新增' : '编辑'}${currentTabLabel.value}`)
 const createButtonLabel = computed(() => `新增${currentTabLabel.value}`)
 const currentSearchPlaceholder = computed(() => activeTab.value === 'model'
-  ? '搜索名称 / 编码 / Provider'
-  : '搜索名称 / 编码 / Provider KB')
+  ? '搜索名称 / 编码 / 客户端类型'
+  : '搜索名称 / 编码 / 知识库客户端')
 
 const currentCards = computed<PlatformCard[]>(() => {
   if (activeTab.value === 'model') {
@@ -113,12 +131,12 @@ const currentCards = computed<PlatformCard[]>(() => {
       title: item.modelName || item.modelCode || '未命名模型',
       code: item.modelCode || '-',
       tags: [
-        item.providerName || item.providerCode || '未配置 Provider',
+        resolveChatClientTypeName(item.clientType),
         item.enabled === false ? '停用' : '启用',
       ],
       summary: item.apiModel || item.baseUrl || '暂无模型说明',
       extras: [
-        { label: 'Provider', value: item.providerCode || '-' },
+        { label: '客户端类型', value: resolveChatClientTypeName(item.clientType) },
         { label: 'Base URL', value: item.baseUrl || '-' },
         { label: '密钥', value: item.apiKeyMasked || '未配置' },
         { label: '更新时间', value: formatDateTime(item.updateTime || item.createTime) },
@@ -134,12 +152,14 @@ const currentCards = computed<PlatformCard[]>(() => {
     title: item.kbName || item.kbCode || '未命名知识库',
     code: item.kbCode || '-',
     tags: [
+      resolveKnowledgeClientTypeName(item.clientType),
       ...(item.tags || []).slice(0, 3),
       item.enabled === false ? '停用' : '启用',
     ],
     summary: item.url || item.providerKbId || '暂无知识库说明',
     extras: [
-      { label: 'Provider KB', value: item.providerKbId || '-' },
+      { label: '知识库客户端', value: resolveKnowledgeClientTypeName(item.clientType) },
+      { label: '远端 KB ID', value: item.providerKbId || '-' },
       { label: '地址', value: item.url || '-' },
       { label: '标签数', value: String(item.tags?.length || 0) },
       { label: '更新时间', value: formatDateTime(item.updateTime || item.createTime) },
@@ -152,8 +172,7 @@ const currentCards = computed<PlatformCard[]>(() => {
 function resetModelForm() {
   modelForm.modelCode = ''
   modelForm.modelName = ''
-  modelForm.providerCode = ''
-  modelForm.providerName = ''
+  modelForm.clientType = 1
   modelForm.baseUrl = ''
   modelForm.apiModel = ''
   modelForm.apiKey = ''
@@ -164,6 +183,7 @@ function resetModelForm() {
 function resetKbForm() {
   kbForm.kbCode = ''
   kbForm.kbName = ''
+  kbForm.clientType = 1
   kbForm.providerKbId = ''
   kbForm.url = ''
   kbForm.tagsText = ''
@@ -243,8 +263,7 @@ function openEditDialog(card: PlatformCard) {
     const item = card.raw as AiModelManageItem
     modelForm.modelCode = item.modelCode || ''
     modelForm.modelName = item.modelName || ''
-    modelForm.providerCode = item.providerCode || ''
-    modelForm.providerName = item.providerName || ''
+    modelForm.clientType = item.clientType || 1
     modelForm.baseUrl = item.baseUrl || ''
     modelForm.apiModel = item.apiModel || ''
     modelForm.apiKey = ''
@@ -254,6 +273,7 @@ function openEditDialog(card: PlatformCard) {
     const item = card.raw as AiKbStoreItem
     kbForm.kbCode = item.kbCode || ''
     kbForm.kbName = item.kbName || ''
+    kbForm.clientType = item.clientType || 1
     kbForm.providerKbId = item.providerKbId || ''
     kbForm.url = item.url || ''
     kbForm.tagsText = (item.tags || []).join(', ')
@@ -285,11 +305,10 @@ function buildModelPayload(): AiModelManageUpsertPayload {
   return {
     modelCode: normalizeText(modelForm.modelCode) || undefined,
     modelName: normalizeText(modelForm.modelName) || undefined,
-    providerCode: normalizeText(modelForm.providerCode) || undefined,
-    providerName: normalizeText(modelForm.providerName) || undefined,
-    baseUrl: normalizeText(modelForm.baseUrl) || undefined,
+    clientType: modelForm.clientType,
+    baseUrl: modelForm.clientType === 1 ? normalizeText(modelForm.baseUrl) || undefined : undefined,
     apiModel: normalizeText(modelForm.apiModel) || undefined,
-    apiKey: normalizeText(modelForm.apiKey) || undefined,
+    apiKey: modelForm.clientType === 1 ? normalizeText(modelForm.apiKey) || undefined : undefined,
     enabled: modelForm.enabled,
     extJson: parseJsonText(modelForm.extJsonText, '扩展配置'),
   }
@@ -299,7 +318,7 @@ function buildModelTestPayload() {
   const extJson = parseJsonText(modelForm.extJsonText, '扩展配置')
   return {
     id: dialogMode.value === 'edit' ? editingId.value : null,
-    providerCode: normalizeText(modelForm.providerCode) || undefined,
+    clientType: modelForm.clientType,
     baseUrl: normalizeText(modelForm.baseUrl) || undefined,
     apiModel: normalizeText(modelForm.apiModel) || undefined,
     apiKey: normalizeText(modelForm.apiKey) || undefined,
@@ -322,6 +341,7 @@ function buildKbPayload(): AiKbStoreUpsertPayload {
   return {
     kbCode: normalizeText(kbForm.kbCode) || undefined,
     kbName: normalizeText(kbForm.kbName) || undefined,
+    clientType: kbForm.clientType,
     providerKbId: normalizeText(kbForm.providerKbId) || undefined,
     url: normalizeText(kbForm.url) || undefined,
     tags,
@@ -339,10 +359,15 @@ function validateCurrentForm() {
       return '请输入模型名称'
     }
     if (!normalizeText(modelForm.apiModel)) {
-      return '请输入 Provider 模型标识'
+      return '请输入远端模型标识'
     }
-    if (dialogMode.value === 'create' && !normalizeText(modelForm.apiKey)) {
-      return '新增模型时必须填写 API Key'
+    if (modelForm.clientType === 1) {
+      if (!normalizeText(modelForm.baseUrl)) {
+        return '通用 Spring AI 客户端必须填写 Base URL'
+      }
+      if (dialogMode.value === 'create' && !normalizeText(modelForm.apiKey)) {
+        return '新增通用 Spring AI 模型时必须填写 API Key'
+      }
     }
     return ''
   }
@@ -376,7 +401,7 @@ function buildTestContextKey() {
   return [
     dialogMode.value,
     editingId.value ?? 'new',
-    normalizeText(modelForm.providerCode),
+    modelForm.clientType,
     normalizeText(modelForm.baseUrl),
     normalizeText(modelForm.apiModel),
   ].join('|')
@@ -794,19 +819,23 @@ watch(
         <el-form-item label="模型名称" required>
           <el-input v-model="modelForm.modelName" placeholder="请输入模型名称" />
         </el-form-item>
-        <el-form-item label="Provider Code">
-          <el-input v-model="modelForm.providerCode" placeholder="例如：openai" />
+        <el-form-item label="对话客户端类型" required>
+          <el-select v-model="modelForm.clientType" class="ai-platform-dialog-form__select">
+            <el-option
+              v-for="option in chatClientTypeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
         </el-form-item>
-        <el-form-item label="Provider Name">
-          <el-input v-model="modelForm.providerName" placeholder="例如：OpenAI" />
-        </el-form-item>
-        <el-form-item label="Base URL">
+        <el-form-item v-if="modelForm.clientType === 1" label="Base URL" required>
           <el-input v-model="modelForm.baseUrl" placeholder="https://api.example.com/v1" />
         </el-form-item>
-        <el-form-item label="Provider 模型" required>
-          <el-input v-model="modelForm.apiModel" placeholder="请输入真实 Provider 模型标识" />
+        <el-form-item label="远端模型标识" required>
+          <el-input v-model="modelForm.apiModel" placeholder="请输入客户端调用的远端模型标识" />
         </el-form-item>
-        <el-form-item :label="dialogMode === 'create' ? 'API Key' : 'API Key（留空不改）'">
+        <el-form-item v-if="modelForm.clientType === 1" :label="dialogMode === 'create' ? 'API Key' : 'API Key（留空不改）'">
           <el-input v-model="modelForm.apiKey" type="password" show-password placeholder="请输入 API Key" />
         </el-form-item>
         <el-form-item label="启用状态">
@@ -828,6 +857,16 @@ watch(
         </el-form-item>
         <el-form-item label="知识库名称" required>
           <el-input v-model="kbForm.kbName" placeholder="请输入知识库名称" />
+        </el-form-item>
+        <el-form-item label="知识库客户端类型" required>
+          <el-select v-model="kbForm.clientType" class="ai-platform-dialog-form__select">
+            <el-option
+              v-for="option in knowledgeClientTypeOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
+          </el-select>
         </el-form-item>
         <el-form-item label="Provider KB">
           <el-input v-model="kbForm.providerKbId" placeholder="请输入 Provider 侧 KB ID" />
@@ -859,7 +898,7 @@ watch(
       <template #footer>
         <div class="ai-platform-dialog__footer">
           <el-button @click="closeDialog">取消</el-button>
-          <el-button v-if="activeTab === 'model'" plain :loading="testingChat" @click="openTestDialog">
+          <el-button v-if="activeTab === 'model' && modelForm.clientType === 1" plain :loading="testingChat" @click="openTestDialog">
             <el-icon><ChatDotRound /></el-icon>
             测试对话
           </el-button>
@@ -878,7 +917,7 @@ watch(
     >
       <div class="ai-platform-test-chat">
         <div class="ai-platform-test-chat__meta">
-          <el-tag size="small" effect="plain">{{ modelForm.providerCode || '未配置 Provider' }}</el-tag>
+          <el-tag size="small" effect="plain">{{ resolveChatClientTypeName(modelForm.clientType) }}</el-tag>
           <span>{{ modelForm.baseUrl || '-' }}</span>
         </div>
         <div ref="testMessagesRef" class="ai-platform-test-chat__messages">

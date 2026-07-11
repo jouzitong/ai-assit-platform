@@ -1,5 +1,6 @@
 package ai.platform.aiassit.knowledge.manage.entity;
 
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -9,6 +10,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 
 import java.util.List;
 import java.util.Map;
@@ -37,6 +39,14 @@ public class AiKbStoreEntity extends AuditableEntity {
      */
     @TableField("kb_name")
     private String kbName;
+
+    /**
+     * 知识库客户端类型。
+     *
+     * <p>运行时据此选择知识库客户端 Driver；不表示知识库供应商。</p>
+     */
+    @TableField(value = "client_type", typeHandler = DefaultEnumTypeHandler.class)
+    private AiKnowledgeClientType clientType;
 
     /**
      * AI 侧真实知识库 ID。

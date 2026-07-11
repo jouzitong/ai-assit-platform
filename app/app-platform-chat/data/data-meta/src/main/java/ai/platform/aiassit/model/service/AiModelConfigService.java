@@ -8,5 +8,7 @@ import java.util.List;
 
 public interface AiModelConfigService extends IMapperService<AiModelConfigDTO> {
 
+    AiModelConfigDTO getByModelCode(String modelCode);
+
     List<AiEnabledModelDTO> selectEnabledModels();
 }

@@ -2,7 +2,7 @@ package ai.platform.aiassit.service.ai.api.dto;
 
 import lombok.Data;
 
-import ai.platform.aiassit.service.ai.api.enums.ProviderType;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -13,8 +13,8 @@ import java.util.List;
 @Data
 public class EmbedRequest implements Serializable {
 
-    /** 指定 AI 平台，允许为空（由实现层路由） */
-    private ProviderType provider;
+    /** 指定知识库客户端类型，允许为空（由实现层路由） */
+    private AiKnowledgeClientType clientType;
     /** 向量模型名称 */
     private String model;
     /** 待向量化文本列表 */
