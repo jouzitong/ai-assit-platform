@@ -8,6 +8,18 @@ import java.util.Map;
 @Data
 public class ConversationQueryStreamEvent {
 
+    /** 协议版本。 */
+    private String protocolVersion = "1.0";
+
+    /** 当前运行实例编码。 */
+    private String runId;
+
+    /** 运行内单调递增的事件序号，用于断线重放。 */
+    private String eventId;
+
+    /** 事件产生时间戳。 */
+    private Long timestamp;
+
     /**
      * 业务事件类型。
      *

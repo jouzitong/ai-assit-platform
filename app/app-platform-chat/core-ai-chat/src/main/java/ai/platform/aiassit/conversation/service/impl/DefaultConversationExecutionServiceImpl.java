@@ -10,6 +10,9 @@ import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeCont
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.engine.IWorkflowEngine;
+import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancellation;
+import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
+import ai.platform.aiassit.conversation.workflow.runtime.ConversationEventPublisher;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
@@ -19,13 +22,10 @@ import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.arthena.framework.common.exception.BizException;
-import org.arthena.framework.common.thread.AsyncTaskManager;
-import org.springframework.http.MediaType;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
@@ -34,20 +34,17 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     private final IWorkflowEngine workflowEngine;
     private final ConversationPreparationService preparationService;
-    private final AsyncTaskManager asyncTaskManager;
     private final AiChatSessionService sessionService;
     private final AiChatRoundService roundService;
     private final AiChatMessageService messageService;
 
     public DefaultConversationExecutionServiceImpl(IWorkflowEngine workflowEngine,
                                                    ConversationPreparationService preparationService,
-                                                   AsyncTaskManager asyncTaskManager,
                                                    AiChatSessionService sessionService,
                                                    AiChatRoundService roundService,
                                                    AiChatMessageService messageService) {
         this.workflowEngine = workflowEngine;
         this.preparationService = preparationService;
-        this.asyncTaskManager = asyncTaskManager;
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
@@ -62,24 +59,22 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     @Override
-    public SseEmitter executeStream(ConversationQueryCommand command) {
-        SseEmitter emitter = new SseEmitter(0L);
-        ConversationRuntimeContext workflowContext = buildConversationRuntimeContext(command);
-        workflowContext.setEmitter(emitter);
-        asyncTaskManager.submit(() -> runStream(workflowContext));
-        return emitter;
-    }
-
-    private void runStream(ConversationRuntimeContext context) {
-        SseEmitter emitter = context.getEmitter();
+    public ConversationQueryResponse executeStream(ConversationQueryCommand command,
+                                                   ConversationEventPublisher eventPublisher,
+                                                   ConversationCancellation cancellation) {
+        ConversationRuntimeContext context = buildConversationRuntimeContext(command);
+        context.setEventPublisher(eventPublisher == null ? ConversationEventPublisher.NOOP : eventPublisher);
+        context.setCancellation(cancellation == null ? ConversationCancellation.NONE : cancellation);
         try {
+            context.checkCancellation();
             preparationService.prepare(context);
             publishInitEvent(context);
+            context.checkCancellation();
             workflowEngine.run(context);
+            context.checkCancellation();
             String error = context.get(ConversationRuntimeContextKeys.Common.ERROR);
             if (StringUtils.hasText(error)) {
-                emitter.completeWithError(BizException.of(AiChatBizCodeConstant.WORKFLOW_EXECUTION_FAILED, error));
-                return;
+                throw BizException.of(AiChatBizCodeConstant.WORKFLOW_EXECUTION_FAILED, error);
             }
             context.publishCompleteEvent(
                     ConversationEventSources.CONVERSATION,
@@ -88,7 +83,10 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                     context.getRenderedAnswer(),
                     "SUCCESS"
             );
-            emitter.complete();
+            return buildQueryResponse(context);
+        } catch (ConversationCancelledException ex) {
+            markRoundCancelled(context);
+            throw ex;
         } catch (Exception ex) {
             if (!StringUtils.hasText(context.get(ConversationRuntimeContextKeys.Common.ERROR))) {
                 context.publishErrorEvent(
@@ -97,39 +95,41 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                         ex.getMessage()
                 );
             }
-            emitter.completeWithError(ex);
+            throw ex;
         }
     }
 
     @Override
-    public SseEmitter reconnectStream(ConversationStreamReconnectRequest request, Long userId, String traceId) {
-        SseEmitter emitter = new SseEmitter(0L);
-        try {
-            AiChatSessionDTO session = loadSession(request == null ? null : request.getSessionCode(), userId);
-            if (session == null) {
-                throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
-            }
-            AiChatRoundDTO round = loadRound(request == null ? null : request.getRoundCode(), session.getSessionCode(), userId);
-            if (round == null) {
-                throw BizException.of(AiChatBizCodeConstant.CONVERSATION_ROUND_NOT_FOUND);
-            }
-            String answer = loadLatestAssistantAnswer(round.getRoundCode(), session.getSessionCode(), userId);
-
-            sendInitEvent(emitter, traceId, session, round);
-            if (StringUtils.hasText(answer)) {
-                sendAnswerSnapshot(emitter, traceId, session, round, answer);
-            }
-
-            if ("SUCCESS".equalsIgnoreCase(round.getStatus())) {
-                sendCompleteEvent(emitter, traceId, session, round, answer);
-            } else if ("FAILED".equalsIgnoreCase(round.getStatus())) {
-                sendErrorEvent(emitter, traceId, session, round, "workflow execution failed");
-            }
-            emitter.complete();
-        } catch (Exception ex) {
-            emitter.completeWithError(ex);
+    public List<ConversationQueryStreamEvent> replayStream(ConversationStreamReconnectRequest request,
+                                                           Long userId,
+                                                           String traceId) {
+        AiChatSessionDTO session = loadSession(request == null ? null : request.getSessionCode(), userId);
+        if (session == null) {
+            throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
         }
-        return emitter;
+        AiChatRoundDTO round = loadRound(request == null ? null : request.getRoundCode(), session.getSessionCode(), userId);
+        if (round == null) {
+            throw BizException.of(AiChatBizCodeConstant.CONVERSATION_ROUND_NOT_FOUND);
+        }
+        String answer = loadLatestAssistantAnswer(round.getRoundCode(), session.getSessionCode(), userId);
+        List<ConversationQueryStreamEvent> events = new ArrayList<>();
+        events.add(buildInitEvent(traceId, session, round));
+        if (StringUtils.hasText(answer)) {
+            events.add(buildAnswerSnapshot(traceId, session, round, answer));
+        }
+        if ("SUCCESS".equalsIgnoreCase(round.getStatus())) {
+            events.add(buildCompleteEvent(traceId, session, round, answer));
+        } else if ("FAILED".equalsIgnoreCase(round.getStatus())) {
+            events.add(buildErrorEvent(traceId, session, round, "workflow execution failed"));
+        } else if ("CANCELLED".equalsIgnoreCase(round.getStatus())
+                || "CANCELED".equalsIgnoreCase(round.getStatus())) {
+            events.add(buildCancelledEvent(traceId, session, round));
+        }
+        for (int i = 0; i < events.size(); i++) {
+            events.get(i).setEventId(String.valueOf(i + 1L));
+            events.get(i).setTimestamp(System.currentTimeMillis());
+        }
+        return events;
     }
 
     private ConversationRuntimeContext buildConversationRuntimeContext(ConversationQueryCommand command) {
@@ -159,6 +159,17 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         String error = context.get(ConversationRuntimeContextKeys.Common.ERROR);
         response.setFinishReason(StringUtils.hasText(error) ? error : response.getStatus());
         return response;
+    }
+
+    private void markRoundCancelled(ConversationRuntimeContext context) {
+        AiChatRoundDTO round = context == null ? null : context.getRound();
+        if (round == null || round.getId() == null) {
+            return;
+        }
+        AiChatRoundDTO update = new AiChatRoundDTO();
+        update.setStatus("CANCELLED");
+        roundService.edit(round.getId(), update);
+        round.setStatus("CANCELLED");
     }
 
     private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
@@ -197,12 +208,11 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         return messages.isEmpty() ? null : messages.get(messages.size() - 1).getContent();
     }
 
-    private void sendInitEvent(SseEmitter emitter,
-                               String traceId,
-                               AiChatSessionDTO session,
-                               AiChatRoundDTO round) throws IOException {
+    private ConversationQueryStreamEvent buildInitEvent(String traceId,
+                                                        AiChatSessionDTO session,
+                                                        AiChatRoundDTO round) {
         ConversationQueryStreamEvent initEvent = new ConversationQueryStreamEvent();
-        initEvent.setEventType("PROGRESS");
+        initEvent.setEventType("progress");
         initEvent.setSource(ConversationEventSources.CONVERSATION);
         initEvent.setPhase(ConversationEventPhases.STARTED);
         initEvent.setRequestId(traceId);
@@ -211,16 +221,15 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         initEvent.setRoundCode(round.getRoundCode());
         initEvent.setStatus(round.getStatus());
         initEvent.setMessage("conversation started");
-        emitter.send(SseEmitter.event().name("PROGRESS").data(initEvent, MediaType.APPLICATION_JSON));
+        return initEvent;
     }
 
-    private void sendAnswerSnapshot(SseEmitter emitter,
-                                    String traceId,
-                                    AiChatSessionDTO session,
-                                    AiChatRoundDTO round,
-                                    String answer) throws IOException {
+    private ConversationQueryStreamEvent buildAnswerSnapshot(String traceId,
+                                                             AiChatSessionDTO session,
+                                                             AiChatRoundDTO round,
+                                                             String answer) {
         ConversationQueryStreamEvent answerEvent = new ConversationQueryStreamEvent();
-        answerEvent.setEventType("ANSWER");
+        answerEvent.setEventType("answer");
         answerEvent.setSource(ConversationEventSources.CONVERSATION);
         answerEvent.setPhase("READY");
         answerEvent.setRequestId(traceId);
@@ -230,16 +239,15 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         answerEvent.setAnswer(answer);
         answerEvent.setStatus(round.getStatus());
         answerEvent.setMessage("replayed current answer snapshot");
-        emitter.send(SseEmitter.event().name("ANSWER").data(answerEvent, MediaType.APPLICATION_JSON));
+        return answerEvent;
     }
 
-    private void sendCompleteEvent(SseEmitter emitter,
-                                   String traceId,
-                                   AiChatSessionDTO session,
-                                   AiChatRoundDTO round,
-                                   String answer) throws IOException {
+    private ConversationQueryStreamEvent buildCompleteEvent(String traceId,
+                                                            AiChatSessionDTO session,
+                                                            AiChatRoundDTO round,
+                                                            String answer) {
         ConversationQueryStreamEvent completeEvent = new ConversationQueryStreamEvent();
-        completeEvent.setEventType("COMPLETE");
+        completeEvent.setEventType("complete");
         completeEvent.setSource(ConversationEventSources.CONVERSATION);
         completeEvent.setPhase(ConversationEventPhases.COMPLETED);
         completeEvent.setRequestId(traceId);
@@ -248,16 +256,15 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         completeEvent.setRoundCode(round.getRoundCode());
         completeEvent.setAnswer(answer);
         completeEvent.setStatus("SUCCESS");
-        emitter.send(SseEmitter.event().name("COMPLETE").data(completeEvent, MediaType.APPLICATION_JSON));
+        return completeEvent;
     }
 
-    private void sendErrorEvent(SseEmitter emitter,
-                                String traceId,
-                                AiChatSessionDTO session,
-                                AiChatRoundDTO round,
-                                String message) throws IOException {
+    private ConversationQueryStreamEvent buildErrorEvent(String traceId,
+                                                         AiChatSessionDTO session,
+                                                         AiChatRoundDTO round,
+                                                         String message) {
         ConversationQueryStreamEvent errorEvent = new ConversationQueryStreamEvent();
-        errorEvent.setEventType("ERROR");
+        errorEvent.setEventType("error");
         errorEvent.setSource(ConversationEventSources.CONVERSATION);
         errorEvent.setPhase(ConversationEventPhases.FAILED);
         errorEvent.setRequestId(traceId);
@@ -266,6 +273,22 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         errorEvent.setRoundCode(round.getRoundCode());
         errorEvent.setStatus("FAILED");
         errorEvent.setMessage(message);
-        emitter.send(SseEmitter.event().name("ERROR").data(errorEvent, MediaType.APPLICATION_JSON));
+        return errorEvent;
+    }
+
+    private ConversationQueryStreamEvent buildCancelledEvent(String traceId,
+                                                             AiChatSessionDTO session,
+                                                             AiChatRoundDTO round) {
+        ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
+        event.setEventType("run.cancelled");
+        event.setSource(ConversationEventSources.CONVERSATION);
+        event.setPhase("CANCELLED");
+        event.setRequestId(traceId);
+        event.setSessionCode(session.getSessionCode());
+        event.setSessionName(session.getSessionName());
+        event.setRoundCode(round.getRoundCode());
+        event.setStatus("CANCELLED");
+        event.setMessage("conversation run cancelled");
+        return event;
     }
 }

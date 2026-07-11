@@ -8,6 +8,8 @@ import org.athena.framework.data.jdbc.req.BaseRequest;
 @EqualsAndHashCode(callSuper = true)
 public class ConversationTaskStopRequest extends BaseRequest {
 
+    private String runId;
+
     private String sessionCode;
 
     private String roundCode;

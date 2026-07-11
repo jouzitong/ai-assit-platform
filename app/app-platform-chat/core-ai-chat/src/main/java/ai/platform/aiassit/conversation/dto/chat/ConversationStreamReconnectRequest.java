@@ -8,6 +8,10 @@ import org.athena.framework.data.jdbc.req.BaseRequest;
 @EqualsAndHashCode(callSuper = true)
 public class ConversationStreamReconnectRequest extends BaseRequest {
 
+    private String runId;
+
+    private String lastEventId;
+
     private String sessionCode;
 
     private String roundCode;

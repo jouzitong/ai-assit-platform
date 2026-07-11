@@ -5,6 +5,8 @@ import ai.platform.aiassit.conversation.constant.ConversationEventTypes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.bean.WorkflowDefinition;
+import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancellation;
+import ai.platform.aiassit.conversation.workflow.runtime.ConversationEventPublisher;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
@@ -12,9 +14,7 @@ import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.util.StringUtils;
-import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.io.IOException;
 import java.io.Serial;
 import java.io.Serializable;
 import java.util.ArrayList;
@@ -28,7 +28,7 @@ import java.util.Objects;
 /**
  * 聊天运行上下文。
  *
- * <p>用于承载一次聊天任务执行过程中的输入参数、会话信息、意图分析结果、工作流定义、节点中间结果以及 SSE 推送对象。</p>
+ * <p>用于承载一次聊天任务执行过程中的输入参数、会话信息、意图分析结果、工作流定义和节点中间结果。</p>
  *
  * <p>workflow 相关状态只是该运行上下文中的一个执行域，而不是上下文本身的全部语义。</p>
  *
@@ -85,9 +85,14 @@ public class ConversationRuntimeContext implements Serializable {
     private WorkflowResultContext resultContext = new WorkflowResultContext();
 
     /**
-     * SSE 推送对象，用于向前端实时推送工作流执行过程事件。
+     * 执行事件发布端口，具体传输方式由上层运行时决定。
      */
-    private transient SseEmitter emitter;
+    private transient ConversationEventPublisher eventPublisher = ConversationEventPublisher.NOOP;
+
+    /**
+     * 当前运行的协作式取消信号。
+     */
+    private transient ConversationCancellation cancellation = ConversationCancellation.NONE;
 
     /**
      * 扩展数据容器，用于存放各节点临时产生的非固定结构数据。
@@ -410,9 +415,6 @@ public class ConversationRuntimeContext implements Serializable {
                              String delta,
                              String status,
                              Map<String, Object> ext) {
-        if (emitter == null) {
-            return;
-        }
         ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
         event.setEventType(eventType);
         event.setProgressType(progressType);
@@ -427,11 +429,13 @@ public class ConversationRuntimeContext implements Serializable {
         event.setDelta(delta);
         event.setStatus(status);
         event.setExt(ext == null ? new LinkedHashMap<>() : new LinkedHashMap<>(ext));
-        try {
-            emitter.send(SseEmitter.event().name(eventType).data(event));
-        } catch (IOException ex) {
-            log.warn("failed to publish workflow event, eventType={}", eventType, ex);
-        }
+        ConversationEventPublisher publisher = eventPublisher == null ? ConversationEventPublisher.NOOP : eventPublisher;
+        publisher.publish(event);
+    }
+
+    public void checkCancellation() {
+        ConversationCancellation signal = cancellation == null ? ConversationCancellation.NONE : cancellation;
+        signal.throwIfCancellationRequested();
     }
 
     public void publishProgressEvent(String source, String phase, String message) {

@@ -99,27 +99,29 @@ public class AiAgentProcessExecutor {
         }
         env.put("AI_AGENT_KB_SEARCH_TOKEN", ((UserContext) SystemContext.getUserContext()).token());
 
+        Process process = null;
         try {
             log.info("ai agent process starting, command={}", command);
-            Process process = processBuilder.start();
+            process = processBuilder.start();
+            Process activeProcess = process;
             log.info("ai agent process started");
-            try (Writer writer = new OutputStreamWriter(process.getOutputStream(), StandardCharsets.UTF_8)) {
+            try (Writer writer = new OutputStreamWriter(activeProcess.getOutputStream(), StandardCharsets.UTF_8)) {
                 objectMapper.writeValue(writer, buildPayload(properties, request));
             }
             AtomicReference<JsonNode> resultRef = new AtomicReference<>();
             CompletableFuture<Void> stdoutFuture = CompletableFuture.runAsync(
-                    () -> readFrames(process, frameConsumer, resultRef));
+                    () -> readFrames(activeProcess, frameConsumer, resultRef));
             CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(
-                    () -> readText(process.getErrorStream()));
-            boolean finished = process.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
+                    () -> readText(activeProcess.getErrorStream()));
+            boolean finished = activeProcess.waitFor(timeoutMs, TimeUnit.MILLISECONDS);
             if (!finished) {
                 log.warn("ai agent process timeout, timeoutMs={}, scriptPath={}", timeoutMs, scriptPath);
-                process.destroyForcibly();
+                activeProcess.destroyForcibly();
                 throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "python process timeout");
             }
             stdoutFuture.join();
             String stderr = stderrFuture.join();
-            int exitValue = process.exitValue();
+            int exitValue = activeProcess.exitValue();
             log.info("ai agent process finished, exitValue={}, stderrLength={}", exitValue, stderr.length());
             if (exitValue != 0) {
                 log.error("ai agent process failed, exitValue={}, stderr={}", exitValue, safeError(stderr));
@@ -132,6 +134,12 @@ public class AiAgentProcessExecutor {
             }
             log.info("ai agent process parsed output successfully");
             return result;
+        } catch (InterruptedException ex) {
+            if (process != null && process.isAlive()) {
+                process.destroyForcibly();
+            }
+            Thread.currentThread().interrupt();
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "python process interrupted");
         } catch (Exception ex) {
             if (ex instanceof BizException bizException) {
                 throw bizException;

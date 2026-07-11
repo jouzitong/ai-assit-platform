@@ -12,6 +12,15 @@ server:
     context-path: /chat
 
 ai:
+  chat:
+    runtime:
+      mode: ${AI_CHAT_RUNTIME_MODE:local}
+      node-id: ${AI_CHAT_RUNTIME_NODE_ID:}
+      active-ttl: 2h
+      terminal-ttl: 30m
+      max-replay-events: 512
+      redis:
+        key-prefix: ai:chat:runtime
   provider:
     qwen:
       apiKey: ${AI_PROVIDER_QWEN_API_KEY:}

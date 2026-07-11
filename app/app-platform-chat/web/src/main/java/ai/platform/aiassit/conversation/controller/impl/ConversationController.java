@@ -9,6 +9,7 @@ import ai.platform.aiassit.conversation.dto.chat.ConversationQueryResponse;
 import ai.platform.aiassit.conversation.dto.chat.ConversationStreamReconnectRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDetailRequest;
 import ai.platform.aiassit.conversation.service.ConversationExecutionService;
+import ai.platform.aiassit.conversation.transport.sse.SseConversationTransport;
 import ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import lombok.AllArgsConstructor;
@@ -16,7 +17,6 @@ import org.arthena.framework.common.constant.ErrCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.api.model.UserContext;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -36,6 +36,8 @@ public class ConversationController implements IConversationController {
     private final ConversationService conversationService;
 
     private final ConversationExecutionService executionService;
+
+    private final SseConversationTransport sseTransport;
 
     private final AiModelConfigService aiModelConfigService;
 
@@ -57,12 +59,12 @@ public class ConversationController implements IConversationController {
 
     @Override
     public SseEmitter completionsStream(@RequestBody ConversationQueryRequest request) {
-        return executionService.executeStream(buildCommand(request));
+        return sseTransport.start(buildCommand(request));
     }
 
     @Override
     public SseEmitter reconnectStream(@RequestBody ConversationStreamReconnectRequest request) {
-        return executionService.reconnectStream(request, resolveCurrentUserId(), resolveTraceId());
+        return sseTransport.reconnect(request, resolveCurrentUserId(), resolveTraceId());
     }
 
     private ConversationQueryCommand buildCommand(ConversationQueryRequest request) {
@@ -99,7 +101,7 @@ public class ConversationController implements IConversationController {
         if (userContext != null && userContext.subject() != null) {
             return userContext.subject().userId();
         }
-        throw BizException.ofStatus(ErrCodeConstant.LOGIN_FAILED, HttpStatus.UNAUTHORIZED.value());
+        throw BizException.of(ErrCodeConstant.LOGIN_FAILED);
     }
 
     private String resolveSessionName(String message) {

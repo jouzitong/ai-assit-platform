@@ -19,6 +19,7 @@ import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeResult;
 import ai.platform.aiassit.conversation.workflow.engine.IWorkflowEngine;
 import ai.platform.aiassit.conversation.workflow.engine.transition.TransitionResolver;
 import ai.platform.aiassit.conversation.workflow.node.IWorkflowNode;
+import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import lombok.extern.slf4j.Slf4j;
@@ -66,6 +67,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
             WorkflowExecutionState state = createExecutionState(definition);
             String currentNodeId = definition.getStartNodeId();
             while (currentNodeId != null) {
+                context.checkCancellation();
                 state.setCurrentNodeId(currentNodeId);
                 state.setTotalSteps(state.getTotalSteps() + 1);
                 state.incrementNodeAttempt(currentNodeId);
@@ -94,6 +96,8 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 NodeExecutionResult result;
                 try {
                     result = adaptNodeResult(currentNode.execute(context, workflowNodeConfig), workflowNodeConfig);
+                } catch (ConversationCancelledException e) {
+                    throw e;
                 } catch (Exception e) {
                     log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
                     failWorkflow(context,
@@ -102,6 +106,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                             "node failed: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage());
                     return;
                 }
+                context.checkCancellation();
                 if (result == null || !result.isSuccess()) {
                     failWorkflow(context,
                             result == null ? "node result is null" : result.getErrorMessage(),
@@ -155,6 +160,8 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 currentNodeId = decision.getTargetNodeId();
             }
             finishRound(context, STATUS_SUCCESS);
+        } catch (ConversationCancelledException ex) {
+            throw ex;
         } catch (Exception ex) {
             log.error("workflow execution failed before completion, sessionCode={}, roundCode={}",
                     context.getSession() == null ? null : context.getSession().getSessionCode(),
