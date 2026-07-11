@@ -123,7 +123,7 @@ public class RenderNode extends BaseWorkflowNode {
                 context.setRenderCheckReport(renderCheckReport);
                 context.put(ConversationRuntimeContextKeys.Render.RENDER_CHECK_REPORT, renderCheckReport);
             }
-            RenderDetailDTO renderPage = persistRenderPage(context, renderJsonText);
+            RenderDetailDTO renderPage = persistRenderPage(context, renderJson);
             context.setRenderedAnswer(renderJsonText);
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
             context.put(ConversationRuntimeContextKeys.Render.RENDER_JSON, renderJson);
@@ -428,13 +428,13 @@ public class RenderNode extends BaseWorkflowNode {
         return "anonymous-root";
     }
 
-    private RenderDetailDTO persistRenderPage(ConversationRuntimeContext context, String renderJsonText) {
+    private RenderDetailDTO persistRenderPage(ConversationRuntimeContext context, Map<String, Object> renderJson) {
         RenderUpsertRequest request = new RenderUpsertRequest();
         request.setCode(resolveRenderPageCode(context));
         request.setName(resolveRenderPageName(context));
         request.setCategoryCode(resolveRenderCategoryCode(context));
         request.setStatus(EffectiveStatus.PUBLISHED);
-        request.setContent(renderJsonText);
+        request.setContent(renderJson);
 
         RenderDetailDTO detail = renderInternalApi.upsert(request);
         String pageCode = detail == null ? request.getCode() : detail.getCode();

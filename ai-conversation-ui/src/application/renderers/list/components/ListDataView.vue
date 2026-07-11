@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { getColumnMinWidth, getFieldValue } from '../schema'
 import type { ListRendererSchema, RendererAction } from '../types'
 
@@ -16,6 +16,29 @@ const emit = defineEmits<{
 const fields = computed(() => props.schema.fields || [])
 const rowActions = computed(() => props.schema.list_config?.actionColumns || [])
 const itemType = computed(() => props.schema.list_config?.itemType || 'table')
+const tableMotionClass = ref('')
+let hasRenderedRecords = false
+let motionTimer: ReturnType<typeof setTimeout> | undefined
+
+watch(
+  () => props.records,
+  () => {
+    if (!hasRenderedRecords) {
+      hasRenderedRecords = true
+      return
+    }
+
+    window.clearTimeout(motionTimer)
+    tableMotionClass.value = tableMotionClass.value === 'list-data-view__table-row--motion-a'
+      ? 'list-data-view__table-row--motion-b'
+      : 'list-data-view__table-row--motion-a'
+    motionTimer = window.setTimeout(() => {
+      tableMotionClass.value = ''
+    }, 420)
+  },
+)
+
+onBeforeUnmount(() => window.clearTimeout(motionTimer))
 
 const handleItemAction = (action: RendererAction, row: Record<string, unknown>) => {
   emit('itemAction', { action, row })
@@ -23,11 +46,18 @@ const handleItemAction = (action: RendererAction, row: Record<string, unknown>) 
 
 const getRowKey = (row: Record<string, unknown>, index: number) =>
   String(row.id ?? row.key ?? row.code ?? `row-${index}`)
+
+const getRowClassName = ({ rowIndex }: { rowIndex: number }) =>
+  tableMotionClass.value
+
+const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
+  '--list-row-motion-delay': `${Math.min(rowIndex * 32, 288)}ms`,
+})
 </script>
 
 <template>
-    <div class="list-data-view">
-      <div v-if="itemType === 'card'" class="list-data-view__cards" v-loading="loading">
+  <div class="list-data-view" :aria-busy="loading || undefined">
+    <transition-group v-if="itemType === 'card'" tag="div" name="list-card" class="list-data-view__cards">
       <el-card
         v-for="(row, index) in records"
         :key="getRowKey(row, index)"
@@ -52,9 +82,17 @@ const getRowKey = (row: Record<string, unknown>, index: number) =>
           </el-button>
         </div>
       </el-card>
-    </div>
+    </transition-group>
 
-    <el-table v-else :data="records" border class="list-data-view__table" v-loading="loading">
+    <el-table
+      v-else
+      :data="records"
+      :row-key="getRowKey"
+      :row-class-name="getRowClassName"
+      :row-style="getRowStyle"
+      border
+      class="list-data-view__table"
+    >
       <el-table-column
         v-for="field in fields"
         :key="field.key"
@@ -137,6 +175,22 @@ const getRowKey = (row: Record<string, unknown>, index: number) =>
   margin-top: 16px;
 }
 
+.list-card-enter-active,
+.list-card-leave-active,
+.list-card-move {
+  transition: opacity 180ms ease, transform 180ms ease;
+}
+
+.list-card-enter-from,
+.list-card-leave-to {
+  opacity: 0;
+  transform: translateY(8px);
+}
+
+.list-card-leave-active {
+  position: absolute;
+}
+
 .list-data-view__table {
   flex: 1;
   width: 100%;
@@ -144,6 +198,47 @@ const getRowKey = (row: Record<string, unknown>, index: number) =>
   min-height: 0;
   border-radius: 24px;
   overflow: hidden;
+}
+
+:deep(.el-table__body tr.list-data-view__table-row--motion-a),
+:deep(.el-table__body tr.list-data-view__table-row--motion-b) {
+  animation-duration: 180ms;
+  animation-delay: var(--list-row-motion-delay, 0ms);
+  animation-fill-mode: both;
+  animation-timing-function: ease-out;
+}
+
+:deep(.el-table__body tr.list-data-view__table-row--motion-a) {
+  animation-name: list-data-view-row-arrive-a;
+}
+
+:deep(.el-table__body tr.list-data-view__table-row--motion-b) {
+  animation-name: list-data-view-row-arrive-b;
+}
+
+@keyframes list-data-view-row-arrive-a {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@keyframes list-data-view-row-arrive-b {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .list-card-enter-active,
+  .list-card-leave-active,
+  .list-card-move,
+  :deep(.el-table__body tr.list-data-view__table-row--motion-a),
+  :deep(.el-table__body tr.list-data-view__table-row--motion-b) {
+    animation: none;
+    transition: none;
+  }
 }
 
 @container application-list-layout (max-width: 560px) {
