@@ -1,6 +1,7 @@
 package ai.platform.aiassit.db.engine.core.service;
 
 import ai.platform.aiassit.db.engine.executor.spi.request.DeleteTableColumnsRequest;
+import ai.platform.aiassit.db.engine.executor.spi.enums.DbAccessDbType;
 import ai.platform.aiassit.db.engine.executor.spi.provider.DbAccessExecutor;
 import ai.platform.aiassit.db.engine.executor.spi.request.ExecuteRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTableColumnsRequest;
@@ -19,6 +20,8 @@ import ai.platform.aiassit.db.engine.executor.spi.result.TestConnectionResult;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbDataSourceDTO;
 
 public interface DbAccessService {
+
+    DbAccessDbType getDbType(String sourceKey);
 
     TestConnectionResult testConnection(String sourceKey);
 

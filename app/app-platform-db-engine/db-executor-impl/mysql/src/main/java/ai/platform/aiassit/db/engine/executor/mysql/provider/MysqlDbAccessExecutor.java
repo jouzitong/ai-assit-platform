@@ -185,13 +185,14 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
         log.debug("查询 SQL: {}", sql);
         Instant start = Instant.now();
         try (Connection connection = connectionSupport.openConnection(context);
-             Statement statement = connection.createStatement()) {
+             PreparedStatement statement = connection.prepareStatement(sql)) {
             if (request.getMaxRows() != null && request.getMaxRows() > 0) {
                 statement.setMaxRows(request.getMaxRows());
             }
+            bindParameters(statement, request.getParameters());
             List<Map<String, Object>> rows = new ArrayList<>();
             List<DbQueryColumn> columns = new ArrayList<>();
-            try (ResultSet resultSet = statement.executeQuery(sql)) {
+            try (ResultSet resultSet = statement.executeQuery()) {
                 ResultSetMetaData metaData = resultSet.getMetaData();
                 for (int i = 1; i <= metaData.getColumnCount(); i++) {
                     columns.add(DbQueryColumn.builder()
@@ -528,6 +529,15 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
             return number.intValue();
         }
         return Integer.valueOf(String.valueOf(value));
+    }
+
+    private void bindParameters(PreparedStatement statement, List<Object> parameters) throws SQLException {
+        if (CollectionUtils.isEmpty(parameters)) {
+            return;
+        }
+        for (int index = 0; index < parameters.size(); index++) {
+            statement.setObject(index + 1, parameters.get(index));
+        }
     }
 
     private String resolveSchemaName(String requestedSchema) throws DbAccessException {

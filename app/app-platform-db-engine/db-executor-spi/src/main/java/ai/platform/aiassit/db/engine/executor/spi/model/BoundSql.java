@@ -1,4 +1,4 @@
-package ai.platform.aiassit.db.engine.executor.spi.request;
+package ai.platform.aiassit.db.engine.executor.spi.model;
 
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -8,17 +8,15 @@ import lombok.NoArgsConstructor;
 import java.util.ArrayList;
 import java.util.List;
 
+/** SQL 方言渲染后的可执行语句。 */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class QueryRequest {
+public class BoundSql {
 
     private String sql;
 
-    /** 与 SQL 中占位符按顺序对应的参数。 */
     @Builder.Default
     private List<Object> parameters = new ArrayList<>();
-
-    private Integer maxRows;
 }

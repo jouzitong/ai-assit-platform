@@ -3,6 +3,7 @@ package ai.platform.aiassit.db.engine.core.service.impl;
 import ai.platform.aiassit.db.engine.core.registry.DbAccessProviderRegistry;
 import ai.platform.aiassit.db.engine.core.service.DbAccessService;
 import ai.platform.aiassit.db.engine.core.support.DbAccessContextAssembler;
+import ai.platform.aiassit.db.engine.executor.spi.enums.DbAccessDbType;
 import ai.platform.aiassit.db.engine.executor.spi.exception.DbAccessException;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbAccessContext;
 import ai.platform.aiassit.db.engine.executor.spi.request.DeleteTableColumnsRequest;
@@ -44,6 +45,15 @@ public class DbAccessServiceImpl implements DbAccessService {
         this.dataSourceService = dataSourceService;
         this.providerRegistry = providerRegistry;
         this.contextAssembler = contextAssembler;
+    }
+
+    @Override
+    public DbAccessDbType getDbType(String sourceKey) {
+        try {
+            return resolveContext(sourceKey).getDbType();
+        } catch (DbAccessException ex) {
+            throw toBizException(ex);
+        }
     }
 
     @Override

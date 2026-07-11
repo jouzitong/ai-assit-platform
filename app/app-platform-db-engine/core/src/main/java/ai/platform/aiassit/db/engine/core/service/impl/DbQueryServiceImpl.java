@@ -18,10 +18,10 @@ import ai.platform.aiassit.db.engine.api.dto.DbQuerySort;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeNode;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeResponse;
-import ai.platform.aiassit.db.engine.core.service.DbAccessService;
+import ai.platform.aiassit.db.engine.core.execution.DbQueryExecutionPipeline;
 import ai.platform.aiassit.db.engine.core.service.DbQueryService;
-import ai.platform.aiassit.db.engine.core.support.DefaultDbSourceKeyResolver;
-import ai.platform.aiassit.db.engine.executor.spi.request.QueryRequest;
+import ai.platform.aiassit.db.engine.executor.spi.enums.DbOperationType;
+import ai.platform.aiassit.db.engine.executor.spi.plan.DbQueryPlan;
 import ai.platform.aiassit.db.engine.executor.spi.result.QueryResult;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
@@ -50,15 +50,10 @@ public class DbQueryServiceImpl implements DbQueryService {
     private static final String RELATION_FIELD_ALIAS_DELIMITER = "__";
     private static final String RELATION_FIELD_PATH_DOT_TOKEN = "__dot__";
 
-    private final DbAccessService dbAccessService;
-    private final DefaultDbSourceKeyResolver defaultDbSourceKeyResolver;
+    private final DbQueryExecutionPipeline executionPipeline;
 
-    public DbQueryServiceImpl(
-            DbAccessService dbAccessService,
-            DefaultDbSourceKeyResolver defaultDbSourceKeyResolver
-    ) {
-        this.dbAccessService = dbAccessService;
-        this.defaultDbSourceKeyResolver = defaultDbSourceKeyResolver;
+    public DbQueryServiceImpl(DbQueryExecutionPipeline executionPipeline) {
+        this.executionPipeline = executionPipeline;
     }
 
     @Override
@@ -81,7 +76,7 @@ public class DbQueryServiceImpl implements DbQueryService {
         appendWhere(sql, conditions);
         appendOrderBy(sql, sorts, relations);
         sql.append(" LIMIT 1");
-        QueryResult result = runQuery(sql.toString(), 1);
+        QueryResult result = runQuery(table, sql.toString(), 1);
         DbQueryGetResponse response = new DbQueryGetResponse();
         if (!CollectionUtils.isEmpty(result.getRows())) {
             response.setRecord(transformRow(result.getRows().get(0)));
@@ -110,7 +105,7 @@ public class DbQueryServiceImpl implements DbQueryService {
         appendOrderBy(sql, request == null || request.getExt() == null ? List.of() : request.getExt().getSorts(), relations);
         sql.append(" LIMIT ").append((page - 1) * pageSize).append(", ").append(pageSize);
 
-        QueryResult result = runQuery(sql.toString(), pageSize);
+        QueryResult result = runQuery(table, sql.toString(), pageSize);
         long total = queryTotal(table, relations, conditions);
 
         DbQueryListResponse response = new DbQueryListResponse();
@@ -125,8 +120,9 @@ public class DbQueryServiceImpl implements DbQueryService {
 
     @Override
     public DbQueryCountResponse queryCount(DbQueryCountRequest request) {
+        String table = requireModel(request == null ? null : request.getModel());
         QueryBundle bundle = buildAggregateBundle(
-                requireModel(request == null ? null : request.getModel()),
+                table,
                 request == null || request.getExt() == null ? List.of() : request.getExt().getRelations(),
                 request == null ? null : request.getFilterDict(),
                 request == null ? null : request.getFilterExpr(),
@@ -137,7 +133,7 @@ public class DbQueryServiceImpl implements DbQueryService {
                 request == null ? null : request.getPage(),
                 request == null ? null : request.getPageSize()
         );
-        QueryResult result = runQuery(bundle.sql(), bundle.maxRows());
+        QueryResult result = runQuery(table, bundle.sql(), bundle.maxRows());
         DbQueryCountResponse response = new DbQueryCountResponse();
         response.setPage(bundle.page());
         response.setPageSize(bundle.pageSize());
@@ -149,8 +145,9 @@ public class DbQueryServiceImpl implements DbQueryService {
 
     @Override
     public DbQueryAggregateResponse queryAggregate(DbQueryAggregateRequest request) {
+        String table = requireModel(request == null ? null : request.getModel());
         QueryBundle bundle = buildAggregateBundle(
-                requireModel(request == null ? null : request.getModel()),
+                table,
                 request == null || request.getExt() == null ? List.of() : request.getExt().getRelations(),
                 request == null ? null : request.getFilterDict(),
                 request == null ? null : request.getFilterExpr(),
@@ -161,7 +158,7 @@ public class DbQueryServiceImpl implements DbQueryService {
                 request == null ? null : request.getPage(),
                 request == null ? null : request.getPageSize()
         );
-        QueryResult result = runQuery(bundle.sql(), bundle.maxRows());
+        QueryResult result = runQuery(table, bundle.sql(), bundle.maxRows());
         DbQueryAggregateResponse response = new DbQueryAggregateResponse();
         response.setPage(bundle.page());
         response.setPageSize(bundle.pageSize());
@@ -198,7 +195,7 @@ public class DbQueryServiceImpl implements DbQueryService {
         ));
         appendOrderBy(sql, request == null ? null : request.getSorts(), relations);
 
-        QueryResult result = runQuery(sql.toString(), DEFAULT_MAX_ROWS);
+        QueryResult result = runQuery(table, sql.toString(), DEFAULT_MAX_ROWS);
         List<Map<String, Object>> rows = result.getRows();
         Map<Object, DbQueryTreeNode> nodeMap = new LinkedHashMap<>();
         List<DbQueryTreeNode> roots = new ArrayList<>();
@@ -251,7 +248,7 @@ public class DbQueryServiceImpl implements DbQueryService {
                 1,
                 request != null && request.getExt() != null ? request.getExt().getTopN() : null
         );
-        List<Map<String, Object>> records = copyRows(runQuery(bundle.sql(), bundle.maxRows()).getRows());
+        List<Map<String, Object>> records = copyRows(runQuery(table, bundle.sql(), bundle.maxRows()).getRows());
 
         List<String> rowKeys = rows.stream().map(this::resolveDimensionAlias).toList();
         List<String> columnKeys = columns.stream().map(this::resolveDimensionAlias).toList();
@@ -351,7 +348,7 @@ public class DbQueryServiceImpl implements DbQueryService {
     private long queryTotal(String table, List<DbQueryRelation> relations, List<String> conditions) {
         StringBuilder countSql = new StringBuilder("SELECT COUNT(1) AS cnt FROM ").append(buildFromClause(table, relations));
         appendWhere(countSql, conditions);
-        QueryResult result = runQuery(countSql.toString(), 1);
+        QueryResult result = runQuery(table, countSql.toString(), 1);
         if (CollectionUtils.isEmpty(result.getRows())) {
             return 0L;
         }
@@ -413,12 +410,14 @@ public class DbQueryServiceImpl implements DbQueryService {
         return qualifiedField + " = " + toSqlLiteral(value);
     }
 
-    private QueryResult runQuery(String sql, Integer maxRows) {
-        QueryRequest request = QueryRequest.builder()
-                .sql(sql)
+    private QueryResult runQuery(String model, String sql, Integer maxRows) {
+        DbQueryPlan plan = DbQueryPlan.builder()
+                .operationType(DbOperationType.QUERY)
+                .model(model)
+                .statement(sql)
                 .maxRows(maxRows == null ? DEFAULT_MAX_ROWS : maxRows)
                 .build();
-        return dbAccessService.query(defaultDbSourceKeyResolver.resolve(null), request);
+        return executionPipeline.execute(plan);
     }
 
     private String buildSelectClause(List<String> fields, List<DbQueryRelation> relations) {
