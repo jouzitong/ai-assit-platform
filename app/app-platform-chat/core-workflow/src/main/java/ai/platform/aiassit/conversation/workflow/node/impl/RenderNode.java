@@ -24,6 +24,7 @@ import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeCont
 import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.node.BaseWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
 import ai.platform.aiassit.chat.history.enums.AiChatActorType;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactStage;
 import ai.platform.aiassit.chat.history.enums.AiChatArtifactType;
@@ -131,17 +132,7 @@ public class RenderNode extends BaseWorkflowNode {
             context.getOrCreateNodeResult(WorkflowNodeCodes.RENDER.getNodeCode()).setStatus(STATUS_SUCCESS);
             context.put(ConversationRuntimeContextKeys.Render.RENDER_JSON, renderJson);
             context.put(ConversationRuntimeContextKeys.Render.RENDERED_ANSWER, renderJsonText);
-            context.publishAnswerEvent(
-                    ConversationEventSources.RENDER,
-                    ConversationEventPhases.COMPLETED,
-                    buildAnswerReadyMessage(renderPage),
-                    renderJsonText,
-                    null,
-                    STATUS_SUCCESS
-            );
-
-            persistAssistantMessage(context, renderJsonText);
-            historyRecorder.saveArtifact(
+            AiChatArtifactDTO renderArtifact = historyRecorder.saveArtifact(
                     context,
                     AiChatArtifactType.MODEL_RESPONSE_SNAPSHOT.name(),
                     AiChatArtifactStage.RENDER.name(),
@@ -153,6 +144,22 @@ public class RenderNode extends BaseWorkflowNode {
                     context.getOrCreateUserMessageContext().getCurrentMessage() == null ? null : context.getOrCreateUserMessageContext().getCurrentMessage().getMessageCode(),
                     response == null ? null : response.getRequestId()
             );
+            Map<String, Object> answerExt = new LinkedHashMap<>();
+            answerExt.put("codeRef", renderArtifact.getArtifactCode());
+            answerExt.put("artifactType", renderArtifact.getArtifactType());
+            answerExt.put("contentFormat", renderArtifact.getContentFormat());
+            answerExt.put("title", renderArtifact.getTitle());
+            context.publishAnswerEvent(
+                    ConversationEventSources.RENDER,
+                    ConversationEventPhases.COMPLETED,
+                    buildAnswerReadyMessage(renderPage),
+                    renderJsonText,
+                    null,
+                    STATUS_SUCCESS,
+                    answerExt
+            );
+
+            persistAssistantMessage(context, renderJsonText);
             return NodeResult.success(null);
         } catch (Exception ex) {
             log.error("render node failed, roundCode={}", context.getRound().getRoundCode(), ex);

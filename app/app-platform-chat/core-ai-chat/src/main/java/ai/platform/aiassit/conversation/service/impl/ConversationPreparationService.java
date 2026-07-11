@@ -153,7 +153,9 @@ public class ConversationPreparationService {
 
     private AiChatRoundDTO createRound(AiChatSessionDTO session, ConversationQueryCommand command, Long userId) {
         AiChatRoundDTO round = new AiChatRoundDTO();
-        round.setRoundCode(generateCode("round"));
+        round.setRoundCode(org.springframework.util.StringUtils.hasText(command.getRoundCode())
+                ? command.getRoundCode().trim()
+                : generateCode("round"));
         round.setRoundType(resolveRoundType(command));
         round.setParentRoundCode(resolveParentRoundCode(session.getSessionCode(), userId));
         round.setSessionCode(session.getSessionCode());

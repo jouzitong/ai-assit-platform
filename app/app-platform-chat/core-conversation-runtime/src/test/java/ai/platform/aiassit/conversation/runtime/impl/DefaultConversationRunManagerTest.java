@@ -61,7 +61,7 @@ class DefaultConversationRunManagerTest {
         ConversationRunSnapshot completed = awaitState(manager, started.runId(), ConversationRunState.COMPLETED);
 
         List<ConversationQueryStreamEvent> replay = new CopyOnWriteArrayList<>();
-        manager.subscribe(started.runId(), 7L, "2", replay::add);
+        manager.subscribe(started.runId(), 7L, "2.3", replay::add);
 
         assertEquals("session-1", completed.sessionCode());
         assertEquals("round-1", completed.roundCode());

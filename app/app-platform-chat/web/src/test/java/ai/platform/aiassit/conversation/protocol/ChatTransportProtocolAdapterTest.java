@@ -1,0 +1,82 @@
+package ai.platform.aiassit.conversation.protocol;
+
+import ai.platform.aiassit.conversation.protocol.dto.ChatEventEnvelope;
+import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
+import org.junit.jupiter.api.Test;
+
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+class ChatTransportProtocolAdapterTest {
+
+    private final ChatTransportProtocolAdapter adapter = new ChatTransportProtocolAdapter();
+
+    @Test
+    void projectsConversationStartToFrontendInitializationSequence() {
+        ConversationQueryStreamEvent event = event("progress", "3");
+        event.setSource("CONVERSATION");
+        event.setPhase("STARTED");
+        event.setSessionCode("session-1");
+        event.setSessionName("会话标题");
+        event.setRoundCode("round-1");
+        event.setExt(new LinkedHashMap<>(Map.of(
+                "userMessage", Map.of("id", "message-1", "role", "user")
+        )));
+
+        List<ChatEventEnvelope> result = adapter.adapt(event);
+
+        assertThat(result).extracting(ChatEventEnvelope::getEventType)
+                .containsExactly("session.initialized", "round.initialized", "assistant.started", "thinking.started");
+        assertThat(result).extracting(ChatEventEnvelope::getEventId)
+                .containsExactly("3.1", "3.2", "3.3", "3.4");
+        assertThat(result).allSatisfy(item -> {
+            assertThat(item.getSchemaVersion()).isEqualTo("chat-event.v2");
+            assertThat(item.getSessionCode()).isEqualTo("session-1");
+            assertThat(item.getRoundCode()).isEqualTo("round-1");
+        });
+    }
+
+    @Test
+    void projectsRenderAnswerToArtifactReferenceAndMessage() {
+        ConversationQueryStreamEvent event = event("answer", "8");
+        event.setSource("RENDER");
+        event.setAnswer("{\"component\":\"chart\"}");
+        event.setStatus("SUCCESS");
+        event.setExt(new LinkedHashMap<>(Map.of(
+                "codeRef", "artifact-1",
+                "artifactType", "MODEL_RESPONSE_SNAPSHOT",
+                "contentFormat", "JSON",
+                "title", "Render JSON"
+        )));
+
+        List<ChatEventEnvelope> result = adapter.adapt(event);
+
+        assertThat(result).extracting(ChatEventEnvelope::getEventType)
+                .containsExactly("artifacts.build", "assistant.message.delta");
+        assertThat(result.get(0).getPayload().toString()).contains("artifact-1");
+        assertThat(result.get(1).getPayload().toString()).contains("component");
+    }
+
+    @Test
+    void projectsCompleteToThinkingAndRoundCompletion() {
+        ConversationQueryStreamEvent event = event("complete", "12");
+        event.setStatus("SUCCESS");
+        event.setAnswer("done");
+
+        assertThat(adapter.adapt(event)).extracting(ChatEventEnvelope::getEventType)
+                .containsExactly("thinking.completed", "round.completed");
+    }
+
+    private ConversationQueryStreamEvent event(String type, String id) {
+        ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
+        event.setRunId("run-1");
+        event.setRequestId("request-1");
+        event.setEventId(id);
+        event.setTimestamp(1_700_000_000_000L);
+        event.setEventType(type);
+        return event;
+    }
+}

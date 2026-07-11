@@ -32,6 +32,11 @@ public class ConversationQueryCommand {
     private String sessionCode;
 
     /**
+     * 客户端为当前新轮次提供的稳定编码；为空时由服务端生成。
+     */
+    private String roundCode;
+
+    /**
      * 会话名称。
      *
      * <p>用于展示会话标题，不直接要求前端传入。</p>

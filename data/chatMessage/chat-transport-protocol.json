@@ -1,6 +1,12 @@
 {
   "schemaVersion": "chat-transport-protocol.v2",
   "name": "AI Chat Round Transport Protocol",
+  "implementation": {
+    "eventSchemaVersion": "chat-event.v2",
+    "eventIdRule": "运行内主序号；一个内部事件投影为多个协议事件时使用 {sequence}.{subSequence}",
+    "identifierOwnership": "sessionCode 为空时由后端创建；roundCode 可由前端提供，为空时由后端创建",
+    "compatibility": "SSE 与 WebSocket 使用同一事件包络；SSE id/event 与 data.eventId/data.eventType 保持一致"
+  },
   "transport": {
     "supported": [
       "sse",
@@ -9,6 +15,8 @@
     "sse": {
       "method": "POST",
       "endpoint": "/api/chat/sessions/{sessionCode}/rounds/stream",
+      "newSessionEndpoint": "/api/chat/rounds/stream",
+      "reconnectEndpoint": "/api/chat/stream/reconnect",
       "requestContentType": "application/json",
       "responseContentType": "text/event-stream",
       "eventFrame": {
@@ -20,6 +28,11 @@
     "websocket": {
       "endpoint": "/ws/chat",
       "clientMessageType": "chat.user_message",
+      "clientMessageTypes": [
+        "chat.user_message",
+        "chat.reconnect",
+        "chat.stop"
+      ],
       "serverEnvelopeField": "eventType"
     }
   },
@@ -28,6 +41,7 @@
     "requestId": "req_20260708_225812_001",
     "sessionCode": "static-risk-session",
     "roundCode": "risk-round-2",
+    "modelCode": "zg-gpt-static",
     "message": {
       "id": "risk-user-1",
       "role": "user",
@@ -56,6 +70,7 @@
     "eventId": "evt_000001",
     "eventType": "round.initialized",
     "schemaVersion": "chat-event.v2",
+    "runId": "run_01j2example",
     "requestId": "req_20260708_225812_001",
     "sessionCode": "static-risk-session",
     "roundCode": "risk-round-2",
@@ -63,6 +78,14 @@
     "payload": {}
   },
   "eventTypes": [
+    {
+      "eventType": "run.accepted",
+      "description": "任务已进入后端运行池，payload.run.id 即后续重连、状态查询和中断使用的 runId。"
+    },
+    {
+      "eventType": "run.started",
+      "description": "后端任务线程已经开始执行；业务助手占位仍由 assistant.started 创建。"
+    },
     {
       "eventType": "session.initialized",
       "description": "确认或创建会话。只有新会话或首轮对话需要出现，前端据此建立 sessionCode、标题和模型信息。"
@@ -98,9 +121,41 @@
     {
       "eventType": "round.completed",
       "description": "本轮完成，返回最终 round 快照。前端用它校准前面事件产生的本地状态。"
+    },
+    {
+      "eventType": "assistant.input_required",
+      "description": "任务需要用户补充输入；WebSocket 可在后续版本中基于同一 run 继续交互。"
+    },
+    {
+      "eventType": "round.failed",
+      "description": "本轮执行失败，payload.round 包含失败状态和可展示消息。"
+    },
+    {
+      "eventType": "round.cancelled",
+      "description": "本轮被用户或系统中断。中断操作是幂等的。"
     }
   ],
   "queryContracts": {
+    "reconnect": {
+      "method": "POST",
+      "endpoint": "/api/chat/stream/reconnect",
+      "request": {
+        "type": "chat.reconnect",
+        "runId": "run_01j2example",
+        "lastEventId": "12.2"
+      },
+      "description": "按 runId 重新订阅；若 lastEventId 含子序号，将从同一主序号恢复且过滤已确认的子事件。"
+    },
+    "runStatus": {
+      "method": "GET",
+      "endpoint": "/api/chat/runs/{runId}",
+      "description": "查询任务池中的当前运行状态。"
+    },
+    "stopRun": {
+      "method": "POST",
+      "endpoint": "/api/chat/runs/{runId}/stop",
+      "description": "幂等中断任务；Redis 模式支持跨后端实例中断。"
+    },
     "thinkingDetail": {
       "method": "GET",
       "endpoint": "/api/chat/sessions/{sessionCode}/rounds/{roundCode}/thinking",

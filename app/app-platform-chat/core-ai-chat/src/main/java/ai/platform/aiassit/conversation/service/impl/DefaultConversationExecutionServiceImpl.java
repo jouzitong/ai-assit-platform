@@ -27,7 +27,9 @@ import org.springframework.util.StringUtils;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class DefaultConversationExecutionServiceImpl implements ConversationExecutionService {
@@ -143,8 +145,48 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         context.publishProgressEvent(
                 ConversationEventSources.CONVERSATION,
                 ConversationEventPhases.STARTED,
-                "conversation started"
+                "conversation started",
+                buildInitializationPayload(context)
         );
+    }
+
+    private Map<String, Object> buildInitializationPayload(ConversationRuntimeContext context) {
+        Map<String, Object> ext = new LinkedHashMap<>();
+        Map<String, Object> conversation = new LinkedHashMap<>();
+        if (context.getSession() != null) {
+            conversation.put("id", context.getSession().getSessionCode());
+            conversation.put("sessionCode", context.getSession().getSessionCode());
+            conversation.put("title", context.getSession().getSessionName());
+        }
+        if (context.getRound() != null) {
+            conversation.put("model", Map.of(
+                    "id", StringUtils.hasText(context.getRound().getModelCode())
+                            ? context.getRound().getModelCode()
+                            : "default"
+            ));
+        }
+        ext.put("conversation", conversation);
+
+        Map<String, Object> round = new LinkedHashMap<>();
+        if (context.getRound() != null) {
+            round.put("id", context.getRound().getRoundCode());
+            round.put("roundCode", context.getRound().getRoundCode());
+            round.put("status", context.getRound().getStatus());
+        }
+        ext.put("round", round);
+
+        AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
+        if (currentMessage != null) {
+            Map<String, Object> userMessage = new LinkedHashMap<>();
+            userMessage.put("id", currentMessage.getMessageCode());
+            userMessage.put("role", "user");
+            userMessage.put("content", List.of(Map.of(
+                    "type", "text",
+                    "text", currentMessage.getContent() == null ? "" : currentMessage.getContent()
+            )));
+            ext.put("userMessage", userMessage);
+        }
+        return ext;
     }
 
     private ConversationQueryResponse buildQueryResponse(ConversationRuntimeContext context) {

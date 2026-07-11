@@ -293,7 +293,8 @@ public class DefaultConversationRunManager implements ConversationRunManager {
             return 0L;
         }
         try {
-            return Long.parseLong(eventId);
+            int separator = eventId.indexOf('.');
+            return Long.parseLong(separator < 0 ? eventId : eventId.substring(0, separator));
         } catch (NumberFormatException ex) {
             return 0L;
         }
@@ -339,6 +340,7 @@ public class DefaultConversationRunManager implements ConversationRunManager {
             this.requestId = command.getTraceId();
             this.userId = command.getUserId();
             this.sessionCode = command.getSessionCode();
+            this.roundCode = command.getRoundCode();
             this.cancellation = new ConversationCancellationToken(externalCancellation);
         }
 

@@ -460,6 +460,17 @@ public class ConversationRuntimeContext implements Serializable {
                 source, phase, message, answer, delta, status, null);
     }
 
+    public void publishAnswerEvent(String source,
+                                   String phase,
+                                   String message,
+                                   String answer,
+                                   String delta,
+                                   String status,
+                                   Map<String, Object> ext) {
+        publishEvent(StringUtils.hasText(delta) ? ConversationEventTypes.ANSWER_DELTA : ConversationEventTypes.ANSWER,
+                source, phase, message, answer, delta, status, ext);
+    }
+
     public void publishClarificationEvent(String source, String phase, String message) {
         publishEvent(ConversationEventTypes.CLARIFICATION, source, phase, message, null, null, STATUS_RUNNING, null);
     }

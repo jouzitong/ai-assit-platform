@@ -28,6 +28,8 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
 
     private String artifactType;
 
+    private String artifactCode;
+
     private String stage;
 
     private Boolean visibleFlag;

@@ -349,7 +349,8 @@ public class RedisConversationRunClusterCoordinator implements ConversationRunCl
             return 0L;
         }
         try {
-            return Long.parseLong(eventId);
+            int separator = eventId.indexOf('.');
+            return Long.parseLong(separator < 0 ? eventId : eventId.substring(0, separator));
         } catch (NumberFormatException ex) {
             return 0L;
         }

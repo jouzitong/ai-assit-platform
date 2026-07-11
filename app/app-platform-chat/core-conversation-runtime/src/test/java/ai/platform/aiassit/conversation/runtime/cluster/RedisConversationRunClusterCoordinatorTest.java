@@ -109,7 +109,7 @@ class RedisConversationRunClusterCoordinatorTest {
         ));
         List<ConversationQueryStreamEvent> replay = new CopyOnWriteArrayList<>();
 
-        coordinator.subscribe("run-1", 7L, "1", replay::add);
+        coordinator.subscribe("run-1", 7L, "1.2", replay::add);
 
         assertThat(replay).extracting(ConversationQueryStreamEvent::getEventId).containsExactly("2");
     }
