@@ -179,6 +179,29 @@ export interface DbTableMetaSearchResult {
   }
 }
 
+export interface DbTableMetaUpsertPayload {
+  sourceKey: string
+  tableName: string
+  tableComment?: string
+  tableType?: string
+  layerType?: string
+  rowCount?: number
+  columnCount?: number
+  partitionKey?: string
+  freshnessSeconds?: number
+  status?: string
+  enabled?: boolean
+  remark?: string
+}
+
+export interface DbTableMetaCascadeDeleteResult {
+  sourceKey?: string
+  tableName?: string
+  deletedTableCount?: number
+  deletedFieldCount?: number
+  deletedIndexCount?: number
+}
+
 export interface DbTableFieldMetaItem {
   id: string | number
   sourceKey?: string
@@ -219,8 +242,10 @@ export interface DbTableFieldMetaSearchResult {
 export interface DbAccessTableCandidate {
   tableName?: string
   tableComment?: string
-  existsInMeta?: boolean
-  fieldCount?: number | null
+  synced?: boolean
+  tableMeta?: {
+    columnCount?: number | null
+  }
 }
 
 export interface DbAccessTableListResult {
@@ -230,7 +255,6 @@ export interface DbAccessTableListResult {
 export interface DbAccessTableSyncPayload {
   sourceKey: string
   tables: string[]
-  allowUpdate?: boolean
 }
 
 export interface DbAccessTableSyncResult {
@@ -238,6 +262,27 @@ export interface DbAccessTableSyncResult {
   updatedTableCount?: number
   createdFieldCount?: number
   updatedFieldCount?: number
+  createdIndexCount?: number
+  updatedIndexCount?: number
+}
+
+export interface DbAccessTableDataPreviewPayload {
+  sourceKey: string
+  tableName: string
+  page?: number
+  pageSize?: number
+}
+
+export interface DbAccessTableDataPreviewResult {
+  sourceKey?: string
+  tableName?: string
+  page?: number
+  pageSize?: number
+  hasNext?: boolean
+  executionMs?: number
+  columns?: string[]
+  records?: Array<Record<string, unknown>>
+  metadata?: Record<string, unknown>
 }
 
 export interface WorkbookDownloadResult {
@@ -297,6 +342,20 @@ export function searchDbTables(payload: DbTableMetaSearchPayload = {}) {
   })
 }
 
+export function updateDbTableMeta(id: string | number, payload: DbTableMetaUpsertPayload) {
+  return request(`${TABLE_META_API_PREFIX}/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteDbTableMetaCascade(sourceKey: string, tableName: string) {
+  return request<DbTableMetaCascadeDeleteResult>(`${TABLE_META_API_PREFIX}/delete-cascade`, {
+    method: 'POST',
+    body: JSON.stringify({ sourceKey, tableName }),
+  })
+}
+
 export function searchDbTableFields(payload: DbTableFieldMetaSearchPayload = {}) {
   return request<DbTableFieldMetaSearchResult>(`${DB_ENGINE_API_PREFIX}/api/v1/meta/field/_search`, {
     method: 'POST',
@@ -313,6 +372,13 @@ export function listDbAccessTables(payload: { sourceKey: string }) {
 
 export function syncDbAccessTableMeta(payload: DbAccessTableSyncPayload) {
   return request<DbAccessTableSyncResult>(`${DB_ACCESS_API_PREFIX}/sync/table-meta`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function previewDbAccessTableData(payload: DbAccessTableDataPreviewPayload) {
+  return request<DbAccessTableDataPreviewResult>(`${DB_ACCESS_API_PREFIX}/table-data-preview`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

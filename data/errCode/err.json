@@ -1,0 +1,1419 @@
+[
+  {
+    "code": 1,
+    "httpStatus": 200,
+    "description": "默认异常",
+    "tags": "默认异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "未知异常",
+        "description": "未知异常"
+      }
+    ]
+  },
+  {
+    "code": 51010001,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：请求对象不能为空",
+        "description": "参数缺失：请求对象不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: request body is required",
+        "description": "Missing parameter: request body is required"
+      }
+    ]
+  },
+  {
+    "code": 51010002,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库编码和文档编码不能为空",
+        "description": "参数缺失：知识库编码和文档编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base code and document code are required",
+        "description": "Missing parameter: knowledge base code and document code are required"
+      }
+    ]
+  },
+  {
+    "code": 51010003,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：文档 ID 不能为空",
+        "description": "参数缺失：文档 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: document ID is required",
+        "description": "Missing parameter: document ID is required"
+      }
+    ]
+  },
+  {
+    "code": 51010004,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库 ID 不能为空",
+        "description": "参数缺失：知识库 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base ID is required",
+        "description": "Missing parameter: knowledge base ID is required"
+      }
+    ]
+  },
+  {
+    "code": 51010005,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：文档类型不能为空",
+        "description": "参数缺失：文档类型不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: document type is required",
+        "description": "Missing parameter: document type is required"
+      }
+    ]
+  },
+  {
+    "code": 51010006,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：来源标识不能为空",
+        "description": "参数缺失：来源标识不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: source key is required",
+        "description": "Missing parameter: source key is required"
+      }
+    ]
+  },
+  {
+    "code": 51010007,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：内容不能为空",
+        "description": "参数缺失：内容不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: content is required",
+        "description": "Missing parameter: content is required"
+      }
+    ]
+  },
+  {
+    "code": 51010008,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库扩展字段不能为空：{}",
+        "description": "参数缺失：知识库扩展字段不能为空：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base extension field is required: {}",
+        "description": "Missing parameter: knowledge base extension field is required: {}"
+      }
+    ]
+  },
+  {
+    "code": 51010009,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库名称不能为空",
+        "description": "参数缺失：知识库名称不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base name is required",
+        "description": "Missing parameter: knowledge base name is required"
+      }
+    ]
+  },
+  {
+    "code": 51010010,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库来源类型不能为空",
+        "description": "参数缺失：知识库来源类型不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base source type is required",
+        "description": "Missing parameter: knowledge base source type is required"
+      }
+    ]
+  },
+  {
+    "code": 51010011,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数缺失",
+    "tags": "AI 知识库,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库编码不能为空",
+        "description": "参数缺失：知识库编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base code is required",
+        "description": "Missing parameter: knowledge base code is required"
+      }
+    ]
+  },
+  {
+    "code": 51020001,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数取值非法",
+    "tags": "AI 知识库,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "知识库来源类型非法：{}",
+        "description": "知识库来源类型非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Invalid knowledge base source type: {}",
+        "description": "Invalid knowledge base source type: {}"
+      }
+    ]
+  },
+  {
+    "code": 51020002,
+    "httpStatus": 200,
+    "description": "AI 知识库：参数取值非法",
+    "tags": "AI 知识库,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "文档来源类型非法：{}",
+        "description": "文档来源类型非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Invalid document source type: {}",
+        "description": "Invalid document source type: {}"
+      }
+    ]
+  },
+  {
+    "code": 51030001,
+    "httpStatus": 200,
+    "description": "AI 知识库：资源不存在",
+    "tags": "AI 知识库,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "文档不存在：{}",
+        "description": "文档不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Document not found: {}",
+        "description": "Document not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 51030002,
+    "httpStatus": 200,
+    "description": "AI 知识库：资源不存在",
+    "tags": "AI 知识库,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "当前文档不存在",
+        "description": "当前文档不存在"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Current document not found",
+        "description": "Current document not found"
+      }
+    ]
+  },
+  {
+    "code": 51030003,
+    "httpStatus": 200,
+    "description": "AI 知识库：资源不存在",
+    "tags": "AI 知识库,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "知识库不存在：{}",
+        "description": "知识库不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Knowledge base not found: {}",
+        "description": "Knowledge base not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 51040001,
+    "httpStatus": 200,
+    "description": "AI 知识库：状态或约束冲突",
+    "tags": "AI 知识库,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "当前文档内容缺失：{}",
+        "description": "当前文档内容缺失：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Current document content is missing: {}",
+        "description": "Current document content is missing: {}"
+      }
+    ]
+  },
+  {
+    "code": 51040002,
+    "httpStatus": 200,
+    "description": "AI 知识库：状态或约束冲突",
+    "tags": "AI 知识库,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "知识库已存在：{}",
+        "description": "知识库已存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Knowledge base already exists: {}",
+        "description": "Knowledge base already exists: {}"
+      }
+    ]
+  },
+  {
+    "code": 51050001,
+    "httpStatus": 200,
+    "description": "AI 知识库：外部同步异常",
+    "tags": "AI 知识库,外部同步异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方未接受知识库同步请求",
+        "description": "提供方未接受知识库同步请求"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider did not accept the knowledge base sync request",
+        "description": "Provider did not accept the knowledge base sync request"
+      }
+    ]
+  },
+  {
+    "code": 51050002,
+    "httpStatus": 200,
+    "description": "AI 知识库：外部同步异常",
+    "tags": "AI 知识库,外部同步异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方知识库同步失败：{}",
+        "description": "提供方知识库同步失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider knowledge base sync failed: {}",
+        "description": "Provider knowledge base sync failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 51060001,
+    "httpStatus": 200,
+    "description": "AI 知识库：系统处理异常",
+    "tags": "AI 知识库,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "校验和计算失败",
+        "description": "校验和计算失败"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Checksum calculation failed",
+        "description": "Checksum calculation failed"
+      }
+    ]
+  },
+  {
+    "code": 52010001,
+    "httpStatus": 200,
+    "description": "渲染页面：参数缺失",
+    "tags": "渲染页面,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：渲染页面编码不能为空",
+        "description": "参数缺失：渲染页面编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: render page code is required",
+        "description": "Missing parameter: render page code is required"
+      }
+    ]
+  },
+  {
+    "code": 52010002,
+    "httpStatus": 200,
+    "description": "渲染页面：参数缺失",
+    "tags": "渲染页面,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：渲染页面名称不能为空",
+        "description": "参数缺失：渲染页面名称不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: render page name is required",
+        "description": "Missing parameter: render page name is required"
+      }
+    ]
+  },
+  {
+    "code": 52010003,
+    "httpStatus": 200,
+    "description": "渲染页面：参数缺失",
+    "tags": "渲染页面,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：组件标识不能为空",
+        "description": "参数缺失：组件标识不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: component key is required",
+        "description": "Missing parameter: component key is required"
+      }
+    ]
+  },
+  {
+    "code": 52010004,
+    "httpStatus": 200,
+    "description": "渲染页面：参数缺失",
+    "tags": "渲染页面,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：组件名称不能为空",
+        "description": "参数缺失：组件名称不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: component name is required",
+        "description": "Missing parameter: component name is required"
+      }
+    ]
+  },
+  {
+    "code": 52010005,
+    "httpStatus": 200,
+    "description": "渲染页面：参数缺失",
+    "tags": "渲染页面,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：组件状态不能为空",
+        "description": "参数缺失：组件状态不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: component status is required",
+        "description": "Missing parameter: component status is required"
+      }
+    ]
+  },
+  {
+    "code": 52030001,
+    "httpStatus": 200,
+    "description": "渲染页面：资源不存在",
+    "tags": "渲染页面,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "渲染页面不存在：标识={}",
+        "description": "渲染页面不存在：标识={}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Render page not found: identifier={}",
+        "description": "Render page not found: identifier={}"
+      }
+    ]
+  },
+  {
+    "code": 52030002,
+    "httpStatus": 200,
+    "description": "渲染页面：资源不存在",
+    "tags": "渲染页面,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "组件不存在：标识={}",
+        "description": "组件不存在：标识={}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Component not found: identifier={}",
+        "description": "Component not found: identifier={}"
+      }
+    ]
+  },
+  {
+    "code": 53010001,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：消息不能为空",
+        "description": "参数缺失：消息不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: message is required",
+        "description": "Missing parameter: message is required"
+      }
+    ]
+  },
+  {
+    "code": 53010002,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：查询命令不能为空",
+        "description": "参数缺失：查询命令不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: query command is required",
+        "description": "Missing parameter: query command is required"
+      }
+    ]
+  },
+  {
+    "code": 53010003,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：会话编码不能为空",
+        "description": "参数缺失：会话编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: session code is required",
+        "description": "Missing parameter: session code is required"
+      }
+    ]
+  },
+  {
+    "code": 53010004,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：轮次编码不能为空",
+        "description": "参数缺失：轮次编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: round code is required",
+        "description": "Missing parameter: round code is required"
+      }
+    ]
+  },
+  {
+    "code": 53010005,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：模型提供方不能为空",
+        "description": "参数缺失：模型提供方不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: provider is required",
+        "description": "Missing parameter: provider is required"
+      }
+    ]
+  },
+  {
+    "code": 53010006,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：Base URL 不能为空",
+        "description": "参数缺失：Base URL 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: Base URL is required",
+        "description": "Missing parameter: Base URL is required"
+      }
+    ]
+  },
+  {
+    "code": 53010007,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：Provider 模型标识不能为空",
+        "description": "参数缺失：Provider 模型标识不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: provider model identifier is required",
+        "description": "Missing parameter: provider model identifier is required"
+      }
+    ]
+  },
+  {
+    "code": 53010008,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：API Key 不能为空",
+        "description": "参数缺失：API Key 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: API key is required",
+        "description": "Missing parameter: API key is required"
+      }
+    ]
+  },
+  {
+    "code": 53010009,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：流式回调观察者不能为空",
+        "description": "参数缺失：流式回调观察者不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: stream observer is required",
+        "description": "Missing parameter: stream observer is required"
+      }
+    ]
+  },
+  {
+    "code": 53010010,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：模型编码不能为空",
+        "description": "参数缺失：模型编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: model code is required",
+        "description": "Missing parameter: model code is required"
+      }
+    ]
+  },
+  {
+    "code": 53010011,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：模型名称不能为空",
+        "description": "参数缺失：模型名称不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: model name is required",
+        "description": "Missing parameter: model name is required"
+      }
+    ]
+  },
+  {
+    "code": 53010012,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：AI Agent Python 命令不能为空",
+        "description": "参数缺失：AI Agent Python 命令不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: AI Agent Python command is required",
+        "description": "Missing parameter: AI Agent Python command is required"
+      }
+    ]
+  },
+  {
+    "code": 53010013,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：AI Agent 脚本路径不能为空",
+        "description": "参数缺失：AI Agent 脚本路径不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: AI Agent script path is required",
+        "description": "Missing parameter: AI Agent script path is required"
+      }
+    ]
+  },
+  {
+    "code": 53010014,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：Qwen 百炼工作空间 ID 不能为空",
+        "description": "参数缺失：Qwen 百炼工作空间 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: Qwen Bailian workspace ID is required",
+        "description": "Missing parameter: Qwen Bailian workspace ID is required"
+      }
+    ]
+  },
+  {
+    "code": 53010015,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：Qwen 百炼知识库端点不能为空",
+        "description": "参数缺失：Qwen 百炼知识库端点不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: Qwen Bailian knowledge base endpoint is required",
+        "description": "Missing parameter: Qwen Bailian knowledge base endpoint is required"
+      }
+    ]
+  },
+  {
+    "code": 53010016,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：访问密钥 ID 不能为空",
+        "description": "参数缺失：访问密钥 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: access key ID is required",
+        "description": "Missing parameter: access key ID is required"
+      }
+    ]
+  },
+  {
+    "code": 53010017,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：访问密钥 Secret 不能为空",
+        "description": "参数缺失：访问密钥 Secret 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: access key secret is required",
+        "description": "Missing parameter: access key secret is required"
+      }
+    ]
+  },
+  {
+    "code": 53010018,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：上传地址不能为空",
+        "description": "参数缺失：上传地址不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: upload URL is required",
+        "description": "Missing parameter: upload URL is required"
+      }
+    ]
+  },
+  {
+    "code": 53010019,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：索引任务 ID 不能为空",
+        "description": "参数缺失：索引任务 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: index job ID is required",
+        "description": "Missing parameter: index job ID is required"
+      }
+    ]
+  },
+  {
+    "code": 53010020,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库 ID 不能为空",
+        "description": "参数缺失：知识库 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base ID is required",
+        "description": "Missing parameter: knowledge base ID is required"
+      }
+    ]
+  },
+  {
+    "code": 53010021,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：文档 ID 不能为空",
+        "description": "参数缺失：文档 ID 不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: document ID is required",
+        "description": "Missing parameter: document ID is required"
+      }
+    ]
+  },
+  {
+    "code": 53010022,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：内容不能为空",
+        "description": "参数缺失：内容不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: content is required",
+        "description": "Missing parameter: content is required"
+      }
+    ]
+  },
+  {
+    "code": 53020001,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数取值非法",
+    "tags": "AI 聊天,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "工作流输出不符合预期：{}",
+        "description": "工作流输出不符合预期：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Workflow output is invalid: {}",
+        "description": "Workflow output is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 53030001,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "会话不存在：{}",
+        "description": "会话不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Conversation not found: {}",
+        "description": "Conversation not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 53030002,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "会话轮次不存在",
+        "description": "会话轮次不存在"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Conversation round not found",
+        "description": "Conversation round not found"
+      }
+    ]
+  },
+  {
+    "code": 53030003,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "AI 聊天服务不存在或未启用：{}",
+        "description": "AI 聊天服务不存在或未启用：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "AI chat service not found or not enabled: {}",
+        "description": "AI chat service not found or not enabled: {}"
+      }
+    ]
+  },
+  {
+    "code": 53030004,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "知识服务不存在或未启用：{}",
+        "description": "知识服务不存在或未启用：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Knowledge service not found or not enabled: {}",
+        "description": "Knowledge service not found or not enabled: {}"
+      }
+    ]
+  },
+  {
+    "code": 53030005,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "模型配置不存在",
+        "description": "模型配置不存在"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Model configuration not found",
+        "description": "Model configuration not found"
+      }
+    ]
+  },
+  {
+    "code": 53060001,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "工作流执行失败：{}",
+        "description": "工作流执行失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Workflow execution failed: {}",
+        "description": "Workflow execution failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060002,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "模型配置保存失败：{}",
+        "description": "模型配置保存失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Model configuration save failed: {}",
+        "description": "Model configuration save failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060003,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方知识库写入失败：{}",
+        "description": "提供方知识库写入失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider knowledge base upsert failed: {}",
+        "description": "Provider knowledge base upsert failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060004,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方知识库删除失败：{}",
+        "description": "提供方知识库删除失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider knowledge base delete failed: {}",
+        "description": "Provider knowledge base delete failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060005,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方知识库搜索失败：{}",
+        "description": "提供方知识库搜索失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider knowledge base search failed: {}",
+        "description": "Provider knowledge base search failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060006,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方进程执行失败：{}",
+        "description": "提供方进程执行失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider process execution failed: {}",
+        "description": "Provider process execution failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060007,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "提供方响应异常：{}",
+        "description": "提供方响应异常：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Provider response is invalid: {}",
+        "description": "Provider response is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 55010001,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数缺失",
+    "tags": "DB 引擎,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：数据源标识不能为空",
+        "description": "参数缺失：数据源标识不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: source key is required",
+        "description": "Missing parameter: source key is required"
+      }
+    ]
+  },
+  {
+    "code": 55010002,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数缺失",
+    "tags": "DB 引擎,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：表名不能为空",
+        "description": "参数缺失：表名不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: table name is required",
+        "description": "Missing parameter: table name is required"
+      }
+    ]
+  },
+  {
+    "code": 55010003,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数缺失",
+    "tags": "DB 引擎,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：导入文件不能为空",
+        "description": "参数缺失：导入文件不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: import file is required",
+        "description": "Missing parameter: import file is required"
+      }
+    ]
+  },
+  {
+    "code": 55020001,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数取值非法",
+    "tags": "DB 引擎,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "暂不支持的导入文件格式：{}",
+        "description": "暂不支持的导入文件格式：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Unsupported import file format: {}",
+        "description": "Unsupported import file format: {}"
+      }
+    ]
+  },
+  {
+    "code": 55020002,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数取值非法",
+    "tags": "DB 引擎,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "工作簿字段非法：{}",
+        "description": "工作簿字段非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Invalid workbook field: {}",
+        "description": "Invalid workbook field: {}"
+      }
+    ]
+  },
+  {
+    "code": 55020003,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数取值非法",
+    "tags": "DB 引擎,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "布尔值解析失败：{}",
+        "description": "布尔值解析失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Boolean value parse failed: {}",
+        "description": "Boolean value parse failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 55020004,
+    "httpStatus": 200,
+    "description": "DB 引擎：参数取值非法",
+    "tags": "DB 引擎,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "暂不支持的导出格式：{}",
+        "description": "暂不支持的导出格式：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Unsupported export format: {}",
+        "description": "Unsupported export format: {}"
+      }
+    ]
+  },
+  {
+    "code": 55030001,
+    "httpStatus": 200,
+    "description": "DB 引擎：资源不存在",
+    "tags": "DB 引擎,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "数据表元信息不存在：{}",
+        "description": "数据表元信息不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Database table metadata not found: {}",
+        "description": "Database table metadata not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 55030002,
+    "httpStatus": 200,
+    "description": "DB 引擎：资源不存在",
+    "tags": "DB 引擎,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "导入任务不存在：{}",
+        "description": "导入任务不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Import job not found: {}",
+        "description": "Import job not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 55030003,
+    "httpStatus": 200,
+    "description": "DB 引擎：资源不存在",
+    "tags": "DB 引擎,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "未找到可同步的数据表元信息",
+        "description": "未找到可同步的数据表元信息"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "No database table metadata found for sync",
+        "description": "No database table metadata found for sync"
+      }
+    ]
+  },
+  {
+    "code": 55050001,
+    "httpStatus": 200,
+    "description": "DB 引擎：外部同步异常",
+    "tags": "DB 引擎,外部同步异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "未配置系统参数：{}",
+        "description": "未配置系统参数：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "System setting is missing: {}",
+        "description": "System setting is missing: {}"
+      }
+    ]
+  },
+  {
+    "code": 55050002,
+    "httpStatus": 200,
+    "description": "DB 引擎：外部同步异常",
+    "tags": "DB 引擎,外部同步异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "知识库同步失败：{}",
+        "description": "知识库同步失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Knowledge base sync failed: {}",
+        "description": "Knowledge base sync failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 55060001,
+    "httpStatus": 200,
+    "description": "DB 引擎：系统处理异常",
+    "tags": "DB 引擎,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "更新数据库元数据失败：{}",
+        "description": "更新数据库元数据失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Database metadata update failed: {}",
+        "description": "Database metadata update failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 55060002,
+    "httpStatus": 200,
+    "description": "DB 引擎：系统处理异常",
+    "tags": "DB 引擎,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "工作簿模板配置非法：{}",
+        "description": "工作簿模板配置非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Workbook template configuration is invalid: {}",
+        "description": "Workbook template configuration is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 55060003,
+    "httpStatus": 200,
+    "description": "DB 引擎：系统处理异常",
+    "tags": "DB 引擎,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "工作簿模板配置不存在：{}",
+        "description": "工作簿模板配置不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Workbook template configuration not found: {}",
+        "description": "Workbook template configuration not found: {}"
+      }
+    ]
+  }
+]

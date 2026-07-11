@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeftBold, ArrowRightBold, Connection, Cpu, DataAnalysis, Setting, Share, Tickets } from '@element-plus/icons-vue'
+import { ArrowLeftBold, ArrowRightBold, Connection, Cpu, DataAnalysis, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
@@ -11,6 +11,7 @@ import ErrorCodeSection from '../components/sections/ErrorCodeSection.vue'
 import KbDocumentManageSection from '../components/sections/KbDocumentManageSection.vue'
 import MetadataConfigSection from '../components/sections/MetadataConfigSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
+import UserManagementSection from '../components/sections/UserManagementSection.vue'
 import WorkflowSection from '../components/sections/WorkflowSection.vue'
 
 type SettingsSection = {
@@ -27,6 +28,14 @@ const route = useRoute()
 const sidebarCollapsed = ref(false)
 
 const sections: SettingsSection[] = [
+  {
+    key: 'user-management',
+    label: '用户管理',
+    icon: UserFilled,
+    title: '用户管理',
+    description: '管理平台用户、角色以及用户与角色的关联关系。',
+    component: UserManagementSection,
+  },
   {
     key: 'system-params',
     label: '系统参数',

@@ -1,23 +1,34 @@
 package ai.platform.aiassit.db.engine.core.controller;
 
+import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
 import ai.platform.aiassit.db.engine.core.controller.req.DbAccessTableListRequest;
+import ai.platform.aiassit.db.engine.core.controller.req.DbAccessTableDataPreviewRequest;
 import ai.platform.aiassit.db.engine.core.controller.req.DbAccessTableSyncRequest;
 import ai.platform.aiassit.db.engine.core.controller.resp.DbAccessTableListResponse;
+import ai.platform.aiassit.db.engine.core.controller.resp.DbAccessTableDataPreviewResponse;
 import ai.platform.aiassit.db.engine.core.controller.resp.DbAccessTableRemoteItem;
 import ai.platform.aiassit.db.engine.core.controller.resp.DbAccessTableSyncItem;
 import ai.platform.aiassit.db.engine.core.controller.resp.DbAccessTableSyncResponse;
 import ai.platform.aiassit.db.engine.core.service.DbAccessService;
+import ai.platform.aiassit.db.engine.core.service.DataAccessService;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbColumnMeta;
+import ai.platform.aiassit.db.engine.executor.spi.model.DbIndexMeta;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbTableMeta;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTableColumnsRequest;
+import ai.platform.aiassit.db.engine.executor.spi.request.ListTableIndexesRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTablesRequest;
+import ai.platform.aiassit.db.engine.executor.spi.request.DataReadCommand;
+import ai.platform.aiassit.db.engine.executor.spi.result.DataReadResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.TestConnectionResult;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbDataSourceDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryRequest;
+import ai.platform.aiassit.db.engine.meta.entity.req.DbTableIndexMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.service.DbTableFieldMetaService;
+import ai.platform.aiassit.db.engine.meta.service.DbTableIndexMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.web.vo.R;
@@ -46,17 +57,23 @@ import java.util.Set;
 public class DbAccessDomainController {
 
     private final DbAccessService dbAccessService;
+    private final DataAccessService dataAccessService;
     private final DbTableMetaService tableMetaService;
     private final DbTableFieldMetaService tableFieldMetaService;
+    private final DbTableIndexMetaService tableIndexMetaService;
 
     public DbAccessDomainController(
             DbAccessService dbAccessService,
+            DataAccessService dataAccessService,
             DbTableMetaService tableMetaService,
-            DbTableFieldMetaService tableFieldMetaService
+            DbTableFieldMetaService tableFieldMetaService,
+            DbTableIndexMetaService tableIndexMetaService
     ) {
         this.dbAccessService = dbAccessService;
+        this.dataAccessService = dataAccessService;
         this.tableMetaService = tableMetaService;
         this.tableFieldMetaService = tableFieldMetaService;
+        this.tableIndexMetaService = tableIndexMetaService;
     }
 
     @PostMapping("/test-connection")
@@ -95,13 +112,56 @@ public class DbAccessDomainController {
         return R.ok(response);
     }
 
+    /**
+     * 只读预览已登记的数据表；不接受 SQL 或过滤条件，避免页面能力越界为任意查询入口。
+     */
+    @PostMapping("/table-data-preview")
+    public R<DbAccessTableDataPreviewResponse> tableDataPreview(
+            @RequestBody DbAccessTableDataPreviewRequest request
+    ) {
+        String sourceKey = requireSourceKey(request == null ? null : request.getSourceKey());
+        String tableName = requireTableName(request == null ? null : request.getTableName());
+        requireRegisteredTable(sourceKey, tableName);
+
+        int page = normalizePreviewPage(request == null ? null : request.getPage());
+        int pageSize = normalizePreviewPageSize(request == null ? null : request.getPageSize());
+        DataReadResult readResult = dataAccessService.read(sourceKey, DataReadCommand.builder()
+                .resource(tableName)
+                .page(page)
+                // 多读取一条，仅用于判断是否存在下一页，最终不会返回给页面。
+                .pageSize(pageSize + 1)
+                .build());
+        List<Map<String, Object>> fetchedRecords = readResult == null || readResult.getRecords() == null
+                ? List.of()
+                : readResult.getRecords();
+        boolean hasNext = fetchedRecords.size() > pageSize;
+        List<Map<String, Object>> records = new ArrayList<>(fetchedRecords.subList(0, Math.min(pageSize, fetchedRecords.size())));
+
+        DbAccessTableDataPreviewResponse response = new DbAccessTableDataPreviewResponse();
+        response.setSourceKey(sourceKey);
+        response.setTableName(tableName);
+        response.setPage(page);
+        response.setPageSize(pageSize);
+        response.setHasNext(hasNext);
+        response.setRecords(records);
+        response.setMetadata(readResult == null || readResult.getMetadata() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(readResult.getMetadata()));
+        Object executionMs = response.getMetadata().get("executionMs");
+        if (executionMs instanceof Number number) {
+            response.setExecutionMs(number.longValue());
+        }
+        response.setColumns(resolvePreviewColumns(records));
+        return R.ok(response);
+    }
+
     @PostMapping("/sync/table-meta")
     public R<DbAccessTableSyncResponse> syncTableMeta(@RequestBody DbAccessTableSyncRequest request) {
         String sourceKey = requireSourceKey(request == null ? null : request.getSourceKey());
-        boolean allowUpdate = Boolean.TRUE.equals(request == null ? null : request.getAllowUpdate());
         Set<String> filterTables = normalizeNames(request == null ? null : request.getTables());
         Map<String, DbTableMetaDTO> localTableMap = loadLocalTables(sourceKey);
         Map<String, Map<String, DbTableFieldMetaDTO>> localFieldMap = loadLocalFields(sourceKey);
+        Map<String, Map<String, DbTableIndexMetaDTO>> localIndexMap = loadLocalIndexes(sourceKey);
 
         List<DbTableMeta> remoteTables = dbAccessService.listTables(
                         sourceKey,
@@ -113,6 +173,8 @@ public class DbAccessDomainController {
         int updatedTables = 0;
         int createdFields = 0;
         int updatedFields = 0;
+        int createdIndexes = 0;
+        int updatedIndexes = 0;
 
         for (DbTableMeta remoteTable : remoteTables) {
             if (remoteTable == null || !containsOrAll(filterTables, remoteTable.getTableName())) {
@@ -124,11 +186,17 @@ public class DbAccessDomainController {
                             sourceKey,
                             ListTableColumnsRequest.builder().tableName(remoteTable.getTableName()).build()
                     ).getColumns();
+            List<DbIndexMeta> remoteIndexes = dbAccessService.listTableIndexes(
+                            sourceKey,
+                            ListTableIndexesRequest.builder().tableName(remoteTable.getTableName()).build()
+                    ).getIndexes();
 
             boolean tableCreated = false;
             boolean tableUpdated = false;
             int fieldCreatedCount = 0;
             int fieldUpdatedCount = 0;
+            int indexCreatedCount = 0;
+            int indexUpdatedCount = 0;
 
             if (existingTable == null) {
                 DbTableMetaDTO created = tableMetaService.add(buildTableMeta(sourceKey, remoteTable, remoteFields, null));
@@ -136,7 +204,7 @@ public class DbAccessDomainController {
                 existingTable = created;
                 tableCreated = true;
                 createdTables++;
-            } else if (allowUpdate) {
+            } else if (hasPersistentId(existingTable.getId())) {
                 existingTable = tableMetaService.update(existingTable.getId(), buildTableMeta(sourceKey, remoteTable, remoteFields, existingTable));
                 localTableMap.put(tableKey, existingTable);
                 tableUpdated = true;
@@ -144,7 +212,7 @@ public class DbAccessDomainController {
             }
 
             Map<String, DbTableFieldMetaDTO> tableFieldMap = localFieldMap.computeIfAbsent(tableKey, key -> new LinkedHashMap<>());
-            for (DbColumnMeta remoteField : remoteFields) {
+            for (DbColumnMeta remoteField : remoteFields == null ? List.<DbColumnMeta>of() : remoteFields) {
                 if (remoteField == null) {
                     continue;
                 }
@@ -155,11 +223,31 @@ public class DbAccessDomainController {
                     tableFieldMap.put(fieldKey, createdField);
                     fieldCreatedCount++;
                     createdFields++;
-                } else if (allowUpdate) {
+                } else if (hasPersistentId(existingField.getId())) {
                     DbTableFieldMetaDTO updatedField = tableFieldMetaService.update(existingField.getId(), buildFieldMeta(sourceKey, remoteField, existingField));
                     tableFieldMap.put(fieldKey, updatedField);
                     fieldUpdatedCount++;
                     updatedFields++;
+                }
+            }
+
+            Map<String, DbTableIndexMetaDTO> tableIndexMap = localIndexMap.computeIfAbsent(tableKey, key -> new LinkedHashMap<>());
+            for (DbIndexMeta remoteIndex : remoteIndexes == null ? List.<DbIndexMeta>of() : remoteIndexes) {
+                if (remoteIndex == null || remoteIndex.getIndexName() == null || remoteIndex.getColumnName() == null) {
+                    continue;
+                }
+                String indexKey = buildIndexKey(remoteIndex.getIndexName(), remoteIndex.getColumnName());
+                DbTableIndexMetaDTO existingIndex = tableIndexMap.get(indexKey);
+                if (existingIndex == null) {
+                    DbTableIndexMetaDTO createdIndex = tableIndexMetaService.add(buildIndexMeta(sourceKey, remoteIndex, null));
+                    tableIndexMap.put(indexKey, createdIndex);
+                    indexCreatedCount++;
+                    createdIndexes++;
+                } else if (hasPersistentId(existingIndex.getId())) {
+                    DbTableIndexMetaDTO updatedIndex = tableIndexMetaService.update(existingIndex.getId(), buildIndexMeta(sourceKey, remoteIndex, existingIndex));
+                    tableIndexMap.put(indexKey, updatedIndex);
+                    indexUpdatedCount++;
+                    updatedIndexes++;
                 }
             }
 
@@ -170,16 +258,21 @@ public class DbAccessDomainController {
             item.setFieldCreatedCount(fieldCreatedCount);
             item.setFieldUpdatedCount(fieldUpdatedCount);
             item.setRemoteFieldCount(remoteFields == null ? 0 : remoteFields.size());
+            item.setIndexCreatedCount(indexCreatedCount);
+            item.setIndexUpdatedCount(indexUpdatedCount);
+            item.setRemoteIndexCount(remoteIndexes == null ? 0 : remoteIndexes.size());
             items.add(item);
         }
 
         DbAccessTableSyncResponse response = new DbAccessTableSyncResponse();
         response.setSourceKey(sourceKey);
-        response.setAllowUpdate(allowUpdate);
+        response.setAllowUpdate(Boolean.TRUE);
         response.setCreatedTableCount(createdTables);
         response.setUpdatedTableCount(updatedTables);
         response.setCreatedFieldCount(createdFields);
         response.setUpdatedFieldCount(updatedFields);
+        response.setCreatedIndexCount(createdIndexes);
+        response.setUpdatedIndexCount(updatedIndexes);
         response.setItems(items);
         return R.ok(response);
     }
@@ -207,12 +300,25 @@ public class DbAccessDomainController {
         return result;
     }
 
+    private Map<String, Map<String, DbTableIndexMetaDTO>> loadLocalIndexes(String sourceKey) {
+        DbTableIndexMetaQueryRequest query = new DbTableIndexMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setSize(Integer.MAX_VALUE);
+        Map<String, Map<String, DbTableIndexMetaDTO>> result = new LinkedHashMap<>();
+        for (DbTableIndexMetaDTO item : tableIndexMetaService.queryAll(query)) {
+            result.computeIfAbsent(normalizeKey(item.getTableName()), key -> new LinkedHashMap<>())
+                    .put(buildIndexKey(item.getIndexName(), item.getColumnName()), item);
+        }
+        return result;
+    }
+
     private DbTableMetaDTO buildTableMeta(
             String sourceKey,
             DbTableMeta remoteTable,
             List<DbColumnMeta> remoteFields,
             DbTableMetaDTO existing
     ) {
+        // 保留分层、启用状态、备注等人工配置，只刷新数据库提供的基础结构信息。
         DbTableMetaDTO dto = existing == null ? new DbTableMetaDTO() : existing;
         dto.setSourceKey(sourceKey);
         dto.setTableName(remoteTable.getTableName());
@@ -242,11 +348,64 @@ public class DbAccessDomainController {
         return dto;
     }
 
+    private DbTableIndexMetaDTO buildIndexMeta(String sourceKey, DbIndexMeta remoteIndex, DbTableIndexMetaDTO existing) {
+        // 保留 enabled、remark 等人工配置，只刷新索引结构信息。
+        DbTableIndexMetaDTO dto = existing == null ? new DbTableIndexMetaDTO() : existing;
+        dto.setSourceKey(sourceKey);
+        dto.setTableName(remoteIndex.getTableName());
+        dto.setIndexName(remoteIndex.getIndexName());
+        dto.setIndexType(resolveIndexType(remoteIndex));
+        dto.setUniqueFlag(remoteIndex.getUniqueFlag());
+        dto.setPrimaryFlag(remoteIndex.getPrimaryFlag());
+        dto.setColumnName(remoteIndex.getColumnName());
+        dto.setColumnOrder(remoteIndex.getColumnOrder());
+        dto.setEnabled(existing == null ? Boolean.TRUE : existing.getEnabled());
+        return dto;
+    }
+
+    private String resolveIndexType(DbIndexMeta remoteIndex) {
+        if (Boolean.TRUE.equals(remoteIndex.getPrimaryFlag())) {
+            return "PRIMARY";
+        }
+        return Boolean.TRUE.equals(remoteIndex.getUniqueFlag()) ? "UNIQUE" : "NORMAL";
+    }
+
     private String requireSourceKey(String sourceKey) {
         if (sourceKey == null || sourceKey.isBlank()) {
             throw BizException.of();
         }
         return sourceKey.trim();
+    }
+
+    private String requireTableName(String tableName) {
+        if (tableName == null || tableName.isBlank()) {
+            throw BizException.of();
+        }
+        return tableName.trim();
+    }
+
+    private void requireRegisteredTable(String sourceKey, String tableName) {
+        if (!loadLocalTables(sourceKey).containsKey(normalizeKey(tableName))) {
+            throw BizException.of(DbEngineBizCodeConstant.TABLE_META_NOT_FOUND, tableName);
+        }
+    }
+
+    private int normalizePreviewPage(Integer page) {
+        return page == null || page < 1 ? 1 : page;
+    }
+
+    private int normalizePreviewPageSize(Integer pageSize) {
+        return pageSize == null || pageSize < 1 ? 20 : Math.min(pageSize, 100);
+    }
+
+    private List<String> resolvePreviewColumns(List<Map<String, Object>> records) {
+        Set<String> columns = new LinkedHashSet<>();
+        for (Map<String, Object> record : records) {
+            if (record != null) {
+                columns.addAll(record.keySet());
+            }
+        }
+        return new ArrayList<>(columns);
     }
 
     private Set<String> normalizeNames(Collection<String> names) {
@@ -268,5 +427,13 @@ public class DbAccessDomainController {
 
     private String normalizeKey(String value) {
         return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private String buildIndexKey(String indexName, String columnName) {
+        return normalizeKey(indexName) + "|" + normalizeKey(columnName);
+    }
+
+    private boolean hasPersistentId(Object id) {
+        return id != null && !String.valueOf(id).isBlank();
     }
 }

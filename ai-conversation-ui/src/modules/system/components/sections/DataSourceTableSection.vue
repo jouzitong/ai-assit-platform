@@ -1,32 +1,35 @@
 <script setup lang="ts">
 import {
   ArrowLeft,
+  DataAnalysis,
   Download,
   Delete,
   EditPen,
   FolderAdd,
-  Key,
+  Lock,
   Reading,
   RefreshRight,
   Search,
-  Tickets,
   Upload,
   View,
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppCodeEditor, AppPagination } from '../../../../components'
 import {
   listDbAccessTables,
+  deleteDbTableMetaCascade,
   downloadDbMetaTemplateWorkbook,
   exportDbMetaWorkbook,
   previewDbTableKnowledge,
+  previewDbAccessTableData,
   searchDbTableFields,
   searchDbTables,
   streamDbMetaImportWorkbook,
   syncDbTableKnowledge,
   syncDbAccessTableMeta,
+  updateDbTableMeta,
   type DbAccessTableCandidate,
   type DbTableFieldMetaItem,
   type DbTableMetaItem,
@@ -80,7 +83,6 @@ const tableSyncDialogVisible = ref(false)
 const tableSyncLoading = ref(false)
 const tableSyncSubmitting = ref(false)
 const tableSyncError = ref('')
-const tableSyncAllowUpdate = ref(false)
 const tableSyncCandidates = ref<Array<{
   name: string
   comment: string
@@ -88,6 +90,41 @@ const tableSyncCandidates = ref<Array<{
   fieldCount: number | null
 }>>([])
 const tableSyncSelectedTables = ref<string[]>([])
+const tableEditDialogVisible = ref(false)
+const tableEditSubmitting = ref(false)
+const tableEditForm = reactive(createEmptyTableEditForm())
+const tableDataPreviewDialogVisible = ref(false)
+const tableDataPreviewLoading = ref(false)
+const tableDataPreviewError = ref('')
+const tableDataPreviewTableName = ref('')
+const tableDataPreviewPage = ref(1)
+const tableDataPreviewPageSize = ref(20)
+const tableDataPreviewHasNext = ref(false)
+const tableDataPreviewExecutionMs = ref<number | null>(null)
+const tableDataPreviewColumns = ref<string[]>([])
+const tableDataPreviewRows = ref<Array<Record<string, unknown>>>([])
+const tablePermissionDialogVisible = ref(false)
+const tablePermissionActiveTab = ref<'table' | 'field' | 'row'>('table')
+const tablePermissionTableName = ref('')
+const tablePermissionFieldLoading = ref(false)
+const tablePermissionFieldRows = ref<Array<{
+  columnName: string
+  columnComment: string
+  dataType: string
+  permission: 'INHERIT' | 'ALLOW' | 'HIDE' | 'MASK'
+  maskType: string
+}>>([])
+const tablePermissionForm = reactive({
+  subjectType: 'ROLE',
+  subjectValue: '',
+  actions: ['META_READ', 'DATA_READ'] as string[],
+})
+const tableRowPermissionForm = reactive({
+  mode: 'ALL',
+  field: '',
+  operator: 'EQ',
+  value: '',
+})
 
 const sourceKey = computed(() => typeof route.params.sourceKey === 'string' ? route.params.sourceKey : '')
 const currentMode = computed(() => route.query.mode === 'fields' ? 'fields' : 'tables')
@@ -111,6 +148,36 @@ function formatDateTime(value?: string | null) {
     return '-'
   }
   return String(value).replace('T', ' ').slice(0, 19)
+}
+
+function createEmptyTableEditForm() {
+  return {
+    id: null as string | number | null,
+    sourceKey: '',
+    tableName: '',
+    tableComment: '',
+    tableType: '',
+    layerType: '',
+    rowCount: '',
+    columnCount: '',
+    partitionKey: '',
+    freshnessSeconds: '',
+    status: '',
+    enabled: true,
+    remark: '',
+  }
+}
+
+function resetTableEditForm() {
+  Object.assign(tableEditForm, createEmptyTableEditForm())
+}
+
+function toOptionalNumber(value: string | number) {
+  if (value === '' || value === null || value === undefined) {
+    return undefined
+  }
+  const numberValue = Number(value)
+  return Number.isFinite(numberValue) ? numberValue : undefined
 }
 
 async function loadTables() {
@@ -213,25 +280,305 @@ async function navigateBack() {
 }
 
 function handleTableAction(actionLabel: string, row: DbTableMetaItem) {
-  if (actionLabel === '字段') {
-    void router.push({
-      path: `/settings/system/data-source/${sourceKey.value}`,
-      query: {
-        mode: 'fields',
-        table: row.tableName || '',
-      },
-    })
+  if (actionLabel === '查看') {
+    void openTableDetail(row)
+    return
+  }
+  if (actionLabel === '表格数据查看') {
+    void openTableDataPreview(row)
+    return
+  }
+  if (actionLabel === '权限控制') {
+    void openTablePermissionDialog(row)
+    return
+  }
+  if (actionLabel === '编辑') {
+    void openTableEditDialog(row)
+    return
+  }
+  if (actionLabel === '删除') {
+    void deleteTableMeta(row)
     return
   }
   if (actionLabel === '知识库预览') {
     void openKnowledgePreview(row)
     return
   }
-  if (actionLabel === '同步') {
-    void syncKnowledgeBase(row)
+  ElMessage.info(`${actionLabel}：${row.tableName || '-'}`)
+}
+
+async function openTableDetail(row: DbTableMetaItem) {
+  if (!row.tableName) {
+    ElMessage.error('当前数据表信息不完整')
     return
   }
-  ElMessage.info(`${actionLabel}：${row.tableName || '-'}`)
+  await router.push({
+    path: `/settings/system/data-source/${sourceKey.value}`,
+    query: { mode: 'fields', table: row.tableName },
+  })
+}
+
+function resetTableDataPreview() {
+  tableDataPreviewLoading.value = false
+  tableDataPreviewError.value = ''
+  tableDataPreviewTableName.value = ''
+  tableDataPreviewPage.value = 1
+  tableDataPreviewPageSize.value = 20
+  tableDataPreviewHasNext.value = false
+  tableDataPreviewExecutionMs.value = null
+  tableDataPreviewColumns.value = []
+  tableDataPreviewRows.value = []
+}
+
+function closeTableDataPreviewDialog() {
+  tableDataPreviewDialogVisible.value = false
+  resetTableDataPreview()
+}
+
+function formatPreviewCell(value: unknown) {
+  if (value === null || value === undefined) {
+    return '-'
+  }
+  if (typeof value === 'object') {
+    return JSON.stringify(value)
+  }
+  return String(value)
+}
+
+async function loadTableDataPreview() {
+  if (!sourceKey.value || !tableDataPreviewTableName.value) {
+    return
+  }
+  tableDataPreviewLoading.value = true
+  tableDataPreviewError.value = ''
+  try {
+    const payload = await previewDbAccessTableData({
+      sourceKey: sourceKey.value,
+      tableName: tableDataPreviewTableName.value,
+      page: tableDataPreviewPage.value,
+      pageSize: tableDataPreviewPageSize.value,
+    })
+    tableDataPreviewRows.value = payload?.records ?? []
+    tableDataPreviewColumns.value = payload?.columns ?? []
+    tableDataPreviewHasNext.value = Boolean(payload?.hasNext)
+    tableDataPreviewExecutionMs.value = typeof payload?.executionMs === 'number' ? payload.executionMs : null
+  }
+  catch (error) {
+    tableDataPreviewRows.value = []
+    tableDataPreviewColumns.value = []
+    tableDataPreviewHasNext.value = false
+    tableDataPreviewExecutionMs.value = null
+    tableDataPreviewError.value = error instanceof Error ? error.message : '表格数据加载失败'
+  }
+  finally {
+    tableDataPreviewLoading.value = false
+  }
+}
+
+async function openTableDataPreview(row: DbTableMetaItem) {
+  if (!sourceKey.value || !row.tableName) {
+    ElMessage.error('当前数据表信息不完整，无法查看数据')
+    return
+  }
+  resetTableDataPreview()
+  tableDataPreviewTableName.value = row.tableName
+  tableDataPreviewDialogVisible.value = true
+  await loadTableDataPreview()
+}
+
+async function changeTableDataPreviewPage(page: number) {
+  tableDataPreviewPage.value = Math.max(1, page)
+  await loadTableDataPreview()
+}
+
+async function changeTableDataPreviewPageSize(size: number) {
+  tableDataPreviewPageSize.value = size
+  tableDataPreviewPage.value = 1
+  await loadTableDataPreview()
+}
+
+function resetTablePermissionDialog() {
+  tablePermissionActiveTab.value = 'table'
+  tablePermissionTableName.value = ''
+  tablePermissionFieldLoading.value = false
+  tablePermissionFieldRows.value = []
+  tablePermissionForm.subjectType = 'ROLE'
+  tablePermissionForm.subjectValue = ''
+  tablePermissionForm.actions = ['META_READ', 'DATA_READ']
+  tableRowPermissionForm.mode = 'ALL'
+  tableRowPermissionForm.field = ''
+  tableRowPermissionForm.operator = 'EQ'
+  tableRowPermissionForm.value = ''
+}
+
+function closeTablePermissionDialog() {
+  tablePermissionDialogVisible.value = false
+  resetTablePermissionDialog()
+}
+
+async function loadTablePermissionFields() {
+  if (!sourceKey.value || !tablePermissionTableName.value) {
+    tablePermissionFieldRows.value = []
+    return
+  }
+  tablePermissionFieldLoading.value = true
+  try {
+    const payload = await searchDbTableFields({
+      page: 1,
+      size: 500,
+      sourceKey: sourceKey.value,
+      tableName: tablePermissionTableName.value,
+    })
+    tablePermissionFieldRows.value = (payload?.list ?? [])
+      .slice()
+      .sort((a, b) => Number(a.ordinalPosition ?? 0) - Number(b.ordinalPosition ?? 0))
+      .map(field => ({
+        columnName: field.columnName || '-',
+        columnComment: field.columnComment || '',
+        dataType: field.dataType || '-',
+        permission: 'INHERIT',
+        maskType: 'CUSTOM',
+      }))
+  }
+  catch {
+    tablePermissionFieldRows.value = []
+  }
+  finally {
+    tablePermissionFieldLoading.value = false
+  }
+}
+
+async function openTablePermissionDialog(row: DbTableMetaItem) {
+  if (!sourceKey.value || !row.tableName) {
+    ElMessage.error('当前数据表信息不完整，无法配置权限')
+    return
+  }
+  resetTablePermissionDialog()
+  tablePermissionTableName.value = row.tableName
+  tablePermissionDialogVisible.value = true
+  await loadTablePermissionFields()
+}
+
+function saveTablePermissionDraft() {
+  ElMessage.info('权限配置接口尚未接入，当前仅完成页面交互，未提交任何权限规则。')
+}
+
+function hasTableMetaId(value: unknown): value is string | number {
+  return value !== null && value !== undefined && String(value).trim().length > 0
+}
+
+async function resolveTableMetaForEdit(row: DbTableMetaItem) {
+  if (hasTableMetaId(row.id)) {
+    return row
+  }
+  const payload = await searchDbTables({
+    page: 1,
+    size: 1,
+    sourceKey: sourceKey.value,
+    tableName: row.tableName,
+  })
+  return payload?.list?.find(item => item.tableName === row.tableName && hasTableMetaId(item.id))
+}
+
+async function openTableEditDialog(row: DbTableMetaItem) {
+  if (!sourceKey.value || !row.tableName) {
+    ElMessage.error('当前数据表信息不完整，无法编辑')
+    return
+  }
+  let tableMeta: DbTableMetaItem | undefined
+  try {
+    tableMeta = await resolveTableMetaForEdit(row)
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '表元数据加载失败，无法编辑')
+    return
+  }
+  if (!tableMeta || !hasTableMetaId(tableMeta.id)) {
+    ElMessage.error('未找到该数据表的元数据记录，无法编辑')
+    return
+  }
+  Object.assign(tableEditForm, {
+    id: tableMeta.id,
+    sourceKey: tableMeta.sourceKey || sourceKey.value,
+    tableName: tableMeta.tableName,
+    tableComment: tableMeta.tableComment || '',
+    tableType: tableMeta.tableType || '',
+    layerType: tableMeta.layerType || '',
+    rowCount: tableMeta.rowCount ?? '',
+    columnCount: tableMeta.columnCount ?? '',
+    partitionKey: tableMeta.partitionKey || '',
+    freshnessSeconds: tableMeta.freshnessSeconds ?? '',
+    status: tableMeta.status || '',
+    enabled: tableMeta.enabled !== false,
+    remark: tableMeta.remark || '',
+  })
+  tableEditDialogVisible.value = true
+}
+
+function closeTableEditDialog() {
+  tableEditDialogVisible.value = false
+  resetTableEditForm()
+}
+
+async function submitTableEdit() {
+  if (tableEditForm.id === null || !tableEditForm.sourceKey || !tableEditForm.tableName) {
+    ElMessage.error('表元数据缺少必要标识')
+    return
+  }
+  tableEditSubmitting.value = true
+  try {
+    await updateDbTableMeta(tableEditForm.id, {
+      sourceKey: tableEditForm.sourceKey,
+      tableName: tableEditForm.tableName,
+      tableComment: tableEditForm.tableComment.trim() || undefined,
+      tableType: tableEditForm.tableType.trim() || undefined,
+      layerType: tableEditForm.layerType.trim() || undefined,
+      rowCount: toOptionalNumber(tableEditForm.rowCount),
+      columnCount: toOptionalNumber(tableEditForm.columnCount),
+      partitionKey: tableEditForm.partitionKey.trim() || undefined,
+      freshnessSeconds: toOptionalNumber(tableEditForm.freshnessSeconds),
+      status: tableEditForm.status.trim() || undefined,
+      enabled: tableEditForm.enabled,
+      remark: tableEditForm.remark.trim() || undefined,
+    })
+    ElMessage.success('表元数据已更新')
+    closeTableEditDialog()
+    await Promise.all([loadTables(), loadTableCatalog()])
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '表元数据更新失败')
+  }
+  finally {
+    tableEditSubmitting.value = false
+  }
+}
+
+async function deleteTableMeta(row: DbTableMetaItem) {
+  if (!sourceKey.value || !row.tableName) {
+    ElMessage.error('当前数据表信息不完整，无法删除')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `删除表「${row.tableName}」将同时删除关联的字段和索引元数据，此操作不可恢复。`,
+      '确认删除表元数据',
+      { type: 'warning', confirmButtonText: '确认删除', cancelButtonText: '取消', draggable: true, overflow: true },
+    )
+  }
+  catch {
+    return
+  }
+  try {
+    const result = await deleteDbTableMetaCascade(sourceKey.value, row.tableName)
+    ElMessage.success(`已删除表 ${Number(result?.deletedTableCount ?? 0)} 张、字段 ${Number(result?.deletedFieldCount ?? 0)} 个、索引 ${Number(result?.deletedIndexCount ?? 0)} 个`)
+    if (selectedTableName.value === row.tableName) {
+      await router.replace(`/settings/system/data-source/${sourceKey.value}`)
+    }
+    await Promise.all([loadTables(), loadTableCatalog()])
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '表元数据删除失败')
+  }
 }
 
 function handleHeaderAction(actionLabel: string) {
@@ -517,8 +864,8 @@ function mapTableSyncCandidate(item: DbAccessTableCandidate) {
   return {
     name: item.tableName || '-',
     comment: item.tableComment || '暂无说明',
-    synced: item.existsInMeta === true,
-    fieldCount: item.fieldCount ?? null,
+    synced: item.synced === true,
+    fieldCount: item.tableMeta?.columnCount ?? null,
   }
 }
 
@@ -529,7 +876,6 @@ async function openTableSyncDialog() {
   }
   tableSyncDialogVisible.value = true
   tableSyncError.value = ''
-  tableSyncAllowUpdate.value = false
   await loadTableSyncCandidates()
 }
 
@@ -538,7 +884,6 @@ function closeTableSyncDialog() {
   tableSyncLoading.value = false
   tableSyncSubmitting.value = false
   tableSyncError.value = ''
-  tableSyncAllowUpdate.value = false
   tableSyncCandidates.value = []
   tableSyncSelectedTables.value = []
 }
@@ -598,12 +943,11 @@ async function submitTableSync() {
     const payload = await syncDbAccessTableMeta({
       sourceKey: sourceKey.value,
       tables: tableSyncSelectedTables.value,
-      allowUpdate: tableSyncAllowUpdate.value,
     })
     await loadTables()
     await loadTableCatalog()
     ElMessage.success(
-      `表格同步完成：新增表 ${Number(payload?.createdTableCount ?? 0)}，更新表 ${Number(payload?.updatedTableCount ?? 0)}，新增字段 ${Number(payload?.createdFieldCount ?? 0)}，更新字段 ${Number(payload?.updatedFieldCount ?? 0)}`,
+      `表格同步完成：新增表 ${Number(payload?.createdTableCount ?? 0)}，更新表 ${Number(payload?.updatedTableCount ?? 0)}，新增字段 ${Number(payload?.createdFieldCount ?? 0)}，更新字段 ${Number(payload?.updatedFieldCount ?? 0)}，新增索引 ${Number(payload?.createdIndexCount ?? 0)}，更新索引 ${Number(payload?.updatedIndexCount ?? 0)}`,
     )
     closeTableSyncDialog()
   }
@@ -849,12 +1193,27 @@ onMounted(() => {
                 {{ formatDateTime(row.lastSyncAt) }}
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="250" fixed="right" align="center">
+            <el-table-column label="操作" width="245" fixed="right" align="center">
               <template #default="{ row }">
                 <div class="data-source-table__actions">
-                  <el-tooltip content="数据查询" placement="top">
-                    <el-button circle plain @click="handleTableAction('数据查询', row)">
-                      <el-icon><Search /></el-icon>
+                  <el-tooltip content="查看表字段" placement="top">
+                    <el-button circle plain @click="handleTableAction('查看', row)">
+                      <el-icon><View /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip content="查看表格数据" placement="top">
+                    <el-button circle plain type="primary" @click="handleTableAction('表格数据查看', row)">
+                      <el-icon><DataAnalysis /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip content="编辑表元数据" placement="top">
+                    <el-button circle plain type="primary" @click="handleTableAction('编辑', row)">
+                      <el-icon><EditPen /></el-icon>
+                    </el-button>
+                  </el-tooltip>
+                  <el-tooltip content="删除表元数据" placement="top">
+                    <el-button circle plain type="danger" @click="handleTableAction('删除', row)">
+                      <el-icon><Delete /></el-icon>
                     </el-button>
                   </el-tooltip>
                   <el-tooltip content="知识库预览" placement="top">
@@ -864,39 +1223,12 @@ onMounted(() => {
                       :loading="knowledgePreviewLoading && knowledgePreviewTableName === (row.tableName || '')"
                       @click="handleTableAction('知识库预览', row)"
                     >
-                      <el-icon><View /></el-icon>
+                      <el-icon><Reading /></el-icon>
                     </el-button>
                   </el-tooltip>
-                  <el-tooltip content="字段" placement="top">
-                    <el-button circle plain @click="handleTableAction('字段', row)">
-                      <el-icon><Tickets /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="权限" placement="top">
-                    <el-button circle plain @click="handleTableAction('权限', row)">
-                      <el-icon><Key /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="删除" placement="top">
-                    <el-button circle plain type="danger" @click="handleTableAction('删除', row)">
-                      <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="更新" placement="top">
-                    <el-button circle plain type="primary" @click="handleTableAction('更新', row)">
-                      <el-icon><EditPen /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="同步" placement="top">
-                    <el-button
-                      circle
-                      plain
-                      type="primary"
-                      :loading="knowledgeSyncSubmitting && knowledgeSyncTarget === (row.tableName || '')"
-                      :disabled="knowledgeSyncSubmitting && knowledgeSyncTarget !== (row.tableName || '')"
-                      @click="handleTableAction('同步', row)"
-                    >
-                      <el-icon><RefreshRight /></el-icon>
+                  <el-tooltip content="权限控制" placement="top">
+                    <el-button circle plain type="warning" @click="handleTableAction('权限控制', row)">
+                      <el-icon><Lock /></el-icon>
                     </el-button>
                   </el-tooltip>
                 </div>
@@ -920,6 +1252,246 @@ onMounted(() => {
         </div>
       </el-footer>
     </el-container>
+
+    <el-dialog
+      v-model="tablePermissionDialogVisible"
+      :title="tablePermissionTableName ? `权限控制 · ${tablePermissionTableName}` : '权限控制'"
+      width="900"
+      draggable
+      overflow
+      destroy-on-close
+      class="table-permission-dialog"
+      @closed="closeTablePermissionDialog"
+    >
+      <section class="table-permission-dialog__content">
+        <div class="table-permission-dialog__resource">
+          <span>受控资源</span>
+          <strong>{{ sourceKey }} / {{ tablePermissionTableName }}</strong>
+        </div>
+        <el-tabs v-model="tablePermissionActiveTab" class="table-permission-dialog__tabs">
+          <el-tab-pane label="表权限" name="table">
+            <el-form label-position="top" class="table-permission-dialog__form">
+              <div class="table-permission-dialog__grid">
+                <el-form-item label="授权主体">
+                  <el-select v-model="tablePermissionForm.subjectType">
+                    <el-option label="角色" value="ROLE" />
+                    <el-option label="用户" value="USER" />
+                    <el-option label="部门" value="DEPT" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item :label="tablePermissionForm.subjectType === 'ROLE' ? '角色编码' : tablePermissionForm.subjectType === 'USER' ? '用户标识' : '部门标识'">
+                  <el-input v-model="tablePermissionForm.subjectValue" placeholder="后续对接用户权限体系" />
+                </el-form-item>
+                <el-form-item label="允许动作" class="table-permission-dialog__span-2">
+                  <el-checkbox-group v-model="tablePermissionForm.actions" class="table-permission-dialog__actions">
+                    <el-checkbox label="META_READ">查看元数据</el-checkbox>
+                    <el-checkbox label="META_EDIT">编辑元数据</el-checkbox>
+                    <el-checkbox label="META_DELETE">删除元数据</el-checkbox>
+                    <el-checkbox label="TABLE_SYNC">同步元数据</el-checkbox>
+                    <el-checkbox label="DATA_READ">查看表数据</el-checkbox>
+                    <el-checkbox label="DATA_EXPORT">导出表数据</el-checkbox>
+                  </el-checkbox-group>
+                </el-form-item>
+              </div>
+            </el-form>
+          </el-tab-pane>
+
+          <el-tab-pane label="字段权限" name="field">
+            <div class="table-permission-dialog__tip">字段默认继承表权限；可设置为允许可见、隐藏或脱敏。</div>
+            <el-table v-loading="tablePermissionFieldLoading" :data="tablePermissionFieldRows" max-height="360" border class="table-permission-dialog__field-table">
+              <el-table-column prop="columnName" label="字段" min-width="160" />
+              <el-table-column prop="columnComment" label="说明" min-width="180">
+                <template #default="{ row }">{{ row.columnComment || '-' }}</template>
+              </el-table-column>
+              <el-table-column prop="dataType" label="类型" width="130" />
+              <el-table-column label="规则" width="160">
+                <template #default="{ row }">
+                  <el-select v-model="row.permission">
+                    <el-option label="继承表权限" value="INHERIT" />
+                    <el-option label="允许可见" value="ALLOW" />
+                    <el-option label="隐藏字段" value="HIDE" />
+                    <el-option label="脱敏展示" value="MASK" />
+                  </el-select>
+                </template>
+              </el-table-column>
+              <el-table-column label="脱敏方式" width="150">
+                <template #default="{ row }">
+                  <el-select v-if="row.permission === 'MASK'" v-model="row.maskType">
+                    <el-option label="手机号" value="PHONE" />
+                    <el-option label="身份证" value="ID_CARD" />
+                    <el-option label="邮箱" value="EMAIL" />
+                    <el-option label="自定义" value="CUSTOM" />
+                  </el-select>
+                  <span v-else>-</span>
+                </template>
+              </el-table-column>
+            </el-table>
+          </el-tab-pane>
+
+          <el-tab-pane label="行权限" name="row">
+            <el-form label-position="top" class="table-permission-dialog__form">
+              <el-form-item label="行数据范围">
+                <el-radio-group v-model="tableRowPermissionForm.mode">
+                  <el-radio-button label="ALL">全部行</el-radio-button>
+                  <el-radio-button label="CONDITION">按条件过滤</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+              <div v-if="tableRowPermissionForm.mode === 'CONDITION'" class="table-permission-dialog__grid">
+                <el-form-item label="字段">
+                  <el-select v-model="tableRowPermissionForm.field" placeholder="选择字段">
+                    <el-option v-for="field in tablePermissionFieldRows" :key="field.columnName" :label="field.columnName" :value="field.columnName" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="条件">
+                  <el-select v-model="tableRowPermissionForm.operator">
+                    <el-option label="等于" value="EQ" />
+                    <el-option label="属于集合" value="IN" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item label="运行时值" class="table-permission-dialog__span-2">
+                  <el-input v-model="tableRowPermissionForm.value" placeholder="例如 ${currentUser.deptId} 或 ${currentUser.deptIds}" />
+                </el-form-item>
+              </div>
+              <div class="table-permission-dialog__tip">行条件将以结构化策略保存，后续由不同数据库方言编译为参数化查询，不直接执行原始 SQL。</div>
+            </el-form>
+          </el-tab-pane>
+        </el-tabs>
+      </section>
+      <template #footer>
+        <div class="table-permission-dialog__footer">
+          <span>当前为前端交互草稿，尚未接入权限策略接口。</span>
+          <el-button @click="closeTablePermissionDialog">取消</el-button>
+          <el-button type="primary" @click="saveTablePermissionDraft">保存权限配置</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="tableDataPreviewDialogVisible"
+      :title="tableDataPreviewTableName ? `表格数据查看 · ${tableDataPreviewTableName}` : '表格数据查看'"
+      width="90%"
+      top="6vh"
+      draggable
+      overflow
+      destroy-on-close
+      class="table-data-preview-dialog"
+      @closed="closeTableDataPreviewDialog"
+    >
+      <section class="table-data-preview-dialog__content">
+        <div class="table-data-preview-dialog__toolbar">
+          <span>仅展示当前数据源中已登记表的只读数据。</span>
+          <span v-if="tableDataPreviewExecutionMs !== null">查询耗时 {{ tableDataPreviewExecutionMs }} ms</span>
+        </div>
+        <div v-if="tableDataPreviewError" class="table-data-preview-dialog__state table-data-preview-dialog__state--error">
+          {{ tableDataPreviewError }}
+        </div>
+        <div v-else-if="tableDataPreviewLoading" class="table-data-preview-dialog__state">
+          正在加载表格数据...
+        </div>
+        <div v-else-if="!tableDataPreviewRows.length" class="table-data-preview-dialog__state">
+          当前表暂无数据。
+        </div>
+        <el-table
+          v-else
+          :data="tableDataPreviewRows"
+          max-height="520"
+          border
+          stripe
+          class="table-data-preview-dialog__table"
+        >
+          <el-table-column type="index" label="#" width="60" fixed="left" align="center" :index="(index: number) => (tableDataPreviewPage - 1) * tableDataPreviewPageSize + index + 1" />
+          <el-table-column
+            v-for="column in tableDataPreviewColumns"
+            :key="column"
+            :prop="column"
+            :label="column"
+            min-width="160"
+            show-overflow-tooltip
+          >
+            <template #default="{ row }">
+              {{ formatPreviewCell(row[column]) }}
+            </template>
+          </el-table-column>
+        </el-table>
+      </section>
+      <template #footer>
+        <div class="table-data-preview-dialog__footer">
+          <span>第 {{ tableDataPreviewPage }} 页 · {{ tableDataPreviewRows.length }} 条</span>
+          <el-select
+            :model-value="tableDataPreviewPageSize"
+            class="table-data-preview-dialog__page-size"
+            :disabled="tableDataPreviewLoading"
+            @change="changeTableDataPreviewPageSize(Number($event))"
+          >
+            <el-option :value="20" label="20 条/页" />
+            <el-option :value="50" label="50 条/页" />
+            <el-option :value="100" label="100 条/页" />
+          </el-select>
+          <el-button :disabled="tableDataPreviewLoading || tableDataPreviewPage <= 1" @click="changeTableDataPreviewPage(tableDataPreviewPage - 1)">上一页</el-button>
+          <el-button :disabled="tableDataPreviewLoading || !tableDataPreviewHasNext" @click="changeTableDataPreviewPage(tableDataPreviewPage + 1)">下一页</el-button>
+          <el-button @click="closeTableDataPreviewDialog">关闭</el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog
+      v-model="tableEditDialogVisible"
+      :title="tableEditForm.tableName ? `编辑表元数据 · ${tableEditForm.tableName}` : '编辑表元数据'"
+      width="760"
+      draggable
+      overflow
+      destroy-on-close
+      @closed="resetTableEditForm"
+    >
+      <el-form label-position="top" class="table-meta-edit-dialog">
+        <div class="table-meta-edit-dialog__grid">
+          <el-form-item label="数据源">
+            <el-input v-model="tableEditForm.sourceKey" disabled />
+          </el-form-item>
+          <el-form-item label="表名">
+            <el-input v-model="tableEditForm.tableName" disabled />
+          </el-form-item>
+          <el-form-item label="表说明" class="table-meta-edit-dialog__span-2">
+            <el-input v-model="tableEditForm.tableComment" />
+          </el-form-item>
+          <el-form-item label="表类型">
+            <el-input v-model="tableEditForm.tableType" placeholder="例如 TABLE、VIEW" />
+          </el-form-item>
+          <el-form-item label="分层">
+            <el-input v-model="tableEditForm.layerType" placeholder="例如 ODS、DWD" />
+          </el-form-item>
+          <el-form-item label="字段数">
+            <el-input v-model="tableEditForm.columnCount" inputmode="numeric" />
+          </el-form-item>
+          <el-form-item label="数据量快照">
+            <el-input v-model="tableEditForm.rowCount" inputmode="numeric" />
+          </el-form-item>
+          <el-form-item label="分区键">
+            <el-input v-model="tableEditForm.partitionKey" />
+          </el-form-item>
+          <el-form-item label="新鲜度(秒)">
+            <el-input v-model="tableEditForm.freshnessSeconds" inputmode="numeric" />
+          </el-form-item>
+          <el-form-item label="状态">
+            <el-input v-model="tableEditForm.status" placeholder="例如 ACTIVE" />
+          </el-form-item>
+          <el-form-item label="启用">
+            <el-switch v-model="tableEditForm.enabled" />
+          </el-form-item>
+          <el-form-item label="备注" class="table-meta-edit-dialog__span-2">
+            <el-input v-model="tableEditForm.remark" type="textarea" :rows="3" />
+          </el-form-item>
+        </div>
+      </el-form>
+      <template #footer>
+        <div class="table-meta-edit-dialog__footer">
+          <el-button @click="closeTableEditDialog">取消</el-button>
+          <el-button type="primary" :loading="tableEditSubmitting" @click="submitTableEdit">
+            {{ tableEditSubmitting ? '保存中...' : '保存' }}
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
 
     <el-dialog
       v-model="knowledgePreviewDialogVisible"
@@ -1096,9 +1668,6 @@ onMounted(() => {
           >
             全选
           </el-checkbox>
-          <el-checkbox v-model="tableSyncAllowUpdate">
-            允许更新已存在元数据
-          </el-checkbox>
           <div class="table-sync-dialog__stats">
             <span>共 {{ tableSyncCandidateCount }} 张</span>
             <span>待同步 {{ tableSyncPendingCount }} 张</span>
@@ -1115,27 +1684,30 @@ onMounted(() => {
         <div v-else-if="!tableSyncCandidates.length" class="table-sync-dialog__state">
           当前数据源下没有可同步的数据表。
         </div>
-        <div v-else class="table-sync-dialog__list">
-          <label
-            v-for="item in tableSyncCandidates"
-            :key="item.name"
-            class="table-sync-dialog__item"
-          >
-            <el-checkbox
-              :model-value="tableSyncSelectedTables.includes(item.name)"
-              @change="toggleTableSyncSelection(item.name, Boolean($event))"
-            />
-            <div class="table-sync-dialog__item-body">
-              <div class="table-sync-dialog__item-head">
-                <strong>{{ item.name }}</strong>
-                <el-tag size="small" effect="plain" :type="item.synced ? 'warning' : 'primary'">
-                  {{ item.synced ? '已存在' : '待新增' }}
-                </el-tag>
+        <div v-else class="table-sync-dialog__body">
+          <p class="table-sync-dialog__hint">重复同步会增量刷新表基础信息、字段和索引；分层、启用状态、备注等人工配置不会被修改。</p>
+          <div class="table-sync-dialog__list">
+            <label
+              v-for="item in tableSyncCandidates"
+              :key="item.name"
+              class="table-sync-dialog__item"
+            >
+              <el-checkbox
+                :model-value="tableSyncSelectedTables.includes(item.name)"
+                @change="toggleTableSyncSelection(item.name, Boolean($event))"
+              />
+              <div class="table-sync-dialog__item-body">
+                <div class="table-sync-dialog__item-head">
+                  <strong>{{ item.name }}</strong>
+                  <el-tag size="small" effect="plain" :type="item.synced ? 'success' : 'primary'">
+                    {{ item.synced ? '已同步' : '待同步' }}
+                  </el-tag>
+                </div>
+                <p>{{ item.comment }}</p>
+                <span>{{ item.fieldCount ?? '-' }} 字段</span>
               </div>
-              <p>{{ item.comment }}</p>
-              <span>{{ item.fieldCount ?? '-' }} 字段</span>
-            </div>
-          </label>
+            </label>
+          </div>
         </div>
       </section>
 
@@ -1488,6 +2060,130 @@ onMounted(() => {
   gap: 10px;
 }
 
+.table-data-preview-dialog__content {
+  display: grid;
+  gap: 12px;
+  min-height: 360px;
+}
+
+.table-data-preview-dialog__toolbar,
+.table-data-preview-dialog__footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--system-text-muted);
+  font-size: 12px;
+}
+
+.table-data-preview-dialog__toolbar {
+  justify-content: space-between;
+}
+
+.table-data-preview-dialog__state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 320px;
+  color: var(--system-text-muted);
+  font-size: 13px;
+}
+
+.table-data-preview-dialog__state--error {
+  color: var(--system-danger);
+}
+
+.table-data-preview-dialog__table {
+  min-height: 320px;
+}
+
+.table-data-preview-dialog__footer {
+  justify-content: flex-end;
+}
+
+.table-data-preview-dialog__footer > span:first-child {
+  margin-right: auto;
+}
+
+.table-data-preview-dialog__page-size {
+  width: 108px;
+}
+
+.table-permission-dialog__content {
+  display: grid;
+  gap: 14px;
+}
+
+.table-permission-dialog__resource {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--system-border);
+  border-radius: 12px;
+  background: var(--system-surface-muted);
+}
+
+.table-permission-dialog__resource span,
+.table-permission-dialog__footer > span {
+  color: var(--system-text-muted);
+  font-size: 12px;
+}
+
+.table-permission-dialog__resource strong {
+  color: var(--system-title);
+  font-size: 13px;
+}
+
+.table-permission-dialog__tabs :deep(.el-tabs__header) {
+  margin-bottom: 14px;
+}
+
+.table-permission-dialog__form {
+  padding-top: 4px;
+}
+
+.table-permission-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.table-permission-dialog__span-2 {
+  grid-column: span 2;
+}
+
+.table-permission-dialog__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.table-permission-dialog__tip {
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--system-border);
+  border-radius: 12px;
+  background: var(--system-surface-muted);
+  color: var(--system-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.table-permission-dialog__field-table {
+  min-height: 220px;
+}
+
+.table-permission-dialog__footer {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+
+.table-permission-dialog__footer > span {
+  margin-right: auto;
+}
+
 .table-sync-dialog__toolbar {
   display: flex;
   align-items: center;
@@ -1515,6 +2211,22 @@ onMounted(() => {
 
 .table-sync-dialog__state--error {
   color: var(--system-danger);
+}
+
+.table-sync-dialog__body {
+  display: grid;
+  gap: 10px;
+}
+
+.table-sync-dialog__hint {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--system-border);
+  border-radius: 12px;
+  background: var(--system-surface-muted);
+  color: var(--system-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
 }
 
 .table-sync-dialog__list {
@@ -1658,6 +2370,34 @@ onMounted(() => {
   padding: 0;
 }
 
+.table-meta-edit-dialog__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0 14px;
+}
+
+.table-meta-edit-dialog__span-2 {
+  grid-column: span 2;
+}
+
+.table-meta-edit-dialog :deep(.el-form-item__label) {
+  color: var(--system-text-soft);
+  font-size: 12px;
+}
+
+.table-meta-edit-dialog :deep(.el-input__wrapper),
+.table-meta-edit-dialog :deep(.el-textarea__inner) {
+  background: var(--system-surface-muted);
+  border-color: var(--system-border);
+  box-shadow: none;
+}
+
+.table-meta-edit-dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
 @media (max-width: 1024px) {
   .data-source-table-layout__header {
     height: auto;
@@ -1688,6 +2428,14 @@ onMounted(() => {
 
   .data-source-field-browser__cards {
     grid-template-columns: 1fr;
+  }
+
+  .table-meta-edit-dialog__grid {
+    grid-template-columns: 1fr;
+  }
+
+  .table-meta-edit-dialog__span-2 {
+    grid-column: span 1;
   }
 }
 </style>

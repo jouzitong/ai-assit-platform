@@ -20,5 +20,9 @@ public class DbAccessTableSyncResponse {
 
     private Integer updatedFieldCount;
 
+    private Integer createdIndexCount;
+
+    private Integer updatedIndexCount;
+
     private List<DbAccessTableSyncItem> items = new ArrayList<>();
 }

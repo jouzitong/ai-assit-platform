@@ -6,12 +6,14 @@ import ai.platform.aiassit.db.engine.executor.spi.exception.DbAccessException;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbAccessContext;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbColumnMeta;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbQueryColumn;
+import ai.platform.aiassit.db.engine.executor.spi.model.DbIndexMeta;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbTableColumnDefinition;
 import ai.platform.aiassit.db.engine.executor.spi.model.DbTableMeta;
 import ai.platform.aiassit.db.engine.executor.spi.provider.DbAccessExecutor;
 import ai.platform.aiassit.db.engine.executor.spi.request.DeleteTableColumnsRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.ExecuteRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTableColumnsRequest;
+import ai.platform.aiassit.db.engine.executor.spi.request.ListTableIndexesRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.ListTablesRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.QueryRequest;
 import ai.platform.aiassit.db.engine.executor.spi.request.SaveTableColumnsRequest;
@@ -19,6 +21,7 @@ import ai.platform.aiassit.db.engine.executor.spi.request.SaveTableRequest;
 import ai.platform.aiassit.db.engine.executor.spi.result.DeleteTableColumnsResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.ExecuteResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.ListTableColumnsResult;
+import ai.platform.aiassit.db.engine.executor.spi.result.ListTableIndexesResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.ListTablesResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.QueryResult;
 import ai.platform.aiassit.db.engine.executor.spi.result.SaveTableColumnsResult;
@@ -76,6 +79,19 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
             WHERE c.table_schema = ?
               AND c.table_name = ?
             ORDER BY c.ordinal_position
+            """;
+
+    private static final String LIST_INDEXES_SQL = """
+            SELECT table_name,
+                   index_name,
+                   index_type,
+                   non_unique,
+                   column_name,
+                   seq_in_index
+            FROM information_schema.statistics
+            WHERE table_schema = ?
+              AND table_name = ?
+            ORDER BY index_name, seq_in_index
             """;
 
     private final MysqlConnectionSupport connectionSupport;
@@ -173,6 +189,39 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
                     .build();
         } catch (SQLException ex) {
             throw new DbAccessException("查询 MySQL 字段定义失败", ex);
+        }
+    }
+
+    @Override
+    public ListTableIndexesResult listTableIndexes(ListTableIndexesRequest request) throws DbAccessException {
+        if (request == null || !StringUtils.hasText(request.getTableName())) {
+            throw new DbAccessException("tableName 不能为空");
+        }
+        String tableName = request.getTableName().trim();
+        String schemaName = resolveSchemaName(request.getSchemaName());
+        try (Connection connection = connectionSupport.openConnection(context);
+             PreparedStatement statement = connection.prepareStatement(LIST_INDEXES_SQL)) {
+            statement.setString(1, schemaName);
+            statement.setString(2, tableName);
+            List<DbIndexMeta> indexes = new ArrayList<>();
+            try (ResultSet resultSet = statement.executeQuery()) {
+                while (resultSet.next()) {
+                    String indexName = resultSet.getString("index_name");
+                    boolean primary = "PRIMARY".equalsIgnoreCase(indexName);
+                    indexes.add(DbIndexMeta.builder()
+                            .tableName(resultSet.getString("table_name"))
+                            .indexName(indexName)
+                            .indexType(resultSet.getString("index_type"))
+                            .uniqueFlag(resultSet.getInt("non_unique") == 0)
+                            .primaryFlag(primary)
+                            .columnName(resultSet.getString("column_name"))
+                            .columnOrder(getInteger(resultSet, "seq_in_index"))
+                            .build());
+                }
+            }
+            return ListTableIndexesResult.builder().tableName(tableName).indexes(indexes).build();
+        } catch (SQLException ex) {
+            throw new DbAccessException("查询 MySQL 索引定义失败", ex);
         }
     }
 

@@ -16,4 +16,10 @@ public class DbAccessTableSyncItem {
     private Integer fieldUpdatedCount;
 
     private Integer remoteFieldCount;
+
+    private Integer indexCreatedCount;
+
+    private Integer indexUpdatedCount;
+
+    private Integer remoteIndexCount;
 }
