@@ -107,6 +107,7 @@
     </logger>
 
     <logger name="org.springframework" level="DEBUG">
+        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SPRING_FILE"/>
     </logger>
 

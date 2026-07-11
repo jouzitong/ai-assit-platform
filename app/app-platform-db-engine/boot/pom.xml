@@ -25,6 +25,10 @@
             <artifactId>app-platform-db-engine-db-executor-mysql</artifactId>
         </dependency>
         <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-db-engine-data-executor-http</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
         </dependency>

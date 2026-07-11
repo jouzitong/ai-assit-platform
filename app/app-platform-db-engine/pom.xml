@@ -53,6 +53,11 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-db-engine-data-executor-http</artifactId>
+                <version>${app.platform.db.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-boot</artifactId>
                 <version>${app.platform.db.engine.version}</version>
             </dependency>

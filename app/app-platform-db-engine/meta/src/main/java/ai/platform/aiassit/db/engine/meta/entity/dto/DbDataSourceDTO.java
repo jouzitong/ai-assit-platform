@@ -1,6 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.entity.dto;
 
-import ai.platform.aiassit.db.engine.meta.entity.config.DbDataSourceConfig;
+import ai.platform.aiassit.db.engine.meta.entity.config.DataSourceConfig;
 import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceSyncMode;
 import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceType;
 import lombok.Data;
@@ -27,7 +27,7 @@ public class DbDataSourceDTO extends BaseDTO {
 
     private DbDataSourceSyncMode syncMode;
 
-    private DbDataSourceConfig config;
+    private DataSourceConfig config;
 
     private LocalDateTime lastSyncAt;
 

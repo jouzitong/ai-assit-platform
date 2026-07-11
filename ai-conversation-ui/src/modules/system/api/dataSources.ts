@@ -7,11 +7,76 @@ const TABLE_META_API_PREFIX = `${DB_ENGINE_API_PREFIX}/api/v1/meta/table`
 const DB_ACCESS_API_PREFIX = `${DB_ENGINE_API_PREFIX}/api/v1/db/access`
 const WORKBOOK_API_PREFIX = `${DB_ENGINE_API_PREFIX}/api/v1/meta/workbook`
 
+export type DataSourceConfigType = 'DATABASE' | 'HTTP_API' | 'SERVICE_API' | 'FILE' | 'STREAM'
+export type DatabaseConnectionMode = 'JDBC_URL' | 'HOST_PORT'
+
+export interface DbDataSourceCredential {
+  authType?: string | number
+  username?: string
+  passwordCiphertext?: string
+  tokenCiphertext?: string
+  accessKey?: string
+  secretKeyCiphertext?: string
+  credentialRef?: string
+}
+
+export interface DatabaseSourceConfig {
+  configType?: 'DATABASE'
+  configVersion?: number
+  dbType?: string | number
+  connection?: {
+    mode?: DatabaseConnectionMode
+    jdbcUrl?: string
+    host?: string
+    port?: number
+    databaseName?: string
+    schemaName?: string
+  }
+  credential?: DbDataSourceCredential
+  network?: {
+    connectTimeoutMs?: number
+    readTimeoutMs?: number
+    writeTimeoutMs?: number
+  }
+  driverProperties?: unknown
+}
+
+export interface HttpApiSourceConfig {
+  configType?: 'HTTP_API'
+  configVersion?: number
+  baseUrl?: string
+  credential?: DbDataSourceCredential
+  network?: {
+    connectTimeoutMs?: number
+    readTimeoutMs?: number
+    writeTimeoutMs?: number
+  }
+  attributes?: unknown
+}
+
+interface LegacyDataSourceConfig {
+  dbType?: string | number
+  endpoint?: string
+  network?: DatabaseSourceConfig['network']
+  auth?: DbDataSourceCredential
+  attributes?: unknown
+  database?: {
+    dbType?: string | number
+    jdbcUrl?: string
+    host?: string
+    port?: number
+    databaseName?: string
+    schemaName?: string
+  }
+}
+
+export type DbDataSourceConfig = DatabaseSourceConfig | HttpApiSourceConfig | LegacyDataSourceConfig
+
 export interface DbDataSourceItem {
   id: string | number
   sourceKey?: string
   sourceName?: string
-  sourceType?: string
+  sourceType?: string | number
   ownerTeam?: string
   ownerUser?: string
   enabled?: boolean
@@ -20,33 +85,7 @@ export interface DbDataSourceItem {
   remark?: string
   lastSyncAt?: string
   lastAccessAt?: string
-  config?: {
-    dbType?: string
-    endpoint?: string
-    network?: {
-      connectTimeoutMs?: number
-      readTimeoutMs?: number
-      writeTimeoutMs?: number
-    }
-    auth?: {
-      authType?: string
-      username?: string
-      passwordCiphertext?: string
-      tokenCiphertext?: string
-      accessKey?: string
-      secretKeyCiphertext?: string
-      credentialRef?: string
-    }
-    attributes?: unknown
-    database?: {
-      dbType?: string
-      jdbcUrl?: string
-      host?: string
-      port?: number
-      username?: string
-      password?: string
-    }
-  }
+  config?: DbDataSourceConfig
 }
 
 export interface DbDataSourceSearchPayload {
@@ -54,7 +93,7 @@ export interface DbDataSourceSearchPayload {
   size?: number
   keyword?: string
   sourceKey?: string
-  sourceType?: string
+  sourceType?: string | number
   ownerTeam?: string
   enabled?: boolean
 }
@@ -69,32 +108,14 @@ export interface DbDataSourceSearchResult {
 export interface DbDataSourceUpsertPayload {
   sourceKey: string
   sourceName: string
-  sourceType: string
+  sourceType: string | number
   ownerTeam?: string
   ownerUser?: string
   enabled: boolean
-  syncMode: string
+  syncMode: string | number
   summary?: string
   remark?: string
-  config: {
-    dbType?: string
-    endpoint?: string
-    network?: {
-      connectTimeoutMs?: number
-      readTimeoutMs?: number
-      writeTimeoutMs?: number
-    }
-    auth?: {
-      authType?: string
-      username?: string
-      passwordCiphertext?: string
-      tokenCiphertext?: string
-      accessKey?: string
-      secretKeyCiphertext?: string
-      credentialRef?: string
-    }
-    attributes?: unknown
-  }
+  config: DbDataSourceConfig
 }
 
 export interface KnowledgeSyncPayload {

@@ -1,6 +1,6 @@
 package ai.platform.aiassit.db.engine.meta.entity;
 
-import ai.platform.aiassit.db.engine.meta.entity.config.DbDataSourceConfig;
+import ai.platform.aiassit.db.engine.meta.entity.config.DataSourceConfig;
 import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceSyncMode;
 import ai.platform.aiassit.db.engine.meta.enums.DbDataSourceType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -56,7 +56,7 @@ public class DbDataSourceEntity extends AuditableEntity {
 
     /** 连接与认证等配置信息。 */
     @TableField(value = "config", typeHandler = JacksonTypeHandler.class)
-    private DbDataSourceConfig config;
+    private DataSourceConfig config;
 
     /** 最近同步时间。 */
     @TableField("last_sync_at")

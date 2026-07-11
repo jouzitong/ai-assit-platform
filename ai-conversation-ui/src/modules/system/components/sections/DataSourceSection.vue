@@ -9,7 +9,10 @@ import {
   searchDbDataSources,
   syncDbTableKnowledge,
   testDbDataSourceConnection,
+  type DatabaseSourceConfig,
   type DbDataSourceItem,
+  type DbDataSourceConfig,
+  type HttpApiSourceConfig,
   updateDbDataSource,
 } from '../../api/dataSources'
 import { getEnumLabel, getEnumOptions, loadServiceEnums } from '../../../../stores/enums'
@@ -38,6 +41,10 @@ const sourceTypeOptions = computed(() => getEnumOptions('dbDataSourceType', SERV
 const syncModeOptions = computed(() => getEnumOptions('dbDataSourceSyncMode', SERVICE_NAMES.DB_ENGINE))
 const authTypeOptions = computed(() => getEnumOptions('dbDataSourceAuthType', SERVICE_NAMES.DB_ENGINE))
 const dbTypeOptions = computed(() => getEnumOptions('dbDataSourceDbType', SERVICE_NAMES.DB_ENGINE))
+const sourceKind = computed(() => resolveSourceKind(form.sourceType))
+const isDatabaseSource = computed(() => sourceKind.value === 'DATABASE')
+const isHttpApiSource = computed(() => sourceKind.value === 'HTTP_API')
+const authKind = computed(() => resolveAuthKind(form.authType))
 
 function resolveDefaultEnumValue(enumName: string, fallback: unknown = '') {
   const [firstOption] = getEnumOptions(enumName, SERVICE_NAMES.DB_ENGINE)
@@ -55,10 +62,16 @@ function createEmptyForm() {
     ownerUser: '',
     enabled: true,
     syncMode: resolveDefaultEnumValue('dbDataSourceSyncMode', 1),
-    endpoint: '',
     summary: '',
     remark: '',
     dbType: '',
+    connectionMode: 'HOST_PORT',
+    jdbcUrl: '',
+    host: '',
+    port: '',
+    databaseName: '',
+    schemaName: '',
+    baseUrl: '',
     connectTimeoutMs: '',
     readTimeoutMs: '',
     writeTimeoutMs: '',
@@ -69,7 +82,8 @@ function createEmptyForm() {
     accessKey: '',
     secretKeyCiphertext: '',
     credentialRef: '',
-    attributesText: '',
+    driverPropertiesText: '',
+    httpAttributesText: '',
   }
 }
 
@@ -77,8 +91,31 @@ function resetForm() {
   Object.assign(form, createEmptyForm())
 }
 
-function normalizeEnumValue(value?: string) {
+function normalizeEnumValue(value?: unknown) {
   return String(value || '').trim().replace(/-/g, '_').toUpperCase()
+}
+
+function resolveSourceKind(value?: unknown) {
+  const normalized = normalizeEnumValue(value)
+  if (normalized === '1' || normalized === 'DATABASE') {
+    return 'DATABASE'
+  }
+  if (normalized === '2' || normalized === 'HTTP_API') {
+    return 'HTTP_API'
+  }
+  return normalized
+}
+
+function resolveAuthKind(value?: unknown) {
+  const normalized = normalizeEnumValue(value)
+  const authKindMap: Record<string, string> = {
+    '0': 'NONE',
+    '1': 'BASIC',
+    '2': 'BEARER',
+    '3': 'AK_SK',
+    '4': 'API_KEY',
+  }
+  return authKindMap[normalized] || normalized
 }
 
 function resolveTotal(payloadTotal?: number) {
@@ -86,26 +123,57 @@ function resolveTotal(payloadTotal?: number) {
   return Number.isFinite(numericTotal) ? numericTotal : dataSources.value.length
 }
 
-function resolveHost(item: DbDataSourceItem) {
-  const config = item.config ?? {}
-  const databaseConfig = config.database ?? {}
-  if (config.endpoint) {
-    return config.endpoint
+function asDatabaseConfig(config?: DbDataSourceConfig): DatabaseSourceConfig | undefined {
+  if (!config) {
+    return undefined
   }
-  if (databaseConfig.host) {
-    return databaseConfig.port ? `${databaseConfig.host}:${databaseConfig.port}` : databaseConfig.host
+  if (('configType' in config && config.configType === 'DATABASE') || 'connection' in config) {
+    return config as DatabaseSourceConfig
   }
-  if (databaseConfig.jdbcUrl) {
-    return databaseConfig.jdbcUrl
+  const legacy = config as Extract<DbDataSourceConfig, { endpoint?: string }>
+  const database = legacy.database
+  const jdbcUrl = database?.jdbcUrl || (legacy.endpoint?.startsWith('jdbc:') ? legacy.endpoint : undefined)
+  return {
+    configType: 'DATABASE',
+    configVersion: 1,
+    dbType: legacy.dbType || database?.dbType,
+    connection: {
+      mode: jdbcUrl ? 'JDBC_URL' : 'HOST_PORT',
+      jdbcUrl,
+      host: database?.host,
+      port: database?.port,
+      databaseName: database?.databaseName,
+      schemaName: database?.schemaName,
+    },
+    credential: legacy.auth,
+    network: legacy.network,
+    driverProperties: legacy.attributes,
+  }
+}
+
+function asHttpApiConfig(config?: DbDataSourceConfig): HttpApiSourceConfig | undefined {
+  return config && 'configType' in config && config.configType === 'HTTP_API' ? config as HttpApiSourceConfig : undefined
+}
+
+function resolveAddress(item: DbDataSourceItem) {
+  if (resolveSourceKind(item.sourceType) === 'HTTP_API') {
+    return asHttpApiConfig(item.config)?.baseUrl || '-'
+  }
+  const connection = asDatabaseConfig(item.config)?.connection
+  if (connection?.mode === 'JDBC_URL') {
+    return connection.jdbcUrl || '-'
+  }
+  if (connection?.host) {
+    return connection.port ? `${connection.host}:${connection.port}` : connection.host
   }
   return '-'
 }
 
-function formatSourceType(value?: string) {
+function formatSourceType(value?: string | number) {
   return String(getEnumLabel('dbDataSourceType', value, SERVICE_NAMES.DB_ENGINE) || value || '-')
 }
 
-function formatSyncMode(value?: string) {
+function formatSyncMode(value?: string | number) {
   return String(getEnumLabel('dbDataSourceSyncMode', value, SERVICE_NAMES.DB_ENGINE) || value || '-')
 }
 
@@ -118,8 +186,9 @@ function formatOwner(item: DbDataSourceItem) {
 }
 
 function mapDataSourceCard(item: DbDataSourceItem) {
-  const dbType = item.config?.dbType ?? item.config?.database?.dbType
-  const rawEndpoint = item.config?.endpoint || item.config?.database?.jdbcUrl || resolveHost(item)
+  const databaseConfig = asDatabaseConfig(item.config)
+  const isDatabase = resolveSourceKind(item.sourceType) === 'DATABASE'
+  const dbType = databaseConfig?.dbType
   return {
     id: item.id,
     key: item.sourceKey || '-',
@@ -127,8 +196,9 @@ function mapDataSourceCard(item: DbDataSourceItem) {
     type: formatSourceType(item.sourceType),
     syncMode: formatSyncMode(item.syncMode),
     owner: formatOwner(item),
-    endpoint: rawEndpoint || '-',
-    dbType: formatDbType(dbType),
+    endpoint: resolveAddress(item),
+    dbType: isDatabase ? formatDbType(dbType) : 'HTTP API',
+    isDatabase,
     enabled: item.enabled !== false,
     summary: item.summary || item.remark || '暂无说明',
     raw: item,
@@ -186,9 +256,10 @@ function openCreateDialog() {
 
 function openEditDialog(card: ReturnType<typeof mapDataSourceCard>) {
   const raw = card.raw ?? {}
-  const config = raw.config ?? {}
-  const databaseConfig = config.database ?? {}
-  const authConfig = config.auth ?? {}
+  const databaseConfig = asDatabaseConfig(raw.config)
+  const httpConfig = asHttpApiConfig(raw.config)
+  const connection = databaseConfig?.connection
+  const credential = databaseConfig?.credential || httpConfig?.credential || {}
 
   dialogMode.value = 'edit'
   editingId.value = raw.id ?? card.id
@@ -200,21 +271,28 @@ function openEditDialog(card: ReturnType<typeof mapDataSourceCard>) {
     ownerUser: raw.ownerUser || '',
     enabled: raw.enabled !== false,
     syncMode: raw.syncMode ?? resolveDefaultEnumValue('dbDataSourceSyncMode', 1),
-    endpoint: config.endpoint || databaseConfig.jdbcUrl || '',
     summary: raw.summary || '',
     remark: raw.remark || '',
-    dbType: config.dbType ?? databaseConfig.dbType ?? '',
-    connectTimeoutMs: config.network?.connectTimeoutMs ?? '',
-    readTimeoutMs: config.network?.readTimeoutMs ?? '',
-    writeTimeoutMs: config.network?.writeTimeoutMs ?? '',
-    authType: authConfig.authType ?? resolveDefaultEnumValue('dbDataSourceAuthType', 0),
-    username: authConfig.username || databaseConfig.username || '',
-    passwordCiphertext: authConfig.passwordCiphertext || databaseConfig.password || '',
-    tokenCiphertext: authConfig.tokenCiphertext || '',
-    accessKey: authConfig.accessKey || '',
-    secretKeyCiphertext: authConfig.secretKeyCiphertext || '',
-    credentialRef: authConfig.credentialRef || '',
-    attributesText: config.attributes ? JSON.stringify(config.attributes, null, 2) : '',
+    dbType: databaseConfig?.dbType ?? '',
+    connectionMode: connection?.mode || 'HOST_PORT',
+    jdbcUrl: connection?.jdbcUrl || '',
+    host: connection?.host || '',
+    port: connection?.port ?? '',
+    databaseName: connection?.databaseName || '',
+    schemaName: connection?.schemaName || '',
+    baseUrl: httpConfig?.baseUrl || '',
+    connectTimeoutMs: databaseConfig?.network?.connectTimeoutMs ?? httpConfig?.network?.connectTimeoutMs ?? '',
+    readTimeoutMs: databaseConfig?.network?.readTimeoutMs ?? httpConfig?.network?.readTimeoutMs ?? '',
+    writeTimeoutMs: databaseConfig?.network?.writeTimeoutMs ?? httpConfig?.network?.writeTimeoutMs ?? '',
+    authType: credential.authType ?? resolveDefaultEnumValue('dbDataSourceAuthType', 0),
+    username: credential.username || '',
+    passwordCiphertext: credential.passwordCiphertext || '',
+    tokenCiphertext: credential.tokenCiphertext || '',
+    accessKey: credential.accessKey || '',
+    secretKeyCiphertext: credential.secretKeyCiphertext || '',
+    credentialRef: credential.credentialRef || '',
+    driverPropertiesText: databaseConfig?.driverProperties ? JSON.stringify(databaseConfig.driverProperties, null, 2) : '',
+    httpAttributesText: httpConfig?.attributes ? JSON.stringify(httpConfig.attributes, null, 2) : '',
   })
   dialogVisible.value = true
 }
@@ -231,6 +309,10 @@ function emptyToUndefined(value: unknown) {
     return value.trim() ? value.trim() : undefined
   }
   return value
+}
+
+function hasSelectedEnumValue(value: unknown) {
+  return value !== null && value !== undefined && String(value).trim().length > 0
 }
 
 function normalizeNumber(value: string | number) {
@@ -257,6 +339,19 @@ function parseAttributesText(value: string) {
   }
 }
 
+function validateJson(value: string, label: string) {
+  if (!value.trim()) {
+    return ''
+  }
+  try {
+    JSON.parse(value)
+    return ''
+  }
+  catch {
+    return `${label}必须是合法 JSON`
+  }
+}
+
 function validateForm() {
   if (!form.sourceKey.trim()) {
     return '请输入数据源 Key'
@@ -267,30 +362,75 @@ function validateForm() {
   if (!form.sourceType) {
     return '请选择数据源类型'
   }
-  if (form.attributesText.trim()) {
-    try {
-      JSON.parse(form.attributesText)
+  if (isDatabaseSource.value) {
+    if (!hasSelectedEnumValue(form.dbType)) {
+      return '请选择数据库类型'
     }
-    catch {
-      return '扩展属性必须是合法 JSON'
+    if (form.connectionMode === 'JDBC_URL' && !form.jdbcUrl.trim()) {
+      return '请输入 JDBC URL'
     }
+    if (form.connectionMode === 'HOST_PORT' && (!form.host.trim() || !form.databaseName.trim())) {
+      return 'HOST_PORT 模式必须填写主机地址和数据库名'
+    }
+    return validateJson(form.driverPropertiesText, '驱动属性')
   }
-  return ''
+  if (isHttpApiSource.value) {
+    if (!form.baseUrl.trim()) {
+      return '请输入 HTTP API Base URL'
+    }
+    return validateJson(form.httpAttributesText, 'HTTP 属性')
+  }
+  return '当前仅支持数据库和 HTTP API 数据源配置'
 }
 
 function validateTestForm() {
-  if (form.attributesText.trim()) {
-    try {
-      JSON.parse(form.attributesText)
-    }
-    catch {
-      return '扩展属性必须是合法 JSON'
-    }
+  if (!isDatabaseSource.value) {
+    return '当前测试连接仅支持数据库数据源'
   }
-  return ''
+  return validateForm()
 }
 
 function buildPayload() {
+  const credential = compactObject({
+    authType: form.authType,
+    username: authKind.value === 'BASIC' ? emptyToUndefined(form.username) : undefined,
+    passwordCiphertext: authKind.value === 'BASIC' ? emptyToUndefined(form.passwordCiphertext) : undefined,
+    tokenCiphertext: authKind.value === 'BEARER' ? emptyToUndefined(form.tokenCiphertext) : undefined,
+    accessKey: authKind.value === 'AK_SK' || authKind.value === 'API_KEY' ? emptyToUndefined(form.accessKey) : undefined,
+    secretKeyCiphertext: authKind.value === 'AK_SK' ? emptyToUndefined(form.secretKeyCiphertext) : undefined,
+    credentialRef: authKind.value === 'NONE' ? undefined : emptyToUndefined(form.credentialRef),
+  })
+  const network = compactObject({
+    connectTimeoutMs: normalizeNumber(form.connectTimeoutMs),
+    readTimeoutMs: normalizeNumber(form.readTimeoutMs),
+    writeTimeoutMs: normalizeNumber(form.writeTimeoutMs),
+  })
+  const config = isDatabaseSource.value
+    ? {
+        configType: 'DATABASE' as const,
+        configVersion: 2,
+        dbType: emptyToUndefined(form.dbType),
+        connection: form.connectionMode === 'JDBC_URL'
+          ? compactObject({ mode: 'JDBC_URL' as const, jdbcUrl: emptyToUndefined(form.jdbcUrl), schemaName: emptyToUndefined(form.schemaName) })
+          : compactObject({
+              mode: 'HOST_PORT' as const,
+              host: emptyToUndefined(form.host),
+              port: normalizeNumber(form.port),
+              databaseName: emptyToUndefined(form.databaseName),
+              schemaName: emptyToUndefined(form.schemaName),
+            }),
+        credential,
+        network,
+        driverProperties: parseAttributesText(form.driverPropertiesText),
+      }
+    : {
+        configType: 'HTTP_API' as const,
+        configVersion: 2,
+        baseUrl: emptyToUndefined(form.baseUrl),
+        credential,
+        network,
+        attributes: parseAttributesText(form.httpAttributesText),
+      }
   return {
     sourceKey: form.sourceKey.trim(),
     sourceName: form.sourceName.trim(),
@@ -301,25 +441,7 @@ function buildPayload() {
     syncMode: form.syncMode,
     summary: emptyToUndefined(form.summary),
     remark: emptyToUndefined(form.remark),
-    config: {
-      dbType: emptyToUndefined(form.dbType),
-      endpoint: emptyToUndefined(form.endpoint),
-      network: compactObject({
-        connectTimeoutMs: normalizeNumber(form.connectTimeoutMs),
-        readTimeoutMs: normalizeNumber(form.readTimeoutMs),
-        writeTimeoutMs: normalizeNumber(form.writeTimeoutMs),
-      }),
-      auth: compactObject({
-        authType: form.authType,
-        username: emptyToUndefined(form.username),
-        passwordCiphertext: emptyToUndefined(form.passwordCiphertext),
-        tokenCiphertext: emptyToUndefined(form.tokenCiphertext),
-        accessKey: emptyToUndefined(form.accessKey),
-        secretKeyCiphertext: emptyToUndefined(form.secretKeyCiphertext),
-        credentialRef: emptyToUndefined(form.credentialRef),
-      }),
-      attributes: parseAttributesText(form.attributesText),
-    },
+    config,
   }
 }
 
@@ -397,6 +519,10 @@ async function handleKnowledgeSync(card: ReturnType<typeof mapDataSourceCard>) {
 }
 
 async function openSourceDetail(card: ReturnType<typeof mapDataSourceCard>) {
+  if (!card.isDatabase) {
+    ElMessage.info('HTTP API 数据源暂不提供表元数据浏览')
+    return
+  }
   if (!card.key || card.key === '-') {
     return
   }
@@ -474,7 +600,7 @@ onMounted(() => {
               </el-tag>
             </div>
             <div class="data-source-card__actions">
-              <el-tooltip content="知识库同步" placement="top">
+              <el-tooltip v-if="item.isDatabase" content="知识库同步" placement="top">
                 <el-button circle plain @click.stop="handleKnowledgeSync(item)">
                   <el-icon><DataBoard /></el-icon>
                 </el-button>
@@ -555,27 +681,55 @@ onMounted(() => {
         <section class="data-source-dialog__section">
           <header class="data-source-dialog__section-head">
             <h4>连接配置</h4>
-            <p>维护连接地址、数据库类型和超时参数。</p>
+            <p>按协议填写唯一的连接地址表达，避免 Endpoint、JDBC URL 和主机地址混用。</p>
           </header>
-          <div class="data-source-dialog__grid">
-            <el-form-item label="Endpoint" class="data-source-dialog__span-2">
-              <el-input v-model="form.endpoint" placeholder="jdbc:mysql://host:3306/db" />
-            </el-form-item>
-
+          <div v-if="isDatabaseSource" class="data-source-dialog__grid">
             <el-form-item label="数据库类型">
-              <el-select v-model="form.dbType" clearable>
+              <el-select v-model="form.dbType">
                 <el-option v-for="item in dbTypeOptions" :key="String(item.value)" :label="item.label" :value="item.value" />
               </el-select>
             </el-form-item>
 
+            <el-form-item label="连接方式">
+              <el-select v-model="form.connectionMode">
+                <el-option label="主机 / 端口" value="HOST_PORT" />
+                <el-option label="JDBC URL" value="JDBC_URL" />
+              </el-select>
+            </el-form-item>
+
+            <template v-if="form.connectionMode === 'JDBC_URL'">
+              <el-form-item label="JDBC URL" class="data-source-dialog__span-2">
+                <el-input v-model="form.jdbcUrl" placeholder="jdbc:mysql://db.example.com:3306/app" />
+              </el-form-item>
+            </template>
+            <template v-else>
+              <el-form-item label="主机地址">
+                <el-input v-model="form.host" placeholder="db.example.com" />
+              </el-form-item>
+              <el-form-item label="端口">
+                <el-input v-model="form.port" placeholder="3306" />
+              </el-form-item>
+              <el-form-item label="数据库名称">
+                <el-input v-model="form.databaseName" />
+              </el-form-item>
+              <el-form-item label="Schema">
+                <el-input v-model="form.schemaName" />
+              </el-form-item>
+            </template>
+          </div>
+          <div v-else-if="isHttpApiSource" class="data-source-dialog__grid">
+            <el-form-item label="HTTP API Base URL" class="data-source-dialog__span-2">
+              <el-input v-model="form.baseUrl" placeholder="https://api.example.com" />
+            </el-form-item>
+          </div>
+
+          <div v-if="isDatabaseSource || isHttpApiSource" class="data-source-dialog__grid data-source-dialog__grid--timeouts">
             <el-form-item label="连接超时(ms)">
               <el-input v-model="form.connectTimeoutMs" />
             </el-form-item>
-
             <el-form-item label="读取超时(ms)">
               <el-input v-model="form.readTimeoutMs" />
             </el-form-item>
-
             <el-form-item label="写入超时(ms)">
               <el-input v-model="form.writeTimeoutMs" />
             </el-form-item>
@@ -585,7 +739,7 @@ onMounted(() => {
         <section class="data-source-dialog__section">
           <header class="data-source-dialog__section-head">
             <h4>认证配置</h4>
-            <p>认证方式和凭证字段按接口枚举选择。</p>
+            <p>只展示当前认证方式需要填写的凭证字段。</p>
           </header>
           <div class="data-source-dialog__grid">
             <el-form-item label="认证类型">
@@ -594,27 +748,31 @@ onMounted(() => {
               </el-select>
             </el-form-item>
 
-            <el-form-item label="用户名">
+            <el-form-item v-if="authKind === 'BASIC'" label="用户名">
               <el-input v-model="form.username" />
             </el-form-item>
 
-            <el-form-item label="密码密文">
+            <el-form-item v-if="authKind === 'BASIC'" label="密码密文">
               <el-input v-model="form.passwordCiphertext" type="password" show-password />
             </el-form-item>
 
-            <el-form-item label="Bearer Token">
+            <el-form-item v-if="authKind === 'BEARER'" label="Bearer Token" class="data-source-dialog__span-2">
               <el-input v-model="form.tokenCiphertext" />
             </el-form-item>
 
-            <el-form-item label="Access Key">
+            <el-form-item v-if="authKind === 'AK_SK'" label="Access Key">
               <el-input v-model="form.accessKey" />
             </el-form-item>
 
-            <el-form-item label="Secret Key 密文">
+            <el-form-item v-if="authKind === 'AK_SK'" label="Secret Key 密文">
               <el-input v-model="form.secretKeyCiphertext" type="password" show-password />
             </el-form-item>
 
-            <el-form-item label="凭证引用" class="data-source-dialog__span-2">
+            <el-form-item v-if="authKind === 'API_KEY'" label="API Key" class="data-source-dialog__span-2">
+              <el-input v-model="form.accessKey" type="password" show-password />
+            </el-form-item>
+
+            <el-form-item v-if="authKind !== 'NONE'" label="凭证引用" class="data-source-dialog__span-2">
               <el-input v-model="form.credentialRef" />
             </el-form-item>
           </div>
@@ -634,8 +792,12 @@ onMounted(() => {
               <el-input v-model="form.remark" type="textarea" :rows="1" />
             </el-form-item>
 
-            <el-form-item label="扩展属性(JSON)" class="data-source-dialog__span-2">
-              <el-input v-model="form.attributesText" type="textarea" :rows="3" />
+            <el-form-item v-if="isDatabaseSource" label="驱动属性(JSON)" class="data-source-dialog__span-2">
+              <el-input v-model="form.driverPropertiesText" type="textarea" :rows="3" placeholder='例如：{"useSSL":true}' />
+            </el-form-item>
+
+            <el-form-item v-else-if="isHttpApiSource" label="HTTP 属性(JSON)" class="data-source-dialog__span-2">
+              <el-input v-model="form.httpAttributesText" type="textarea" :rows="3" placeholder='例如：{"responseRecordsPath":"data.records"}' />
             </el-form-item>
           </div>
         </section>
@@ -643,7 +805,7 @@ onMounted(() => {
 
       <template #footer>
         <div class="data-source-dialog__footer">
-          <el-button :loading="testing" @click="handleTestConnection">测试</el-button>
+          <el-button v-if="isDatabaseSource" :loading="testing" @click="handleTestConnection">测试连接</el-button>
           <div class="data-source-dialog__footer-actions">
             <el-button @click="closeDialog">取消</el-button>
             <el-button type="primary" :loading="saving" @click="handleSubmitForm">保存</el-button>
