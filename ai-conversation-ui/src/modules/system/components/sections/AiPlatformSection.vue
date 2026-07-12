@@ -11,6 +11,7 @@ import {
   deleteAiModelManage,
   editAiKbStore,
   editAiModelManage,
+  listAiKbClientOptions,
   searchAiKbStores,
   searchAiModelManages,
   testAiModelChat,
@@ -18,6 +19,7 @@ import {
   updateAiModelManage,
   type AiKbStoreItem,
   type AiKbStoreUpsertPayload,
+  type AiKbClientOption,
   type AiModelManageItem,
   type AiModelTestChatMessage,
   type AiModelManageUpsertPayload,
@@ -65,6 +67,7 @@ const testMessagesRef = ref<HTMLElement | null>(null)
 const testMessages = ref<TestChatMessage[]>([])
 const modelRecords = ref<AiModelManageItem[]>([])
 const kbRecords = ref<AiKbStoreItem[]>([])
+const kbAuthSummary = ref('系统认证配置加载中...')
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
@@ -214,6 +217,30 @@ function resolveKbAuthSummary(auth?: AiKbStoreItem['auth']) {
   return `Bearer Token · ${auth.apiKeyMasked || '已保存'}`
 }
 
+function resolveSystemAuthSummary(option?: AiKbClientOption) {
+  if (!option) return '未配置系统认证'
+  const type = option.authType?.toLowerCase()
+  if (type === 'aliyun_aksk' || type === 'aksk') {
+    return `系统 AK/SK · ${option.accessKeyIdMasked || '已配置'}`
+  }
+  return `系统 ${type === 'bearer' || !type ? 'Bearer Token' : option.authType} · ${option.authValueMasked || '已配置'}`
+}
+
+async function loadKbAuthSummary(snapshot?: AiKbStoreItem['auth']) {
+  if (snapshot?.type) {
+    kbAuthSummary.value = `已保存快照：${resolveKbAuthSummary(snapshot)}`
+    return
+  }
+  kbAuthSummary.value = '系统认证配置加载中...'
+  try {
+    const options = await listAiKbClientOptions()
+    kbAuthSummary.value = resolveSystemAuthSummary(options?.[0])
+  }
+  catch (error) {
+    kbAuthSummary.value = '系统认证配置加载失败'
+  }
+}
+
 function parseJsonText(value: string, label: string) {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -246,6 +273,7 @@ function openCreateDialog() {
     resetModelForm()
   } else if (props.activeTab === 'kb') {
     resetKbForm()
+    void loadKbAuthSummary()
   }
   dialogVisible.value = true
 }
@@ -278,6 +306,7 @@ function openEditDialog(card: PlatformCard) {
     kbForm.tagsText = (item.tags || []).join(', ')
     kbForm.enabled = item.enabled !== false
     kbForm.extJsonText = formatJsonText(item.extJson)
+    void loadKbAuthSummary(item.auth)
   }
 
   dialogVisible.value = true
@@ -838,6 +867,12 @@ watch(
           show-icon
           class="ai-platform-dialog-form__alert"
         />
+        <el-form-item label="认证配置">
+          <div class="ai-platform-dialog-form__auth">
+            <el-input :model-value="kbAuthSummary" readonly />
+            <span>认证由系统参数统一维护，保存知识库时会同步保留认证快照。</span>
+          </div>
+        </el-form-item>
         <el-form-item label="知识库编码" required>
           <el-input v-model="kbForm.kbCode" :disabled="dialogMode === 'edit'" placeholder="例如：faq" />
         </el-form-item>
