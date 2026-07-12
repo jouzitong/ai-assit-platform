@@ -16,7 +16,7 @@ public enum AiKnowledgeClientType implements IEnum {
     /** 阿里云百炼知识库客户端。 */
     BAILIAN(1, "百炼知识库客户端"),
     /** RAGFlow 知识库客户端。 */
-    RAGFLOW(2, "RAGFlow 知识库客户端");
+    RAGFLOW(2, "RAGFlow知识库");
 
     @JsonValue
     private final int code;

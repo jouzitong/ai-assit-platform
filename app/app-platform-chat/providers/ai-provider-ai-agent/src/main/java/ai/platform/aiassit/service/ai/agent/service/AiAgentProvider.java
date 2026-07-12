@@ -12,7 +12,10 @@ import ai.platform.aiassit.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.service.ai.spi.AiChatService;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
+import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderModel;
+import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderModelListRequest;
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
@@ -20,7 +23,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.util.Iterator;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
@@ -30,15 +40,50 @@ public class AiAgentProvider implements AiChatService {
 
     private final AiAgentProperties properties;
     private final AiAgentProcessExecutor processExecutor;
+    private final ObjectMapper objectMapper;
+    private final HttpClient httpClient;
 
-    public AiAgentProvider(AiAgentProperties properties, AiAgentProcessExecutor processExecutor) {
+    public AiAgentProvider(AiAgentProperties properties,
+                           AiAgentProcessExecutor processExecutor,
+                           ObjectMapper objectMapper) {
         this.properties = properties;
         this.processExecutor = processExecutor;
+        this.objectMapper = objectMapper;
+        this.httpClient = HttpClient.newBuilder()
+                .connectTimeout(Duration.ofSeconds(10))
+                .build();
     }
 
     @Override
     public AiChatClientType chatClientType() {
         return AiChatClientType.AI_AGENT;
+    }
+
+    @Override
+    public List<ProviderModel> listModels(ProviderModelListRequest request) {
+        String baseUrl = resolveValue(request == null ? null : request.getBaseUrl(), properties.getBaseUrl());
+        String apiKey = resolveValue(request == null ? null : request.getApiKey(), properties.getApiKey());
+        if (!StringUtils.hasText(apiKey)) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
+        }
+        try {
+            HttpRequest httpRequest = HttpRequest.newBuilder()
+                    .uri(URI.create(resolveModelsUrl(baseUrl)))
+                    .timeout(resolveTimeout(request == null ? null : request.getTimeoutMs()))
+                    .header("Authorization", "Bearer " + apiKey)
+                    .GET()
+                    .build();
+            HttpResponse<String> response = httpClient.send(httpRequest, HttpResponse.BodyHandlers.ofString());
+            if (response.statusCode() < 200 || response.statusCode() >= 300) {
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                        response.statusCode() + " " + extractErrorMessage(response.body()));
+            }
+            return toProviderModels(response.body());
+        } catch (BizException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, ex.getMessage());
+        }
     }
 
     @Override
@@ -211,5 +256,66 @@ public class AiAgentProvider implements AiChatService {
 
     private int intValue(JsonNode node) {
         return node == null || node.isNull() ? 0 : node.asInt();
+    }
+
+    private List<ProviderModel> toProviderModels(String responseBody) throws Exception {
+        JsonNode data = objectMapper.readTree(responseBody).path("data");
+        if (!data.isArray()) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "models response missing data array");
+        }
+        List<ProviderModel> models = new ArrayList<>();
+        for (JsonNode item : data) {
+            if (!item.isObject() || !StringUtils.hasText(item.path("id").asText())) {
+                continue;
+            }
+            ProviderModel model = new ProviderModel();
+            model.setId(item.path("id").asText());
+            model.setObject(item.path("object").asText(null));
+            model.setCreated(item.hasNonNull("created") ? item.get("created").asLong() : null);
+            model.setOwnedBy(item.path("owned_by").asText(null));
+            models.add(model);
+        }
+        return models;
+    }
+
+    private String resolveModelsUrl(String baseUrl) {
+        String normalized = StringUtils.hasText(baseUrl) ? baseUrl.trim() : "https://api.openai.com/v1";
+        while (normalized.endsWith("/")) {
+            normalized = normalized.substring(0, normalized.length() - 1);
+        }
+        if (normalized.endsWith("/models")) {
+            return normalized;
+        }
+        if (normalized.endsWith("/v1")) {
+            return normalized + "/models";
+        }
+        return normalized + "/v1/models";
+    }
+
+    private Duration resolveTimeout(Integer requestTimeoutMs) {
+        Integer timeoutMs = requestTimeoutMs != null && requestTimeoutMs > 0
+                ? requestTimeoutMs
+                : properties.getTimeoutMs();
+        return Duration.ofMillis(timeoutMs != null && timeoutMs > 0 ? timeoutMs : 60000L);
+    }
+
+    private String resolveValue(String requestedValue, String defaultValue) {
+        return StringUtils.hasText(requestedValue) ? requestedValue.trim() : defaultValue;
+    }
+
+    private String extractErrorMessage(String responseBody) {
+        if (!StringUtils.hasText(responseBody)) {
+            return "";
+        }
+        try {
+            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode message = root.path("error").path("message");
+            if (!message.isTextual()) {
+                message = root.path("message");
+            }
+            return message.isTextual() ? message.asText() : responseBody;
+        } catch (Exception ignored) {
+            return responseBody;
+        }
     }
 }

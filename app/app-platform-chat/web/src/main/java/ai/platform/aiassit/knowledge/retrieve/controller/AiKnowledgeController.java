@@ -4,6 +4,8 @@ import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
@@ -11,19 +13,25 @@ import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeManageDomainService;
+import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeDatasetService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
+
+import java.util.List;
 
 @RestController
 public class AiKnowledgeController implements AiKnowledgeApi {
 
     private final AiKnowledgeManageDomainService domainService;
+    private final AiKnowledgeDatasetService datasetService;
     private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
 
     public AiKnowledgeController(AiKnowledgeManageDomainService domainService,
+                                 AiKnowledgeDatasetService datasetService,
                                  AiKnowledgeExecutionService aiKnowledgeExecutionService) {
         this.domainService = domainService;
+        this.datasetService = datasetService;
         this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
     }
 
@@ -40,6 +48,11 @@ public class AiKnowledgeController implements AiKnowledgeApi {
     @Override
     public R<String> getKbId(@RequestBody(required = false) AiKbListRequest request) {
         return R.ok(domainService.getKbId(request));
+    }
+
+    @Override
+    public R<List<AiKbDatasetDTO>> listDatasets(@RequestBody(required = false) AiKbDatasetListRequest request) {
+        return R.ok(datasetService.listDatasets(request));
     }
 
     @Override

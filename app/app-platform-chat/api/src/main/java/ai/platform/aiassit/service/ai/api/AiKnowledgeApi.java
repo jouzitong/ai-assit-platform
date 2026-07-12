@@ -2,6 +2,8 @@ package ai.platform.aiassit.service.ai.api;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
@@ -13,6 +15,8 @@ import org.athena.framework.web.vo.R;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+
+import java.util.List;
 
 /**
  * AI 知识库 API（HTTP/Feign）。
@@ -56,6 +60,14 @@ public interface AiKnowledgeApi {
      */
     @PostMapping("/internal/v1/ai/kb/id")
     R<String> getKbId(@RequestBody(required = false) AiKbListRequest request);
+
+    /**
+     * 查询知识库提供方侧的 Dataset 列表。
+     *
+     * <p>返回项中的 {@code kbId} 即 RAGFlow Dataset ID，可用于后续文档写入与检索。</p>
+     */
+    @PostMapping("/internal/v1/ai/kb/dataset/list")
+    R<List<AiKbDatasetDTO>> listDatasets(@RequestBody(required = false) AiKbDatasetListRequest request);
 
     @PostMapping("/api/v1/ai/execution/kb/delete")
     @IgnoredResultWrapper

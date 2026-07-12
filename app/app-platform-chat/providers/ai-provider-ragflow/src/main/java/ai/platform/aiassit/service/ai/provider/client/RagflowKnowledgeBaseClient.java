@@ -3,6 +3,9 @@ package ai.platform.aiassit.service.ai.provider.client;
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
+import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -15,9 +18,11 @@ import org.springframework.util.StringUtils;
 
 import java.io.IOException;
 import java.net.URI;
+import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -121,6 +126,32 @@ public class RagflowKnowledgeBaseClient {
         return items;
     }
 
+    /** 查询 RAGFlow Dataset 列表，Dataset ID 即业务侧使用的 kbId。 */
+    public List<AiKbDatasetDTO> listDatasets(AiKbDatasetListRequest request) throws Exception {
+        AiKbDatasetListRequest normalized = request == null ? new AiKbDatasetListRequest() : request;
+        int page = normalized.getPage() == null || normalized.getPage() <= 0 ? 1 : normalized.getPage();
+        int pageSize = normalized.getPageSize() == null || normalized.getPageSize() <= 0
+                ? 30 : normalized.getPageSize();
+        StringBuilder path = new StringBuilder("/api/v1/datasets?page=")
+                .append(page)
+                .append("&page_size=")
+                .append(pageSize)
+                .append("&include_parsing_status=")
+                .append(Boolean.TRUE.equals(normalized.getIncludeParsingStatus()));
+        if (StringUtils.hasText(normalized.getName())) {
+            path.append("&name=").append(URLEncoder.encode(normalized.getName().trim(), StandardCharsets.UTF_8));
+        }
+        JsonNode data = data(request("GET", path.toString(), null, normalized.getMeta()));
+        JsonNode datasets = datasetItems(data);
+        List<AiKbDatasetDTO> result = new ArrayList<>();
+        for (JsonNode dataset : datasets) {
+            if (dataset.isObject()) {
+                result.add(toDataset(dataset));
+            }
+        }
+        return result;
+    }
+
     private String createEmptyDocument(String datasetId, KbDocument document, RequestMeta meta) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", documentName(document));
@@ -202,6 +233,46 @@ public class RagflowKnowledgeBaseClient {
         }
         item.setMetadata(metadata);
         return item;
+    }
+
+    private JsonNode datasetItems(JsonNode data) {
+        if (data != null && data.isArray()) {
+            return data;
+        }
+        if (data != null && data.isObject()) {
+            for (String field : List.of("datasets", "list", "items")) {
+                JsonNode items = data.get(field);
+                if (items != null && items.isArray()) {
+                    return items;
+                }
+            }
+        }
+        return objectMapper.createArrayNode();
+    }
+
+    private AiKbDatasetDTO toDataset(JsonNode dataset) {
+        AiKbDatasetDTO result = new AiKbDatasetDTO();
+        result.setKbId(firstText(dataset, "id", "dataset_id", "datasetId"));
+        result.setKbName(firstText(dataset, "name", "dataset_name", "datasetName"));
+        result.setClientType(AiKnowledgeClientType.RAGFLOW);
+        result.setDescription(firstText(dataset, "description"));
+        result.setEmbeddingModel(firstText(dataset, "embedding_model", "embeddingModel"));
+        result.setChunkMethod(firstText(dataset, "chunk_method", "chunkMethod"));
+        result.setPermission(firstText(dataset, "permission"));
+        result.setDocumentCount(integerField(dataset, "document_count", "documentCount"));
+        result.setChunkCount(integerField(dataset, "chunk_count", "chunkCount"));
+        result.setExt(objectMapper.convertValue(dataset, new TypeReference<LinkedHashMap<String, Object>>() { }));
+        return result;
+    }
+
+    private Integer integerField(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.get(field);
+            if (value != null && value.canConvertToInt()) {
+                return value.intValue();
+            }
+        }
+        return null;
     }
 
     private String resolveBaseUrl(RequestMeta meta) {

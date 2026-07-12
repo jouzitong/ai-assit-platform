@@ -102,7 +102,7 @@ const chatClientTypeOptions = [
 
 const knowledgeClientTypeOptions = [
   { value: 1, label: '百炼知识库客户端' },
-  { value: 2, label: 'Rawflow 知识库客户端（暂未实现）' },
+  { value: 2, label: 'Rawflow 知识库客户端' },
 ]
 
 function resolveChatClientTypeName(clientType?: number) {
@@ -1082,6 +1082,7 @@ watch(
 
 .ai-platform-card {
   display: grid;
+  min-width: 0;
   gap: 10px;
   padding: 14px;
   border: 1px solid var(--system-border);
@@ -1105,16 +1106,24 @@ watch(
   gap: 12px;
 }
 
+.ai-platform-card__head > :first-child,
+.ai-platform-card__tags,
+.ai-platform-card__meta-item {
+  min-width: 0;
+}
+
 .ai-platform-card__head h3 {
   margin: 0;
   color: var(--system-title);
   font-size: 15px;
+  overflow-wrap: anywhere;
 }
 
 .ai-platform-card__head p {
   margin: 4px 0 0;
   color: var(--system-text-soft);
   font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .ai-platform-card__tags {
@@ -1124,11 +1133,20 @@ watch(
   gap: 6px;
 }
 
+.ai-platform-card__tags :deep(.el-tag) {
+  box-sizing: border-box;
+  max-width: 100%;
+  min-height: 24px;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .ai-platform-card__summary {
   color: var(--system-text);
   font-size: 13px;
   line-height: 1.6;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .ai-platform-card__meta {
@@ -1150,7 +1168,7 @@ watch(
 .ai-platform-card__meta-item strong {
   color: var(--system-title);
   font-size: 12px;
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .ai-platform-card__actions {

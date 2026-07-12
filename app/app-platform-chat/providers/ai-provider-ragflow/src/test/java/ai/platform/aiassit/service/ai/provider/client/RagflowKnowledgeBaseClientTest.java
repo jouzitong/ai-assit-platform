@@ -1,6 +1,8 @@
 package ai.platform.aiassit.service.ai.provider.client;
 
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
@@ -33,6 +35,7 @@ class RagflowKnowledgeBaseClientTest {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/v1/datasets/dataset-1/documents", this::handleDocuments);
         server.createContext("/api/v1/datasets/dataset-1/documents/doc-1/chunks", this::handleChunks);
+        server.createContext("/api/v1/datasets", this::handleDatasets);
         server.createContext("/api/v1/retrieval", this::handleRetrieval);
         server.start();
 
@@ -73,6 +76,24 @@ class RagflowKnowledgeBaseClientTest {
         assertEquals(1, deleteCalls.get());
     }
 
+    @Test
+    void shouldListDatasetsAndExposeDatasetIdAsKbId() throws Exception {
+        AiKbDatasetListRequest request = new AiKbDatasetListRequest();
+        request.setPage(2);
+        request.setPageSize(10);
+        request.setName("销售 知识库");
+
+        List<AiKbDatasetDTO> datasets = client.listDatasets(request);
+
+        assertEquals(1, datasets.size());
+        AiKbDatasetDTO dataset = datasets.get(0);
+        assertEquals("dataset-1", dataset.getKbId());
+        assertEquals("销售知识库", dataset.getKbName());
+        assertEquals(2, dataset.getDocumentCount());
+        assertEquals(8, dataset.getChunkCount());
+        assertEquals("RAGFlow 对外知识库", dataset.getDescription());
+    }
+
     private void handleDocuments(HttpExchange exchange) throws IOException {
         assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
         if ("POST".equals(exchange.getRequestMethod())) {
@@ -98,6 +119,17 @@ class RagflowKnowledgeBaseClientTest {
     private void handleRetrieval(HttpExchange exchange) throws IOException {
         assertEquals("POST", exchange.getRequestMethod());
         respond(exchange, 200, "{\"code\":0,\"data\":{\"chunks\":[{\"document_id\":\"doc-1\",\"content\":\"销售额定义\",\"similarity\":0.93,\"metadata\":{\"business\":\"sales\"}}]}}");
+    }
+
+    private void handleDatasets(HttpExchange exchange) throws IOException {
+        assertEquals("GET", exchange.getRequestMethod());
+        assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
+        String query = exchange.getRequestURI().getRawQuery();
+        assertTrue(query.contains("page=2"));
+        assertTrue(query.contains("page_size=10"));
+        assertTrue(query.contains("include_parsing_status=true"));
+        assertTrue(query.contains("name=%E9%94%80%E5%94%AE+%E7%9F%A5%E8%AF%86%E5%BA%93"));
+        respond(exchange, 200, "{\"code\":0,\"data\":[{\"id\":\"dataset-1\",\"name\":\"销售知识库\",\"description\":\"RAGFlow 对外知识库\",\"embedding_model\":\"BAAI/bge-m3\",\"chunk_method\":\"naive\",\"permission\":\"team\",\"document_count\":2,\"chunk_count\":8}]}");
     }
 
     private void respond(HttpExchange exchange, int status, String body) throws IOException {
