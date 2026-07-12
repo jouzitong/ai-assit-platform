@@ -34,84 +34,150 @@ public class AiChatNodeEntity extends LogicalDeleteEntity {
     /**
      * 节点编码。
      */
-    @JdbcColumn(name = "code", unique = true, comment = "节点编码。")
+    @JdbcColumn(
+            name = "code",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            unique = true,
+            comment = "节点编码。"
+    )
     @TableField("code")
     private String code;
 
     /**
      * 节点名称。
      */
-    @JdbcColumn(name = "name", comment = "节点名称。")
+    @JdbcColumn(
+            name = "name",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "节点名称。"
+    )
     @TableField("name")
     private String name;
 
     /**
      * 节点说明。
      */
-    @JdbcColumn(name = "desc", comment = "节点说明。")
+    @JdbcColumn(
+            name = "desc",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "节点说明。"
+    )
     @TableField("`desc`")
     private String desc;
 
     /**
      * AI 执行类型。
      */
-    @JdbcColumn(name = "execute_type", comment = "AI 执行类型。")
+    @JdbcColumn(
+            name = "execute_type",
+            dataType = "INT",
+            nullable = true,
+            comment = "AI 执行类型。"
+    )
     @TableField("execute_type")
     private AiExecuteType executeType;
 
     /**
      * 指定执行模型编码。
      */
-    @JdbcColumn(name = "model_code", comment = "指定执行模型编码。")
+    @JdbcColumn(
+            name = "model_code",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "指定执行模型编码。"
+    )
     @TableField("model_code")
     private String modelCode;
 
     /**
      * 关联 skill 编码列表。
      */
-    @JdbcColumn(name = "skill_refs", comment = "关联 skill 编码列表。")
+    @JdbcColumn(
+            name = "skill_refs",
+            dataType = "JSON",
+            nullable = true,
+            comment = "关联 skill 编码列表。"
+    )
     @TableField(value = "skill_refs", typeHandler = JacksonTypeHandler.class)
     private List<String> skillRefs = new ArrayList<>();
 
     /**
      * 关联 tool 编码列表。
      */
-    @JdbcColumn(name = "tool_refs", comment = "关联 tool 编码列表。")
+    @JdbcColumn(
+            name = "tool_refs",
+            dataType = "JSON",
+            nullable = true,
+            comment = "关联 tool 编码列表。"
+    )
     @TableField(value = "tool_refs", typeHandler = JacksonTypeHandler.class)
     private List<String> toolRefs = new ArrayList<>();
 
     /**
      * 关联知识库编码列表。
      */
-    @JdbcColumn(name = "kb_refs", comment = "关联知识库编码列表。")
+    @JdbcColumn(
+            name = "kb_refs",
+            dataType = "JSON",
+            nullable = true,
+            comment = "关联知识库编码列表。"
+    )
     @TableField(value = "kb_refs", typeHandler = JacksonTypeHandler.class)
     private List<String> kbRefs = new ArrayList<>();
 
     /**
      * 输入消息配置。
      */
-    @JdbcColumn(name = "input_config", comment = "输入消息配置。")
+    @JdbcColumn(
+            name = "input_config",
+            dataType = "JSON",
+            nullable = true,
+            comment = "输入消息配置。"
+    )
     @TableField(value = "input_config", typeHandler = JacksonTypeHandler.class)
     private List<AiNodeMessageConfig> inputConfig = new ArrayList<>();
 
     /**
      * 输出配置。
      */
-    @JdbcColumn(name = "output_config", comment = "输出配置。")
+    @JdbcColumn(
+            name = "output_config",
+            dataType = "JSON",
+            nullable = true,
+            comment = "输出配置。"
+    )
     @TableField(value = "output_config", typeHandler = JacksonTypeHandler.class)
     private AiNodeOutputConfig outputConfig;
 
     /**
      * 是否启用。
      */
-    @JdbcColumn(name = "enabled", comment = "是否启用。")
+    @JdbcColumn(
+            name = "enabled",
+            dataType = "BOOLEAN",
+            nullable = true,
+            comment = "是否启用。"
+    )
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
     /**
      * 备注。
      */
-    @JdbcColumn(name = "remark", comment = "备注。")
+    @JdbcColumn(
+            name = "remark",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "备注。"
+    )
     @TableField("remark")
     private String remark;
 }

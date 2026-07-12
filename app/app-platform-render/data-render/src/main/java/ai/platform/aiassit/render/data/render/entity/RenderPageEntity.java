@@ -24,22 +24,47 @@ import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 public class RenderPageEntity extends AuditableEntity {
 
     /** 页面编码。 */
-    @JdbcColumn(name = "code", unique = true, comment = "页面编码。")
+    @JdbcColumn(
+            name = "code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
+            comment = "页面编码"
+    )
     @TableField("code")
     private String code;
 
     /** 页面名称。 */
-    @JdbcColumn(name = "name", comment = "页面名称。")
+    @JdbcColumn(
+            name = "name",
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = false,
+            comment = "页面名称"
+    )
     @TableField("name")
     private String name;
 
     /** 所属分类编码，可为空。 */
-    @JdbcColumn(name = "category_code", comment = "所属分类编码，可为空。")
+    @JdbcColumn(
+            name = "category_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = true,
+            comment = "所属分类编码，可为空"
+    )
     @TableField("category_code")
     private String categoryCode;
 
     /** 页面状态。 */
-    @JdbcColumn(name = "status", comment = "页面状态。")
+    @JdbcColumn(
+            name = "status",
+            dataType = "TINYINT",
+            nullable = false,
+            defaultValue = "1",
+            comment = "页面状态"
+    )
     @TableField(value = "status", typeHandler = DefaultEnumTypeHandler.class)
     private EffectiveStatus status;
 }

@@ -3,7 +3,10 @@ import { getBackendService, SERVICE_NAMES } from '../../../config/services'
 import type {
   ChatConversationDetailPayload,
   ChatConversationDetailResponse,
+  ChatConversationDeletePayload,
+  ChatConversationPinPayload,
   ChatConversationQueryPayload,
+  ChatConversationRenamePayload,
   ChatEnabledModel,
   ChatQueryPayload,
   ChatSessionItem,
@@ -16,6 +19,27 @@ const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
 
 export function fetchConversationList(payload: ChatConversationQueryPayload = {}) {
   return request<ChatSessionItem[]>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/list`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function renameConversation(payload: ChatConversationRenamePayload) {
+  return request<ChatSessionItem>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/rename`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function pinConversation(payload: ChatConversationPinPayload) {
+  return request<ChatSessionItem>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/pin`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteConversation(payload: ChatConversationDeletePayload) {
+  return request<boolean>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/delete`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

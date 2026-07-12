@@ -22,6 +22,7 @@ import {
   Setting,
   SwitchButton,
 } from '@element-plus/icons-vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import brandLogo from '../../../assets/icons/brand-logo.svg'
@@ -29,11 +30,15 @@ import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
 import { clearSession, getStoredUser } from '../../../utils/session'
+import { renderMarkdown } from '../utils/markdown'
 import {
   fetchConversationDetail,
   fetchConversationList,
   fetchEnabledModels,
   createChatTransportRequest,
+  deleteConversation,
+  pinConversation,
+  renameConversation,
   streamChatTransport,
 } from '../api'
 import type {
@@ -75,6 +80,11 @@ const isStreaming = ref(false)
 const conversationError = ref('')
 const currentRunId = ref('')
 const lastEventId = ref('')
+const renameDialogVisible = ref(false)
+const renameSubmitting = ref(false)
+const renamingConversation = ref<ChatSessionItem | null>(null)
+const renameSessionName = ref('')
+const openConversationMenuCode = ref('')
 const welcomeTextarea = useTemplateRef<HTMLTextAreaElement>('welcomeTextarea')
 const conversationTextarea = useTemplateRef<HTMLTextAreaElement>('conversationTextarea')
 
@@ -132,11 +142,14 @@ const selectedModelLabel = computed(() => {
   return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || selectedModel.value || '选择模型'
 })
 const pinnedConversations = computed(() =>
-  conversationList.value.map((conversation) => ({
-    id: conversation.sessionCode,
-    title: conversation.sessionName || conversation.sessionCode,
-    meta: formatRelativeTime(conversation.updateTime) || (conversation.pinned ? '置顶' : conversation.sessionCode.slice(-6)),
-  })),
+  [...conversationList.value]
+    .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)))
+    .map((conversation) => ({
+      ...conversation,
+      id: conversation.sessionCode,
+      title: conversation.sessionName || conversation.sessionCode,
+      meta: formatRelativeTime(conversation.updateTime) || (conversation.pinned ? '置顶' : conversation.sessionCode.slice(-6)),
+    })),
 )
 
 function resizeTextarea(element: HTMLTextAreaElement | null) {
@@ -209,6 +222,111 @@ async function loadConversationList() {
   } finally {
     isLoadingList.value = false
   }
+}
+
+function applyConversationUpdate(updated: ChatSessionItem) {
+  conversationList.value = conversationList.value
+    .map((conversation) => conversation.sessionCode === updated.sessionCode ? updated : conversation)
+    .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)))
+
+  if (currentSessionCode.value === updated.sessionCode) {
+    currentSessionName.value = updated.sessionName || currentSessionName.value
+  }
+}
+
+function openRenameConversation(conversation: ChatSessionItem) {
+  renamingConversation.value = conversation
+  renameSessionName.value = conversation.sessionName || ''
+  renameDialogVisible.value = true
+}
+
+function resetRenameConversation() {
+  renamingConversation.value = null
+  renameSessionName.value = ''
+}
+
+async function submitRenameConversation() {
+  const conversation = renamingConversation.value
+  const sessionName = renameSessionName.value.trim()
+  if (!conversation) {
+    return
+  }
+  if (!sessionName) {
+    ElMessage.warning('请输入会话名称')
+    return
+  }
+
+  renameSubmitting.value = true
+  try {
+    const updated = await renameConversation({
+      sessionCode: conversation.sessionCode,
+      sessionName,
+    })
+    applyConversationUpdate(updated)
+    renameDialogVisible.value = false
+    ElMessage.success('会话已重命名')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '重命名会话失败')
+  } finally {
+    renameSubmitting.value = false
+  }
+}
+
+async function toggleConversationPin(conversation: ChatSessionItem) {
+  try {
+    const updated = await pinConversation({
+      sessionCode: conversation.sessionCode,
+      pinned: !conversation.pinned,
+    })
+    applyConversationUpdate(updated)
+    ElMessage.success(updated.pinned ? '会话已置顶' : '已取消置顶')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '更新会话置顶状态失败')
+  }
+}
+
+async function removeConversation(conversation: ChatSessionItem) {
+  try {
+    await ElMessageBox.confirm(`确定删除会话“${conversation.sessionName || conversation.sessionCode}”吗？此操作不可恢复。`, '删除会话', {
+      type: 'warning',
+      confirmButtonText: '删除',
+      cancelButtonText: '取消',
+    })
+    await deleteConversation({ sessionCode: conversation.sessionCode })
+    conversationList.value = conversationList.value.filter((item) => item.sessionCode !== conversation.sessionCode)
+    ElMessage.success('会话已删除')
+    if (currentSessionCode.value === conversation.sessionCode) {
+      await router.replace('/')
+    }
+  } catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    ElMessage.error(error instanceof Error ? error.message : '删除会话失败')
+  }
+}
+
+function handleConversationCommand(command: string, conversation: ChatSessionItem) {
+  closeConversationMenu()
+  if (command === 'rename') {
+    openRenameConversation(conversation)
+    return
+  }
+  if (command === 'pin') {
+    void toggleConversationPin(conversation)
+    return
+  }
+  if (command === 'delete') {
+    void removeConversation(conversation)
+  }
+}
+
+function toggleConversationMenu(sessionCode: string) {
+  openConversationMenuCode.value = openConversationMenuCode.value === sessionCode ? '' : sessionCode
+}
+
+function closeConversationMenu() {
+  openConversationMenuCode.value = ''
 }
 
 async function loadEnabledModelList() {
@@ -413,7 +531,7 @@ async function handleLogout() {
 }
 
 function handleDocumentClick(event: MouseEvent) {
-  if (!activeUserMenu.value) {
+  if (!activeUserMenu.value && !openConversationMenuCode.value) {
     return
   }
 
@@ -426,7 +544,12 @@ function handleDocumentClick(event: MouseEvent) {
     return
   }
 
+  if (target instanceof Element && target.closest('.chat-home-thread-wrap')) {
+    return
+  }
+
   closeUserMenu()
+  closeConversationMenu()
 }
 
 onMounted(() => {
@@ -517,35 +640,46 @@ watch(route, () => {
         </div>
       </div>
 
-      <div v-if="sidebarExpanded" class="chat-home-sidebar__section">
+      <div v-if="sidebarExpanded" class="chat-home-sidebar__section chat-home-sidebar__section--conversations">
         <div class="chat-home-sidebar__header"><span>分组</span></div>
         <div class="chat-home-group-label">对话</div>
         <div class="chat-home-group-label chat-home-group-label--muted">
           {{ isLoadingList ? '加载中...' : `共 ${pinnedConversations.length} 个会话` }}
         </div>
 
-        <button
+        <div
           v-for="conversation in pinnedConversations"
           :key="conversation.id"
-          :class="['chat-home-thread', { 'is-current': activeConversation === conversation.id }]"
-          type="button"
-          @click="router.push(`/c/${conversation.id}`)"
+          class="chat-home-thread-wrap"
         >
-          <div class="chat-home-thread__leading">
-            <div class="chat-home-thread__copy">
-              <strong>{{ conversation.title }}</strong>
-            </div>
-          </div>
-          <span class="chat-home-thread__meta">{{ conversation.meta }}</span>
           <button
-            v-if="activeConversation === conversation.id"
+            :class="['chat-home-thread', { 'is-current': activeConversation === conversation.id }]"
+            type="button"
+            @click="router.push(`/c/${conversation.id}`)"
+          >
+            <div class="chat-home-thread__leading">
+              <div class="chat-home-thread__copy">
+                <strong>{{ conversation.title }}</strong>
+              </div>
+            </div>
+            <span class="chat-home-thread__meta">{{ conversation.meta }}</span>
+          </button>
+          <button
             class="chat-home-thread__more"
             type="button"
-            aria-label="More"
+            aria-label="会话操作"
+            @click.stop="toggleConversationMenu(conversation.id)"
           >
             <el-icon><MoreFilled /></el-icon>
           </button>
-        </button>
+          <div v-if="openConversationMenuCode === conversation.id" class="chat-home-thread__action-menu" @click.stop>
+            <button type="button" @click="handleConversationCommand('pin', conversation)">
+              {{ conversation.pinned ? '取消置顶' : '置顶' }}
+            </button>
+            <button type="button" @click="handleConversationCommand('rename', conversation)">重命名</button>
+            <button class="is-danger" type="button" @click="handleConversationCommand('delete', conversation)">删除</button>
+          </div>
+        </div>
 
         <div v-if="!isLoadingList && pinnedConversations.length === 0" class="chat-home-thread-empty">
           暂无会话
@@ -833,7 +967,11 @@ watch(route, () => {
                   <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">AI</div>
                   <div class="chat-home-message__assistant-copy">
                     <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
-                    <div class="chat-home-message__assistant-text">{{ message.content }}</div>
+                    <div
+                      v-if="message.content"
+                      class="chat-home-message__assistant-text"
+                      v-html="renderMarkdown(message.content)"
+                    ></div>
                   </div>
                 </div>
               </template>
@@ -876,6 +1014,20 @@ watch(route, () => {
       </section>
     </main>
   </div>
+
+  <el-dialog v-model="renameDialogVisible" title="重命名会话" width="420px" @closed="resetRenameConversation">
+    <el-input
+      v-model="renameSessionName"
+      maxlength="100"
+      show-word-limit
+      autofocus
+      @keyup.enter="submitRenameConversation"
+    />
+    <template #footer>
+      <el-button @click="renameDialogVisible = false">取消</el-button>
+      <el-button type="primary" :loading="renameSubmitting" @click="submitRenameConversation">保存</el-button>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped lang="scss">

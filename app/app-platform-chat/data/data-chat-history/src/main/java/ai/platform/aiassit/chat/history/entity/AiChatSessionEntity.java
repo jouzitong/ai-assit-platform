@@ -26,35 +26,65 @@ public class AiChatSessionEntity extends LogicalDeleteEntity {
     /**
      * 会话唯一编码。
      */
-    @JdbcColumn(name = "session_code", unique = true, comment = "会话唯一编码。")
+    @JdbcColumn(
+            name = "session_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
+            comment = "会话编码"
+    )
     @TableField("session_code")
     private String sessionCode;
 
     /**
      * 用户 ID，用于标识该会话所属的用户。
      */
-    @JdbcColumn(name = "user_id", comment = "用户 ID，用于标识该会话所属的用户。")
+    @JdbcColumn(
+            name = "user_id",
+            dataType = "BIGINT",
+            nullable = false,
+            defaultValue = "0",
+            comment = "用户ID"
+    )
     @TableField("user_id")
     private Long userId;
 
     /**
      * 业务类型，用于区分不同业务场景下的 AI 对话，例如普通对话、智能问数、流程编排等。
      */
-    @JdbcColumn(name = "business_type", comment = "业务类型，用于区分不同业务场景下的 AI 对话，例如普通对话、智能问数、流程编排等。")
+    @JdbcColumn(
+            name = "business_type",
+            dataType = "INT",
+            nullable = true,
+            comment = "业务类型"
+    )
     @TableField("business_type")
     private AiChatBusinessType businessType;
 
     /**
      * 会话名称，通常用于前端展示会话标题。
      */
-    @JdbcColumn(name = "session_name", comment = "会话名称，通常用于前端展示会话标题。")
+    @JdbcColumn(
+            name = "session_name",
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = true,
+            comment = "会话名称"
+    )
     @TableField("session_name")
     private String sessionName;
 
     /**
      * 是否置顶。
      */
-    @JdbcColumn(name = "pinned", comment = "是否置顶。")
+    @JdbcColumn(
+            name = "pinned",
+            dataType = "TINYINT",
+            nullable = false,
+            defaultValue = "0",
+            comment = "是否置顶"
+    )
     @TableField("pinned")
     private Boolean pinned = Boolean.FALSE;
 }

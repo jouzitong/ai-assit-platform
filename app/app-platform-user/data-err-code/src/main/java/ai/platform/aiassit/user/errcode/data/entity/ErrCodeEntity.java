@@ -16,19 +16,43 @@ import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 @TableName("err_code")
 public class ErrCodeEntity extends AuditableEntity {
 
-    @JdbcColumn(name = "code", unique = true, comment = "错误码")
+    @JdbcColumn(
+            name = "code",
+            dataType = "INT",
+            nullable = false,
+            unique = true,
+            comment = "错误码"
+    )
     @TableField("code")
     private Integer code;
 
-    @JdbcColumn(name = "http_status", comment = "HTTP 状态码")
+    @JdbcColumn(
+            name = "http_status",
+            dataType = "INT",
+            nullable = false,
+            defaultValue = "200",
+            comment = "HTTP状态码"
+    )
     @TableField("http_status")
     private Integer httpStatus;
 
-    @JdbcColumn(name = "description", comment = "描述")
+    @JdbcColumn(
+            name = "description",
+            dataType = "VARCHAR(512)",
+            length = 512,
+            nullable = true,
+            comment = "错误说明"
+    )
     @TableField("description")
     private String description;
 
-    @JdbcColumn(name = "tags", comment = "标签")
+    @JdbcColumn(
+            name = "tags",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "标签，逗号分隔"
+    )
     @TableField("tags")
     private String tags;
 }

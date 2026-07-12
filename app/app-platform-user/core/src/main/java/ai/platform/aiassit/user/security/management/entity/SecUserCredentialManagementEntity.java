@@ -14,23 +14,52 @@ public class SecUserCredentialManagementEntity implements IEntity {
     @Id
     private Long id;
 
-    @JdbcColumn(name = "user_id", comment = "用户 ID")
+    @JdbcColumn(
+            name = "user_id",
+            dataType = "BIGINT",
+            nullable = true,
+            comment = "用户 ID"
+    )
     @TableField("user_id")
     private Long userId;
 
-    @JdbcColumn(name = "credential_type", comment = "凭证类型")
+    @JdbcColumn(
+            name = "credential_type",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "凭证类型"
+    )
     @TableField("credential_type")
     private String credentialType;
 
-    @JdbcColumn(name = "password_hash", comment = "密码哈希")
+    @JdbcColumn(
+            name = "password_hash",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "密码哈希"
+    )
     @TableField("password_hash")
     private String passwordHash;
 
-    @JdbcColumn(name = "password_algo", comment = "密码算法")
+    @JdbcColumn(
+            name = "password_algo",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "密码算法"
+    )
     @TableField("password_algo")
     private String passwordAlgo;
 
-    @JdbcColumn(name = "password_salt", comment = "密码盐")
+    @JdbcColumn(
+            name = "password_salt",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "密码盐"
+    )
     @TableField("password_salt")
     private String passwordSalt;
 }

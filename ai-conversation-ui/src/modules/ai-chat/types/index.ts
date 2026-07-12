@@ -12,6 +12,20 @@ export interface ChatConversationQueryPayload {
   businessType?: number
 }
 
+export interface ChatConversationRenamePayload {
+  sessionCode: string
+  sessionName: string
+}
+
+export interface ChatConversationPinPayload {
+  sessionCode: string
+  pinned: boolean
+}
+
+export interface ChatConversationDeletePayload {
+  sessionCode: string
+}
+
 export interface ChatConversationDetailPayload {
   sessionCode: string
 }

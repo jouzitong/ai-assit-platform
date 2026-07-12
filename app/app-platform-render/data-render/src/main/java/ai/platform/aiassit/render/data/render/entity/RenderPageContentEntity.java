@@ -25,12 +25,24 @@ import java.util.Map;
 public class RenderPageContentEntity extends AuditableEntity {
 
     /** 页面编码。 */
-    @JdbcColumn(name = "page_code", unique = true, comment = "页面编码。")
+    @JdbcColumn(
+            name = "page_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
+            comment = "页面编码"
+    )
     @TableField("page_code")
     private String pageCode;
 
     /** 当前页面 JSON 内容。 */
-    @JdbcColumn(name = "content", comment = "当前页面 JSON 内容。")
+    @JdbcColumn(
+            name = "content",
+            dataType = "MEDIUMTEXT",
+            nullable = false,
+            comment = "当前页面JSON内容"
+    )
     @TableField(value = "content", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> content;
 }

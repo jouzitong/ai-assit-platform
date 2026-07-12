@@ -19,23 +19,54 @@ import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 @TableName("system_settings")
 public class SystemSettingEntity extends AuditableEntity {
 
-    @JdbcColumn(name = "setting_key", unique = true, comment = "配置键")
+    @JdbcColumn(
+            name = "setting_key",
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = false,
+            unique = true,
+            comment = "系统配置唯一键"
+    )
     @TableField("setting_key")
     private String settingKey;
 
-    @JdbcColumn(name = "description", comment = "描述")
+    @JdbcColumn(
+            name = "description",
+            dataType = "VARCHAR(512)",
+            length = 512,
+            nullable = true,
+            comment = "配置说明"
+    )
     @TableField("description")
     private String description;
 
-    @JdbcColumn(name = "setting_value", comment = "配置值")
+    @JdbcColumn(
+            name = "setting_value",
+            dataType = "TEXT",
+            nullable = true,
+            comment = "配置值"
+    )
     @TableField("setting_value")
     private String settingValue;
 
-    @JdbcColumn(name = "value_type", comment = "值类型")
+    @JdbcColumn(
+            name = "value_type",
+            dataType = "VARCHAR(32)",
+            length = 32,
+            nullable = false,
+            defaultValue = "'STRING'",
+            comment = "配置值类型"
+    )
     @TableField("value_type")
     private String valueType;
 
-    @JdbcColumn(name = "enabled", comment = "是否启用")
+    @JdbcColumn(
+            name = "enabled",
+            dataType = "BOOLEAN",
+            nullable = false,
+            defaultValue = "TRUE",
+            comment = "是否启用"
+    )
     @TableField("enabled")
     private Boolean enabled;
 }

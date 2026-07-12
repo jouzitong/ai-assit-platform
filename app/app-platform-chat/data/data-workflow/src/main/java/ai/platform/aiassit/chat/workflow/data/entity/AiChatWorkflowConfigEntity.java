@@ -29,35 +29,65 @@ public class AiChatWorkflowConfigEntity extends LogicalDeleteEntity {
     /**
      * 配置编码。
      */
-    @JdbcColumn(name = "code", unique = true, comment = "配置编码。")
+    @JdbcColumn(
+            name = "code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
+            comment = "配置编码"
+    )
     @TableField("code")
     private String code;
 
     /**
      * 所属流程编码。
      */
-    @JdbcColumn(name = "workflow_code", comment = "所属流程编码。")
+    @JdbcColumn(
+            name = "workflow_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            comment = "流程编码"
+    )
     @TableField("workflow_code")
     private String workflowCode;
 
     /**
      * 配置名称。
      */
-    @JdbcColumn(name = "name", comment = "配置名称。")
+    @JdbcColumn(
+            name = "name",
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = false,
+            comment = "配置名称"
+    )
     @TableField("name")
     private String name;
 
     /**
      * 是否启用。
      */
-    @JdbcColumn(name = "enabled", comment = "是否启用。")
+    @JdbcColumn(
+            name = "enabled",
+            dataType = "TINYINT",
+            nullable = false,
+            defaultValue = "1",
+            comment = "是否启用"
+    )
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
     /**
      * 流程级配置 JSON。
      */
-    @JdbcColumn(name = "config", comment = "流程级配置 JSON。")
+    @JdbcColumn(
+            name = "config",
+            dataType = "MEDIUMTEXT",
+            nullable = true,
+            comment = "流程运行配置JSON"
+    )
     @TableField(value = "config", typeHandler = JacksonTypeHandler.class)
     private WorkflowRuntimeConfig config;
 }

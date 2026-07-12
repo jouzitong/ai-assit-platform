@@ -30,49 +30,89 @@ public class AiChatWorkflowConfigNodeSkillEntity extends LogicalDeleteEntity {
     /**
      * 所属流程配置编码。
      */
-    @JdbcColumn(name = "config_code", comment = "所属流程配置编码。")
+    @JdbcColumn(
+            name = "config_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            comment = "流程配置编码"
+    )
     @TableField("config_code")
     private String configCode;
 
     /**
      * 所属节点编码。
      */
-    @JdbcColumn(name = "node_code", comment = "所属节点编码。")
+    @JdbcColumn(
+            name = "node_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            comment = "节点编码"
+    )
     @TableField("node_code")
     private String nodeCode;
 
     /**
      * Skill 编码。
      */
-    @JdbcColumn(name = "skill_code", comment = "Skill 编码。")
+    @JdbcColumn(
+            name = "skill_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            comment = "Skill编码"
+    )
     @TableField("skill_code")
     private String skillCode;
 
     /**
      * 挂接阶段，例如 BEFORE_EXECUTE/AFTER_EXECUTE/REVIEW_OUTPUT。
      */
-    @JdbcColumn(name = "phase", comment = "挂接阶段，例如 BEFORE_EXECUTE/AFTER_EXECUTE/REVIEW_OUTPUT。")
+    @JdbcColumn(
+            name = "phase",
+            dataType = "INT",
+            nullable = false,
+            comment = "挂接阶段"
+    )
     @TableField("phase")
     private WorkflowNodeSkillPhase phase;
 
     /**
      * 排序。
      */
-    @JdbcColumn(name = "sort", comment = "排序。")
+    @JdbcColumn(
+            name = "sort",
+            dataType = "INT",
+            nullable = false,
+            defaultValue = "1",
+            comment = "Skill顺序"
+    )
     @TableField("sort")
     private Integer sort;
 
     /**
      * 是否启用。
      */
-    @JdbcColumn(name = "enabled", comment = "是否启用。")
+    @JdbcColumn(
+            name = "enabled",
+            dataType = "TINYINT",
+            nullable = false,
+            defaultValue = "1",
+            comment = "是否启用"
+    )
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
     /**
      * 挂接配置 JSON。
      */
-    @JdbcColumn(name = "config", comment = "挂接配置 JSON。")
+    @JdbcColumn(
+            name = "config",
+            dataType = "MEDIUMTEXT",
+            nullable = true,
+            comment = "Skill挂接配置JSON"
+    )
     @TableField(value = "config", typeHandler = JacksonTypeHandler.class)
     private WorkflowNodeSkillRuntimeConfig config;
 }

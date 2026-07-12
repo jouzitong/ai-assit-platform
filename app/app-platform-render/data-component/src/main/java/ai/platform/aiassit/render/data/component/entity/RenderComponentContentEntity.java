@@ -22,17 +22,34 @@ import org.athena.framework.data.mybatis.entity.AuditableEntity;
 public class RenderComponentContentEntity extends AuditableEntity {
 
     /** 组件唯一标识。 */
-    @JdbcColumn(name = "component_key", unique = true, comment = "组件唯一标识")
+    @JdbcColumn(
+            name = "component_key",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
+            comment = "组件唯一标识"
+    )
     @TableField("component_key")
     private String componentKey;
 
     /** 组件说明文档。 */
-    @JdbcColumn(name = "doc_markdown", comment = "组件说明文档")
+    @JdbcColumn(
+            name = "doc_markdown",
+            dataType = "MEDIUMTEXT",
+            nullable = true,
+            comment = "组件说明文档"
+    )
     @TableField("doc_markdown")
     private String docMarkdown;
 
     /** 组件示例 JSON。 */
-    @JdbcColumn(name = "example_json", comment = "组件示例 JSON")
+    @JdbcColumn(
+            name = "example_json",
+            dataType = "MEDIUMTEXT",
+            nullable = true,
+            comment = "组件示例JSON"
+    )
     @TableField("example_json")
     private String exampleJson;
 }

@@ -14,15 +14,33 @@ public class SecRoleManagementEntity implements IEntity {
     @Id
     private Long id;
 
-    @JdbcColumn(name = "role_code", comment = "角色编码")
+    @JdbcColumn(
+            name = "role_code",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "角色编码"
+    )
     @TableField("role_code")
     private String roleCode;
 
-    @JdbcColumn(name = "role_name", comment = "角色名称")
+    @JdbcColumn(
+            name = "role_name",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "角色名称"
+    )
     @TableField("role_name")
     private String roleName;
 
-    @JdbcColumn(name = "status", comment = "状态")
+    @JdbcColumn(
+            name = "status",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "状态"
+    )
     @TableField("status")
     private String status;
 }

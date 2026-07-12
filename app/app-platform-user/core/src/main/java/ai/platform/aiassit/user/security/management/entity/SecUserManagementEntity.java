@@ -17,19 +17,43 @@ public class SecUserManagementEntity implements IEntity {
     @Id
     private Long id;
 
-    @JdbcColumn(name = "username", comment = "用户名")
+    @JdbcColumn(
+            name = "username",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "用户名"
+    )
     @TableField("username")
     private String username;
 
-    @JdbcColumn(name = "display_name", comment = "显示名称")
+    @JdbcColumn(
+            name = "display_name",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "显示名称"
+    )
     @TableField("display_name")
     private String displayName;
 
-    @JdbcColumn(name = "status", comment = "状态")
+    @JdbcColumn(
+            name = "status",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "状态"
+    )
     @TableField("status")
     private String status;
 
-    @JdbcColumn(name = "tenant_id", comment = "租户 ID")
+    @JdbcColumn(
+            name = "tenant_id",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "租户 ID"
+    )
     @TableField("tenant_id")
     private String tenantId;
 }

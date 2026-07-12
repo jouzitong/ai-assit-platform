@@ -22,6 +22,7 @@ import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Comparator;
@@ -116,6 +117,7 @@ public class DefaultConversationServiceImpl implements ConversationService {
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public Boolean deleteConversation(ConversationDeleteRequest request) {
         AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
                 request == null ? null : request.getUserId());

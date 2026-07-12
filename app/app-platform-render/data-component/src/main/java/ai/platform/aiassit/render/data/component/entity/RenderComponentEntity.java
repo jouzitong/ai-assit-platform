@@ -24,22 +24,47 @@ import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 public class RenderComponentEntity extends AuditableEntity {
 
     /** 组件唯一标识。 */
-    @JdbcColumn(name = "key", unique = true, comment = "组件唯一标识")
+    @JdbcColumn(
+            name = "key",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
+            comment = "组件唯一标识"
+    )
     @TableField("`key`")
     private String key;
 
     /** 组件名称。 */
-    @JdbcColumn(name = "name", comment = "组件名称")
+    @JdbcColumn(
+            name = "name",
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = false,
+            comment = "组件名称"
+    )
     @TableField("name")
     private String name;
 
     /** 组件分类。 */
-    @JdbcColumn(name = "category", comment = "组件分类")
+    @JdbcColumn(
+            name = "category",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = true,
+            comment = "组件分类"
+    )
     @TableField("category")
     private String category;
 
     /** 组件状态。 */
-    @JdbcColumn(name = "status", comment = "组件状态")
+    @JdbcColumn(
+            name = "status",
+            dataType = "TINYINT",
+            nullable = false,
+            defaultValue = "1",
+            comment = "组件状态"
+    )
     @TableField(value = "status", typeHandler = DefaultEnumTypeHandler.class)
     private EffectiveStatus status;
 }

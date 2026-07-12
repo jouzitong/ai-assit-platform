@@ -17,11 +17,22 @@ public class SecUserRoleManagementEntity implements IEntity {
     @Id
     private Long id;
 
-    @JdbcColumn(name = "user_id", comment = "用户 ID")
+    @JdbcColumn(
+            name = "user_id",
+            dataType = "BIGINT",
+            nullable = true,
+            comment = "用户 ID"
+    )
     @TableField("user_id")
     private Long userId;
 
-    @JdbcColumn(name = "role_code", comment = "角色编码")
+    @JdbcColumn(
+            name = "role_code",
+            dataType = "VARCHAR(255)",
+            length = 255,
+            nullable = true,
+            comment = "角色编码"
+    )
     @TableField("role_code")
     private String roleCode;
 }

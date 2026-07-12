@@ -15,7 +15,7 @@ import org.springframework.stereotype.Component;
 public class AiCoreProperties {
 
     /** 默认对话客户端类型 */
-    private AiChatClientType defaultChatClientType = AiChatClientType.SPRING_AI;
+    private AiChatClientType defaultChatClientType = AiChatClientType.AI_AGENT;
     /** 默认知识库客户端类型 */
     private AiKnowledgeClientType defaultKnowledgeClientType = AiKnowledgeClientType.BAILIAN;
     /** 默认对话模型 */
