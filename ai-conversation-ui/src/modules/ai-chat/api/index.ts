@@ -8,6 +8,8 @@ import type {
   ChatQueryPayload,
   ChatSessionItem,
   ChatStreamEvent,
+  ChatTransportEvent,
+  ChatTransportRequest,
 } from '../types'
 
 const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
@@ -33,11 +35,16 @@ export function fetchEnabledModels() {
 }
 
 function parseSseChunk(chunk: string) {
-  const lines = chunk.split('\n')
+  const lines = chunk.replaceAll('\r\n', '\n').split('\n')
+  let eventId = ''
   let eventName = 'message'
   const dataLines: string[] = []
 
   lines.forEach((line) => {
+    if (line.startsWith('id:')) {
+      eventId = line.slice(3).trim()
+      return
+    }
     if (line.startsWith('event:')) {
       eventName = line.slice(6).trim()
       return
@@ -53,23 +60,48 @@ function parseSseChunk(chunk: string) {
   }
 
   return {
+    id: eventId,
     event: eventName,
-    data: JSON.parse(rawData) as ChatStreamEvent,
+    data: JSON.parse(rawData) as ChatTransportEvent,
   }
 }
 
-export async function streamChatCompletion(
-  payload: ChatQueryPayload,
-  onEvent: (event: { event: string; data: ChatStreamEvent }) => void,
+export function createChatTransportRequest(payload: ChatQueryPayload, route: string): ChatTransportRequest {
+  const timestamp = new Date().toISOString()
+  const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    ? crypto.randomUUID()
+    : `chat-${Date.now()}-${Math.random().toString(16).slice(2)}`
+
+  return {
+    type: 'chat.user_message',
+    requestId,
+    sessionCode: payload.sessionCode,
+    modelCode: payload.modelCode,
+    message: {
+      id: `user-${requestId}`,
+      role: 'user',
+      createdAt: timestamp,
+      content: [{ type: 'text', text: payload.message }],
+    },
+    clientContext: {
+      timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'Asia/Shanghai',
+      locale: navigator.language || 'zh-CN',
+      route,
+      renderCapabilities: ['markdown', 'dashboardCanvas', 'line-chart', 'common-list', 'zg-common-info'],
+    },
+  }
+}
+
+export async function streamChatTransport(
+  payload: ChatTransportRequest,
+  onEvent: (event: { id: string; event: string; data: ChatTransportEvent }) => void,
 ) {
-  const response = await requestRaw(`${CHAT_API_PREFIX}/api/v1/chat/completions/stream`, {
+  const endpoint = payload.sessionCode
+    ? `${CHAT_API_PREFIX}/api/chat/sessions/${encodeURIComponent(payload.sessionCode)}/rounds/stream`
+    : `${CHAT_API_PREFIX}/api/chat/rounds/stream`
+  const response = await requestRaw(endpoint, {
     method: 'POST',
-    body: JSON.stringify({
-      attachments: [],
-      tools: [],
-      ext: {},
-      ...payload,
-    }),
+    body: JSON.stringify(payload),
   })
 
   if (!response.body) {
@@ -87,7 +119,7 @@ export async function streamChatCompletion(
     }
 
     buffer += decoder.decode(value, { stream: true })
-    const chunks = buffer.split('\n\n')
+    const chunks = buffer.split(/\r?\n\r?\n/)
     buffer = chunks.pop() ?? ''
 
     chunks.forEach((chunk) => {
@@ -105,4 +137,14 @@ export async function streamChatCompletion(
       onEvent(parsed)
     }
   }
+}
+
+/** @deprecated Use the chat-event.v2 transport functions above. */
+export async function streamChatCompletion(
+  payload: ChatQueryPayload,
+  onEvent: (event: { event: string; data: ChatStreamEvent }) => void,
+) {
+  return streamChatTransport(createChatTransportRequest(payload, window.location.pathname), (event) => {
+    onEvent({ event: event.event, data: event.data as unknown as ChatStreamEvent })
+  })
 }

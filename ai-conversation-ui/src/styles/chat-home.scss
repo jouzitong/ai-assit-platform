@@ -304,17 +304,26 @@
 }
 
 .chat-home-user__avatar,
-.avatar-chip {
+.avatar-chip,
+.chat-home-message__user-avatar {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   width: 24px;
   height: 24px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--chat-accent-warm);
   color: var(--chat-shell-bg);
   font-size: 11px;
   font-weight: 700;
+}
+
+.chat-home-user-avatar-image {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
 }
 
 .chat-home-user__copy strong {
@@ -469,6 +478,7 @@
   width: 44px;
   height: 44px;
   border-radius: 50%;
+  overflow: hidden;
   background: var(--chat-accent-warm);
   color: var(--chat-shell-bg);
   font-size: 18px;
@@ -1501,7 +1511,13 @@
 
 .chat-home-message__user-row {
   display: flex;
+  align-items: flex-end;
   justify-content: flex-end;
+  gap: 8px;
+}
+
+.chat-home-message__user-avatar {
+  flex: 0 0 auto;
 }
 
 .chat-home-message__user-stack {

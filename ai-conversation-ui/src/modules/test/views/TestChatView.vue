@@ -19,6 +19,8 @@ import chatTransportProtocol from '../../../../../data/chatMessage/chat-transpor
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import DashboardCanvasPreview from '../components/DashboardCanvasPreview.vue'
+import { createChatTransportRequest, streamChatTransport } from '../../ai-chat/api'
+import type { ChatTransportEvent } from '../../ai-chat/types'
 
 type ChatRole = 'assistant' | 'user'
 
@@ -64,6 +66,8 @@ type StaticSession = {
   title: string
   meta: string
   messages: StaticMessage[]
+  serverSessionCode?: string
+  runId?: string
 }
 
 type ProtocolContentBlock = {
@@ -76,6 +80,9 @@ type ProtocolEvent = {
   id: string
   event: string
   data: {
+    runId?: string
+    sessionCode?: string
+    roundCode?: string
     payload: Record<string, any>
   }
 }
@@ -507,6 +514,7 @@ function resolveSimulationSession(payload?: Record<string, any>) {
   }
 
   session.title = conversation?.title || session.title
+  session.serverSessionCode = sessionCode
   activeSessionId.value = session.id
   return session
 }
@@ -565,6 +573,12 @@ function handleThinkingDrawerAfterLeave() {
 
 function applySimulationEvent(protocolEvent: ProtocolEvent) {
   const payload = protocolEvent.data.payload
+
+  if (protocolEvent.event === 'run.accepted') {
+    const session = ensureSession()
+    session.runId = protocolEvent.data.runId || payload.run?.id || session.runId
+    return
+  }
 
   if (protocolEvent.event === 'session.initialized') {
     const session = resolveSimulationSession(payload)
@@ -653,6 +667,26 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
     isStreaming.value = false
     return
   }
+
+  if (protocolEvent.event === 'assistant.input_required' || protocolEvent.event === 'round.failed' || protocolEvent.event === 'round.cancelled') {
+    const assistantMessage = resolveSimulationAssistant(session)
+    const message = protocolEvent.event === 'assistant.input_required'
+      ? payload.input?.message
+      : payload.round?.message
+    assistantMessage.content = message || (protocolEvent.event === 'round.cancelled' ? '对话已取消。' : '对话执行失败，请稍后重试。')
+    assistantMessage.status = 'completed'
+    completeThinkingClock(assistantMessage)
+    hideThinkingDrawer()
+    isStreaming.value = false
+  }
+}
+
+function applyTransportEvent(event: { id: string; event: string; data: ChatTransportEvent }) {
+  applySimulationEvent({
+    id: event.id,
+    event: event.event,
+    data: event.data,
+  })
 }
 
 function startProtocolSimulation() {
@@ -883,15 +917,22 @@ async function handlePrimaryAction() {
   }
 
   const session = ensureSession()
-  session.messages.push(createMessage('user', message))
   prompt.value = ''
   isStreaming.value = true
   await syncTextareaHeights()
 
-  window.setTimeout(() => {
-    session.messages.push(createAssistantMessage(getStaticReply(message), message))
+  try {
+    await streamChatTransport(createChatTransportRequest({
+      sessionCode: session.serverSessionCode,
+      message,
+    }, '/test/chat'), applyTransportEvent)
+  } catch (error) {
+    session.messages.push(createAssistantMessage(
+      error instanceof Error ? error.message : '对话发送失败，请稍后重试。',
+      message,
+    ))
     isStreaming.value = false
-  }, 360)
+  }
 }
 
 function handlePromptKeydown(event: KeyboardEvent) {

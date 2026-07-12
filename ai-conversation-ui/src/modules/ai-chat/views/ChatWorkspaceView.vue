@@ -21,7 +21,6 @@ import {
   Search,
   Setting,
   SwitchButton,
-  UserFilled,
 } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -29,24 +28,33 @@ import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
-import { clearSession } from '../../../utils/session'
+import { clearSession, getStoredUser } from '../../../utils/session'
 import {
   fetchConversationDetail,
   fetchConversationList,
   fetchEnabledModels,
-  streamChatCompletion,
+  createChatTransportRequest,
+  streamChatTransport,
 } from '../api'
 import type {
   ChatConversationRound,
   ChatEnabledModel,
   ChatSessionItem,
-  ChatStreamEvent,
+  ChatTransportEvent,
   ChatUiMessage,
 } from '../types'
 
 const route = useRoute()
 const router = useRouter()
 const DEVELOPER_MODE_STORAGE_KEY = 'ai-conversation-ui-developer-mode'
+
+type CurrentUserProfile = {
+  displayName?: string
+  name?: string
+  username?: string
+  avatarUrl?: string
+  profileImageUrl?: string
+}
 
 const prompt = ref('')
 const selectedModel = ref('')
@@ -65,6 +73,8 @@ const isLoadingList = ref(false)
 const isLoadingDetail = ref(false)
 const isStreaming = ref(false)
 const conversationError = ref('')
+const currentRunId = ref('')
+const lastEventId = ref('')
 const welcomeTextarea = useTemplateRef<HTMLTextAreaElement>('welcomeTextarea')
 const conversationTextarea = useTemplateRef<HTMLTextAreaElement>('conversationTextarea')
 
@@ -107,6 +117,16 @@ const currentGroupId = computed(() =>
   typeof route.params.groupId === 'string' ? route.params.groupId.trim() : '',
 )
 const activeConversation = computed(() => currentSessionCode.value)
+const currentUserProfile = getStoredUser<CurrentUserProfile>() || {}
+const currentUserName = computed(() =>
+  [currentUserProfile.displayName, currentUserProfile.name, currentUserProfile.username]
+    .find((value) => typeof value === 'string' && value.trim())?.trim() || '当前用户',
+)
+const currentUserAvatarUrl = computed(() =>
+  [currentUserProfile.avatarUrl, currentUserProfile.profileImageUrl]
+    .find((value) => typeof value === 'string' && value.trim())?.trim() || '',
+)
+const currentUserAvatarText = computed(() => Array.from(currentUserName.value)[0]?.toLocaleUpperCase() || '?')
 const selectedModelLabel = computed(() => {
   const matchedModel = modelOptions.value.find((item) => item.modelCode === selectedModel.value)
   return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || selectedModel.value || '选择模型'
@@ -227,10 +247,15 @@ async function loadConversationDetail(sessionCode: string) {
 }
 
 function handleStreamEvent(
-  event: { event: string; data: ChatStreamEvent },
+  event: { id: string; event: string; data: ChatTransportEvent },
   assistantMessageId: string,
 ) {
   const { event: eventName, data } = event
+  const payload = data.payload || {}
+  lastEventId.value = data.eventId || event.id || lastEventId.value
+  if (data.runId) {
+    currentRunId.value = data.runId
+  }
 
   if (data.sessionCode && !currentSessionCode.value) {
     pendingSessionCode.value = data.sessionCode
@@ -246,22 +271,49 @@ function handleStreamEvent(
     currentRoundCode.value = data.roundCode
   }
 
-  if (eventName === 'answer-ready' || eventName === 'complete') {
+  if (eventName === 'assistant.started') {
+    upsertAssistantMessage(assistantMessageId, { status: 'RUNNING' })
+    return
+  }
+
+  if (eventName === 'assistant.message.delta') {
+    const message = payload.message as { content?: Array<{ text?: string; markdown?: string }>; append?: boolean } | undefined
+    const content = (message?.content || []).map((item) => item.markdown || item.text || '').join('\n')
+    if (content) {
+      const previous = chatMessages.value.find((item) => item.id === assistantMessageId)?.content || ''
+      upsertAssistantMessage(assistantMessageId, {
+        content: message?.append ? `${previous}${content}` : content,
+        roundCode: data.roundCode,
+        status: 'RUNNING',
+      })
+    }
+    return
+  }
+
+  if (eventName === 'round.completed') {
+    const assistant = (payload.round as { assistant?: { messages?: Array<{ content?: Array<{ text?: string; markdown?: string }> }> } } | undefined)?.assistant
+    const content = (assistant?.messages || [])
+      .flatMap((message) => message.content || [])
+      .map((item) => item.markdown || item.text || '')
+      .join('\n')
     upsertAssistantMessage(assistantMessageId, {
-      content: data.answer || '已收到，正在整理回复。',
+      content: content || chatMessages.value.find((item) => item.id === assistantMessageId)?.content || '已收到，正在整理回复。',
       roundCode: data.roundCode,
-      status: data.status,
+      status: 'COMPLETED',
     })
     return
   }
 
-  if (eventName === 'error') {
+  if (eventName === 'round.failed' || eventName === 'round.cancelled' || eventName === 'assistant.input_required') {
+    const message = eventName === 'assistant.input_required'
+      ? (payload.input as { message?: string } | undefined)?.message
+      : (payload.round as { message?: string } | undefined)?.message
     upsertAssistantMessage(assistantMessageId, {
-      content: data.message || '对话执行失败，请稍后重试。',
+      content: message || (eventName === 'round.cancelled' ? '对话已取消。' : '对话执行失败，请稍后重试。'),
       roundCode: data.roundCode,
-      status: data.status || 'FAILED',
+      status: eventName === 'round.cancelled' ? 'CANCELLED' : 'FAILED',
     })
-    conversationError.value = data.message || '对话执行失败，请稍后重试。'
+    conversationError.value = message || '对话执行失败，请稍后重试。'
   }
 }
 
@@ -291,15 +343,12 @@ async function handlePrimaryAction() {
   await syncTextareaHeights()
 
   try {
-    await streamChatCompletion(
-      {
+    await streamChatTransport(
+      createChatTransportRequest({
         sessionCode: currentSessionCode.value || undefined,
         modelCode: selectedModel.value || undefined,
         message,
-        attachments: [],
-        tools: [],
-        ext: {},
-      },
+      }, route.path),
       (event) => handleStreamEvent(event, assistantMessageId),
     )
     const finalSessionCode = currentSessionCode.value || pendingSessionCode.value
@@ -506,9 +555,12 @@ watch(route, () => {
       <div class="chat-home-sidebar__footer">
         <div class="chat-home-user-menu-anchor chat-home-user-menu-anchor--sidebar">
             <button class="chat-home-user" type="button" @click.stop="toggleUserMenu('sidebar')">
-              <div class="chat-home-user__avatar">周</div>
+              <div class="chat-home-user__avatar" :aria-label="`${currentUserName} 的头像`" role="img">
+                <img v-if="currentUserAvatarUrl" class="chat-home-user-avatar-image" :src="currentUserAvatarUrl" :alt="currentUserName" />
+                <span v-else>{{ currentUserAvatarText }}</span>
+              </div>
               <div v-if="sidebarExpanded" class="chat-home-user__copy">
-                <strong>周志通</strong>
+                <strong>{{ currentUserName }}</strong>
               </div>
             </button>
           <div
@@ -517,9 +569,12 @@ watch(route, () => {
             @click.stop
           >
             <div class="chat-home-user-menu__profile">
-              <div class="chat-home-user-menu__avatar">周</div>
+              <div class="chat-home-user-menu__avatar" :aria-label="`${currentUserName} 的头像`" role="img">
+                <img v-if="currentUserAvatarUrl" class="chat-home-user-avatar-image" :src="currentUserAvatarUrl" :alt="currentUserName" />
+                <span v-else>{{ currentUserAvatarText }}</span>
+              </div>
               <div class="chat-home-user-menu__identity">
-                <div class="chat-home-user-menu__name">周志通</div>
+                <div class="chat-home-user-menu__name">{{ currentUserName }}</div>
                 <div class="chat-home-user-menu__status">
                   <span class="chat-home-user-menu__status-dot"></span>
                   <span>在线</span>
@@ -609,14 +664,18 @@ watch(route, () => {
           <button class="ghost-icon-button" type="button"><el-icon><MoreFilled /></el-icon></button>
           <button class="ghost-icon-button" type="button"><el-icon><Operation /></el-icon></button>
           <div class="chat-home-user-menu-anchor">
-            <button class="avatar-chip" type="button" @click.stop="toggleUserMenu('topbar')">
-              <el-icon><UserFilled /></el-icon>
+            <button class="avatar-chip" type="button" :aria-label="`${currentUserName} 的头像菜单`" @click.stop="toggleUserMenu('topbar')">
+              <img v-if="currentUserAvatarUrl" class="chat-home-user-avatar-image" :src="currentUserAvatarUrl" :alt="currentUserName" />
+              <span v-else>{{ currentUserAvatarText }}</span>
             </button>
             <div v-if="activeUserMenu === 'topbar'" class="chat-home-user-menu" @click.stop>
               <div class="chat-home-user-menu__profile">
-                <div class="chat-home-user-menu__avatar">周</div>
+                <div class="chat-home-user-menu__avatar" :aria-label="`${currentUserName} 的头像`" role="img">
+                  <img v-if="currentUserAvatarUrl" class="chat-home-user-avatar-image" :src="currentUserAvatarUrl" :alt="currentUserName" />
+                  <span v-else>{{ currentUserAvatarText }}</span>
+                </div>
                 <div class="chat-home-user-menu__identity">
-                  <div class="chat-home-user-menu__name">周志通</div>
+                  <div class="chat-home-user-menu__name">{{ currentUserName }}</div>
                   <div class="chat-home-user-menu__status">
                     <span class="chat-home-user-menu__status-dot"></span>
                     <span>在线</span>
@@ -728,7 +787,7 @@ watch(route, () => {
       <section v-else class="chat-home-conversation">
         <div class="chat-home-center-column chat-home-center-column--conversation">
           <div v-if="chatMessages.length === 0 && !isLoadingDetail" class="chat-home-assistant">
-            <div class="chat-home-assistant__avatar">pr</div>
+            <div class="chat-home-assistant__avatar">AI</div>
             <div class="chat-home-assistant__body">
               <div class="chat-home-assistant__title">{{ selectedModelLabel }}</div>
               <div class="chat-home-assistant__meta">{{ currentSessionName || '新会话' }}</div>
@@ -771,7 +830,7 @@ watch(route, () => {
             >
               <template v-if="message.role === 'assistant'">
                 <div class="chat-home-message__assistant-row">
-                  <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
+                  <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">AI</div>
                   <div class="chat-home-message__assistant-copy">
                     <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
                     <div class="chat-home-message__assistant-text">{{ message.content }}</div>
@@ -781,6 +840,10 @@ watch(route, () => {
               <template v-else>
                 <div class="chat-home-message__user-row">
                   <div class="chat-home-user-bubble">{{ message.content }}</div>
+                  <div class="chat-home-message__user-avatar" :aria-label="`${currentUserName} 的头像`" role="img">
+                    <img v-if="currentUserAvatarUrl" class="chat-home-user-avatar-image" :src="currentUserAvatarUrl" :alt="currentUserName" />
+                    <span v-else>{{ currentUserAvatarText }}</span>
+                  </div>
                 </div>
               </template>
             </article>

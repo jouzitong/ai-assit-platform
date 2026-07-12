@@ -85,6 +85,46 @@ export interface ChatStreamEvent {
   message?: string
 }
 
+export type ChatTransportContentBlock = {
+  type: 'text' | 'markdown' | 'render' | string
+  text?: string
+  markdown?: string
+}
+
+export interface ChatTransportEvent {
+  eventId?: string
+  eventType: string
+  schemaVersion?: 'chat-event.v2' | string
+  runId?: string
+  requestId?: string
+  sessionCode?: string
+  roundCode?: string
+  timestamp?: string
+  payload: Record<string, any>
+}
+
+export interface ChatTransportMessage {
+  id: string
+  role: 'user'
+  createdAt: string
+  content: ChatTransportContentBlock[]
+}
+
+export interface ChatTransportRequest {
+  type: 'chat.user_message'
+  requestId: string
+  sessionCode?: string
+  roundCode?: string
+  modelCode?: string
+  message: ChatTransportMessage
+  clientContext: {
+    timezone: string
+    locale: string
+    route: string
+    renderCapabilities: string[]
+  }
+}
+
 export interface ChatUiMessage {
   id: string
   role: 'user' | 'assistant'
