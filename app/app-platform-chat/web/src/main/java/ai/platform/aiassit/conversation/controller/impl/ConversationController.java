@@ -15,6 +15,7 @@ import ai.platform.aiassit.conversation.support.ConversationRequestContextResolv
 import ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import lombok.AllArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
@@ -23,6 +24,7 @@ import java.util.List;
 
 @RestController
 @AllArgsConstructor
+@Slf4j
 public class ConversationController implements IConversationController {
 
     private final ConversationService conversationService;
@@ -55,7 +57,9 @@ public class ConversationController implements IConversationController {
 
     @Override
     public SseEmitter completionsStream(@RequestBody ConversationQueryRequest request) {
-        return sseTransport.start(buildCommand(request));
+        ConversationQueryCommand command = buildCommand(request);
+        log.info("接收到对话流式请求，command={}", command);
+        return sseTransport.start(command);
     }
 
     @Override

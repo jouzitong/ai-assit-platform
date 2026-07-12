@@ -23,6 +23,7 @@ import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.apache.commons.collections4.CollectionUtils;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.auth.core.context.SecurityContextHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
 import java.util.Comparator;
@@ -30,6 +31,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
+@Slf4j
 public class ConversationPreparationService {
 
     private static final String STATUS_SUCCESS = "SUCCESS";
@@ -57,8 +59,11 @@ public class ConversationPreparationService {
     }
 
     public void prepare(ConversationRuntimeContext context) {
+        log.info("开始准备对话流上下文，context={}", context);
         prepareConversationRuntimeContext(context);
+        log.info("会话与轮次准备完成，context={}", context);
         intentRouteService.route(context);
+        log.info("对话流上下文路由完成，context={}", context);
     }
 
     private void prepareConversationRuntimeContext(ConversationRuntimeContext context) {
@@ -117,6 +122,7 @@ public class ConversationPreparationService {
         context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode()).setStatus(STATUS_SUCCESS);
         context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "session", session);
         context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "currentMessage", userMessage);
+        log.info("用户消息已写入当前对话轮次，context={}", context);
     }
 
     private AiChatSessionDTO createSession(ConversationQueryCommand command, Long userId) {

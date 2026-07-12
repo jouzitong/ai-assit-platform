@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * 流程目录表。
@@ -28,30 +29,35 @@ public class AiChatWorkflowEntity extends LogicalDeleteEntity {
     /**
      * 流程编码。
      */
+    @JdbcColumn(name = "code", unique = true, comment = "流程编码。")
     @TableField("code")
     private String code;
 
     /**
      * 流程名称。
      */
+    @JdbcColumn(name = "name", comment = "流程名称。")
     @TableField("name")
     private String name;
 
     /**
      * 流程类型，例如 QUERY/CHAT/APP。
      */
+    @JdbcColumn(name = "type", comment = "流程类型，例如 QUERY/CHAT/APP。")
     @TableField("type")
     private String type;
 
     /**
      * 是否启用。
      */
+    @JdbcColumn(name = "enabled", comment = "是否启用。")
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
     /**
      * 流程目录配置 JSON。
      */
+    @JdbcColumn(name = "config", comment = "流程目录配置 JSON。")
     @TableField(value = "config", typeHandler = JacksonTypeHandler.class)
     private WorkflowCatalogConfig config;
 }

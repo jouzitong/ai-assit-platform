@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * 流程配置节点表。
@@ -28,30 +29,35 @@ public class AiChatWorkflowConfigNodeEntity extends LogicalDeleteEntity {
     /**
      * 所属流程配置编码。
      */
+    @JdbcColumn(name = "config_code", comment = "所属流程配置编码。")
     @TableField("config_code")
     private String configCode;
 
     /**
      * 节点编码。
      */
+    @JdbcColumn(name = "node_code", comment = "节点编码。")
     @TableField("node_code")
     private String nodeCode;
 
     /**
      * 节点顺序。
      */
+    @JdbcColumn(name = "sort", comment = "节点顺序。")
     @TableField("sort")
     private Integer sort;
 
     /**
      * 默认下一节点编码。
      */
+    @JdbcColumn(name = "next_code", comment = "默认下一节点编码。")
     @TableField("next_code")
     private String nextCode;
 
     /**
      * 是否启用。
      */
+    @JdbcColumn(name = "enabled", comment = "是否启用。")
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
@@ -59,6 +65,7 @@ public class AiChatWorkflowConfigNodeEntity extends LogicalDeleteEntity {
      * 节点配置 JSON。
      * 可放输入输出定义、节点提示模板、运行参数、回跳策略等。
      */
+    @JdbcColumn(name = "config", comment = "节点配置 JSON。 可放输入输出定义、节点提示模板、运行参数、回跳策略等。")
     @TableField(value = "config", typeHandler = JacksonTypeHandler.class)
     private WorkflowNodeRuntimeConfig config;
 }

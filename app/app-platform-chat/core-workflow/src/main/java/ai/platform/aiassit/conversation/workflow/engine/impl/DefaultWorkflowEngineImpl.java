@@ -64,6 +64,7 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 failWorkflow(context, "workflow definition is required", "workflow-error", "workflow definition is required");
                 return;
             }
+            log.info("开始执行对话工作流，context={}", context);
             WorkflowExecutionState state = createExecutionState(definition);
             String currentNodeId = definition.getStartNodeId();
             while (currentNodeId != null) {
@@ -93,13 +94,17 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                         "start node: " + workflowNodeConfig.getNodeId(),
                         Map.of("nodeCode", workflowNodeConfig.getNodeId())
                 );
+                long nodeStartedAt = System.currentTimeMillis();
+                log.info("工作流节点开始执行，context={}, nodeCode={}, step={}", context,
+                        workflowNodeConfig.getNodeId(), state.getTotalSteps());
                 NodeExecutionResult result;
                 try {
                     result = adaptNodeResult(currentNode.execute(context, workflowNodeConfig), workflowNodeConfig);
                 } catch (ConversationCancelledException e) {
                     throw e;
                 } catch (Exception e) {
-                    log.error("Error executing node: {}. ", workflowNodeConfig.getNodeId(), e);
+                    log.error("工作流节点执行异常，context={}, nodeCode={}, durationMs={}", context,
+                            workflowNodeConfig.getNodeId(), System.currentTimeMillis() - nodeStartedAt, e);
                     failWorkflow(context,
                             "Error executing node: " + workflowNodeConfig.getNodeId() + ", error=" + e.getMessage(),
                             ConversationEventTypes.ERROR,
@@ -108,6 +113,9 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 }
                 context.checkCancellation();
                 if (result == null || !result.isSuccess()) {
+                    log.warn("工作流节点返回失败结果，context={}, nodeCode={}, durationMs={}, error={}", context,
+                            workflowNodeConfig.getNodeId(), System.currentTimeMillis() - nodeStartedAt,
+                            result == null ? "node result is null" : result.getErrorMessage());
                     failWorkflow(context,
                             result == null ? "node result is null" : result.getErrorMessage(),
                             ConversationEventTypes.ERROR,
@@ -120,6 +128,8 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                         "complete node: " + workflowNodeConfig.getNodeId(),
                         Map.of("nodeCode", workflowNodeConfig.getNodeId())
                 );
+                log.info("工作流节点执行完成，context={}, nodeCode={}, durationMs={}", context,
+                        workflowNodeConfig.getNodeId(), System.currentTimeMillis() - nodeStartedAt);
                 TransitionDecision decision = transitionResolver.resolve(definition, state, workflowNodeConfig, result);
                 if (decision == null) {
                     failWorkflow(context,
@@ -129,6 +139,8 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                     return;
                 }
                 publishTransitionDecision(context, workflowNodeConfig, decision);
+                log.info("工作流节点流转已决策，context={}, currentNodeCode={}, action={}, targetNodeId={}, reason={}", context,
+                        workflowNodeConfig.getNodeId(), decision.getAction(), decision.getTargetNodeId(), decision.getReason());
                 if (decision.getAction() == TransitionAction.FAIL) {
                     failWorkflow(context,
                             StringUtils.defaultIfBlank(decision.getReason(), "workflow transition failed"),
@@ -160,13 +172,11 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
                 currentNodeId = decision.getTargetNodeId();
             }
             finishRound(context, STATUS_SUCCESS);
+            log.info("对话工作流执行结束，context={}", context);
         } catch (ConversationCancelledException ex) {
             throw ex;
         } catch (Exception ex) {
-            log.error("workflow execution failed before completion, sessionCode={}, roundCode={}",
-                    context.getSession() == null ? null : context.getSession().getSessionCode(),
-                    context.getRound() == null ? null : context.getRound().getRoundCode(),
-                    ex);
+            log.error("对话工作流在完成前发生未预期异常，context={}", context, ex);
             failWorkflow(context,
                     ex.getMessage(),
                     ConversationEventTypes.ERROR,

@@ -24,7 +24,7 @@ import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 public class RenderComponentEntity extends AuditableEntity {
 
     /** 组件唯一标识。 */
-    @JdbcColumn(name = "key", comment = "组件唯一标识")
+    @JdbcColumn(name = "key", unique = true, comment = "组件唯一标识")
     @TableField("`key`")
     private String key;
 

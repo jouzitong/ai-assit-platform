@@ -119,4 +119,23 @@ public class ConversationQueryCommand {
      * service 会在构造 AI 引擎请求时，将该字段与 attachments、tools 合并到 RequestMeta.ext 中。</p>
      */
     private Map<String, Object> ext = new HashMap<>();
+
+    /**
+     * 日志摘要：仅保留执行链路定位所需字段，不输出用户消息正文、附件、工具或扩展参数。
+     */
+    @Override
+    public String toString() {
+        return "ConversationQueryCommand{" +
+                "traceId='" + traceId + '\'' +
+                ", userId=" + userId +
+                ", sessionCode='" + sessionCode + '\'' +
+                ", roundCode='" + roundCode + '\'' +
+                ", businessType=" + businessType +
+                ", apiModel='" + apiModel + '\'' +
+                ", scene='" + scene + '\'' +
+                ", messageLength=" + (message == null ? 0 : message.length()) +
+                ", attachmentCount=" + (attachments == null ? 0 : attachments.size()) +
+                ", toolCount=" + (tools == null ? 0 : tools.size()) +
+                '}';
+    }
 }

@@ -7,6 +7,7 @@ import ai.platform.aiassit.conversation.runtime.event.ConversationRunSubscriptio
 import ai.platform.aiassit.conversation.runtime.task.ConversationRunSnapshot;
 import ai.platform.aiassit.conversation.service.ConversationExecutionService;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
+import lombok.extern.slf4j.Slf4j;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -19,6 +20,7 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Component
+@Slf4j
 public class SseConversationTransport {
 
     private final ConversationRunManager runManager;
@@ -32,6 +34,7 @@ public class SseConversationTransport {
 
     public SseEmitter start(ConversationQueryCommand command) {
         ConversationRunSnapshot run = runManager.start(command);
+        log.info("对话流任务已创建并准备订阅，run={}, command={}", run, command);
         return subscribe(run.runId(), command.getUserId(), null);
     }
 
@@ -42,8 +45,10 @@ public class SseConversationTransport {
         String lastEventId = request == null ? null : request.getLastEventId();
         Optional<ConversationRunSnapshot> run = runManager.find(runId, sessionCode, roundCode, userId);
         if (run.isPresent()) {
+            log.info("命中运行中的对话流任务，开始重新订阅，request={}, run={}", request, run.get());
             return subscribe(run.get().runId(), userId, lastEventId);
         }
+        log.info("未命中运行中的对话流任务，改为回放持久化事件，request={}, traceId={}, userId={}", request, traceId, userId);
         return replayPersisted(request, userId, traceId);
     }
 
@@ -73,7 +78,9 @@ public class SseConversationTransport {
             emitter.onCompletion(closeSubscription);
             emitter.onTimeout(closeSubscription);
             emitter.onError(error -> closeSubscription.run());
+            log.info("对话流 SSE 订阅已建立，runId={}, userId={}, lastEventId={}", runId, userId, lastEventId);
         } catch (RuntimeException ex) {
+            log.error("建立对话流 SSE 订阅失败，runId={}, userId={}, lastEventId={}", runId, userId, lastEventId, ex);
             emitter.completeWithError(ex);
         }
         return emitter;
@@ -87,7 +94,9 @@ public class SseConversationTransport {
                 send(emitter, event);
             }
             emitter.complete();
+            log.info("持久化对话流事件回放完成，request={}, traceId={}, userId={}, eventCount={}", request, traceId, userId, events.size());
         } catch (Exception ex) {
+            log.warn("持久化对话流事件回放失败，request={}, traceId={}, userId={}", request, traceId, userId, ex);
             emitter.completeWithError(ex);
         }
         return emitter;
@@ -102,5 +111,10 @@ public class SseConversationTransport {
             builder.id(event.getEventId());
         }
         emitter.send(builder);
+        if ("answer.delta".equals(eventType)) {
+            log.debug("已推送回答增量事件，event={}", event);
+        } else {
+            log.debug("已推送对话流事件，event={}", event);
+        }
     }
 }

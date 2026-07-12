@@ -10,6 +10,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 import java.util.Map;
 
@@ -25,26 +26,32 @@ import java.util.Map;
 public class AiKbDocumentVersionContentEntity extends AuditableEntity {
 
     /** 所属文档版本快照 ID。 */
+    @JdbcColumn(name = "document_version_id", unique = true, comment = "所属文档版本快照 ID。")
     @TableField("document_version_id")
     private Long documentVersionId;
 
     /** 内容格式，例如 MARKDOWN、TEXT、JSON。 */
+    @JdbcColumn(name = "content_format", comment = "内容格式，例如 MARKDOWN、TEXT、JSON。")
     @TableField("content_format")
     private AiKbContentFormat contentFormat;
 
     /** 内容大小，单位字节。 */
+    @JdbcColumn(name = "content_size", comment = "内容大小，单位字节。")
     @TableField("content_size")
     private Long contentSize;
 
     /** 发布快照的结构化内容。 */
+    @JdbcColumn(name = "content_json", comment = "发布快照的结构化内容。")
     @TableField(value = "content_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> contentJson;
 
     /** 发布快照的最终文本内容。 */
+    @JdbcColumn(name = "rendered_content", comment = "发布快照的最终文本内容。")
     @TableField("rendered_content")
     private String renderedContent;
 
     /** 正文扩展信息。 */
+    @JdbcColumn(name = "ext_json", comment = "正文扩展信息。")
     @TableField(value = "ext_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> extJson;
 }

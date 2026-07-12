@@ -1,11 +1,11 @@
 package ai.platform.aiassit.user.security.management.entity;
 
-import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
-import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import jakarta.persistence.Id;
 import lombok.Data;
 import org.athena.framework.data.jdbc.entity.IEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * Athena Security 用户角色关联表映射。
@@ -14,12 +14,14 @@ import org.athena.framework.data.jdbc.entity.IEntity;
 @TableName("sec_user_role")
 public class SecUserRoleManagementEntity implements IEntity {
 
-    @TableId(value = "id", type = IdType.AUTO)
+    @Id
     private Long id;
 
+    @JdbcColumn(name = "user_id", comment = "用户 ID")
     @TableField("user_id")
     private Long userId;
 
+    @JdbcColumn(name = "role_code", comment = "角色编码")
     @TableField("role_code")
     private String roleCode;
 }

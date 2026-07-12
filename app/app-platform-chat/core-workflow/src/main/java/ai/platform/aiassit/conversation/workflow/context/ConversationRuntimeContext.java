@@ -100,6 +100,21 @@ public class ConversationRuntimeContext implements Serializable {
     private Map<String, Object> data = new HashMap<>();
 
     /**
+     * 日志摘要：仅保留当前运行的追踪、会话、轮次和工作流标识，不递归输出运行数据与节点产物。
+     */
+    @Override
+    public String toString() {
+        AiChatRoundDTO round = getRound();
+        return "ConversationRuntimeContext{" +
+                "command=" + command +
+                ", workflowCode='" + workflowCode + '\'' +
+                ", sessionCode='" + (session == null ? null : session.getSessionCode()) + '\'' +
+                ", roundCode='" + (round == null ? null : round.getRoundCode()) + '\'' +
+                ", roundStatus='" + (round == null ? null : round.getStatus()) + '\'' +
+                '}';
+    }
+
+    /**
      * 写入扩展数据。
      *
      * @param key   数据键

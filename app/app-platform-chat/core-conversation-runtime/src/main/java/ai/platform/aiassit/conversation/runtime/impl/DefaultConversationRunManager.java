@@ -13,6 +13,7 @@ import ai.platform.aiassit.conversation.service.ConversationExecutionService;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.stereotype.Service;
@@ -33,6 +34,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
+@Slf4j
 public class DefaultConversationRunManager implements ConversationRunManager {
 
     private final ConversationExecutionService executionService;
@@ -69,7 +71,9 @@ public class DefaultConversationRunManager implements ConversationRunManager {
         runs.put(runId, entry);
         publish(entry, runtimeEvent("run.accepted", "ACCEPTED", "conversation run accepted"));
         entry.future = runExecutor.submit(() -> execute(entry, command));
-        return entry.snapshot();
+        ConversationRunSnapshot snapshot = entry.snapshot();
+        log.info("对话流任务已受理，run={}", snapshot);
+        return snapshot;
     }
 
     @Override
@@ -82,6 +86,7 @@ public class DefaultConversationRunManager implements ConversationRunManager {
         }
         Optional<RunEntry> local = ownedRun(runId, userId);
         if (local.isEmpty()) {
+            log.info("本机未找到对话流任务，转交集群订阅，runId={}, userId={}, lastEventId={}", runId, userId, lastEventId);
             return clusterCoordinator.subscribe(runId, userId, lastEventId, subscriber);
         }
         RunEntry entry = local.get();
@@ -101,6 +106,8 @@ public class DefaultConversationRunManager implements ConversationRunManager {
         if (terminal) {
             subscriber.onComplete();
         }
+        log.info("对话流任务订阅处理完成，runId={}, userId={}, lastEventId={}, replayedEventCount={}, terminal={}",
+                runId, userId, lastEventId, entry.events.size(), terminal);
         return () -> entry.subscribers.remove(subscriber);
     }
 
@@ -145,6 +152,7 @@ public class DefaultConversationRunManager implements ConversationRunManager {
             entry.state = ConversationRunState.CANCELLED;
             entry.finishedAt = Instant.now();
             publish(entry, runtimeEvent("run.cancelled", "CANCELLED", "conversation run cancelled"));
+            log.info("对话流任务已取消，run={}", entry.snapshot());
         }
         completeSubscribers(entry);
         return true;
@@ -158,19 +166,24 @@ public class DefaultConversationRunManager implements ConversationRunManager {
     }
 
     private void execute(RunEntry entry, ConversationQueryCommand command) {
+        long startedAt = System.currentTimeMillis();
         try {
             entry.cancellation.throwIfCancellationRequested();
             entry.state = ConversationRunState.RUNNING;
             entry.startedAt = Instant.now();
             publish(entry, runtimeEvent("run.started", "RUNNING", "conversation run started"));
+            log.info("对话流任务开始执行，run={}", entry.snapshot());
             executionService.executeStream(command, event -> publish(entry, event), entry.cancellation);
             entry.cancellation.throwIfCancellationRequested();
             entry.state = ConversationRunState.COMPLETED;
             entry.finishedAt = Instant.now();
+            log.info("对话流任务执行完成，run={}, durationMs={}", entry.snapshot(), System.currentTimeMillis() - startedAt);
         } catch (ConversationCancelledException ex) {
             markCancelled(entry);
+            log.info("对话流任务执行被取消，run={}, durationMs={}", entry.snapshot(), System.currentTimeMillis() - startedAt);
         } catch (RuntimeException ex) {
             markFailed(entry, ex);
+            log.error("对话流任务执行失败，run={}, durationMs={}", entry.snapshot(), System.currentTimeMillis() - startedAt, ex);
         } finally {
             clusterCoordinator.save(entry.snapshot());
             completeSubscribers(entry);
@@ -233,7 +246,16 @@ public class DefaultConversationRunManager implements ConversationRunManager {
         for (ConversationRunSubscriber subscriber : subscribers) {
             deliver(entry, subscriber, event);
         }
+        logPublishedEvent(entry, event);
         clusterCoordinator.publish(entry.snapshot(), event);
+    }
+
+    private void logPublishedEvent(RunEntry entry, ConversationQueryStreamEvent event) {
+        if ("answer.delta".equals(event.getEventType())) {
+            log.debug("对话流回答增量已发布，event={}", event);
+            return;
+        }
+        log.info("对话流活动更新，event={}", event);
     }
 
     private void deliver(RunEntry entry,

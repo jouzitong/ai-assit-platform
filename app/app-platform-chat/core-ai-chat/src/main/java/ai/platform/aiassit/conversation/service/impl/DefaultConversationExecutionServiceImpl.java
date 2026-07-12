@@ -21,6 +21,7 @@ import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
+import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -32,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 
 @Service
+@Slf4j
 public class DefaultConversationExecutionServiceImpl implements ConversationExecutionService {
 
     private final IWorkflowEngine workflowEngine;
@@ -64,12 +66,15 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     public ConversationQueryResponse executeStream(ConversationQueryCommand command,
                                                    ConversationEventPublisher eventPublisher,
                                                    ConversationCancellation cancellation) {
+        long startedAt = System.currentTimeMillis();
         ConversationRuntimeContext context = buildConversationRuntimeContext(command);
         context.setEventPublisher(eventPublisher == null ? ConversationEventPublisher.NOOP : eventPublisher);
         context.setCancellation(cancellation == null ? ConversationCancellation.NONE : cancellation);
         try {
+            log.info("开始执行对话流业务链路，context={}", context);
             context.checkCancellation();
             preparationService.prepare(context);
+            log.info("对话流上下文准备完成，context={}", context);
             publishInitEvent(context);
             context.checkCancellation();
             workflowEngine.run(context);
@@ -85,9 +90,11 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                     context.getRenderedAnswer(),
                     "SUCCESS"
             );
+            log.info("对话流业务链路执行成功，context={}, durationMs={}", context, System.currentTimeMillis() - startedAt);
             return buildQueryResponse(context);
         } catch (ConversationCancelledException ex) {
             markRoundCancelled(context);
+            log.info("对话流业务链路已取消，context={}, durationMs={}", context, System.currentTimeMillis() - startedAt);
             throw ex;
         } catch (Exception ex) {
             if (!StringUtils.hasText(context.get(ConversationRuntimeContextKeys.Common.ERROR))) {
@@ -97,6 +104,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                         ex.getMessage()
                 );
             }
+            log.warn("对话流业务链路执行异常，context={}, durationMs={}, error={}",
+                    context, System.currentTimeMillis() - startedAt, ex.getMessage());
             throw ex;
         }
     }

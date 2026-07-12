@@ -111,12 +111,13 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
             if (!Boolean.TRUE.equals(modelConfig.getEnabled())) {
                 throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, modelCode);
             }
-            if (modelConfig.getClientType() == null) {
-                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CHAT_CLIENT_TYPE);
-            }
-            return new ResolvedChatRequest(modelConfig.getClientType(), modelConfig);
         }
-        return new ResolvedChatRequest(request.getClientType(), null);
+
+        AiChatClientType clientType = request.getClientType();
+        if (clientType == null && modelConfig != null) {
+            clientType = modelConfig.getClientType();
+        }
+        return new ResolvedChatRequest(clientType, modelConfig);
     }
 
     private record ResolvedChatRequest(AiChatClientType clientType, AiModelConfigDTO modelConfig) {

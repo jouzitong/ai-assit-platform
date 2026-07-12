@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * 数据表字段元数据实体。
@@ -21,66 +22,82 @@ import org.athena.framework.data.mybatis.entity.AuditableEntity;
 public class DbTableFieldMetaEntity extends AuditableEntity {
 
     /** 所属数据源标识。 */
+    @JdbcColumn(name = "source_key", comment = "所属数据源标识。")
     @TableField("source_key")
     private String sourceKey;
 
     /** 所属表名。 */
+    @JdbcColumn(name = "table_name", comment = "所属表名。")
     @TableField("table_name")
     private String tableName;
 
     /** 字段名。 */
+    @JdbcColumn(name = "column_name", comment = "字段名。")
     @TableField("column_name")
     private String columnName;
 
     /** 字段中文说明。 */
+    @JdbcColumn(name = "column_comment", comment = "字段中文说明。")
     @TableField("column_comment")
     private String columnComment;
 
     /** 字段类型。 */
+    @JdbcColumn(name = "data_type", comment = "字段类型。")
     @TableField("data_type")
     private String dataType;
 
     /** 字段长度。 */
+    @JdbcColumn(name = "column_length", comment = "字段长度。")
     @TableField("column_length")
     private Integer columnLength;
 
     /** 数值精度。 */
+    @JdbcColumn(name = "column_precision", comment = "数值精度。")
     @TableField("column_precision")
     private Integer columnPrecision;
 
     /** 数值小数位。 */
+    @JdbcColumn(name = "column_scale", comment = "数值小数位。")
     @TableField("column_scale")
     private Integer columnScale;
 
     /** 是否可空。 */
+    @JdbcColumn(name = "nullable", comment = "是否可空。")
     @TableField("nullable")
     private Boolean nullable;
 
     /** 是否主键。 */
+    @JdbcColumn(name = "primary_key", comment = "是否主键。")
     @TableField("primary_key")
     private Boolean primaryKey;
 
     /** 是否分区键。 */
+    @JdbcColumn(name = "partition_key", comment = "是否分区键。")
     @TableField("partition_key")
     private Boolean partitionKey;
 
     /** 默认值。 */
+    @JdbcColumn(name = "default_value", comment = "默认值。")
     @TableField("default_value")
     private String defaultValue;
 
     /** 字段顺序。 */
+    @JdbcColumn(name = "ordinal_position", comment = "字段顺序。")
     @TableField("ordinal_position")
     private Integer ordinalPosition;
 
     /** 字段角色，例如 DIMENSION、METRIC、TIME、ATTRIBUTE。 */
+    @JdbcColumn(name = "field_role", comment = "字段角色，例如 DIMENSION、METRIC、TIME、ATTRIBUTE。")
     @TableField("field_role")
     private String fieldRole;
 
     /** 是否启用。 */
+    @JdbcColumn(name = "enabled", comment = "是否启用。")
     @TableField("enabled")
     private Boolean enabled;
 
     /** 备注。 */
+    @JdbcColumn(name = "remark", comment = "备注。")
     @TableField("remark")
     private String remark;
 }

@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * 渲染页面分类实体。
@@ -21,26 +22,32 @@ import org.athena.framework.data.mybatis.entity.AuditableEntity;
 public class RenderPageCategoryEntity extends AuditableEntity {
 
     /** 分类编码。 */
+    @JdbcColumn(name = "code", unique = true, comment = "分类编码。")
     @TableField("code")
     private String code;
 
     /** 分类名称。 */
+    @JdbcColumn(name = "name", comment = "分类名称。")
     @TableField("name")
     private String name;
 
     /** 父分类编码。 */
+    @JdbcColumn(name = "parent_code", comment = "父分类编码。")
     @TableField("parent_code")
     private String parentCode;
 
     /** 分类路径。 */
+    @JdbcColumn(name = "path", comment = "分类路径。")
     @TableField("path")
     private String path;
 
     /** 排序号。 */
+    @JdbcColumn(name = "sort_no", comment = "排序号。")
     @TableField("sort_no")
     private Integer sortNo;
 
     /** 是否启用。 */
+    @JdbcColumn(name = "enabled", comment = "是否启用。")
     @TableField("enabled")
     private Boolean enabled;
 }

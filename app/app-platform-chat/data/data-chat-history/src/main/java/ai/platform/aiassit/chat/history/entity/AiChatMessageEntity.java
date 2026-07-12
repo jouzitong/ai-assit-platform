@@ -7,6 +7,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * AI 对话消息实体。
@@ -26,6 +27,7 @@ public class AiChatMessageEntity extends LogicalDeleteEntity {
      *
      * @see AiChatMessageEntity#getMessageCode() messageCode
      */
+    @JdbcColumn(name = "message_code", unique = true, comment = "消息唯一编码。")
     @TableField("message_code")
     private String messageCode;
 
@@ -34,78 +36,91 @@ public class AiChatMessageEntity extends LogicalDeleteEntity {
      *
      * @see AiChatRoundEntity#getRoundCode() roundCode
      */
+    @JdbcColumn(name = "round_code", comment = "对话轮次编码，用于标识消息所属的某一轮问答。")
     @TableField("round_code")
     private String roundCode;
 
     /**
      * 会话编码，用于标识消息所属的完整会话。
      */
+    @JdbcColumn(name = "session_code", comment = "会话编码，用于标识消息所属的完整会话。")
     @TableField("session_code")
     private String sessionCode;
 
     /**
      * 消息角色，例如 user、assistant、system、tool。
      */
+    @JdbcColumn(name = "role", comment = "消息角色，例如 user、assistant、system、tool。")
     @TableField("role")
     private String role;
 
     /**
      * 消息参与者类型，用于区分真实用户、AI、系统流程、工具节点等来源。
      */
+    @JdbcColumn(name = "actor_type", comment = "消息参与者类型，用于区分真实用户、AI、系统流程、工具节点等来源。")
     @TableField("actor_type")
     private String actorType;
 
     /**
      * 消息类型，例如普通文本、思考过程、工具调用、工具结果、异常信息等。
      */
+    @JdbcColumn(name = "message_type", comment = "消息类型，例如普通文本、思考过程、工具调用、工具结果、异常信息等。")
     @TableField("message_type")
     private String messageType;
 
     /**
      * 展示级别，用于控制前端是否展示以及展示粒度，例如主消息、过程消息、调试消息。
      */
+    @JdbcColumn(name = "display_level", comment = "展示级别，用于控制前端是否展示以及展示粒度，例如主消息、过程消息、调试消息。")
     @TableField("display_level")
     private String displayLevel;
 
     /**
      * 内容格式，例如 text、markdown、json、html。
      */
+    @JdbcColumn(name = "content_format", comment = "内容格式，例如 text、markdown、json、html。")
     @TableField("content_format")
     private String contentFormat;
 
     /**
      * 父消息编码，用于建立消息之间的层级关系。
      */
+    @JdbcColumn(name = "parent_message_code", comment = "父消息编码，用于建立消息之间的层级关系。")
     @TableField("parent_message_code")
     private String parentMessageCode;
 
     /**
      * 来源消息编码，用于记录当前消息由哪条消息触发或生成。
      */
+    @JdbcColumn(name = "source_message_code", comment = "来源消息编码，用于记录当前消息由哪条消息触发或生成。")
     @TableField("source_message_code")
     private String sourceMessageCode;
 
     /**
      * 消息状态，例如生成中、成功、失败、取消。
      */
+    @JdbcColumn(name = "status", comment = "消息状态，例如生成中、成功、失败、取消。")
     @TableField("status")
     private String status;
 
     /**
      * 消息内容正文。
      */
+    @JdbcColumn(name = "content", comment = "消息内容正文。")
     @TableField("content")
     private String content;
 
     /**
      * 排序号，用于控制同一会话或同一轮次内的消息展示顺序。
      */
+    @JdbcColumn(name = "sort_no", comment = "排序号，用于控制同一会话或同一轮次内的消息展示顺序。")
     @TableField("sort_no")
     private Integer sortNo;
 
     /**
      * 扩展信息 JSON，用于保存模型参数、工具调用参数、执行耗时、错误详情等非固定结构数据。
      */
+    @JdbcColumn(name = "ext_json", comment = "扩展信息 JSON，用于保存模型参数、工具调用参数、执行耗时、错误详情等非固定结构数据。")
     @TableField("ext_json")
     private String extJson;
 }

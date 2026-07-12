@@ -12,6 +12,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -28,46 +29,57 @@ import java.util.Map;
 public class AiKbPublishTaskEntity extends AuditableEntity {
 
     /** 任务编码。 */
+    @JdbcColumn(name = "task_code", unique = true, comment = "任务编码。")
     @TableField("task_code")
     private String taskCode;
 
     /** 所属知识库编码。 */
+    @JdbcColumn(name = "kb_code", comment = "所属知识库编码。")
     @TableField("kb_code")
     private String kbCode;
 
     /** 任务类型，例如 PUBLISH、ROLLBACK。 */
+    @JdbcColumn(name = "task_type", comment = "任务类型，例如 PUBLISH、ROLLBACK。")
     @TableField("task_type")
     private AiKbTaskType taskType;
 
     /** 任务状态，例如 PENDING、RUNNING、SUCCESS、FAILED、CANCELED。 */
+    @JdbcColumn(name = "status", comment = "任务状态，例如 PENDING、RUNNING、SUCCESS、FAILED、CANCELED。")
     @TableField("status")
     private AiKbTaskStatus status;
 
     /** 当前进度百分比。 */
+    @JdbcColumn(name = "progress_percent", comment = "当前进度百分比。")
     @TableField("progress_percent")
     private Integer progressPercent;
 
     /** 当前执行阶段。 */
+    @JdbcColumn(name = "current_stage", comment = "当前执行阶段。")
     @TableField("current_stage")
     private AiKbPublishStage currentStage;
 
     /** 任务请求参数。 */
+    @JdbcColumn(name = "request_json", comment = "任务请求参数。")
     @TableField(value = "request_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> requestJson;
 
     /** 任务执行结果。 */
+    @JdbcColumn(name = "result_json", comment = "任务执行结果。")
     @TableField(value = "result_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> resultJson;
 
     /** 失败错误信息。 */
+    @JdbcColumn(name = "error_message", comment = "失败错误信息。")
     @TableField("error_message")
     private String errorMessage;
 
     /** 启动时间。 */
+    @JdbcColumn(name = "started_at", comment = "启动时间。")
     @TableField("started_at")
     private LocalDateTime startedAt;
 
     /** 结束时间。 */
+    @JdbcColumn(name = "finished_at", comment = "结束时间。")
     @TableField("finished_at")
     private LocalDateTime finishedAt;
 }

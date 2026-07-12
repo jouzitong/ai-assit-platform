@@ -40,16 +40,20 @@ public class ConversationIntentRouteService {
         IntentAnalyzeResponse response = resolveIntentAnalyzeResponse(context);
         refreshRoundType(context, response);
         bindWorkflowDefinition(context, response);
+        log.info("意图路由完成，context={}", context);
     }
 
     private IntentAnalyzeResponse resolveIntentAnalyzeResponse(ConversationRuntimeContext context) {
         IntentAnalyzeResponse existingResponse = context.get(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE);
         if (existingResponse != null) {
+            log.info("复用已准备的基础意图分析结果，context={}", context);
             return existingResponse;
         }
         try {
+            log.info("开始基础意图分析，context={}", context);
             IntentAnalyzeResponse response = intentAnalyzeService.analyze(context);
             if (response == null) {
+                log.warn("基础意图分析未返回结果，将按默认工作流继续，context={}", context);
                 return null;
             }
             context.put(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_RESPONSE, response);
@@ -62,10 +66,7 @@ public class ConversationIntentRouteService {
             );
             return response;
         } catch (Exception ex) {
-            log.warn("base intent analyze failed, sessionCode={}, roundCode={}",
-                    context.getSession() == null ? null : context.getSession().getSessionCode(),
-                    context.getRound() == null ? null : context.getRound().getRoundCode(),
-                    ex);
+            log.warn("基础意图分析失败，将跳过分析并按默认工作流继续，context={}", context, ex);
             context.put(ConversationRuntimeContextKeys.Planning.INTENT_ANALYZE_ERROR, ex.getMessage());
             context.publishProgressEvent(
                     ConversationEventSources.INTENT_ANALYZE,
@@ -95,6 +96,7 @@ public class ConversationIntentRouteService {
                 "workflow routed",
                 ext
         );
+        log.info("已绑定对话工作流定义，context={}", context);
     }
 
     private void refreshRoundType(ConversationRuntimeContext context, IntentAnalyzeResponse response) {

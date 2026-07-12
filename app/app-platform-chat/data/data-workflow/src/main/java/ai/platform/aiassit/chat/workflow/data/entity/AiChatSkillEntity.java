@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -30,42 +31,49 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
     /**
      * Skill 编码。
      */
+    @JdbcColumn(name = "code", unique = true, comment = "Skill 编码。")
     @TableField("code")
     private String code;
 
     /**
      * Skill 名称。
      */
+    @JdbcColumn(name = "name", comment = "Skill 名称。")
     @TableField("name")
     private String name;
 
     /**
      * Skill 简要说明。
      */
+    @JdbcColumn(name = "desc", comment = "Skill 简要说明。")
     @TableField("`desc`")
     private String desc;
 
     /**
      * Skill Markdown 规则内容。
      */
+    @JdbcColumn(name = "content", comment = "Skill Markdown 规则内容。")
     @TableField("content")
     private String content;
 
     /**
      * Skill 关联的 tool 编码列表。
      */
+    @JdbcColumn(name = "tool_refs", comment = "Skill 关联的 tool 编码列表。")
     @TableField(value = "tool_refs", typeHandler = JacksonTypeHandler.class)
     private List<String> toolRefs = new ArrayList<>();
 
     /**
      * 是否启用。
      */
+    @JdbcColumn(name = "enabled", comment = "是否启用。")
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
     /**
      * 备注。
      */
+    @JdbcColumn(name = "remark", comment = "备注。")
     @TableField("remark")
     private String remark;
 }

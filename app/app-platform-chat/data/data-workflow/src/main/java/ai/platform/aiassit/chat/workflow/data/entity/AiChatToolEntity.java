@@ -8,6 +8,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 /**
  * Tool 目录表。
@@ -27,48 +28,56 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
     /**
      * Tool 编码。
      */
+    @JdbcColumn(name = "code", comment = "Tool 编码。")
     @TableField("code")
     private String code;
 
     /**
      * Tool 名称 / Agent 暴露名。
      */
+    @JdbcColumn(name = "name", comment = "Tool 名称 / Agent 暴露名。")
     @TableField("name")
     private String name;
 
     /**
      * Tool 说明。
      */
+    @JdbcColumn(name = "desc", comment = "Tool 说明。")
     @TableField("`desc`")
     private String desc;
 
     /**
      * 脚本内容。
      */
+    @JdbcColumn(name = "content", comment = "脚本内容。")
     @TableField("content")
     private String content;
 
     /**
      * 运行时类型，例如 PYTHON / JAVASCRIPT。
      */
+    @JdbcColumn(name = "runtime_type", comment = "运行时类型，例如 PYTHON / JAVASCRIPT。")
     @TableField("runtime_type")
     private String runtimeType;
 
     /**
      * 同步状态，例如 PENDING / SUCCESS / FAILED。
      */
+    @JdbcColumn(name = "sync_status", comment = "同步状态，例如 PENDING / SUCCESS / FAILED。")
     @TableField("sync_status")
     private AiChatToolSyncStatus syncStatus;
 
     /**
      * 是否启用。
      */
+    @JdbcColumn(name = "enabled", comment = "是否启用。")
     @TableField("enabled")
     private Boolean enabled = Boolean.TRUE;
 
     /**
      * 备注。
      */
+    @JdbcColumn(name = "remark", comment = "备注。")
     @TableField("remark")
     private String remark;
 }

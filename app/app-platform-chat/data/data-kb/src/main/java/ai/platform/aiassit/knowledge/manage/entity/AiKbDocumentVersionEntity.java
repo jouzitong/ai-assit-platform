@@ -13,6 +13,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 import java.time.LocalDateTime;
 import java.util.Map;
@@ -29,62 +30,77 @@ import java.util.Map;
 public class AiKbDocumentVersionEntity extends AuditableEntity {
 
     /** 所属知识库编码。 */
+    @JdbcColumn(name = "kb_code", comment = "所属知识库编码。")
     @TableField("kb_code")
     private String kbCode;
 
     /** 文档编码。 */
+    @JdbcColumn(name = "document_code", comment = "文档编码。")
     @TableField("document_code")
     private String documentCode;
 
     /** 文档名称。 */
+    @JdbcColumn(name = "document_name", comment = "文档名称。")
     @TableField("document_name")
     private String documentName;
 
     /** 文档类型。 */
+    @JdbcColumn(name = "document_type", comment = "文档类型。")
     @TableField("document_type")
     private AiKbDocumentType documentType;
 
     /** 业务类型。 */
+    @JdbcColumn(name = "biz_type", comment = "业务类型。")
     @TableField("biz_type")
     private AiKbBizType bizType;
 
     /** 业务唯一键。 */
+    @JdbcColumn(name = "biz_key", comment = "业务唯一键。")
     @TableField("biz_key")
     private String bizKey;
 
     /** 文档自身版本号。 */
+    @JdbcColumn(name = "document_version_no", comment = "文档自身版本号。")
     @TableField("document_version_no")
     private Integer documentVersionNo;
 
     /** 变更类型，例如 CREATE、UPDATE、DELETE。 */
+    @JdbcColumn(name = "change_type", comment = "变更类型，例如 CREATE、UPDATE、DELETE。")
     @TableField("change_type")
     private AiKbChangeType changeType;
 
     /** 文档内容校验摘要。 */
+    @JdbcColumn(name = "content_checksum", comment = "文档内容校验摘要。")
     @TableField("content_checksum")
     private String contentChecksum;
 
     /** 发布时的文档内容格式，例如 MARKDOWN。 */
+    @JdbcColumn(name = "content_format", comment = "发布时的文档内容格式，例如 MARKDOWN。")
     @TableField("content_format")
     private AiKbContentFormat contentFormat;
 
     /** 发布时的文档内容大小，单位字节。 */
+    @JdbcColumn(name = "content_size", comment = "发布时的文档内容大小，单位字节。")
     @TableField("content_size")
     private Long contentSize;
 
     /** 发布时的扩展元数据快照。 */
+    @JdbcColumn(name = "meta_json", comment = "发布时的扩展元数据快照。")
     @TableField(value = "meta_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metaJson;
 
     /** 快照时间。 */
+    @JdbcColumn(name = "snapshot_at", comment = "快照时间。")
     @TableField("snapshot_at")
     private LocalDateTime snapshotAt;
 
     /** 快照创建人。 */
+    @JdbcColumn(name = "snapshot_by", comment = "快照创建人。")
     @TableField("snapshot_by")
     private String snapshotBy;
 
     /** 备注。 */
+    @JdbcColumn(name = "remark", comment = "备注。")
     @TableField("remark")
     private String remark;
 }

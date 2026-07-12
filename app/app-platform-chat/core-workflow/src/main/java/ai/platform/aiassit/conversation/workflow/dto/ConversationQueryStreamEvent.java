@@ -132,4 +132,24 @@ public class ConversationQueryStreamEvent {
      * <p>新增结构化字段时应优先保持 key 稳定，避免前端依赖 message 文案解析业务含义。</p>
      */
     private Map<String, Object> ext = new LinkedHashMap<>();
+
+    /**
+     * 日志摘要：仅输出事件定位与状态字段，不输出 answer、delta、message 或 ext。
+     */
+    @Override
+    public String toString() {
+        return "ConversationQueryStreamEvent{" +
+                "runId='" + runId + '\'' +
+                ", eventId='" + eventId + '\'' +
+                ", eventType='" + eventType + '\'' +
+                ", progressType='" + progressType + '\'' +
+                ", source='" + source + '\'' +
+                ", phase='" + phase + '\'' +
+                ", requestId='" + requestId + '\'' +
+                ", sessionCode='" + sessionCode + '\'' +
+                ", roundCode='" + roundCode + '\'' +
+                ", status='" + status + '\'' +
+                ", timestamp=" + timestamp +
+                '}';
+    }
 }

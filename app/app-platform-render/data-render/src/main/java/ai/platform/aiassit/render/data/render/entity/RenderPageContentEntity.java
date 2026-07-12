@@ -9,6 +9,7 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
+import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 import java.util.Map;
 
@@ -24,10 +25,12 @@ import java.util.Map;
 public class RenderPageContentEntity extends AuditableEntity {
 
     /** 页面编码。 */
+    @JdbcColumn(name = "page_code", unique = true, comment = "页面编码。")
     @TableField("page_code")
     private String pageCode;
 
     /** 当前页面 JSON 内容。 */
+    @JdbcColumn(name = "content", comment = "当前页面 JSON 内容。")
     @TableField(value = "content", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> content;
 }
