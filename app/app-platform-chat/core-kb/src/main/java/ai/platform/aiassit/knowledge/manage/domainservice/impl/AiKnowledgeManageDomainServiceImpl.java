@@ -544,8 +544,10 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (StringUtils.hasText(store.getUrl())) {
             storeExt.put("kbEndpoint", store.getUrl().trim());
         }
-        requireExtText(storeExt, "workspaceId");
-        requireExtText(storeExt, "kbEndpoint");
+        if (store.getClientType() == AiKnowledgeClientType.BAILIAN) {
+            requireExtText(storeExt, "workspaceId");
+            requireExtText(storeExt, "kbEndpoint");
+        }
 
         List<KbDocument> aiDocuments = new ArrayList<>(documents.size());
         List<AiKbDocumentDTO> acceptedDocuments = new ArrayList<>(documents.size());
@@ -702,6 +704,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         metadata.put("contentSize", document.getContentSize());
         metadata.putAll(copyMap(document.getMetaJson()));
         metadata.putAll(copyMap(content == null ? null : content.getExtJson()));
+        metadata.put("providerDocumentId", document.getProviderDocumentId());
         target.setMetadata(metadata);
         return target;
     }

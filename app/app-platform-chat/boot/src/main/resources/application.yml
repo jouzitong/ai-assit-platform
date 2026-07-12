@@ -22,6 +22,11 @@ ai:
       redis:
         key-prefix: ai:chat:runtime
   provider:
+    ragflow:
+      enabled: ${AI_PROVIDER_RAGFLOW_ENABLED:false}
+      base-url: ${AI_PROVIDER_RAGFLOW_BASE_URL:${RAGFLOW_BASE_URL:}}
+      api-key: ${AI_PROVIDER_RAGFLOW_API_KEY:${RAGFLOW_API_KEY:}}
+      timeout-ms: ${AI_PROVIDER_RAGFLOW_TIMEOUT_MS:30000}
     qwen:
       apiKey: ${AI_PROVIDER_QWEN_API_KEY:}
       enabled: true

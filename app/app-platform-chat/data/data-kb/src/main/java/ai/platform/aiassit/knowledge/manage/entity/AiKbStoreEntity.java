@@ -65,7 +65,7 @@ public class AiKbStoreEntity extends AuditableEntity {
             name = "client_type",
             dataType = "INT",
             nullable = false,
-            comment = "知识库客户端类型：1=BAILIAN,2=RAWFLOW"
+            comment = "知识库客户端类型：1=BAILIAN,2=RAGFLOW"
     )
     @TableField(value = "client_type", typeHandler = DefaultEnumTypeHandler.class)
     private AiKnowledgeClientType clientType;

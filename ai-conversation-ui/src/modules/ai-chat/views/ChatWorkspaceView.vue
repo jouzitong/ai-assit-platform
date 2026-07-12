@@ -25,6 +25,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import brandLogoDark from '../../../assets/icons/brand-logo-dark.svg'
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme } from '../../../stores/theme'
@@ -605,7 +606,7 @@ watch(route, () => {
         >
           <img
             class="chat-home-brand__logo-image"
-            :src="sidebarExpanded ? brandLogo : brandMark"
+            :src="sidebarExpanded ? (activeTheme === 'dark' ? brandLogoDark : brandLogo) : brandMark"
             :alt="sidebarExpanded ? '智能问数 ZG' : '智能问数'"
           />
         </button>

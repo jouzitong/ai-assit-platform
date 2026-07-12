@@ -102,6 +102,11 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-chat-provider-ragflow</artifactId>
+                <version>${app.platform.chat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-provider-ai-agent</artifactId>
                 <version>${app.platform.chat.version}</version>
             </dependency>
@@ -148,5 +153,6 @@
         <module>spi</module>
         <module>providers/ai-provider-ai-agent</module>
         <module>providers/ai-provider-qwen-public</module>
+        <module>providers/ai-provider-ragflow</module>
     </modules>
 </project>
