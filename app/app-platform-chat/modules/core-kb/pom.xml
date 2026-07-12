@@ -8,12 +8,12 @@
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>app-platform-chat</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>app-platform-chat-core-conversation-runtime</artifactId>
+    <artifactId>app-platform-chat-core-kb</artifactId>
     <packaging>jar</packaging>
-    <name>app-platform-chat-core-conversation-runtime</name>
+    <name>app-platform-chat-core-kb</name>
 
     <dependencies>
         <dependency>
@@ -21,31 +21,29 @@
             <artifactId>athena-framework-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.athena</groupId>
-            <artifactId>athena-framework-starter-web</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-data-redis</artifactId>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-api</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-core-ai-chat</artifactId>
+            <artifactId>app-platform-chat-spi</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-data-kb</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-ai-engine</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework</groupId>
+            <artifactId>spring-context</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.projectlombok</groupId>
+            <artifactId>lombok</artifactId>
+            <optional>true</optional>
         </dependency>
     </dependencies>
-
-    <build>
-        <plugins>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-surefire-plugin</artifactId>
-                <version>3.2.5</version>
-            </plugin>
-        </plugins>
-    </build>
 </project>

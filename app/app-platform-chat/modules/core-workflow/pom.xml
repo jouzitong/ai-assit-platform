@@ -8,12 +8,12 @@
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>app-platform-chat</artifactId>
         <version>1.0.0-SNAPSHOT</version>
-        <relativePath>../pom.xml</relativePath>
+        <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>app-platform-chat-core-ai-engine</artifactId>
+    <artifactId>app-platform-chat-core-workflow</artifactId>
     <packaging>jar</packaging>
-    <name>app-platform-chat-core-ai-engine</name>
+    <name>app-platform-chat-core-workflow</name>
 
     <dependencies>
         <dependency>
@@ -21,12 +21,28 @@
             <artifactId>athena-framework-common</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-web</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-security-token-jwt</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-ai-engine</artifactId>
+        </dependency>
+        <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-api</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-spi</artifactId>
+            <artifactId>app-platform-chat-data-chat-history</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-data-workflow</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
@@ -34,20 +50,7 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-data-kb</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-user-system-settings-api</artifactId>
-            <version>${project.version}</version>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-provider-qwen-public</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-provider-ai-agent</artifactId>
+            <artifactId>app-platform-render-api</artifactId>
         </dependency>
     </dependencies>
 </project>
