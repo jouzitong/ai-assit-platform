@@ -1,7 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.service;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
 import org.athena.framework.data.jdbc.serivce.IMapperService;
 
 import java.util.List;

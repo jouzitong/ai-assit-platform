@@ -1,4 +1,4 @@
-package ai.platform.aiassit.knowledge.manage.entity;
+package ai.platform.aiassit.knowledge.manage.entity.document;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -15,26 +15,26 @@ import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 import java.util.Map;
 
 /**
- * 知识库草稿文档正文实体。
+ * 知识库发布快照正文实体。
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "ai_kb_document_content", autoResultMap = true)
-public class AiKbDocumentContentEntity extends AuditableEntity {
+@TableName(value = "ai_kb_document_version_content", autoResultMap = true)
+public class AiKbDocumentVersionContentEntity extends AuditableEntity {
 
-    /** 所属草稿文档 ID。 */
+    /** 所属文档版本快照 ID。 */
     @JdbcColumn(
-            name = "document_id",
+            name = "document_version_id",
             dataType = "BIGINT",
             nullable = false,
             unique = true,
-            comment = "所属当前文档 ID"
+            comment = "所属文档版本快照 ID"
     )
-    @TableField("document_id")
-    private Long documentId;
+    @TableField("document_version_id")
+    private Long documentVersionId;
 
     /** 内容格式，例如 MARKDOWN、TEXT、JSON。 */
     @JdbcColumn(
@@ -58,22 +58,22 @@ public class AiKbDocumentContentEntity extends AuditableEntity {
     @TableField("content_size")
     private Long contentSize;
 
-    /** 结构化内容。 */
+    /** 发布快照的结构化内容。 */
     @JdbcColumn(
             name = "content_json",
             dataType = "MEDIUMTEXT",
             nullable = true,
-            comment = "结构化内容 JSON"
+            comment = "发布快照结构化内容 JSON"
     )
     @TableField(value = "content_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> contentJson;
 
-    /** 渲染后的最终文本内容。 */
+    /** 发布快照的最终文本内容。 */
     @JdbcColumn(
             name = "rendered_content",
             dataType = "MEDIUMTEXT",
             nullable = true,
-            comment = "渲染后的最终文本内容"
+            comment = "发布快照最终文本内容"
     )
     @TableField("rendered_content")
     private String renderedContent;

@@ -15,7 +15,7 @@ import ai.platform.aiassit.knowledge.manage.resp.AiKbDeleteResponse;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncResponse;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
+import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 
 import java.util.List;

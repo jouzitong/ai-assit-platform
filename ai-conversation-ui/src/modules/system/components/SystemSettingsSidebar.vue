@@ -1,8 +1,9 @@
 <script setup lang="ts">
-import { Setting, SwitchButton } from '@element-plus/icons-vue'
+import { CaretRight, Setting, SwitchButton } from '@element-plus/icons-vue'
 import { ElIcon } from 'element-plus'
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import brandLogoDark from '../../../assets/icons/brand-logo-dark.svg'
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme, type ThemeName } from '../../../stores/theme'
@@ -12,6 +13,7 @@ type SettingsSection = {
   key: string
   label: string
   icon: unknown
+  children?: SettingsSection[]
 }
 
 const props = defineProps<{
@@ -26,6 +28,7 @@ const userMenuVisible = ref(false)
 const userMenuAnchorRef = ref<HTMLElement | null>(null)
 const userMenuRef = ref<HTMLElement | null>(null)
 const userMenuStyle = ref<Record<string, string>>({})
+const expandedSectionKeys = ref(new Set<string>())
 
 const emit = defineEmits<{
   navigateHome: []
@@ -41,6 +44,40 @@ const displayName = computed(() => {
   return String(user.nickname || user.realName || user.username || user.name || '当前用户')
 })
 const avatarText = computed(() => displayName.value.trim().slice(0, 1) || 'U')
+
+function isGroupActive(section: SettingsSection) {
+  return props.activeSection === section.key || section.children?.some(item => item.key === props.activeSection) === true
+}
+
+function isExpanded(section: SettingsSection) {
+  return expandedSectionKeys.value.has(section.key)
+}
+
+function expandActiveGroup() {
+  const activeGroup = props.sections.find(section => section.children?.some(item => item.key === props.activeSection))
+  if (!activeGroup || expandedSectionKeys.value.has(activeGroup.key)) {
+    return
+  }
+  expandedSectionKeys.value = new Set([...expandedSectionKeys.value, activeGroup.key])
+}
+
+function handleGroupClick(section: SettingsSection) {
+  if (!section.children?.length) {
+    return
+  }
+  if (props.collapsed) {
+    emit('selectSection', section.children[0].key)
+    return
+  }
+
+  const nextExpanded = new Set(expandedSectionKeys.value)
+  if (nextExpanded.has(section.key)) {
+    nextExpanded.delete(section.key)
+  } else {
+    nextExpanded.add(section.key)
+  }
+  expandedSectionKeys.value = nextExpanded
+}
 
 function updateUserMenuPosition() {
   const anchor = userMenuAnchorRef.value
@@ -123,10 +160,13 @@ function handleViewportChange() {
 
 onMounted(() => {
   activeTheme.value = getSavedTheme()
+  expandActiveGroup()
   document.addEventListener('click', handleDocumentClick)
   window.addEventListener('resize', handleViewportChange)
   window.addEventListener('scroll', handleViewportChange, true)
 })
+
+watch(() => props.activeSection, expandActiveGroup)
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
@@ -146,7 +186,7 @@ onBeforeUnmount(() => {
     >
       <img
         class="system-settings-logo__image"
-        :src="collapsed ? brandMark : brandLogo"
+        :src="collapsed ? brandMark : (activeTheme === 'dark' ? brandLogoDark : brandLogo)"
         :alt="collapsed ? '智能问数' : '智能问数 ZG'"
       />
     </button>
@@ -156,16 +196,32 @@ onBeforeUnmount(() => {
     </div>
 
     <nav class="system-settings-nav">
-      <button
-        v-for="section in sections"
-        :key="section.key"
-        :class="['system-settings-nav__item', { 'is-active': activeSection === section.key }]"
-        type="button"
-        @click="emit('selectSection', section.key)"
-      >
-        <el-icon><component :is="section.icon" /></el-icon>
-        <span v-if="!collapsed">{{ section.label }}</span>
-      </button>
+      <div v-for="section in sections" :key="section.key" class="system-settings-nav__group">
+        <button
+          :class="['system-settings-nav__item', { 'is-active': isGroupActive(section), 'is-group': section.children?.length }]"
+          type="button"
+          :aria-expanded="section.children?.length ? isExpanded(section) : undefined"
+          @click="section.children?.length ? handleGroupClick(section) : emit('selectSection', section.key)"
+        >
+          <el-icon><component :is="section.icon" /></el-icon>
+          <span v-if="!collapsed" class="system-settings-nav__label">{{ section.label }}</span>
+          <el-icon v-if="section.children?.length && !collapsed" :class="['system-settings-nav__caret', { 'is-expanded': isExpanded(section) }]">
+            <CaretRight />
+          </el-icon>
+        </button>
+
+        <div v-if="section.children?.length && isExpanded(section) && !collapsed" class="system-settings-nav__children">
+          <button
+            v-for="child in section.children"
+            :key="child.key"
+            :class="['system-settings-nav__child', { 'is-active': activeSection === child.key }]"
+            type="button"
+            @click="emit('selectSection', child.key)"
+          >
+            {{ child.label }}
+          </button>
+        </div>
+      </div>
     </nav>
 
     <div class="system-settings-sidebar__footer">
@@ -252,6 +308,11 @@ onBeforeUnmount(() => {
   gap: 6px;
 }
 
+.system-settings-nav__group {
+  display: grid;
+  gap: 4px;
+}
+
 .system-settings-sidebar__footer {
   margin-top: auto;
   position: relative;
@@ -271,17 +332,79 @@ onBeforeUnmount(() => {
   font-size: 13px;
   text-align: left;
   cursor: pointer;
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.system-settings-nav__label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.system-settings-nav__caret {
+  margin-left: auto;
+  transition: transform 0.2s ease;
+}
+
+.system-settings-nav__caret.is-expanded {
+  transform: rotate(90deg);
+}
+
+.system-settings-nav__children {
+  display: grid;
+  gap: 2px;
+  margin-left: 20px;
+  padding-left: 14px;
+  border-left: 1px solid var(--system-border-subtle);
+}
+
+.system-settings-nav__child {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--system-text-soft);
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.2s ease, color 0.2s ease;
+}
+
+.system-settings-nav__child:hover,
+.system-settings-nav__child:focus-visible {
+  background: var(--system-surface-muted);
+  color: var(--system-title);
+  outline: none;
+}
+
+.system-settings-nav__child.is-active {
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
+  font-weight: 600;
 }
 
 .system-settings-logo {
   display: block;
-  width: 168px;
+  width: 100%;
   padding: 0;
   border: 0;
+  border-radius: 8px;
   background: transparent;
   line-height: 0;
   cursor: pointer;
   overflow: hidden;
+  transition: box-shadow 0.2s ease;
+}
+
+.system-settings-logo:focus-visible {
+  outline: 2px solid var(--system-accent-text);
+  outline-offset: 2px;
+}
+
+.system-settings-logo:hover {
+  box-shadow: var(--system-shadow);
 }
 
 .system-settings-logo__image {
@@ -322,11 +445,11 @@ onBeforeUnmount(() => {
 }
 
 .system-settings-sidebar--collapsed .system-settings-logo {
-  width: 52px;
+  width: 40px;
 }
 
 .system-settings-sidebar--collapsed .system-settings-logo__image {
-  width: 52px;
+  width: 40px;
 }
 
 .system-settings-sidebar--collapsed .system-settings-brand {

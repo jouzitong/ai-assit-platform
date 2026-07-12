@@ -523,7 +523,7 @@ async function handleChangeTab(tab: KbDocumentTab) {
 }
 
 async function navigateBack() {
-  await router.push('/settings/system/ai-platform')
+  await router.push('/settings/system/ai-platform/kb')
 }
 
 watch(kbCode, () => {

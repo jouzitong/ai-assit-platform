@@ -1,7 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.convert;
 
-import ai.platform.aiassit.knowledge.manage.entity.AiKbStoreEntity;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.store.AiKbStoreEntity;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
 import org.athena.framework.data.jdbc.convert.IConvert;
 import org.mapstruct.Mapper;
 

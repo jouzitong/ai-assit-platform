@@ -3,7 +3,9 @@ package ai.platform.aiassit.service.ai.api;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
@@ -13,7 +15,10 @@ import ai.platform.aiassit.service.ai.api.dto.KbSearchResponse;
 import org.athena.framework.web.annotation.IgnoredResultWrapper;
 import org.athena.framework.web.vo.R;
 import org.springframework.cloud.openfeign.FeignClient;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 
 import java.util.List;
@@ -68,6 +73,18 @@ public interface AiKnowledgeApi {
      */
     @PostMapping("/internal/v1/ai/kb/dataset/list")
     R<List<AiKbDatasetDTO>> listDatasets(@RequestBody(required = false) AiKbDatasetListRequest request);
+
+    /** 创建知识库提供方侧的 Dataset。 */
+    @PostMapping("/internal/v1/ai/kb/dataset")
+    R<AiKbDatasetDTO> createDataset(@RequestBody AiKbDatasetSaveRequest request);
+
+    /** 更新知识库提供方侧的 Dataset。 */
+    @PutMapping("/internal/v1/ai/kb/dataset/{kbId}")
+    R<AiKbDatasetDTO> updateDataset(@PathVariable String kbId, @RequestBody AiKbDatasetSaveRequest request);
+
+    /** 删除知识库提供方侧的一个或多个 Dataset。 */
+    @DeleteMapping("/internal/v1/ai/kb/dataset")
+    R<Integer> deleteDatasets(@RequestBody AiKbDatasetDeleteRequest request);
 
     @PostMapping("/api/v1/ai/execution/kb/delete")
     @IgnoredResultWrapper

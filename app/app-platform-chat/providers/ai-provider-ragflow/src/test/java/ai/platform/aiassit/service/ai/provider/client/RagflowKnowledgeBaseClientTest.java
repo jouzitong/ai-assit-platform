@@ -2,7 +2,9 @@ package ai.platform.aiassit.service.ai.provider.client;
 
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
@@ -112,6 +114,31 @@ class RagflowKnowledgeBaseClientTest {
         assertEquals(1, datasets.size());
     }
 
+    @Test
+    void shouldCreateUpdateAndDeleteDatasets() throws Exception {
+        AiKbDatasetSaveRequest createRequest = new AiKbDatasetSaveRequest();
+        createRequest.setName("销售知识库");
+        createRequest.setDescription("销售指标说明");
+        createRequest.setEmbeddingModel("BAAI/bge-m3");
+        createRequest.setChunkMethod("naive");
+        createRequest.setParserConfig(Map.of("chunk_token_num", 512));
+        createRequest.setExt(Map.of("pagerank", 10));
+
+        AiKbDatasetDTO created = client.createDataset(createRequest);
+        assertEquals("dataset-2", created.getKbId());
+        assertEquals("销售知识库", created.getKbName());
+
+        AiKbDatasetSaveRequest updateRequest = new AiKbDatasetSaveRequest();
+        updateRequest.setDescription("更新后的销售指标说明");
+        AiKbDatasetDTO updated = client.updateDataset("dataset-2", updateRequest);
+        assertEquals("dataset-2", updated.getKbId());
+        assertEquals("更新后的销售知识库", updated.getKbName());
+
+        AiKbDatasetDeleteRequest deleteRequest = new AiKbDatasetDeleteRequest();
+        deleteRequest.setKbIds(List.of("dataset-2"));
+        assertEquals(1, client.deleteDatasets(deleteRequest));
+    }
+
     private void handleDocuments(HttpExchange exchange) throws IOException {
         assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
         if ("POST".equals(exchange.getRequestMethod())) {
@@ -140,12 +167,34 @@ class RagflowKnowledgeBaseClientTest {
     }
 
     private void handleDatasets(HttpExchange exchange) throws IOException {
-        assertEquals("GET", exchange.getRequestMethod());
         if (exchange.getRequestHeaders().getFirst("X-API-Key") != null) {
             assertEquals("custom-key", exchange.getRequestHeaders().getFirst("X-API-Key"));
         } else {
             assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
         }
+        if ("POST".equals(exchange.getRequestMethod())) {
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("\"name\":\"销售知识库\""));
+            assertTrue(body.contains("\"embedding_model\":\"BAAI/bge-m3\""));
+            assertTrue(body.contains("\"parser_config\":{\"chunk_token_num\":512}"));
+            assertTrue(body.contains("\"pagerank\":10"));
+            respond(exchange, 200, "{\"code\":0,\"data\":{\"id\":\"dataset-2\",\"name\":\"销售知识库\"}}");
+            return;
+        }
+        if ("PUT".equals(exchange.getRequestMethod())) {
+            assertEquals("/api/v1/datasets/dataset-2", exchange.getRequestURI().getPath());
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("\"description\":\"更新后的销售指标说明\""));
+            respond(exchange, 200, "{\"code\":0,\"data\":{\"id\":\"dataset-2\",\"name\":\"更新后的销售知识库\"}}");
+            return;
+        }
+        if ("DELETE".equals(exchange.getRequestMethod())) {
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("\"ids\":[\"dataset-2\"]"));
+            respond(exchange, 200, "{\"code\":0,\"data\":true}");
+            return;
+        }
+        assertEquals("GET", exchange.getRequestMethod());
         String query = exchange.getRequestURI().getRawQuery();
         assertTrue(query.contains("page=2"));
         assertTrue(query.contains("page_size=10"));

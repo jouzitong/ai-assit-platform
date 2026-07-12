@@ -20,7 +20,8 @@ type SettingsSection = {
   icon: unknown
   title: string
   description: string
-  component: unknown
+  component?: unknown
+  children?: Array<Pick<SettingsSection, 'key' | 'label' | 'icon' | 'title' | 'description' | 'component'>>
 }
 
 const router = useRouter()
@@ -83,6 +84,24 @@ const sections: SettingsSection[] = [
     title: 'AI 平台管理',
     description: '管理模型、提供方、密钥和 AI 平台级别配置。',
     component: AiPlatformSection,
+    children: [
+      {
+        key: 'ai-platform-model',
+        label: '模型管理',
+        icon: Cpu,
+        title: '模型管理',
+        description: '维护模型连接、鉴权信息和启用状态。',
+        component: AiPlatformSection,
+      },
+      {
+        key: 'ai-platform-kb',
+        label: '知识库管理',
+        icon: Cpu,
+        title: '知识库管理',
+        description: '维护知识库客户端、数据集和文档。',
+        component: AiPlatformSection,
+      },
+    ],
   },
   {
     key: 'workflow',
@@ -94,17 +113,37 @@ const sections: SettingsSection[] = [
   },
 ]
 
-const activeSection = computed(() => {
-  const section = typeof route.params.section === 'string' ? route.params.section : ''
-  return sections.some((item) => item.key === section) ? section : sections[0].key
+const routeSection = computed(() => typeof route.params.section === 'string' ? route.params.section : '')
+const routeSourceKey = computed(() => typeof route.params.sourceKey === 'string' ? route.params.sourceKey : '')
+const isAiPlatformSection = computed(() => routeSection.value === 'ai-platform')
+const aiPlatformTab = computed<'model' | 'kb'>(() => {
+  if (routeSourceKey.value && routeSourceKey.value !== 'model') {
+    return 'kb'
+  }
+  return route.query.tab === 'kb' ? 'kb' : 'model'
 })
 
-const hasDataSourceDetail = computed(() => activeSection.value === 'data-source' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
-const hasAiPlatformKbDetail = computed(() => activeSection.value === 'ai-platform' && typeof route.params.sourceKey === 'string' && route.params.sourceKey.trim().length > 0)
-const currentSection = computed(() => sections.find((item) => item.key === activeSection.value) || sections[0])
+const activeSection = computed(() => {
+  if (isAiPlatformSection.value) {
+    return `ai-platform-${aiPlatformTab.value}`
+  }
+  return sections.some((item) => item.key === routeSection.value) ? routeSection.value : sections[0].key
+})
+
+const hasDataSourceDetail = computed(() => routeSection.value === 'data-source' && routeSourceKey.value.trim().length > 0)
+const hasAiPlatformKbDetail = computed(() => isAiPlatformSection.value && !['model', 'kb'].includes(routeSourceKey.value) && routeSourceKey.value.trim().length > 0)
+const currentSection = computed(() => sections.find((item) => item.key === routeSection.value) || sections[0])
 
 async function navigateToSection(sectionKey: string) {
   if (activeSection.value === sectionKey) {
+    return
+  }
+  if (sectionKey === 'ai-platform-model') {
+    await router.push('/settings/system/ai-platform/model')
+    return
+  }
+  if (sectionKey === 'ai-platform-kb') {
+    await router.push('/settings/system/ai-platform/kb')
     return
   }
   await router.push(`/settings/system/${sectionKey}`)
@@ -119,8 +158,18 @@ function toggleSidebar() {
 }
 
 onMounted(() => {
-  if (typeof route.params.section !== 'string' || !sections.some((item) => item.key === route.params.section)) {
+  if (!sections.some((item) => item.key === routeSection.value)) {
     void router.replace(`/settings/system/${sections[0].key}`)
+    return
+  }
+
+  if (isAiPlatformSection.value && !routeSourceKey.value) {
+    const legacyTab = route.query.tab === 'kb' ? 'kb' : 'model'
+    const { tab: _tab, ...query } = route.query
+    void router.replace({
+      path: `/settings/system/ai-platform/${legacyTab}`,
+      query,
+    })
   }
 })
 </script>
@@ -153,9 +202,10 @@ onMounted(() => {
     </button>
 
     <main class="system-settings-content">
-      <component
-        :is="hasDataSourceDetail ? DataSourceTableSection : hasAiPlatformKbDetail ? KbDocumentManageSection : currentSection.component"
-      />
+      <DataSourceTableSection v-if="hasDataSourceDetail" />
+      <KbDocumentManageSection v-else-if="hasAiPlatformKbDetail" />
+      <AiPlatformSection v-else-if="isAiPlatformSection" :active-tab="aiPlatformTab" />
+      <component v-else :is="currentSection.component" />
     </main>
   </div>
 </template>

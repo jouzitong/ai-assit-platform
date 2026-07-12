@@ -1,6 +1,5 @@
 package ai.platform.aiassit.knowledge.manage.vo;
 
-import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.AuditableDTO;
@@ -17,16 +16,27 @@ public class AiKbStoreVO extends AuditableDTO {
 
     private String kbName;
 
-    private AiKnowledgeClientType clientType;
-
     private String providerKbId;
+
+    private String description;
+
+    private String embeddingModel;
+
+    private String permission;
+
+    private String chunkMethod;
+
+    private Map<String, Object> parserConfig;
+
+    private String parseType;
+
+    private String pipelineId;
 
     private Boolean enabled;
 
     private List<String> tags;
 
-    private String url;
-
+    /** 脱敏后的认证配置。 */
     private AiKbAuthVO auth;
 
     private Map<String, Object> extJson;

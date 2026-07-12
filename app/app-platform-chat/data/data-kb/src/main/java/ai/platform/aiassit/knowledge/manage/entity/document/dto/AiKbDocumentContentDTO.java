@@ -1,4 +1,4 @@
-package ai.platform.aiassit.knowledge.manage.entity.dto;
+package ai.platform.aiassit.knowledge.manage.entity.document.dto;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
 import lombok.Data;
@@ -9,9 +9,9 @@ import java.util.Map;
 
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class AiKbDocumentVersionContentDTO extends BaseDTO {
+public class AiKbDocumentContentDTO extends BaseDTO {
 
-    private Long documentVersionId;
+    private Long documentId;
 
     private AiKbContentFormat contentFormat;
 

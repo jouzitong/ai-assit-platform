@@ -4,7 +4,9 @@ import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
@@ -152,6 +154,46 @@ public class RagflowKnowledgeBaseClient {
         return result;
     }
 
+    /** 创建 RAGFlow Dataset。 */
+    public AiKbDatasetDTO createDataset(AiKbDatasetSaveRequest request) throws Exception {
+        AiKbDatasetSaveRequest normalized = request == null ? new AiKbDatasetSaveRequest() : request;
+        if (!StringUtils.hasText(normalized.getName())) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ID);
+        }
+        JsonNode data = data(request("POST", "/api/v1/datasets", datasetPayload(normalized, true), normalized.getMeta()));
+        return toDataset(data, null);
+    }
+
+    /** 更新 RAGFlow Dataset 配置。 */
+    public AiKbDatasetDTO updateDataset(String datasetId, AiKbDatasetSaveRequest request) throws Exception {
+        requireDatasetId(datasetId);
+        AiKbDatasetSaveRequest normalized = request == null ? new AiKbDatasetSaveRequest() : request;
+        JsonNode data = data(request("PUT", "/api/v1/datasets/" + encodePath(datasetId),
+                datasetPayload(normalized, false), normalized.getMeta()));
+        return toDataset(data, datasetId);
+    }
+
+    /** 删除一个或多个 RAGFlow Dataset。 */
+    public int deleteDatasets(AiKbDatasetDeleteRequest request) throws Exception {
+        AiKbDatasetDeleteRequest normalized = request == null ? new AiKbDatasetDeleteRequest() : request;
+        boolean deleteAll = Boolean.TRUE.equals(normalized.getDeleteAll());
+        List<String> datasetIds = normalized.getKbIds() == null ? List.of() : normalized.getKbIds().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .toList();
+        if (!deleteAll && datasetIds.isEmpty()) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ID);
+        }
+        Map<String, Object> body = new LinkedHashMap<>();
+        if (deleteAll) {
+            body.put("delete_all", true);
+        } else {
+            body.put("ids", datasetIds);
+        }
+        request("DELETE", "/api/v1/datasets", body, normalized.getMeta());
+        return deleteAll ? 0 : datasetIds.size();
+    }
+
     private String createEmptyDocument(String datasetId, KbDocument document, RequestMeta meta) throws Exception {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("name", documentName(document));
@@ -260,9 +302,41 @@ public class RagflowKnowledgeBaseClient {
         return objectMapper.createArrayNode();
     }
 
+    private Map<String, Object> datasetPayload(AiKbDatasetSaveRequest request, boolean creating) {
+        Map<String, Object> body = request.getExt() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(request.getExt());
+        putText(body, "name", request.getName(), creating);
+        putText(body, "description", request.getDescription(), false);
+        putText(body, "embedding_model", request.getEmbeddingModel(), false);
+        putText(body, "permission", request.getPermission(), false);
+        putText(body, "chunk_method", request.getChunkMethod(), false);
+        putText(body, "parse_type", request.getParseType(), false);
+        putText(body, "pipeline_id", request.getPipelineId(), false);
+        if (request.getParserConfig() != null && !request.getParserConfig().isEmpty()) {
+            body.put("parser_config", request.getParserConfig());
+        }
+        return body;
+    }
+
+    private void putText(Map<String, Object> target, String field, String value, boolean required) {
+        if (StringUtils.hasText(value)) {
+            target.put(field, value.trim());
+        } else if (required) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ID);
+        }
+    }
+
     private AiKbDatasetDTO toDataset(JsonNode dataset) {
+        return toDataset(dataset, null);
+    }
+
+    private AiKbDatasetDTO toDataset(JsonNode dataset, String fallbackKbId) {
         AiKbDatasetDTO result = new AiKbDatasetDTO();
         result.setKbId(firstText(dataset, "id", "dataset_id", "datasetId"));
+        if (!StringUtils.hasText(result.getKbId())) {
+            result.setKbId(fallbackKbId);
+        }
         result.setKbName(firstText(dataset, "name", "dataset_name", "datasetName"));
         result.setClientType(AiKnowledgeClientType.RAGFLOW);
         result.setDescription(firstText(dataset, "description"));
@@ -271,7 +345,9 @@ public class RagflowKnowledgeBaseClient {
         result.setPermission(firstText(dataset, "permission"));
         result.setDocumentCount(integerField(dataset, "document_count", "documentCount"));
         result.setChunkCount(integerField(dataset, "chunk_count", "chunkCount"));
-        result.setExt(objectMapper.convertValue(dataset, new TypeReference<LinkedHashMap<String, Object>>() { }));
+        result.setExt(dataset != null && dataset.isObject()
+                ? objectMapper.convertValue(dataset, new TypeReference<LinkedHashMap<String, Object>>() { })
+                : new LinkedHashMap<>());
         return result;
     }
 

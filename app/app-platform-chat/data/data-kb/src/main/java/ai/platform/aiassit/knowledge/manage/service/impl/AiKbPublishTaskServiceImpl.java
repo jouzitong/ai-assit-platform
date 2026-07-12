@@ -1,9 +1,9 @@
 package ai.platform.aiassit.knowledge.manage.service.impl;
 
 import ai.platform.aiassit.knowledge.manage.convert.AiKbPublishTaskConvert;
-import ai.platform.aiassit.knowledge.manage.entity.AiKbPublishTaskEntity;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbPublishTaskQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.task.AiKbPublishTaskEntity;
+import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
+import ai.platform.aiassit.knowledge.manage.entity.task.req.AiKbPublishTaskQueryRequest;
 import ai.platform.aiassit.knowledge.manage.mapper.AiKbPublishTaskMapper;
 import ai.platform.aiassit.knowledge.manage.service.AiKbPublishTaskService;
 import org.athena.framework.data.jdbc.convert.IConvert;

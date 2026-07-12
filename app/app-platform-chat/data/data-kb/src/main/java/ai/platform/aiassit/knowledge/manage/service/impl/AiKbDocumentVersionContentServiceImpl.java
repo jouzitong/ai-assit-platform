@@ -1,8 +1,8 @@
 package ai.platform.aiassit.knowledge.manage.service.impl;
 
 import ai.platform.aiassit.knowledge.manage.convert.AiKbDocumentVersionContentConvert;
-import ai.platform.aiassit.knowledge.manage.entity.AiKbDocumentVersionContentEntity;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionContentDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.AiKbDocumentVersionContentEntity;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentVersionContentDTO;
 import ai.platform.aiassit.knowledge.manage.mapper.AiKbDocumentVersionContentMapper;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionContentService;
 import org.athena.framework.data.jdbc.convert.IConvert;

@@ -1,9 +1,9 @@
 package ai.platform.aiassit.knowledge.manage.service.impl;
 
 import ai.platform.aiassit.knowledge.manage.convert.AiKbDocumentContentConvert;
-import ai.platform.aiassit.knowledge.manage.entity.AiKbDocumentContentEntity;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentContentDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentContentQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.document.AiKbDocumentContentEntity;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentContentDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.req.AiKbDocumentContentQueryRequest;
 import ai.platform.aiassit.knowledge.manage.mapper.AiKbDocumentContentMapper;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentContentService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;

@@ -1,7 +1,9 @@
 package ai.platform.aiassit.knowledge.manage.domainservice;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 
 import java.util.List;
 
@@ -29,4 +31,22 @@ public interface AiKnowledgeDatasetService {
      * @return Dataset 列表
      */
     List<AiKbDatasetDTO> listDatasets(String clientKey, AiKbDatasetListRequest request);
+
+    /** 创建 Provider Dataset。 */
+    AiKbDatasetDTO createDataset(AiKbDatasetSaveRequest request);
+
+    /** 使用系统配置中的客户端创建 Provider Dataset。 */
+    AiKbDatasetDTO createDataset(String clientKey, AiKbDatasetSaveRequest request);
+
+    /** 更新 Provider Dataset。 */
+    AiKbDatasetDTO updateDataset(String kbId, AiKbDatasetSaveRequest request);
+
+    /** 使用系统配置中的客户端更新 Provider Dataset。 */
+    AiKbDatasetDTO updateDataset(String clientKey, String kbId, AiKbDatasetSaveRequest request);
+
+    /** 删除 Provider Dataset。 */
+    int deleteDatasets(AiKbDatasetDeleteRequest request);
+
+    /** 使用系统配置中的客户端删除 Provider Dataset。 */
+    int deleteDatasets(String clientKey, AiKbDatasetDeleteRequest request);
 }

@@ -49,6 +49,26 @@ public class KnowledgeClientConfigService {
         return toOption(requireClient(clientKey));
     }
 
+    /**
+     * 获取项目唯一启用的知识库客户端。
+     *
+     * <p>当前知识库管理只支持一个 Provider 平台；客户端地址与凭据统一由系统参数维护，
+     * 不允许再由单个知识库存储或页面覆盖。</p>
+     */
+    public KnowledgeClientOption requireSingleOption() {
+        List<ConfiguredClient> clients = loadClients();
+        if (clients.size() != 1) {
+            throw invalidClientConfig("exactly one knowledge client is required");
+        }
+        return toOption(clients.get(0));
+    }
+
+    /** 将唯一系统客户端的地址和认证信息注入 Provider 调用上下文。 */
+    public RequestMeta applySingle(RequestMeta requestMeta) {
+        KnowledgeClientOption option = requireSingleOption();
+        return apply(option.getKey(), option.getClientType(), requestMeta);
+    }
+
     /** 读取系统客户端的认证对象，用于首次创建 KB 时持久化到 KB 配置。 */
     public AiKbAuthConfig resolveAuth(String clientKey) {
         return toAuthConfig(requireClient(clientKey).auth);

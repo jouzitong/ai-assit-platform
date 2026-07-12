@@ -1,6 +1,5 @@
-package ai.platform.aiassit.knowledge.manage.entity;
+package ai.platform.aiassit.knowledge.manage.entity.store;
 
-import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -11,7 +10,6 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
-import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
 import java.util.List;
@@ -58,20 +56,6 @@ public class AiKbStoreEntity extends AuditableEntity {
     private String kbName;
 
     /**
-     * 知识库客户端类型。
-     *
-     * <p>运行时据此选择知识库客户端 Driver；不表示知识库供应商。</p>
-     */
-    @JdbcColumn(
-            name = "client_type",
-            dataType = "INT",
-            nullable = false,
-            comment = "知识库客户端类型：1=BAILIAN,2=RAGFLOW"
-    )
-    @TableField(value = "client_type", typeHandler = DefaultEnumTypeHandler.class)
-    private AiKnowledgeClientType clientType;
-
-    /**
      * AI 侧真实知识库 ID。
      */
     @JdbcColumn(
@@ -83,6 +67,82 @@ public class AiKbStoreEntity extends AuditableEntity {
     )
     @TableField("provider_kb_id")
     private String providerKbId;
+
+    /** Dataset 描述。 */
+    @JdbcColumn(
+            name = "description",
+            dataType = "VARCHAR(512)",
+            length = 512,
+            nullable = true,
+            comment = "RAGFlow Dataset 描述"
+    )
+    @TableField("description")
+    private String description;
+
+    /** 向量化模型标识。 */
+    @JdbcColumn(
+            name = "embedding_model",
+            dataType = "VARCHAR(256)",
+            length = 256,
+            nullable = true,
+            comment = "RAGFlow embedding 模型"
+    )
+    @TableField("embedding_model")
+    private String embeddingModel;
+
+    /** Dataset 权限，例如 team/private。 */
+    @JdbcColumn(
+            name = "permission",
+            dataType = "VARCHAR(32)",
+            length = 32,
+            nullable = true,
+            comment = "RAGFlow Dataset 权限"
+    )
+    @TableField("permission")
+    private String permission;
+
+    /** RAGFlow 内置分片方式。 */
+    @JdbcColumn(
+            name = "chunk_method",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = true,
+            comment = "RAGFlow 分片方式"
+    )
+    @TableField("chunk_method")
+    private String chunkMethod;
+
+    /** RAGFlow 内置分片配置。 */
+    @JdbcColumn(
+            name = "parser_config_json",
+            dataType = "MEDIUMTEXT",
+            nullable = true,
+            comment = "RAGFlow parser_config JSON"
+    )
+    @TableField(value = "parser_config_json", typeHandler = JacksonTypeHandler.class)
+    private Map<String, Object> parserConfig;
+
+    /** 自定义解析方式。 */
+    @JdbcColumn(
+            name = "parse_type",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = true,
+            comment = "RAGFlow 自定义解析类型"
+    )
+    @TableField("parse_type")
+    private String parseType;
+
+    /** 自定义 ingestion pipeline 标识。 */
+    @JdbcColumn(
+            name = "pipeline_id",
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = true,
+            comment = "RAGFlow ingestion pipeline ID"
+    )
+    @TableField("pipeline_id")
+    private String pipelineId;
 
     /**
      * 是否启用。
@@ -111,29 +171,13 @@ public class AiKbStoreEntity extends AuditableEntity {
     private List<String> tags;
 
     /**
-     * 知识库请求地址。
-     */
-    @JdbcColumn(
-            name = "url",
-            dataType = "VARCHAR(512)",
-            length = 512,
-            nullable = true,
-            comment = "知识库请求地址"
-    )
-    @TableField("url")
-    private String url;
-
-    /**
-     * 知识库 Provider 认证配置。
-     *
-     * <p>当前支持 Bearer API Key 与阿里云 AK/SK；业务空间等 Provider 专属参数存入
-     * {@link #extJson}。</p>
+     * 创建或更新时从系统参数同步的认证快照；不向管理页面返回明文。
      */
     @JdbcColumn(
             name = "auth_json",
             dataType = "MEDIUMTEXT",
             nullable = true,
-            comment = "知识库认证配置 JSON"
+            comment = "知识库 Provider 认证配置 JSON 快照"
     )
     @TableField(value = "auth_json", typeHandler = JacksonTypeHandler.class)
     private AiKbAuthConfig auth;

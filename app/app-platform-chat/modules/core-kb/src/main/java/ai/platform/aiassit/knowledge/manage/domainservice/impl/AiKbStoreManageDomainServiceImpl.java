@@ -1,15 +1,19 @@
 package ai.platform.aiassit.knowledge.manage.domainservice.impl;
 
 import ai.platform.aiassit.execution.service.KnowledgeClientConfigService;
+import ai.platform.aiassit.execution.service.KnowledgeClientOption;
 import ai.platform.aiassit.knowledge.manage.domainservice.AiKbStoreManageDomainService;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbStoreQueryRequest;
+import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeDatasetService;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.store.req.AiKbStoreQueryRequest;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
 import ai.platform.aiassit.knowledge.manage.vo.AiKbAuthVO;
 import ai.platform.aiassit.knowledge.manage.vo.AiKbStoreVO;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
-import ai.platform.aiassit.service.ai.api.enums.AiKbAuthType;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
@@ -28,11 +32,14 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
 
     private final AiKbStoreService storeService;
     private final KnowledgeClientConfigService knowledgeClientConfigService;
+    private final AiKnowledgeDatasetService datasetService;
 
     public AiKbStoreManageDomainServiceImpl(AiKbStoreService storeService,
-                                            KnowledgeClientConfigService knowledgeClientConfigService) {
+                                            KnowledgeClientConfigService knowledgeClientConfigService,
+                                            AiKnowledgeDatasetService datasetService) {
         this.storeService = storeService;
         this.knowledgeClientConfigService = knowledgeClientConfigService;
+        this.datasetService = datasetService;
     }
 
     @Override
@@ -50,16 +57,30 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AiKbStoreVO add(AiKbStoreDTO dto) {
-        AiKbStoreDTO target = merge(null, dto, true, true);
+        AiKbStoreDTO target = merge(null, dto, true);
         validate(target);
-        return toVO(storeService.add(target));
+        target.setAuth(resolveConfiguredAuth());
+        AiKbDatasetDTO dataset = datasetService.createDataset(requireRagflowClientKey(), toDatasetSaveRequest(target));
+        if (!StringUtils.hasText(dataset.getKbId())) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "RAGFlow dataset id is empty");
+        }
+        target.setProviderKbId(dataset.getKbId());
+        try {
+            return toVO(storeService.add(target));
+        } catch (RuntimeException ex) {
+            deleteRemoteDataset(dataset.getKbId());
+            throw ex;
+        }
     }
 
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AiKbStoreVO update(Long id, AiKbStoreDTO dto) {
-        AiKbStoreDTO target = merge(requireStore(id), dto, true, true);
+        AiKbStoreDTO target = merge(requireStore(id), dto, true);
         validate(target);
+        target.setAuth(resolveConfiguredAuth());
+        requireProviderKbId(target);
+        datasetService.updateDataset(requireRagflowClientKey(), target.getProviderKbId(), toDatasetSaveRequest(target));
         return toVO(storeService.update(id, target));
     }
 
@@ -67,10 +88,11 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     @Transactional(rollbackFor = Exception.class)
     public AiKbStoreVO edit(Long id, AiKbStoreDTO dto) {
         AiKbStoreDTO current = requireStore(id);
-        boolean clientChanged = hasClientKey(dto == null ? null : dto.getExtJson());
-        AiKbStoreDTO target = merge(current, dto, false, clientChanged);
-        if (target.getAuth() != null) {
-            validateAuth(target.getAuth(), target.getClientType());
+        AiKbStoreDTO target = merge(current, dto, false);
+        target.setAuth(resolveConfiguredAuth());
+        if (strategyChanged(current, target)) {
+            requireProviderKbId(target);
+            datasetService.updateDataset(requireRagflowClientKey(), target.getProviderKbId(), toDatasetSaveRequest(target));
         }
         return toVO(storeService.edit(id, target));
     }
@@ -78,64 +100,31 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public boolean delete(Long id) {
+        AiKbStoreDTO store = requireStore(id);
+        requireProviderKbId(store);
+        deleteRemoteDataset(store.getProviderKbId());
         return storeService.delete(id);
     }
 
-    private AiKbStoreDTO merge(AiKbStoreDTO current, AiKbStoreDTO incoming,
-                                boolean replaceNulls, boolean hydrateAuthFromClient) {
+    private AiKbStoreDTO merge(AiKbStoreDTO current, AiKbStoreDTO incoming, boolean replaceNulls) {
         AiKbStoreDTO source = incoming == null ? new AiKbStoreDTO() : incoming;
         AiKbStoreDTO target = new AiKbStoreDTO();
         target.setId(current == null ? source.getId() : current.getId());
         target.setKbCode(choose(trimToNull(source.getKbCode()), current == null ? null : current.getKbCode(), replaceNulls));
         target.setKbName(choose(trimToNull(source.getKbName()), current == null ? null : current.getKbName(), replaceNulls));
-        target.setClientType(choose(source.getClientType(), current == null ? null : current.getClientType(), replaceNulls));
-        target.setProviderKbId(choose(trimToNull(source.getProviderKbId()), current == null ? null : current.getProviderKbId(), replaceNulls));
+        // Provider Dataset ID is assigned by RAGFlow during creation and must never be supplied by the page.
+        target.setProviderKbId(choose(trimToNull(source.getProviderKbId()), current == null ? null : current.getProviderKbId(), false));
+        target.setDescription(choose(trimToNull(source.getDescription()), current == null ? null : current.getDescription(), replaceNulls));
+        target.setEmbeddingModel(choose(trimToNull(source.getEmbeddingModel()), current == null ? null : current.getEmbeddingModel(), replaceNulls));
+        target.setPermission(choose(trimToNull(source.getPermission()), current == null ? null : current.getPermission(), replaceNulls));
+        target.setChunkMethod(choose(trimToNull(source.getChunkMethod()), current == null ? null : current.getChunkMethod(), replaceNulls));
+        target.setParserConfig(choose(copyMap(source.getParserConfig()), current == null ? null : copyMap(current.getParserConfig()), replaceNulls));
+        target.setParseType(choose(trimToNull(source.getParseType()), current == null ? null : current.getParseType(), replaceNulls));
+        target.setPipelineId(choose(trimToNull(source.getPipelineId()), current == null ? null : current.getPipelineId(), replaceNulls));
         target.setEnabled(choose(source.getEnabled(), current == null ? null : current.getEnabled(), replaceNulls));
         target.setTags(choose(copyList(source.getTags()), current == null ? null : copyList(current.getTags()), replaceNulls));
-        target.setUrl(choose(trimToNull(source.getUrl()), current == null ? null : current.getUrl(), replaceNulls));
+        target.setAuth(copyAuth(current == null ? null : current.getAuth()));
         target.setExtJson(choose(copyMap(source.getExtJson()), current == null ? null : copyMap(current.getExtJson()), replaceNulls));
-
-        AiKbAuthConfig configuredAuth = hydrateAuthFromClient ? resolveClientAuth(target.getExtJson()) : null;
-        target.setAuth(configuredAuth != null
-                ? configuredAuth
-                : mergeAuth(source.getAuth(), current == null ? null : current.getAuth()));
-        return target;
-    }
-
-    private AiKbAuthConfig resolveClientAuth(Map<String, Object> extJson) {
-        if (!hasClientKey(extJson)) {
-            return null;
-        }
-        Object value = extJson.get(KnowledgeClientConfigService.CLIENT_KEY_EXT);
-        return knowledgeClientConfigService.resolveAuth(String.valueOf(value));
-    }
-
-    private boolean hasClientKey(Map<String, Object> extJson) {
-        Object value = extJson == null ? null : extJson.get(KnowledgeClientConfigService.CLIENT_KEY_EXT);
-        return value instanceof String key && StringUtils.hasText(key);
-    }
-
-    private AiKbAuthConfig mergeAuth(AiKbAuthConfig incoming, AiKbAuthConfig current) {
-        if (incoming == null) {
-            return copyAuth(current);
-        }
-        AiKbAuthConfig target = new AiKbAuthConfig();
-        target.setType(incoming.getType() == null ? current == null ? null : current.getType() : incoming.getType());
-        target.setApiKey(choose(trimToNull(incoming.getApiKey()), current == null ? null : current.getApiKey(), false));
-        target.setAccessKeyId(choose(trimToNull(incoming.getAccessKeyId()), current == null ? null : current.getAccessKeyId(), false));
-        target.setAccessKeySecret(choose(trimToNull(incoming.getAccessKeySecret()), current == null ? null : current.getAccessKeySecret(), false));
-        return target;
-    }
-
-    private AiKbAuthConfig copyAuth(AiKbAuthConfig source) {
-        if (source == null) {
-            return null;
-        }
-        AiKbAuthConfig target = new AiKbAuthConfig();
-        target.setType(source.getType());
-        target.setApiKey(source.getApiKey());
-        target.setAccessKeyId(source.getAccessKeyId());
-        target.setAccessKeySecret(source.getAccessKeySecret());
         return target;
     }
 
@@ -146,28 +135,10 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         if (!StringUtils.hasText(dto.getKbName())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
-        if (dto.getClientType() == null) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KNOWLEDGE_CLIENT_TYPE);
-        }
-        validateAuth(dto.getAuth(), dto.getClientType());
-    }
-
-    private void validateAuth(AiKbAuthConfig auth, AiKnowledgeClientType clientType) {
-        if (auth == null || auth.getType() == null) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_AUTH);
-        }
-        if (auth.getType() == AiKbAuthType.BEARER && !StringUtils.hasText(auth.getApiKey())) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
-        }
-        if (auth.getType() == AiKbAuthType.ALIYUN_AKSK
-                && (!StringUtils.hasText(auth.getAccessKeyId()) || !StringUtils.hasText(auth.getAccessKeySecret()))) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_AUTH);
-        }
-        if (clientType == AiKnowledgeClientType.RAGFLOW && auth.getType() != AiKbAuthType.BEARER) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_AUTH);
-        }
-        if (clientType == AiKnowledgeClientType.BAILIAN && auth.getType() != AiKbAuthType.ALIYUN_AKSK) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_AUTH);
+        if (StringUtils.hasText(dto.getPipelineId())
+                && (StringUtils.hasText(dto.getChunkMethod()) || (dto.getParserConfig() != null && !dto.getParserConfig().isEmpty()))) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                    "pipelineId cannot be combined with chunkMethod or parserConfig");
         }
     }
 
@@ -183,6 +154,31 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         AiKbStoreVO target = new AiKbStoreVO();
         BeanUtils.copyProperties(source, target, "auth");
         target.setAuth(toAuthVO(source.getAuth()));
+        return target;
+    }
+
+    private String requireRagflowClientKey() {
+        KnowledgeClientOption option = knowledgeClientConfigService.requireSingleOption();
+        if (option.getClientType() != AiKnowledgeClientType.RAGFLOW) {
+            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND,
+                    "single knowledge client must be RAGFLOW");
+        }
+        return option.getKey();
+    }
+
+    private AiKbAuthConfig resolveConfiguredAuth() {
+        return copyAuth(knowledgeClientConfigService.resolveAuth(requireRagflowClientKey()));
+    }
+
+    private AiKbAuthConfig copyAuth(AiKbAuthConfig source) {
+        if (source == null) {
+            return null;
+        }
+        AiKbAuthConfig target = new AiKbAuthConfig();
+        target.setType(source.getType());
+        target.setApiKey(source.getApiKey());
+        target.setAccessKeyId(source.getAccessKeyId());
+        target.setAccessKeySecret(source.getAccessKeySecret());
         return target;
     }
 
@@ -203,6 +199,42 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
             return StringUtils.hasText(value) ? "****" : null;
         }
         return value.substring(0, 8) + "****" + value.substring(value.length() - 4);
+    }
+
+    private AiKbDatasetSaveRequest toDatasetSaveRequest(AiKbStoreDTO store) {
+        AiKbDatasetSaveRequest request = new AiKbDatasetSaveRequest();
+        request.setName(store.getKbName());
+        request.setDescription(store.getDescription());
+        request.setEmbeddingModel(store.getEmbeddingModel());
+        request.setPermission(store.getPermission());
+        request.setChunkMethod(store.getChunkMethod());
+        request.setParserConfig(copyMap(store.getParserConfig()));
+        request.setParseType(store.getParseType());
+        request.setPipelineId(store.getPipelineId());
+        return request;
+    }
+
+    private void deleteRemoteDataset(String providerKbId) {
+        AiKbDatasetDeleteRequest request = new AiKbDatasetDeleteRequest();
+        request.setKbIds(List.of(providerKbId));
+        datasetService.deleteDatasets(requireRagflowClientKey(), request);
+    }
+
+    private void requireProviderKbId(AiKbStoreDTO store) {
+        if (!StringUtils.hasText(store.getProviderKbId())) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "RAGFlow dataset id is empty");
+        }
+    }
+
+    private boolean strategyChanged(AiKbStoreDTO current, AiKbStoreDTO target) {
+        return !java.util.Objects.equals(current.getKbName(), target.getKbName())
+                || !java.util.Objects.equals(current.getDescription(), target.getDescription())
+                || !java.util.Objects.equals(current.getEmbeddingModel(), target.getEmbeddingModel())
+                || !java.util.Objects.equals(current.getPermission(), target.getPermission())
+                || !java.util.Objects.equals(current.getChunkMethod(), target.getChunkMethod())
+                || !java.util.Objects.equals(current.getParserConfig(), target.getParserConfig())
+                || !java.util.Objects.equals(current.getParseType(), target.getParseType())
+                || !java.util.Objects.equals(current.getPipelineId(), target.getPipelineId());
     }
 
     private String trimToNull(String value) {

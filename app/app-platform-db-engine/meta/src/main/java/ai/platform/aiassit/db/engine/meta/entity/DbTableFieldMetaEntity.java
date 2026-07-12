@@ -109,7 +109,7 @@ public class DbTableFieldMetaEntity extends AuditableEntity {
     /** 是否可空。 */
     @JdbcColumn(
             name = "nullable",
-            dataType = "BOOLEAN",
+            dataType = "TINYINT",
             nullable = false,
             defaultValue = "TRUE",
             comment = "是否可空"
@@ -120,8 +120,8 @@ public class DbTableFieldMetaEntity extends AuditableEntity {
     /** 是否主键。 */
     @JdbcColumn(
             name = "primary_key",
-            dataType = "BOOLEAN",
-            nullable = false,
+            dataType = "TINYINT",
+            nullable = true,
             defaultValue = "FALSE",
             comment = "是否主键"
     )
@@ -131,8 +131,8 @@ public class DbTableFieldMetaEntity extends AuditableEntity {
     /** 是否分区键。 */
     @JdbcColumn(
             name = "partition_key",
-            dataType = "BOOLEAN",
-            nullable = false,
+            dataType = "TINYINT",
+            nullable = true,
             defaultValue = "FALSE",
             comment = "是否分区键"
     )

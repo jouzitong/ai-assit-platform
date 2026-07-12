@@ -1,4 +1,4 @@
-package ai.platform.aiassit.knowledge.manage.entity.req;
+package ai.platform.aiassit.knowledge.manage.entity.document.req;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;

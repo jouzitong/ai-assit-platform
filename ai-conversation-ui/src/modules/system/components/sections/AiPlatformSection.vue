@@ -2,7 +2,7 @@
 import { ChatDotRound, Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import { useRouter } from 'vue-router'
 import { AppPagination } from '../../../../components'
 import {
   createAiKbStore,
@@ -11,8 +11,6 @@ import {
   deleteAiModelManage,
   editAiKbStore,
   editAiModelManage,
-  listAiKbClientDatasets,
-  listAiKbClientOptions,
   searchAiKbStores,
   searchAiModelManages,
   testAiModelChat,
@@ -20,8 +18,6 @@ import {
   updateAiModelManage,
   type AiKbStoreItem,
   type AiKbStoreUpsertPayload,
-  type AiKbClientOption,
-  type AiKbDatasetItem,
   type AiModelManageItem,
   type AiModelTestChatMessage,
   type AiModelManageUpsertPayload,
@@ -46,9 +42,9 @@ type PlatformCard = {
   raw: AiModelManageItem | AiKbStoreItem
 }
 
-const validTabs: PlatformTab[] = ['model', 'kb']
-const activeTab = ref<PlatformTab>('model')
-const route = useRoute()
+const props = defineProps<{
+  activeTab: PlatformTab
+}>()
 const router = useRouter()
 const keyword = ref('')
 const pageSize = ref(20)
@@ -69,10 +65,6 @@ const testMessagesRef = ref<HTMLElement | null>(null)
 const testMessages = ref<TestChatMessage[]>([])
 const modelRecords = ref<AiModelManageItem[]>([])
 const kbRecords = ref<AiKbStoreItem[]>([])
-const kbClientOptions = ref<AiKbClientOption[]>([])
-const kbDatasetOptions = ref<AiKbDatasetItem[]>([])
-const kbClientOptionsLoading = ref(false)
-const kbDatasetsLoading = ref(false)
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
@@ -90,50 +82,38 @@ const modelForm = reactive({
 const kbForm = reactive({
   kbCode: '',
   kbName: '',
-  clientType: 1,
-  clientKey: '',
-  providerKbId: '',
-  url: '',
+  description: '',
+  embeddingModel: '',
+  permission: 'team',
+  chunkMethod: 'naive',
+  parserConfigText: '',
+  parseType: '',
+  pipelineId: '',
   tagsText: '',
   enabled: true,
   extJsonText: '',
 })
-
-const tabOptions = [
-  { key: 'model' as const, label: '模型管理' },
-  { key: 'kb' as const, label: '知识库管理' },
-]
 
 const chatClientTypeOptions = [
   { value: 1, label: '通用 Spring AI 客户端' },
   { value: 2, label: 'AI Agent 客户端' },
 ]
 
-const knowledgeClientTypeOptions = [
-  { value: 1, label: '百炼知识库客户端' },
-  { value: 2, label: 'RAGFlow 知识库客户端' },
-]
-
 function resolveChatClientTypeName(clientType?: number) {
   return chatClientTypeOptions.find(item => item.value === clientType)?.label || '未配置客户端类型'
 }
 
-function resolveKnowledgeClientTypeName(clientType?: number) {
-  return knowledgeClientTypeOptions.find(item => item.value === clientType)?.label || '未配置客户端类型'
-}
-
-const isEditableTab = computed(() => activeTab.value === 'model' || activeTab.value === 'kb')
 const currentTabLabel = computed(() => {
-  return activeTab.value === 'model' ? '模型' : '知识库'
+  return props.activeTab === 'model' ? '模型' : '知识库'
 })
 const currentDialogTitle = computed(() => `${dialogMode.value === 'create' ? '新增' : '编辑'}${currentTabLabel.value}`)
 const createButtonLabel = computed(() => `新增${currentTabLabel.value}`)
-const currentSearchPlaceholder = computed(() => activeTab.value === 'model'
+const currentSearchPlaceholder = computed(() => props.activeTab === 'model'
   ? '搜索名称 / 编码 / 客户端类型'
   : '搜索名称 / 编码 / 知识库客户端')
 
 const currentCards = computed<PlatformCard[]>(() => {
-  if (activeTab.value === 'model') {
+  if (props.activeTab === 'model') {
     return modelRecords.value.map((item) => ({
       id: item.id,
       entityType: 'model',
@@ -161,16 +141,16 @@ const currentCards = computed<PlatformCard[]>(() => {
     title: item.kbName || item.kbCode || '未命名知识库',
     code: item.kbCode || '-',
     tags: [
-      resolveKnowledgeClientTypeName(item.clientType),
+      item.chunkMethod ? `分片：${item.chunkMethod}` : 'RAGFlow Dataset',
       ...(item.tags || []).slice(0, 3),
       item.enabled === false ? '停用' : '启用',
     ],
-    summary: item.url || item.providerKbId || '暂无知识库说明',
+    summary: item.description || item.providerKbId || '暂无知识库说明',
       extras: [
-        { label: '知识库客户端', value: resolveKnowledgeClientTypeName(item.clientType) },
         { label: '远端 KB ID', value: item.providerKbId || '-' },
-        { label: '地址', value: item.url || '-' },
-        { label: '认证', value: resolveKbAuthSummary(item.auth) },
+        { label: 'Embedding 模型', value: item.embeddingModel || 'Provider 默认' },
+        { label: '权限', value: item.permission || 'team' },
+        { label: '认证快照', value: resolveKbAuthSummary(item.auth) },
         { label: '标签数', value: String(item.tags?.length || 0) },
       { label: '更新时间', value: formatDateTime(item.updateTime || item.createTime) },
     ],
@@ -193,29 +173,17 @@ function resetModelForm() {
 function resetKbForm() {
   kbForm.kbCode = ''
   kbForm.kbName = ''
-  kbForm.clientType = 1
-  kbForm.clientKey = ''
-  kbForm.providerKbId = ''
-  kbForm.url = ''
+  kbForm.description = ''
+  kbForm.embeddingModel = ''
+  kbForm.permission = 'team'
+  kbForm.chunkMethod = 'naive'
+  kbForm.parserConfigText = ''
+  kbForm.parseType = ''
+  kbForm.pipelineId = ''
   kbForm.tagsText = ''
   kbForm.enabled = true
   kbForm.extJsonText = ''
 }
-
-const selectedKbClientOption = computed(() => kbClientOptions.value.find(item => item.key === kbForm.clientKey))
-const selectedKbClientUrl = computed(() => selectedKbClientOption.value?.url || '')
-const selectedKbClientAuthType = computed(() => selectedKbClientOption.value?.authType || '')
-const selectedKbClientAuthValueMasked = computed(() => selectedKbClientOption.value?.authValueMasked || '')
-const selectedKbClientAccessKeyIdMasked = computed(() => selectedKbClientOption.value?.accessKeyIdMasked || '')
-const selectedKbDatasetOptions = computed(() => {
-  if (!kbForm.providerKbId || kbDatasetOptions.value.some(item => item.kbId === kbForm.providerKbId)) {
-    return kbDatasetOptions.value
-  }
-  return [
-    ...kbDatasetOptions.value,
-    { kbId: kbForm.providerKbId, kbName: `当前已保存 ID：${kbForm.providerKbId}` },
-  ]
-})
 
 function resolveTotal(payloadTotal?: number, fallback = 0) {
   const numericTotal = Number(payloadTotal)
@@ -240,6 +208,12 @@ function formatJsonText(value?: Record<string, unknown> | null) {
   return JSON.stringify(value, null, 2)
 }
 
+function resolveKbAuthSummary(auth?: AiKbStoreItem['auth']) {
+  if (!auth?.type) return '未保存'
+  if (auth.type === 2) return `阿里云 AK/SK · ${auth.accessKeyIdMasked || '已保存'}`
+  return `Bearer Token · ${auth.apiKeyMasked || '已保存'}`
+}
+
 function parseJsonText(value: string, label: string) {
   const trimmed = value.trim()
   if (!trimmed) {
@@ -261,11 +235,6 @@ function buildStatusUpdateKey(card: PlatformCard) {
   return `${card.entityType}:${card.id}`
 }
 
-function normalizeTab(value: unknown): PlatformTab {
-  const raw = Array.isArray(value) ? value[0] : value
-  return validTabs.includes(raw as PlatformTab) ? raw as PlatformTab : 'model'
-}
-
 function isCardStatusUpdating(card: PlatformCard) {
   return statusUpdatingKey.value === buildStatusUpdateKey(card)
 }
@@ -273,15 +242,12 @@ function isCardStatusUpdating(card: PlatformCard) {
 function openCreateDialog() {
   dialogMode.value = 'create'
   editingId.value = null
-  if (activeTab.value === 'model') {
+  if (props.activeTab === 'model') {
     resetModelForm()
-  } else if (activeTab.value === 'kb') {
+  } else if (props.activeTab === 'kb') {
     resetKbForm()
   }
   dialogVisible.value = true
-  if (activeTab.value === 'kb') {
-    void loadKbClientOptions()
-  }
 }
 
 function openEditDialog(card: PlatformCard) {
@@ -302,19 +268,19 @@ function openEditDialog(card: PlatformCard) {
     const item = card.raw as AiKbStoreItem
     kbForm.kbCode = item.kbCode || ''
     kbForm.kbName = item.kbName || ''
-    kbForm.clientType = item.clientType || 1
-    kbForm.clientKey = typeof item.extJson?.knowledgeClientKey === 'string' ? item.extJson.knowledgeClientKey : ''
-    kbForm.providerKbId = item.providerKbId || ''
-    kbForm.url = item.url || ''
+    kbForm.description = item.description || ''
+    kbForm.embeddingModel = item.embeddingModel || ''
+    kbForm.permission = item.permission || 'team'
+    kbForm.chunkMethod = item.chunkMethod || ''
+    kbForm.parserConfigText = formatJsonText(item.parserConfig)
+    kbForm.parseType = item.parseType || ''
+    kbForm.pipelineId = item.pipelineId || ''
     kbForm.tagsText = (item.tags || []).join(', ')
     kbForm.enabled = item.enabled !== false
     kbForm.extJsonText = formatJsonText(item.extJson)
   }
 
   dialogVisible.value = true
-  if (card.entityType === 'kb') {
-    void loadKbClientOptions()
-  }
 }
 
 function closeDialog() {
@@ -374,23 +340,21 @@ function buildKbPayload(): AiKbStoreUpsertPayload {
   return {
     kbCode: normalizeText(kbForm.kbCode) || undefined,
     kbName: normalizeText(kbForm.kbName) || undefined,
-    clientType: selectedKbClientOption.value?.clientType || kbForm.clientType,
-    providerKbId: normalizeText(kbForm.providerKbId) || undefined,
-    url: normalizeText(selectedKbClientUrl.value) || undefined,
+    description: normalizeText(kbForm.description) || undefined,
+    embeddingModel: normalizeText(kbForm.embeddingModel) || undefined,
+    permission: normalizeText(kbForm.permission) || undefined,
+    chunkMethod: normalizeText(kbForm.chunkMethod) || undefined,
+    parserConfig: parseJsonText(kbForm.parserConfigText, '分片高级配置'),
+    parseType: normalizeText(kbForm.parseType) || undefined,
+    pipelineId: normalizeText(kbForm.pipelineId) || undefined,
     tags,
     enabled: kbForm.enabled,
-    auth: {
-      type: resolveKbAuthType(selectedKbClientAuthType.value),
-    },
-    extJson: {
-      ...(parseJsonText(kbForm.extJsonText, '扩展配置') || {}),
-      knowledgeClientKey: kbForm.clientKey,
-    },
+    extJson: parseJsonText(kbForm.extJsonText, '扩展配置'),
   }
 }
 
 function validateCurrentForm() {
-  if (activeTab.value === 'model') {
+  if (props.activeTab === 'model') {
     if (!normalizeText(modelForm.modelCode)) {
       return '请输入模型编码'
     }
@@ -411,103 +375,21 @@ function validateCurrentForm() {
     return ''
   }
 
-  if (activeTab.value === 'kb') {
+  if (props.activeTab === 'kb') {
     if (!normalizeText(kbForm.kbCode)) {
       return '请输入知识库编码'
     }
     if (!normalizeText(kbForm.kbName)) {
       return '请输入知识库名称'
     }
-    if (!kbForm.clientKey) {
-      return '请选择系统知识库客户端'
-    }
-    if (!normalizeText(kbForm.providerKbId)) {
-      return '请选择 Provider 知识库'
+    if (normalizeText(kbForm.pipelineId) && (normalizeText(kbForm.chunkMethod) || normalizeText(kbForm.parserConfigText))) {
+      return '自定义 Pipeline 不能与内置分片方式或分片高级配置同时使用'
     }
   }
 
   return ''
 }
 
-async function loadKbClientOptions() {
-  kbClientOptionsLoading.value = true
-  try {
-    kbClientOptions.value = await listAiKbClientOptions() || []
-    const selected = kbClientOptions.value.find(item => item.key === kbForm.clientKey)
-    if (selected) {
-      kbForm.clientType = selected.clientType
-      await loadKbDatasetOptions()
-    }
-  }
-  catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '系统知识库客户端加载失败')
-  }
-  finally {
-    kbClientOptionsLoading.value = false
-  }
-}
-
-async function handleChangeKbClient() {
-  const selected = selectedKbClientOption.value
-  kbDatasetOptions.value = []
-  kbForm.providerKbId = ''
-  if (!selected) {
-    return
-  }
-  kbForm.clientType = selected.clientType
-  await loadKbDatasetOptions()
-}
-
-async function loadKbDatasetOptions() {
-  if (!kbForm.clientKey) {
-    kbDatasetOptions.value = []
-    return
-  }
-  kbDatasetsLoading.value = true
-  try {
-    kbDatasetOptions.value = await listAiKbClientDatasets(kbForm.clientKey, { page: 1, pageSize: 100 }) || []
-  }
-  catch (error) {
-    kbDatasetOptions.value = []
-    ElMessage.error(error instanceof Error ? error.message : 'Provider 知识库列表加载失败')
-  }
-  finally {
-    kbDatasetsLoading.value = false
-  }
-}
-
-function handleChangeKbDataset(kbId: string) {
-  const selected = kbDatasetOptions.value.find(item => item.kbId === kbId)
-  kbForm.kbCode = kbId
-  if (selected?.kbName && !normalizeText(kbForm.kbName)) {
-    kbForm.kbName = selected.kbName
-  }
-}
-
-function formatAuthType(authType?: string) {
-  const value = authType?.toLowerCase()
-  if (value === 'bearer') return 'Bearer Token'
-  if (value === 'aliyun_aksk' || value === 'aksk') return '阿里云 AK/SK'
-  if (value === 'header') return '自定义请求头'
-  if (value === 'apikey') return 'API Key'
-  return value === 'none' || !value ? '无需认证' : authType
-}
-
-function formatAuthDescription(authType?: string, maskedValue?: string) {
-  const type = formatAuthType(authType)
-  return maskedValue ? `${type} · ${maskedValue}` : type
-}
-
-function resolveKbAuthType(authType?: string) {
-  const value = authType?.toLowerCase()
-  return value === 'aliyun_aksk' || value === 'aksk' ? 2 : 1
-}
-
-function resolveKbAuthSummary(auth?: AiKbStoreItem['auth']) {
-  if (!auth?.type) return '未配置'
-  if (auth.type === 2) return `阿里云 AK/SK · ${auth.accessKeyIdMasked || '已配置'}`
-  return `Bearer Token · ${auth.apiKeyMasked || '已配置'}`
-}
 
 function validateModelTestForm() {
   if (!normalizeText(modelForm.baseUrl)) {
@@ -627,7 +509,7 @@ async function handleSubmitDialog() {
 
   saving.value = true
   try {
-    if (activeTab.value === 'model') {
+    if (props.activeTab === 'model') {
       const payload = buildModelPayload()
       if (dialogMode.value === 'create') {
         await createAiModelManage(payload)
@@ -637,7 +519,7 @@ async function handleSubmitDialog() {
         await updateAiModelManage(editingId.value, payload)
         ElMessage.success('模型更新成功')
       }
-    } else if (activeTab.value === 'kb') {
+    } else if (props.activeTab === 'kb') {
       const payload = buildKbPayload()
       if (dialogMode.value === 'create') {
         await createAiKbStore(payload)
@@ -728,7 +610,7 @@ async function loadData() {
   loading.value = true
   errorMessage.value = ''
   try {
-    if (activeTab.value === 'model') {
+    if (props.activeTab === 'model') {
       const payload = await searchAiModelManages({
         page: currentPage.value,
         size: pageSize.value,
@@ -756,18 +638,6 @@ async function loadData() {
   }
 }
 
-async function handleChangeTab(tab: PlatformTab) {
-  if (activeTab.value === tab && route.query.tab === tab) {
-    return
-  }
-  await router.replace({
-    query: {
-      ...route.query,
-      tab,
-    },
-  })
-}
-
 async function handleSearch() {
   currentPage.value = 1
   await loadData()
@@ -789,23 +659,19 @@ async function handlePageSizeChange(size: number) {
 }
 
 watch(
-  () => route.query.tab,
-  (value) => {
-    const nextTab = normalizeTab(value)
-    const rawTab = Array.isArray(value) ? value[0] : value
-
-    if (rawTab !== nextTab) {
-      void router.replace({
-        query: {
-          ...route.query,
-          tab: nextTab,
-        },
-      })
-      return
+  () => kbForm.pipelineId,
+  (pipelineId) => {
+    if (pipelineId.trim()) {
+      kbForm.chunkMethod = ''
+      kbForm.parserConfigText = ''
     }
+  },
+)
 
+watch(
+  () => props.activeTab,
+  () => {
     dialogVisible.value = false
-    activeTab.value = nextTab
     keyword.value = ''
     currentPage.value = 1
     void loadData()
@@ -818,18 +684,6 @@ watch(
   <section class="ai-platform-page">
     <div class="ai-platform-shell">
       <header class="ai-platform-shell__header">
-        <div class="ai-platform-shell__tabs">
-          <el-tag
-            v-for="tab in tabOptions"
-            :key="tab.key"
-            :type="activeTab === tab.key ? 'primary' : 'info'"
-            effect="plain"
-            class="ai-platform-shell__tab"
-            @click="handleChangeTab(tab.key)"
-          >
-            {{ tab.label }}
-          </el-tag>
-        </div>
         <div class="ai-platform-shell__tools">
           <el-input
             v-model="keyword"
@@ -845,7 +699,7 @@ watch(
             <el-icon><RefreshRight /></el-icon>
             刷新
           </el-button>
-          <el-button v-if="isEditableTab" type="primary" @click="openCreateDialog">
+          <el-button type="primary" @click="openCreateDialog">
             <el-icon><Plus /></el-icon>
             {{ createButtonLabel }}
           </el-button>
@@ -937,7 +791,7 @@ watch(
       width="720px"
       destroy-on-close
     >
-      <el-form v-if="activeTab === 'model'" label-width="112px" class="ai-platform-dialog-form">
+      <el-form v-if="props.activeTab === 'model'" label-width="112px" class="ai-platform-dialog-form">
         <el-form-item label="模型编码" required>
           <el-input v-model="modelForm.modelCode" placeholder="例如：gpt-4o-mini" />
         </el-form-item>
@@ -976,62 +830,55 @@ watch(
         </el-form-item>
       </el-form>
 
-      <el-form v-else-if="activeTab === 'kb'" label-width="112px" class="ai-platform-dialog-form">
+      <el-form v-else-if="props.activeTab === 'kb'" label-width="112px" class="ai-platform-dialog-form">
+        <el-alert
+          title="RAGFlow 地址与 API Key 由系统参数统一维护；保存时会直接创建或更新远端 Dataset。"
+          type="info"
+          :closable="false"
+          show-icon
+          class="ai-platform-dialog-form__alert"
+        />
         <el-form-item label="知识库编码" required>
-          <el-input v-model="kbForm.kbCode" placeholder="请输入知识库编码" />
+          <el-input v-model="kbForm.kbCode" :disabled="dialogMode === 'edit'" placeholder="例如：faq" />
         </el-form-item>
         <el-form-item label="知识库名称" required>
           <el-input v-model="kbForm.kbName" placeholder="请输入知识库名称" />
         </el-form-item>
-        <el-form-item label="系统知识库客户端" required>
-          <el-select
-            v-model="kbForm.clientKey"
-            class="ai-platform-dialog-form__select"
-            :loading="kbClientOptionsLoading"
-            placeholder="请选择系统参数中已配置的客户端"
-            @change="handleChangeKbClient"
-          >
-            <el-option
-              v-for="option in kbClientOptions"
-              :key="option.key"
-              :label="`${option.key} · ${resolveKnowledgeClientTypeName(option.clientType)}`"
-              :value="option.key"
-            />
+        <el-form-item label="描述">
+          <el-input v-model="kbForm.description" type="textarea" :rows="2" placeholder="说明该知识库适用的内容和检索范围" />
+        </el-form-item>
+        <el-form-item label="Embedding 模型">
+          <el-input v-model="kbForm.embeddingModel" placeholder="留空使用 RAGFlow 默认模型" />
+        </el-form-item>
+        <el-form-item label="权限">
+          <el-select v-model="kbForm.permission" class="ai-platform-dialog-form__select">
+            <el-option label="团队可用 (team)" value="team" />
+            <el-option label="私有 (private)" value="private" />
           </el-select>
         </el-form-item>
-        <el-form-item label="访问地址">
-          <el-input :model-value="selectedKbClientUrl || '请先选择系统知识库客户端'" readonly />
-        </el-form-item>
-        <el-form-item label="认证方式">
-          <div class="ai-platform-dialog-form__hint">
-            {{ formatAuthDescription(selectedKbClientAuthType, selectedKbClientAuthValueMasked || selectedKbClientAccessKeyIdMasked) }}
-          </div>
-        </el-form-item>
-        <el-form-item label="Provider 知识库" required>
-          <el-select
-            v-model="kbForm.providerKbId"
-            class="ai-platform-dialog-form__select"
-            :loading="kbDatasetsLoading"
-            :disabled="!kbForm.clientKey"
-            filterable
-            placeholder="请选择客户端中的知识库"
-            @change="handleChangeKbDataset"
-          >
-            <el-option
-              v-for="dataset in selectedKbDatasetOptions"
-              :key="dataset.kbId"
-              :label="dataset.kbName ? `${dataset.kbName} · ${dataset.kbId}` : dataset.kbId"
-              :value="dataset.kbId"
-            >
-              <div class="ai-platform-dataset-option">
-                <span>{{ dataset.kbName || dataset.kbId }}</span>
-                <small v-if="dataset.kbName">· {{ dataset.kbId }}</small>
-              </div>
-            </el-option>
+        <el-form-item label="分片方式">
+          <el-select v-model="kbForm.chunkMethod" class="ai-platform-dialog-form__select" :disabled="Boolean(kbForm.pipelineId)">
+            <el-option label="通用分片 (naive)" value="naive" />
+            <el-option label="问答分片 (qa)" value="qa" />
+            <el-option label="表格分片 (table)" value="table" />
+            <el-option label="手册分片 (manual)" value="manual" />
+            <el-option label="演示文稿 (presentation)" value="presentation" />
           </el-select>
         </el-form-item>
-        <el-form-item v-if="kbForm.clientKey && !kbDatasetsLoading && !kbDatasetOptions.length" label="">
-          <div class="ai-platform-dialog-form__hint">当前客户端未返回可选知识库，请检查访问地址、认证信息和 Provider 连通性。</div>
+        <el-form-item label="分片高级配置">
+          <el-input
+            v-model="kbForm.parserConfigText"
+            type="textarea"
+            :rows="5"
+            :disabled="Boolean(kbForm.pipelineId)"
+            placeholder="{&#10;  &quot;chunk_token_num&quot;: 512,&#10;  &quot;delimiter&quot;: &quot;\n!?;。；！？&quot;&#10;}"
+          />
+        </el-form-item>
+        <el-form-item label="自定义 Pipeline">
+          <el-input v-model="kbForm.pipelineId" placeholder="可选；填写后不要使用内置分片方式" />
+        </el-form-item>
+        <el-form-item label="解析类型">
+          <el-input v-model="kbForm.parseType" :disabled="!kbForm.pipelineId" placeholder="仅自定义 Pipeline 模式使用" />
         </el-form-item>
         <el-form-item label="标签">
           <el-input
@@ -1057,7 +904,7 @@ watch(
       <template #footer>
         <div class="ai-platform-dialog__footer">
           <el-button @click="closeDialog">取消</el-button>
-          <el-button v-if="activeTab === 'model' && modelForm.clientType === 1" plain :loading="testingChat" @click="openTestDialog">
+          <el-button v-if="props.activeTab === 'model' && modelForm.clientType === 1" plain :loading="testingChat" @click="openTestDialog">
             <el-icon><ChatDotRound /></el-icon>
             测试对话
           </el-button>

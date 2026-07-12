@@ -61,11 +61,16 @@ export interface AiKbStoreItem {
   id: string | number
   kbCode?: string
   kbName?: string
-  clientType?: number
   providerKbId?: string
+  description?: string
+  embeddingModel?: string
+  permission?: string
+  chunkMethod?: string
+  parserConfig?: Record<string, unknown> | null
+  parseType?: string
+  pipelineId?: string
   enabled?: boolean
   tags?: string[]
-  url?: string
   auth?: AiKbAuthItem | null
   extJson?: Record<string, unknown> | null
   createTime?: string
@@ -75,12 +80,15 @@ export interface AiKbStoreItem {
 export interface AiKbStoreUpsertPayload {
   kbCode?: string
   kbName?: string
-  clientType?: number
-  providerKbId?: string
+  description?: string
+  embeddingModel?: string
+  permission?: string
+  chunkMethod?: string
+  parserConfig?: Record<string, unknown> | null
+  parseType?: string
+  pipelineId?: string
   enabled?: boolean
   tags?: string[]
-  url?: string
-  auth?: AiKbAuthPayload | null
   extJson?: Record<string, unknown> | null
 }
 

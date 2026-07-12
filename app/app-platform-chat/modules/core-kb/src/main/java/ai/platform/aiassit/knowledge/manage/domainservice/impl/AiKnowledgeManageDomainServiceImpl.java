@@ -12,6 +12,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
+import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
@@ -24,7 +25,6 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbPublishStage;
 import ai.platform.aiassit.service.ai.api.enums.AiKbTaskStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbTaskType;
-import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
@@ -32,16 +32,18 @@ import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbDeleteResponse;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncResponse;
+import ai.platform.aiassit.knowledge.manage.vo.AiKbStoreVO;
 import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeManageDomainService;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentContentDTO;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentDTO;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionContentDTO;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionDTO;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentQueryRequest;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentVersionContentQueryRequest;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentVersionQueryRequest;
+import ai.platform.aiassit.knowledge.manage.domainservice.AiKbStoreManageDomainService;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentContentDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentVersionContentDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentVersionDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.req.AiKbDocumentQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.document.req.AiKbDocumentVersionContentQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.document.req.AiKbDocumentVersionQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentContentService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionContentService;
@@ -91,6 +93,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
     private final AiKbPublishTaskService publishTaskService;
     private final AsyncTaskExecutor syncTaskExecutor;
+    private final AiKbStoreManageDomainService storeManageDomainService;
 
     public AiKnowledgeManageDomainServiceImpl(AiKbStoreService storeService,
                                                   AiKbDocumentService documentService,
@@ -99,6 +102,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                                                   AiKbDocumentVersionContentService documentVersionContentService,
                                                   AiKnowledgeExecutionService aiKnowledgeExecutionService,
                                                   AiKbPublishTaskService publishTaskService,
+                                                  AiKbStoreManageDomainService storeManageDomainService,
                                                   @Qualifier(AiKbSyncTaskConfiguration.EXECUTOR_NAME) AsyncTaskExecutor syncTaskExecutor) {
         this.storeService = storeService;
         this.documentService = documentService;
@@ -107,6 +111,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         this.documentVersionContentService = documentVersionContentService;
         this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
         this.publishTaskService = publishTaskService;
+        this.storeManageDomainService = storeManageDomainService;
         this.syncTaskExecutor = syncTaskExecutor;
     }
 
@@ -138,13 +143,12 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         AiKbStoreDTO store = new AiKbStoreDTO();
         store.setKbCode(kbCode);
         store.setKbName(request.getKbName().trim());
-        store.setClientType(request.getClientType());
-        store.setProviderKbId(trimToNull(request.getProviderKbId()));
         store.setEnabled(request.getEnabled() == null ? Boolean.TRUE : request.getEnabled());
         store.setTags(normalizeTags(request.getTags()));
-        store.setUrl(trimToNull(request.getUrl()));
         store.setExtJson(ext);
-        store = storeService.add(store);
+        AiKbStoreVO saved = storeManageDomainService.add(store);
+        store.setId(saved.getId());
+        store.setProviderKbId(saved.getProviderKbId());
         log.info("ai kb store created, kbCode={}, kbName={}, enabled={}",
                 store.getKbCode(), store.getKbName(), store.getEnabled());
         return toKbInfo(store);
@@ -594,6 +598,8 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                 continue;
             }
 
+            deleteProviderDocument(document);
+
             AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
             if (content != null && content.getId() != null && contentService.delete(content.getId())) {
                 deletedContentCount++;
@@ -645,19 +651,27 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         return response;
     }
 
+    /** 删除本地文档前，先删除 RAGFlow 中已同步的对应 Document。 */
+    private void deleteProviderDocument(AiKbDocumentDTO document) {
+        if (!StringUtils.hasText(document.getProviderDocumentId())) {
+            return;
+        }
+        KbDeleteRequest request = new KbDeleteRequest();
+        request.setKbId(document.getKbCode());
+        request.setDocumentIds(List.of(document.getProviderDocumentId().trim()));
+        try {
+            aiKnowledgeExecutionService.kbDelete(request);
+        } catch (RuntimeException ex) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_DELETE_FAILED, ex.getMessage());
+        }
+    }
+
     private PublishResult syncCurrentDocuments(String kbCode, List<AiKbDocumentDTO> documents) {
         AiKbStoreDTO store = storeService.getByKbCode(kbCode);
         if (store == null) {
             throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbCode);
         }
         Map<String, Object> storeExt = copyMap(store.getExtJson());
-        if (StringUtils.hasText(store.getUrl())) {
-            storeExt.put("kbEndpoint", store.getUrl().trim());
-        }
-        if (store.getClientType() == AiKnowledgeClientType.BAILIAN) {
-            requireExtText(storeExt, "workspaceId");
-            requireExtText(storeExt, "kbEndpoint");
-        }
 
         List<KbDocument> aiDocuments = new ArrayList<>(documents.size());
         List<AiKbDocumentDTO> acceptedDocuments = new ArrayList<>(documents.size());
@@ -943,9 +957,6 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (!StringUtils.hasText(request.getKbName())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_NAME);
         }
-        if (request.getClientType() == null) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KNOWLEDGE_CLIENT_TYPE);
-        }
     }
 
     private AiKbStoreDTO requireStore(String kbId) {
@@ -1101,11 +1112,9 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         AiKbInfoDTO dto = new AiKbInfoDTO();
         dto.setKbId(store.getKbCode());
         dto.setKbName(store.getKbName());
-        dto.setClientType(store.getClientType());
         dto.setProviderKbId(store.getProviderKbId());
         dto.setEnabled(store.getEnabled());
         dto.setTags(store.getTags());
-        dto.setUrl(store.getUrl());
         dto.setExt(store.getExtJson() == null ? new LinkedHashMap<>() : new LinkedHashMap<>(store.getExtJson()));
         return dto;
     }

@@ -2,9 +2,9 @@ package ai.platform.aiassit.knowledge.manage.service.impl;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.knowledge.manage.convert.AiKbStoreConvert;
-import ai.platform.aiassit.knowledge.manage.entity.AiKbStoreEntity;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbStoreQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.store.AiKbStoreEntity;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.store.req.AiKbStoreQueryRequest;
 import ai.platform.aiassit.knowledge.manage.mapper.AiKbStoreMapper;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
@@ -80,7 +80,7 @@ public class AiKbStoreServiceImpl
                         .or()
                         .like(AiKbStoreEntity::getProviderKbId, keyword)
                         .or()
-                        .like(AiKbStoreEntity::getUrl, keyword));
+                        .like(AiKbStoreEntity::getDescription, keyword));
             }
             wrapper.lambda().orderByDesc(AiKbStoreEntity::getUpdateTime, AiKbStoreEntity::getId);
         }

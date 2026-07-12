@@ -1,9 +1,9 @@
 package ai.platform.aiassit.knowledge.manage.service.impl;
 
 import ai.platform.aiassit.knowledge.manage.convert.AiKbDocumentVersionConvert;
-import ai.platform.aiassit.knowledge.manage.entity.AiKbDocumentVersionEntity;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentVersionQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.document.AiKbDocumentVersionEntity;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentVersionDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.req.AiKbDocumentVersionQueryRequest;
 import ai.platform.aiassit.knowledge.manage.mapper.AiKbDocumentVersionMapper;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionService;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;

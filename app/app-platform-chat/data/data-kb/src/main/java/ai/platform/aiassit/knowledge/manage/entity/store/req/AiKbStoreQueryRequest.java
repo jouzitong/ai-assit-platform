@@ -1,4 +1,4 @@
-package ai.platform.aiassit.knowledge.manage.entity.req;
+package ai.platform.aiassit.knowledge.manage.entity.store.req;
 
 import lombok.Data;
 import lombok.EqualsAndHashCode;

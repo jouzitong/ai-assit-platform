@@ -1,4 +1,4 @@
-package ai.platform.aiassit.knowledge.manage.entity;
+package ai.platform.aiassit.knowledge.manage.entity.task;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKbPublishStage;
 import ai.platform.aiassit.service.ai.api.enums.AiKbTaskStatus;

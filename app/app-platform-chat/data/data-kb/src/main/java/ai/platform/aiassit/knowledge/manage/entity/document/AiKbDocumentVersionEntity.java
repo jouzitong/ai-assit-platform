@@ -1,10 +1,9 @@
-package ai.platform.aiassit.knowledge.manage.entity;
+package ai.platform.aiassit.knowledge.manage.entity.document;
 
-import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
+import ai.platform.aiassit.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
-import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
+import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
-import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -20,19 +19,17 @@ import java.time.LocalDateTime;
 import java.util.Map;
 
 /**
- * 知识库当前文档实体。
+ * 知识库文档历史版本快照实体。
  */
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName(value = "ai_kb_document", autoResultMap = true)
-public class AiKbDocumentEntity extends AuditableEntity {
+@TableName(value = "ai_kb_document_version", autoResultMap = true)
+public class AiKbDocumentVersionEntity extends AuditableEntity {
 
-    /**
-     * 所属知识库编码。
-     */
+    /** 所属知识库编码。 */
     @JdbcColumn(
             name = "kb_code",
             dataType = "VARCHAR(64)",
@@ -43,22 +40,18 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("kb_code")
     private String kbCode;
 
-    /**
-     * 文档编码，建议使用 sourceKey/tableName。
-     */
+    /** 文档编码。 */
     @JdbcColumn(
             name = "document_code",
             dataType = "VARCHAR(128)",
             length = 128,
             nullable = false,
-            comment = "文档编码，建议使用 sourceKey/tableName"
+            comment = "文档编码"
     )
     @TableField("document_code")
     private String documentCode;
 
-    /**
-     * 文档名称。
-     */
+    /** 文档名称。 */
     @JdbcColumn(
             name = "document_name",
             dataType = "VARCHAR(256)",
@@ -69,9 +62,7 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("document_name")
     private String documentName;
 
-    /**
-     * 文档类型，例如 DB_TABLE。
-     */
+    /** 文档类型。 */
     @JdbcColumn(
             name = "document_type",
             dataType = "INT",
@@ -81,9 +72,7 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("document_type")
     private AiKbDocumentType documentType;
 
-    /**
-     * 业务类型。
-     */
+    /** 业务类型。 */
     @JdbcColumn(
             name = "biz_type",
             dataType = "INT",
@@ -93,9 +82,7 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("biz_type")
     private AiKbBizType bizType;
 
-    /**
-     * 业务唯一键。
-     */
+    /** 业务唯一键。 */
     @JdbcColumn(
             name = "biz_key",
             dataType = "VARCHAR(128)",
@@ -106,61 +93,27 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("biz_key")
     private String bizKey;
 
-    /**
-     * 文档状态，例如 ACTIVE、DISABLED。
-     */
-    @JdbcColumn(
-            name = "status",
-            dataType = "INT",
-            nullable = false,
-            defaultValue = "1",
-            comment = "文档状态枚举编码：1=ACTIVE,2=DISABLED"
-    )
-    @TableField("status")
-    private AiKbDocumentStatus status;
-
-    /**
-     * AI 侧远端文档 ID。
-     */
-    @JdbcColumn(
-            name = "provider_document_id",
-            dataType = "VARCHAR(128)",
-            length = 128,
-            nullable = true,
-            comment = "AI 侧远端文档 ID"
-    )
-    @TableField("provider_document_id")
-    private String providerDocumentId;
-
-    /**
-     * AI 侧同步状态。
-     */
-    @JdbcColumn(
-            name = "provider_sync_status",
-            dataType = "INT",
-            nullable = false,
-            defaultValue = "1",
-            comment = "AI 侧同步状态枚举编码：1=PENDING,2=RUNNING,3=SUCCESS,4=FAILED"
-    )
-    @TableField("provider_sync_status")
-    private AiKbProviderSyncStatus providerSyncStatus;
-
-    /**
-     * 当前文档版本号。
-     */
+    /** 文档自身版本号。 */
     @JdbcColumn(
             name = "document_version_no",
             dataType = "INT",
             nullable = false,
-            defaultValue = "1",
-            comment = "当前文档版本号"
+            comment = "文档自身版本号"
     )
     @TableField("document_version_no")
     private Integer documentVersionNo;
 
-    /**
-     * 文档内容校验摘要。
-     */
+    /** 变更类型，例如 CREATE、UPDATE、DELETE。 */
+    @JdbcColumn(
+            name = "change_type",
+            dataType = "INT",
+            nullable = false,
+            comment = "变更类型枚举编码：1=CREATE,2=UPDATE,3=DELETE"
+    )
+    @TableField("change_type")
+    private AiKbChangeType changeType;
+
+    /** 文档内容校验摘要。 */
     @JdbcColumn(
             name = "content_checksum",
             dataType = "CHAR(64)",
@@ -171,9 +124,7 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("content_checksum")
     private String contentChecksum;
 
-    /**
-     * 文档内容格式，例如 MARKDOWN。
-     */
+    /** 发布时的文档内容格式，例如 MARKDOWN。 */
     @JdbcColumn(
             name = "content_format",
             dataType = "INT",
@@ -184,59 +135,49 @@ public class AiKbDocumentEntity extends AuditableEntity {
     @TableField("content_format")
     private AiKbContentFormat contentFormat;
 
-    /**
-     * 文档内容大小，单位字节。
-     */
+    /** 发布时的文档内容大小，单位字节。 */
     @JdbcColumn(
             name = "content_size",
             dataType = "BIGINT",
             nullable = false,
             defaultValue = "0",
-            comment = "文档内容大小，单位字节"
+            comment = "发布时文档内容大小，单位字节"
     )
     @TableField("content_size")
     private Long contentSize;
 
-    /**
-     * 文档扩展元数据。
-     */
+    /** 发布时的扩展元数据快照。 */
     @JdbcColumn(
             name = "meta_json",
             dataType = "MEDIUMTEXT",
             nullable = true,
-            comment = "文档扩展元数据 JSON"
+            comment = "发布时扩展元数据快照 JSON"
     )
     @TableField(value = "meta_json", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> metaJson;
 
-    /**
-     * 最近一次生成时间。
-     */
+    /** 快照时间。 */
     @JdbcColumn(
-            name = "last_generated_at",
+            name = "snapshot_at",
             dataType = "DATETIME",
             nullable = true,
-            comment = "最近一次生成时间"
+            comment = "快照时间"
     )
-    @TableField("last_generated_at")
-    private LocalDateTime lastGeneratedAt;
+    @TableField("snapshot_at")
+    private LocalDateTime snapshotAt;
 
-    /**
-     * 最近一次错误信息。
-     */
+    /** 快照创建人。 */
     @JdbcColumn(
-            name = "last_error",
-            dataType = "VARCHAR(1024)",
-            length = 1024,
+            name = "snapshot_by",
+            dataType = "VARCHAR(64)",
+            length = 64,
             nullable = true,
-            comment = "最近一次错误信息"
+            comment = "快照创建人"
     )
-    @TableField("last_error")
-    private String lastError;
+    @TableField("snapshot_by")
+    private String snapshotBy;
 
-    /**
-     * 备注。
-     */
+    /** 备注。 */
     @JdbcColumn(
             name = "remark",
             dataType = "VARCHAR(512)",

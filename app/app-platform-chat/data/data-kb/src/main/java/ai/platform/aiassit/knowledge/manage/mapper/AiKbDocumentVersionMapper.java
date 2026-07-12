@@ -1,6 +1,6 @@
 package ai.platform.aiassit.knowledge.manage.mapper;
 
-import ai.platform.aiassit.knowledge.manage.entity.AiKbDocumentVersionEntity;
+import ai.platform.aiassit.knowledge.manage.entity.document.AiKbDocumentVersionEntity;
 import org.apache.ibatis.annotations.Mapper;
 import org.athena.framework.data.mybatis.mapper.CrudMapper;
 

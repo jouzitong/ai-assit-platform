@@ -8,7 +8,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
+import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;

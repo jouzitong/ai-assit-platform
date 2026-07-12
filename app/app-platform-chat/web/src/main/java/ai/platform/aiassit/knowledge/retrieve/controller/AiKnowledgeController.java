@@ -5,7 +5,9 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
@@ -16,6 +18,7 @@ import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeManageDomai
 import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeDatasetService;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
@@ -53,6 +56,21 @@ public class AiKnowledgeController implements AiKnowledgeApi {
     @Override
     public R<List<AiKbDatasetDTO>> listDatasets(@RequestBody(required = false) AiKbDatasetListRequest request) {
         return R.ok(datasetService.listDatasets(request));
+    }
+
+    @Override
+    public R<AiKbDatasetDTO> createDataset(@RequestBody AiKbDatasetSaveRequest request) {
+        return R.ok(datasetService.createDataset(request));
+    }
+
+    @Override
+    public R<AiKbDatasetDTO> updateDataset(@PathVariable String kbId, @RequestBody AiKbDatasetSaveRequest request) {
+        return R.ok(datasetService.updateDataset(kbId, request));
+    }
+
+    @Override
+    public R<Integer> deleteDatasets(@RequestBody AiKbDatasetDeleteRequest request) {
+        return R.ok(datasetService.deleteDatasets(request));
     }
 
     @Override

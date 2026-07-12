@@ -1,4 +1,4 @@
-package ai.platform.aiassit.knowledge.manage.entity.dto;
+package ai.platform.aiassit.knowledge.manage.entity.document.dto;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKbChangeType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;

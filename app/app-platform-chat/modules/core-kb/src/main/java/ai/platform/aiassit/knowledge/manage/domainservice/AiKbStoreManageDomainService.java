@@ -1,7 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.domainservice;
 
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbStoreQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.store.req.AiKbStoreQueryRequest;
 import ai.platform.aiassit.knowledge.manage.vo.AiKbStoreVO;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 

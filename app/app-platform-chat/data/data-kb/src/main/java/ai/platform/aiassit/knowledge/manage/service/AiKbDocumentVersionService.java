@@ -1,7 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.service;
 
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionDTO;
-import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentVersionQueryRequest;
+import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentVersionDTO;
+import ai.platform.aiassit.knowledge.manage.entity.document.req.AiKbDocumentVersionQueryRequest;
 import org.athena.framework.data.jdbc.serivce.IMapperService;
 
 import java.util.List;

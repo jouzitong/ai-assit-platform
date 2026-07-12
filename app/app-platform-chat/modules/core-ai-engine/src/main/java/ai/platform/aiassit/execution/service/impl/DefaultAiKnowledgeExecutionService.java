@@ -22,7 +22,7 @@ import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbAuthType;
 import ai.platform.aiassit.service.ai.spi.KnowledgeService;
-import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -75,40 +75,41 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
     @Override
     public KbUpsertResponse kbUpsert(KbUpsertRequest request) {
         validator.validateKbUpsert(request);
-        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId());
+        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId(), true);
         request.setMeta(mergeStoreMeta(store, request.getMeta()));
         request.setKbId(store.getProviderKbId());
-        return resolveKnowledgeService(store.getClientType()).kbUpsert(requestMapper.mapKbUpsert(request));
+        return resolveKnowledgeService(requireConfiguredClientType()).kbUpsert(requestMapper.mapKbUpsert(request));
     }
 
     @Override
     public KbDeleteResponse kbDelete(KbDeleteRequest request) {
         validator.validateKbDelete(request);
-        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId());
+        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId(), false);
         request.setMeta(mergeStoreMeta(store, request.getMeta()));
         request.setKbId(store.getProviderKbId());
-        return resolveKnowledgeService(store.getClientType()).kbDelete(requestMapper.mapKbDelete(request));
+        return resolveKnowledgeService(requireConfiguredClientType()).kbDelete(requestMapper.mapKbDelete(request));
     }
 
     @Override
     public KbSearchResponse kbSearch(KbSearchRequest request) {
         validator.validateKbSearch(request);
-        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId());
+        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId(), true);
         request.setMeta(mergeStoreMeta(store, request.getMeta()));
         request.setKbId(store.getProviderKbId());
-        return resolveKnowledgeService(store.getClientType()).kbSearch(requestMapper.mapKbSearch(request));
+        return resolveKnowledgeService(requireConfiguredClientType()).kbSearch(requestMapper.mapKbSearch(request));
     }
 
     private AiKbStoreDTO requireKnowledgeStore(String kbCode) {
+        return requireKnowledgeStore(kbCode, true);
+    }
+
+    private AiKbStoreDTO requireKnowledgeStore(String kbCode, boolean requireEnabled) {
         AiKbStoreDTO store = kbStoreService.getByKbCode(kbCode);
         if (store == null) {
             throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, kbCode);
         }
-        if (!Boolean.TRUE.equals(store.getEnabled())) {
+        if (requireEnabled && !Boolean.TRUE.equals(store.getEnabled())) {
             throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, kbCode);
-        }
-        if (store.getClientType() == null) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KNOWLEDGE_CLIENT_TYPE);
         }
         return store;
     }
@@ -122,22 +123,16 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         if (store.getExtJson() != null) {
             ext.putAll(store.getExtJson());
         }
-        if (StringUtils.hasText(store.getUrl())) {
-            ext.put("kbEndpoint", store.getUrl().trim());
-        }
         ext.put("localKbCode", store.getKbCode());
         ext.put("providerKbId", store.getProviderKbId());
         merged.setExt(ext);
-        Object configuredClientKey = ext.get(KnowledgeClientConfigService.CLIENT_KEY_EXT);
-        String clientKey = configuredClientKey instanceof String value ? value.trim() : "";
-        if (StringUtils.hasText(clientKey)) {
-            merged = knowledgeClientConfigService.apply(clientKey, store.getClientType(), merged);
-        }
-        applyStoreAuth(store.getAuth(), merged);
+        merged = knowledgeClientConfigService.applySingle(merged);
+        applyStoredAuth(store.getAuth(), merged);
         return merged;
     }
 
-    private void applyStoreAuth(AiKbAuthConfig auth, RequestMeta target) {
+    /** 本地保留的认证快照优先于系统配置，用于凭据轮换前的稳定调用。 */
+    private void applyStoredAuth(AiKbAuthConfig auth, RequestMeta target) {
         if (auth == null || auth.getType() == null) {
             return;
         }
@@ -148,15 +143,11 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
             ext.put("knowledgeClientAuth", Map.of("type", "bearer", "value", auth.getApiKey().trim()));
             ext.put("ragflowApiKey", auth.getApiKey().trim());
         }
-        if (auth.getType() == AiKbAuthType.ALIYUN_AKSK) {
-            if (StringUtils.hasText(auth.getAccessKeyId())) {
-                ext.put("aliyunAccessKeyId", auth.getAccessKeyId().trim());
-            }
-            if (StringUtils.hasText(auth.getAccessKeySecret())) {
-                ext.put("aliyunAccessKeySecret", auth.getAccessKeySecret().trim());
-            }
-        }
         target.setExt(ext);
+    }
+
+    private AiKnowledgeClientType requireConfiguredClientType() {
+        return knowledgeClientConfigService.requireSingleOption().getClientType();
     }
 
     private KnowledgeService resolveKnowledgeService(AiKnowledgeClientType requestedClientType) {
