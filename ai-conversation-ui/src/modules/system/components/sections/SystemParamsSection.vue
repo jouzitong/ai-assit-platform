@@ -2,7 +2,16 @@
 import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { AppPagination } from '../../../../components'
+import {
+  AppPagination,
+  LayoutActionBar,
+  LayoutDialogBody,
+  LayoutDialogFooter,
+  LayoutFormGrid,
+  LayoutFormGridItem,
+  LayoutLabelValue,
+  LayoutPageHeader,
+} from '../../../../components'
 import {
   createSystemSetting,
   deleteSystemSetting,
@@ -289,25 +298,25 @@ onMounted(() => {
   <section class="system-params-page">
     <el-container class="system-params-layout">
       <el-header class="system-params-layout__header">
-        <div class="system-params-layout__title">
-          <h3>系统参数</h3>
-          <p>维护系统级参数、默认开关和全局配置。</p>
-        </div>
-        <div class="system-params-layout__tools">
-          <el-input v-model="keyword" placeholder="搜索参数名称 / 参数组 / 参数键" clearable @keyup.enter="handleSearch">
-            <template #prefix>
-              <el-icon><Search /></el-icon>
-            </template>
-          </el-input>
-          <el-button plain @click="handleRefresh">
-            <el-icon><RefreshRight /></el-icon>
-            刷新
-          </el-button>
-          <el-button type="primary" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>
-            新增参数
-          </el-button>
-        </div>
+        <LayoutPageHeader title="系统参数" description="维护系统级参数、默认开关和全局配置。">
+          <template #actions>
+            <LayoutActionBar class="system-params-layout__tools">
+              <el-input v-model="keyword" placeholder="搜索参数名称 / 参数组 / 参数键" clearable @keyup.enter="handleSearch">
+                <template #prefix>
+                  <el-icon><Search /></el-icon>
+                </template>
+              </el-input>
+              <el-button plain @click="handleRefresh">
+                <el-icon><RefreshRight /></el-icon>
+                刷新
+              </el-button>
+              <el-button type="primary" @click="openCreateDialog">
+                <el-icon><Plus /></el-icon>
+                新增参数
+              </el-button>
+            </LayoutActionBar>
+          </template>
+        </LayoutPageHeader>
       </el-header>
 
       <el-main class="system-params-layout__main">
@@ -331,9 +340,7 @@ onMounted(() => {
 
           <div class="system-params-card__desc">{{ record.desc }}</div>
 
-          <div class="system-params-card__value" :title="record.rawValue">
-            {{ record.value }}
-          </div>
+          <LayoutLabelValue label="参数值" :value="record.value" :title="record.rawValue" />
 
           <div class="system-params-card__footer">
             <div class="system-params-card__tags">
@@ -385,70 +392,86 @@ onMounted(() => {
       @closed="resetAddForm"
     >
       <div class="system-params-dialog">
-        <el-form label-position="top" class="system-params-dialog__form">
-          <el-form-item label="Key">
-            <el-input
-              v-model="addForm.key"
-              placeholder="例如：app.theme.default"
-              :disabled="dialogMode === 'edit'"
-            />
-          </el-form-item>
+        <LayoutDialogBody>
+          <el-form label-position="top" class="system-params-dialog__form">
+            <LayoutFormGrid :columns="2">
+              <LayoutFormGridItem>
+                <el-form-item label="Key">
+                  <el-input
+                    v-model="addForm.key"
+                    placeholder="例如：app.theme.default"
+                    :disabled="dialogMode === 'edit'"
+                  />
+                </el-form-item>
+              </LayoutFormGridItem>
 
-          <el-form-item label="Type">
-            <el-select v-model="addForm.type" placeholder="请选择参数类型">
-              <el-option
-                v-for="option in typeOptions"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
-          </el-form-item>
+              <LayoutFormGridItem>
+                <el-form-item label="Type">
+                  <el-select v-model="addForm.type" placeholder="请选择参数类型">
+                    <el-option
+                      v-for="option in typeOptions"
+                      :key="option.value"
+                      :label="option.label"
+                      :value="option.value"
+                    />
+                  </el-select>
+                </el-form-item>
+              </LayoutFormGridItem>
 
-          <el-form-item label="Value">
-            <el-input
-              v-model="addForm.value"
-              type="textarea"
-              :rows="5"
-              placeholder="请输入参数值"
-            />
-          </el-form-item>
+              <LayoutFormGridItem span="full">
+                <el-form-item label="Value">
+                  <el-input
+                    v-model="addForm.value"
+                    type="textarea"
+                    :rows="4"
+                    placeholder="请输入参数值"
+                  />
+                </el-form-item>
+              </LayoutFormGridItem>
 
-          <el-form-item label="Desc">
-            <el-input
-              v-model="addForm.desc"
-              type="textarea"
-              :rows="3"
-              placeholder="请输入参数说明"
-            />
-          </el-form-item>
+              <LayoutFormGridItem span="full">
+                <el-form-item label="Desc">
+                  <el-input
+                    v-model="addForm.desc"
+                    type="textarea"
+                    :rows="2"
+                    placeholder="请输入参数说明"
+                  />
+                </el-form-item>
+              </LayoutFormGridItem>
 
-          <div class="system-params-dialog__grid">
-            <el-form-item label="Enabled">
-              <el-switch v-model="addForm.enabled" />
-            </el-form-item>
+              <LayoutFormGridItem>
+                <el-form-item label="Enabled">
+                  <el-switch v-model="addForm.enabled" />
+                </el-form-item>
+              </LayoutFormGridItem>
 
-            <el-form-item label="Tags">
-              <el-input
-                v-model="addForm.tags"
-                placeholder="支持空格、英文逗号、中文逗号分隔"
-              />
-            </el-form-item>
-          </div>
+              <LayoutFormGridItem>
+                <el-form-item label="Tags">
+                  <el-input
+                    v-model="addForm.tags"
+                    placeholder="支持空格、英文逗号、中文逗号分隔"
+                  />
+                </el-form-item>
+              </LayoutFormGridItem>
 
-          <div v-if="parsedTags.length" class="system-params-dialog__tags">
-            <el-tag v-for="tag in parsedTags" :key="tag" size="small" effect="plain">
-              {{ tag }}
-            </el-tag>
-          </div>
-        </el-form>
+              <LayoutFormGridItem v-if="parsedTags.length" span="full">
+                <div class="system-params-dialog__tags">
+                  <el-tag v-for="tag in parsedTags" :key="tag" size="small" effect="plain">
+                    {{ tag }}
+                  </el-tag>
+                </div>
+              </LayoutFormGridItem>
+            </LayoutFormGrid>
+          </el-form>
+        </LayoutDialogBody>
       </div>
 
       <template #footer>
-        <div class="system-params-dialog__footer">
+        <LayoutDialogFooter class="system-params-dialog__footer">
           <el-button @click="closeAddDialog">取消</el-button>
           <el-button type="primary" :loading="saving" @click="handleSubmitAddForm">确认</el-button>
-        </div>
+        </LayoutDialogFooter>
       </template>
     </el-dialog>
   </section>
@@ -475,23 +498,9 @@ onMounted(() => {
 .system-params-layout__header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  height: 66px;
-  padding: 0 16px;
+  height: var(--app-layout-header-height);
+  padding: 0 var(--app-space-4);
   border-bottom: 1px solid var(--system-border-subtle);
-}
-
-.system-params-layout__title h3 {
-  margin: 0;
-  color: var(--system-title);
-  font-size: 16px;
-}
-
-.system-params-layout__title p {
-  margin: 3px 0 0;
-  color: var(--system-text-muted);
-  font-size: 12px;
 }
 
 .system-params-layout__tools {
@@ -614,16 +623,6 @@ onMounted(() => {
   line-height: 1.6;
 }
 
-.system-params-card__value {
-  overflow: hidden;
-  color: var(--system-title);
-  font-size: 13px;
-  font-weight: 500;
-  line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .system-params-card__tags {
   display: flex;
   flex-wrap: wrap;
@@ -668,7 +667,7 @@ onMounted(() => {
 
 .system-params-page :deep(.el-dialog__header) {
   margin-right: 0;
-  padding: 18px 20px 14px;
+  padding: var(--app-space-3) var(--app-space-5) var(--app-space-2);
   border-bottom: 1px solid var(--system-border-subtle);
   background: var(--system-surface-gradient);
 }
@@ -680,8 +679,8 @@ onMounted(() => {
 }
 
 .system-params-page :deep(.el-dialog__headerbtn) {
-  top: 18px;
-  right: 18px;
+  top: var(--app-space-3);
+  right: var(--app-space-4);
 }
 
 .system-params-page :deep(.el-dialog__close) {
@@ -693,23 +692,26 @@ onMounted(() => {
 }
 
 .system-params-page :deep(.el-dialog__body) {
-  padding: 18px 20px 14px;
+  padding: var(--app-space-3) 0 var(--app-space-2) var(--app-space-5);
   background: var(--system-surface-strong);
 }
 
 .system-params-page :deep(.el-dialog__footer) {
-  padding: 14px 20px 18px;
+  padding: var(--app-space-2) var(--app-space-5) var(--app-space-3);
   border-top: 1px solid var(--system-border-subtle);
   background: var(--system-surface-gradient);
 }
 
 .system-params-dialog {
+  --app-layout-dialog-body-max-height: min(54vh, 520px);
+
   display: grid;
   gap: 12px;
+  //padding-right: var(--app-space-5);
 }
 
 .system-params-dialog__form :deep(.el-form-item) {
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .system-params-dialog__form :deep(.el-form-item__label) {
@@ -767,12 +769,6 @@ onMounted(() => {
   border-color: var(--system-accent-text);
 }
 
-.system-params-dialog__grid {
-  display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
-  gap: 12px;
-}
-
 .system-params-dialog__tags {
   display: flex;
   flex-wrap: wrap;
@@ -814,26 +810,6 @@ onMounted(() => {
 }
 
 @media (max-width: 960px) {
-  .system-params-layout__header {
-    flex-direction: column;
-    align-items: flex-start;
-    height: auto;
-    padding: 12px;
-  }
-
-  .system-params-layout__tools {
-    width: 100%;
-    flex-wrap: wrap;
-  }
-
-  .system-params-layout__tools :deep(.el-input) {
-    width: 100%;
-  }
-
-  .system-params-dialog__grid {
-    grid-template-columns: 1fr;
-  }
-
   .system-params-layout__main {
     grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   }

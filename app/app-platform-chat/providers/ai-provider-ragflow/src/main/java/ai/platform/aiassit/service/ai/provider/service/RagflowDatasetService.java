@@ -7,14 +7,13 @@ import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.provider.client.RagflowKnowledgeBaseClient;
 import ai.platform.aiassit.service.ai.spi.KnowledgeDatasetService;
 import org.arthena.framework.common.exception.BizException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
 
 /** RAGFlow Dataset 管理 SPI 实现。 */
 @Component
-@ConditionalOnProperty(prefix = "ai.provider.ragflow", name = "enabled", havingValue = "true")
+//@ConditionalOnProperty(prefix = "ai.provider.ragflow", name = "enabled", havingValue = "true")
 public class RagflowDatasetService implements KnowledgeDatasetService {
 
     private final RagflowKnowledgeBaseClient knowledgeBaseClient;

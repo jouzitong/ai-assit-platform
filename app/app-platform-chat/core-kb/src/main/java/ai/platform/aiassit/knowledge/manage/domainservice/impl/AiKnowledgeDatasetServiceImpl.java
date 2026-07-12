@@ -1,6 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.domainservice.impl;
 
 import ai.platform.aiassit.knowledge.manage.domainservice.AiKnowledgeDatasetService;
+import ai.platform.aiassit.execution.service.KnowledgeClientConfigService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
@@ -19,8 +20,10 @@ import java.util.stream.Collectors;
 public class AiKnowledgeDatasetServiceImpl implements AiKnowledgeDatasetService {
 
     private final Map<AiKnowledgeClientType, KnowledgeDatasetService> datasetServices;
+    private final KnowledgeClientConfigService knowledgeClientConfigService;
 
-    public AiKnowledgeDatasetServiceImpl(List<KnowledgeDatasetService> datasetServices) {
+    public AiKnowledgeDatasetServiceImpl(List<KnowledgeDatasetService> datasetServices,
+                                         KnowledgeClientConfigService knowledgeClientConfigService) {
         this.datasetServices = datasetServices.stream().collect(Collectors.toMap(
                 KnowledgeDatasetService::knowledgeClientType,
                 Function.identity(),
@@ -29,6 +32,7 @@ public class AiKnowledgeDatasetServiceImpl implements AiKnowledgeDatasetService 
                             + left.knowledgeClientType());
                 }
         ));
+        this.knowledgeClientConfigService = knowledgeClientConfigService;
     }
 
     @Override
@@ -42,5 +46,17 @@ public class AiKnowledgeDatasetServiceImpl implements AiKnowledgeDatasetService 
                     "knowledge dataset service: " + clientType);
         }
         return datasetService.listDatasets(normalized);
+    }
+
+    /**
+     * 使用系统参数中选定的客户端查询 Provider Dataset；认证信息不会离开服务端。
+     */
+    @Override
+    public List<AiKbDatasetDTO> listDatasets(String clientKey, AiKbDatasetListRequest request) {
+        AiKbDatasetListRequest normalized = request == null ? new AiKbDatasetListRequest() : request;
+        AiKnowledgeClientType clientType = knowledgeClientConfigService.requireOption(clientKey).getClientType();
+        normalized.setClientType(clientType);
+        normalized.setMeta(knowledgeClientConfigService.apply(clientKey, clientType, normalized.getMeta()));
+        return listDatasets(normalized);
     }
 }

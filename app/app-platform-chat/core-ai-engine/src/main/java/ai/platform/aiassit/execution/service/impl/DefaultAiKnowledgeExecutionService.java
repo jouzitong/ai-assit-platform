@@ -2,10 +2,12 @@ package ai.platform.aiassit.execution.service.impl;
 
 import ai.platform.aiassit.execution.convert.AiProviderRequestMapper;
 import ai.platform.aiassit.execution.properties.AiCoreProperties;
+import ai.platform.aiassit.execution.service.KnowledgeClientConfigService;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.service.ai.api.AiVectorExecutionApi;
 import ai.platform.aiassit.execution.validator.AiRequestValidator;
 import ai.platform.aiassit.service.ai.api.dto.EmbedRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
 import ai.platform.aiassit.service.ai.api.dto.EmbedResponse;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
@@ -18,6 +20,7 @@ import ai.platform.aiassit.service.ai.api.dto.RerankResponse;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
+import ai.platform.aiassit.service.ai.api.enums.AiKbAuthType;
 import ai.platform.aiassit.service.ai.spi.KnowledgeService;
 import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
@@ -39,12 +42,14 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
     private final AiKbStoreService kbStoreService;
+    private final KnowledgeClientConfigService knowledgeClientConfigService;
 
     public DefaultAiKnowledgeExecutionService(List<KnowledgeService> knowledgeServices,
                                               AiCoreProperties properties,
                                               AiRequestValidator validator,
                                               AiProviderRequestMapper requestMapper,
-                                              AiKbStoreService kbStoreService) {
+                                              AiKbStoreService kbStoreService,
+                                              KnowledgeClientConfigService knowledgeClientConfigService) {
         for (KnowledgeService service : knowledgeServices) {
             this.knowledgeServices.put(service.knowledgeClientType(), service);
         }
@@ -52,6 +57,7 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         this.validator = validator;
         this.requestMapper = requestMapper;
         this.kbStoreService = kbStoreService;
+        this.knowledgeClientConfigService = knowledgeClientConfigService;
     }
 
     @Override
@@ -122,7 +128,35 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         ext.put("localKbCode", store.getKbCode());
         ext.put("providerKbId", store.getProviderKbId());
         merged.setExt(ext);
+        Object configuredClientKey = ext.get(KnowledgeClientConfigService.CLIENT_KEY_EXT);
+        String clientKey = configuredClientKey instanceof String value ? value.trim() : "";
+        if (StringUtils.hasText(clientKey)) {
+            merged = knowledgeClientConfigService.apply(clientKey, store.getClientType(), merged);
+        }
+        applyStoreAuth(store.getAuth(), merged);
         return merged;
+    }
+
+    private void applyStoreAuth(AiKbAuthConfig auth, RequestMeta target) {
+        if (auth == null || auth.getType() == null) {
+            return;
+        }
+        Map<String, Object> ext = target.getExt() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(target.getExt());
+        if (auth.getType() == AiKbAuthType.BEARER && StringUtils.hasText(auth.getApiKey())) {
+            ext.put("knowledgeClientAuth", Map.of("type", "bearer", "value", auth.getApiKey().trim()));
+            ext.put("ragflowApiKey", auth.getApiKey().trim());
+        }
+        if (auth.getType() == AiKbAuthType.ALIYUN_AKSK) {
+            if (StringUtils.hasText(auth.getAccessKeyId())) {
+                ext.put("aliyunAccessKeyId", auth.getAccessKeyId().trim());
+            }
+            if (StringUtils.hasText(auth.getAccessKeySecret())) {
+                ext.put("aliyunAccessKeySecret", auth.getAccessKeySecret().trim());
+            }
+        }
+        target.setExt(ext);
     }
 
     private KnowledgeService resolveKnowledgeService(AiKnowledgeClientType requestedClientType) {

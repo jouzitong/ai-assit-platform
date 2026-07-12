@@ -4,6 +4,7 @@ import ai.platform.aiassit.render.api.RenderInternalApi;
 import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassit.service.ai.api.AiRetrievalExecutionApi;
 import ai.platform.aiassit.service.ai.api.AiVectorExecutionApi;
+import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -22,7 +23,8 @@ import java.util.Map;
         AiKnowledgeApi.class,
         AiRetrievalExecutionApi.class,
         AiVectorExecutionApi.class,
-        RenderInternalApi.class
+        RenderInternalApi.class,
+        SystemSettingInternalApi.class
 })
 public class PlatformConversationApplication {
 

@@ -15,6 +15,7 @@ import ai.platform.aiassit.knowledge.manage.resp.AiKbDeleteResponse;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncCheckResponse;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncResponse;
+import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 
 import java.util.List;
@@ -100,6 +101,9 @@ public interface AiKnowledgeManageDomainService {
      * @return 文档同步结果
      */
     AiKbSyncResponse syncDocument(AiKbSyncRequest request);
+
+    /** 查询文档同步任务的进度及逐文档执行结果。 */
+    AiKbPublishTaskDTO getSyncTask(String taskCode);
 
     AiKbSyncCheckResponse checkDocumentSync(AiKbSyncCheckRequest request);
 

@@ -20,4 +20,13 @@ public interface AiKnowledgeDatasetService {
      * @return Dataset 列表
      */
     List<AiKbDatasetDTO> listDatasets(AiKbDatasetListRequest request);
+
+    /**
+     * 根据系统配置中的客户端标识查询 Provider Dataset。
+     *
+     * @param clientKey 系统参数 {@code chat.engine.kb.client.list} 中的客户端 key
+     * @param request Dataset 查询条件
+     * @return Dataset 列表
+     */
+    List<AiKbDatasetDTO> listDatasets(String clientKey, AiKbDatasetListRequest request);
 }

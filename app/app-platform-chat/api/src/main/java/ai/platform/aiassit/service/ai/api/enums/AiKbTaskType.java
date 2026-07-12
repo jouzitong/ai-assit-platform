@@ -8,6 +8,7 @@ import org.arthena.framework.common.enums.IEnum;
 public enum AiKbTaskType implements IEnum {
     PUBLISH(1, "发布"),
     ROLLBACK(2, "回滚"),
+    SYNC(3, "同步"),
     ;
 
     @JsonValue

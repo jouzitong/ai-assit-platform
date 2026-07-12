@@ -249,17 +249,23 @@ public class QwenKnowledgeBaseClient {
 
     private Client resolveBailianClient(RequestMeta meta) throws Exception {
         String endpoint = resolveKbEndpoint(meta);
-        if (Objects.equals(endpoint, properties.getBailianEndpoint())) {
+        if (Objects.equals(endpoint, properties.getBailianEndpoint())
+                && metaExt(meta, "aliyunAccessKeyId") == null
+                && metaExt(meta, "aliyunAccessKeySecret") == null) {
             return bailianClient;
         }
         Config config = new Config()
-                .setAccessKeyId(resolveAccessKeyId())
-                .setAccessKeySecret(resolveAccessKeySecret());
+                .setAccessKeyId(resolveAccessKeyId(meta))
+                .setAccessKeySecret(resolveAccessKeySecret(meta));
         config.endpoint = endpoint;
         return new Client(config);
     }
 
-    private String resolveAccessKeyId() {
+    private String resolveAccessKeyId(RequestMeta meta) {
+        Object requestValue = metaExt(meta, "aliyunAccessKeyId");
+        if (requestValue instanceof String value && StringUtils.hasText(value)) {
+            return value.trim();
+        }
         if (StringUtils.hasText(properties.getAccessKeyId())) {
             return properties.getAccessKeyId();
         }
@@ -270,7 +276,11 @@ public class QwenKnowledgeBaseClient {
         throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ACCESS_KEY_ID);
     }
 
-    private String resolveAccessKeySecret() {
+    private String resolveAccessKeySecret(RequestMeta meta) {
+        Object requestValue = metaExt(meta, "aliyunAccessKeySecret");
+        if (requestValue instanceof String value && StringUtils.hasText(value)) {
+            return value.trim();
+        }
         if (StringUtils.hasText(properties.getAccessKeySecret())) {
             return properties.getAccessKeySecret();
         }

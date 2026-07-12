@@ -21,6 +21,9 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
+import ai.platform.aiassit.service.ai.api.enums.AiKbPublishStage;
+import ai.platform.aiassit.service.ai.api.enums.AiKbTaskStatus;
+import ai.platform.aiassit.service.ai.api.enums.AiKbTaskType;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
@@ -35,6 +38,7 @@ import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentDTO;
 import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionContentDTO;
 import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbDocumentVersionDTO;
 import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
 import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentQueryRequest;
 import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentVersionContentQueryRequest;
 import ai.platform.aiassit.knowledge.manage.entity.req.AiKbDocumentVersionQueryRequest;
@@ -43,11 +47,15 @@ import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionContentService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
+import ai.platform.aiassit.knowledge.manage.service.AiKbPublishTaskService;
+import ai.platform.aiassit.knowledge.manage.config.AiKbSyncTaskConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.data.jdbc.vo.PageInfo;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.springframework.stereotype.Service;
+import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -63,6 +71,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Service
@@ -80,19 +89,25 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     private final AiKbDocumentVersionService documentVersionService;
     private final AiKbDocumentVersionContentService documentVersionContentService;
     private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
+    private final AiKbPublishTaskService publishTaskService;
+    private final AsyncTaskExecutor syncTaskExecutor;
 
     public AiKnowledgeManageDomainServiceImpl(AiKbStoreService storeService,
                                                   AiKbDocumentService documentService,
                                                   AiKbDocumentContentService contentService,
                                                   AiKbDocumentVersionService documentVersionService,
                                                   AiKbDocumentVersionContentService documentVersionContentService,
-                                                  AiKnowledgeExecutionService aiKnowledgeExecutionService) {
+                                                  AiKnowledgeExecutionService aiKnowledgeExecutionService,
+                                                  AiKbPublishTaskService publishTaskService,
+                                                  @Qualifier(AiKbSyncTaskConfiguration.EXECUTOR_NAME) AsyncTaskExecutor syncTaskExecutor) {
         this.storeService = storeService;
         this.documentService = documentService;
         this.contentService = contentService;
         this.documentVersionService = documentVersionService;
         this.documentVersionContentService = documentVersionContentService;
         this.aiKnowledgeExecutionService = aiKnowledgeExecutionService;
+        this.publishTaskService = publishTaskService;
+        this.syncTaskExecutor = syncTaskExecutor;
     }
 
     @Override
@@ -363,7 +378,6 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public AiKbSyncResponse syncDocument(AiKbSyncRequest request) {
         if (request == null || !StringUtils.hasText(request.getKbCode())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_CODE);
@@ -394,25 +408,121 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             throw BizException.of(AiKbBizCodeConstant.CURRENT_DOCUMENT_NOT_FOUND);
         }
 
+        List<AiKbDocumentDTO> selectedDocuments = documents;
+        AiKbPublishTaskDTO task = createSyncTask(query.getKbCode(), selectedDocuments);
+        syncTaskExecutor.execute(() -> executeSyncTask(task, selectedDocuments));
+
         AiKbSyncResponse response = new AiKbSyncResponse();
-        response.setAcceptedCount(0);
-        Map<String, List<AiKbDocumentDTO>> documentsByKb = documents.stream()
-                .collect(Collectors.groupingBy(AiKbDocumentDTO::getKbCode, LinkedHashMap::new, Collectors.toList()));
-        for (Map.Entry<String, List<AiKbDocumentDTO>> entry : documentsByKb.entrySet()) {
-            try {
-                PublishResult result = syncCurrentDocuments(entry.getKey(), entry.getValue());
-                response.setAcceptedCount(response.getAcceptedCount() + result.acceptedCount());
-                response.getSkippedDocumentCodes().addAll(result.skippedDocumentCodes());
-            } catch (RuntimeException ex) {
-                log.warn("ai kb sync current documents failed, kbCode={}, documentCount={}",
-                        entry.getKey(), entry.getValue().size(), ex);
-                response.getSkippedDocumentCodes().addAll(entry.getValue().stream()
-                        .map(AiKbDocumentDTO::getDocumentCode)
-                        .filter(StringUtils::hasText)
-                        .toList());
-            }
-        }
+        response.setAcceptedCount(selectedDocuments.size());
+        response.setTaskCode(task.getTaskCode());
         return response;
+    }
+
+    @Override
+    public AiKbPublishTaskDTO getSyncTask(String taskCode) {
+        AiKbPublishTaskDTO task = publishTaskService.getByTaskCode(taskCode);
+        if (task == null) {
+            throw BizException.of(AiKbBizCodeConstant.CURRENT_DOCUMENT_NOT_FOUND, taskCode);
+        }
+        return task;
+    }
+
+    private AiKbPublishTaskDTO createSyncTask(String kbCode, List<AiKbDocumentDTO> documents) {
+        AiKbPublishTaskDTO task = new AiKbPublishTaskDTO();
+        task.setTaskCode("KB-SYNC-" + UUID.randomUUID().toString().replace("-", ""));
+        task.setKbCode(kbCode);
+        task.setTaskType(AiKbTaskType.SYNC);
+        task.setStatus(AiKbTaskStatus.PENDING);
+        task.setProgressPercent(0);
+        task.setCurrentStage(AiKbPublishStage.VALIDATE_DOCUMENTS);
+        task.setRequestJson(Map.of(
+                "documentCodes", documents.stream().map(AiKbDocumentDTO::getDocumentCode).toList(),
+                "totalCount", documents.size()
+        ));
+        task.setResultJson(new LinkedHashMap<>(Map.of(
+                "totalCount", documents.size(),
+                "completedCount", 0,
+                "successCount", 0,
+                "failedCount", 0,
+                "documents", new ArrayList<>()
+        )));
+        return publishTaskService.add(task);
+    }
+
+    private void executeSyncTask(AiKbPublishTaskDTO task, List<AiKbDocumentDTO> documents) {
+        task.setStatus(AiKbTaskStatus.RUNNING);
+        task.setCurrentStage(AiKbPublishStage.UPSERT_AI_DOCUMENTS);
+        task.setStartedAt(LocalDateTime.now());
+        publishTaskService.update(task.getId(), task);
+
+        List<Map<String, Object>> documentResults = new ArrayList<>();
+        int successCount = 0;
+        int failedCount = 0;
+        try {
+            for (int index = 0; index < documents.size(); index++) {
+                AiKbDocumentDTO document = documents.get(index);
+                Map<String, Object> item = new LinkedHashMap<>();
+                item.put("documentCode", document.getDocumentCode());
+                item.put("documentName", document.getDocumentName());
+                try {
+                    PublishResult result = syncCurrentDocuments(task.getKbCode(), List.of(document));
+                    boolean success = result.acceptedCount() > 0 && result.skippedDocumentCodes().isEmpty();
+                    item.put("status", success ? "SUCCESS" : "FAILED");
+                    item.put("message", success ? "同步成功" : "内容不完整，未同步");
+                    if (success) {
+                        successCount++;
+                    } else {
+                        failedCount++;
+                    }
+                } catch (RuntimeException ex) {
+                    failedCount++;
+                    item.put("status", "FAILED");
+                    item.put("message", safeErrorMessage(ex));
+                    log.warn("ai kb sync task document failed, taskCode={}, documentCode={}",
+                            task.getTaskCode(), document.getDocumentCode(), ex);
+                }
+                documentResults.add(item);
+                updateSyncTaskProgress(task, documents.size(), index + 1, successCount, failedCount, documentResults);
+            }
+            task.setStatus(failedCount == 0 ? AiKbTaskStatus.SUCCESS : AiKbTaskStatus.FAILED);
+            task.setCurrentStage(failedCount == 0 ? AiKbPublishStage.COMPLETED : AiKbPublishStage.FAILED);
+            task.setFinishedAt(LocalDateTime.now());
+            task.setProgressPercent(100);
+            task.setResultJson(buildSyncTaskResult(documents.size(), documents.size(), successCount, failedCount, documentResults));
+            task.setErrorMessage(failedCount == 0 ? null : "部分文档同步失败");
+            publishTaskService.update(task.getId(), task);
+        } catch (RuntimeException ex) {
+            task.setStatus(AiKbTaskStatus.FAILED);
+            task.setCurrentStage(AiKbPublishStage.FAILED);
+            task.setFinishedAt(LocalDateTime.now());
+            task.setErrorMessage(safeErrorMessage(ex));
+            task.setResultJson(buildSyncTaskResult(documents.size(), documentResults.size(), successCount, failedCount + 1, documentResults));
+            publishTaskService.update(task.getId(), task);
+            log.error("ai kb sync task failed, taskCode={}", task.getTaskCode(), ex);
+        }
+    }
+
+    private void updateSyncTaskProgress(AiKbPublishTaskDTO task, int totalCount, int completedCount,
+                                        int successCount, int failedCount, List<Map<String, Object>> documentResults) {
+        task.setProgressPercent(totalCount == 0 ? 100 : completedCount * 100 / totalCount);
+        task.setResultJson(buildSyncTaskResult(totalCount, completedCount, successCount, failedCount, documentResults));
+        publishTaskService.update(task.getId(), task);
+    }
+
+    private Map<String, Object> buildSyncTaskResult(int totalCount, int completedCount, int successCount,
+                                                     int failedCount, List<Map<String, Object>> documentResults) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("totalCount", totalCount);
+        result.put("completedCount", completedCount);
+        result.put("successCount", successCount);
+        result.put("failedCount", failedCount);
+        result.put("documents", documentResults);
+        return result;
+    }
+
+    private String safeErrorMessage(Exception ex) {
+        String message = ex.getMessage();
+        return StringUtils.hasText(message) ? message.substring(0, Math.min(1024, message.length())) : "同步失败";
     }
 
     @Override

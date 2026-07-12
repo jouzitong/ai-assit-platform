@@ -15,13 +15,12 @@ import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbSearchRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbUpsertRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderRerankRequest;
 import org.arthena.framework.common.exception.BizException;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 /** RAGFlow 知识库 SPI 实现。 */
 @Component
-@ConditionalOnProperty(prefix = "ai.provider.ragflow", name = "enabled", havingValue = "true")
+//@ConditionalOnProperty(prefix = "ai.provider.ragflow", name = "enabled", havingValue = "true")
 public class RagflowProvider implements KnowledgeService {
 
     private final RagflowKnowledgeBaseClient knowledgeBaseClient;

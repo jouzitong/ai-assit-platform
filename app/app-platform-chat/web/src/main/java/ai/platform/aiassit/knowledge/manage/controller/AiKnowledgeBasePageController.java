@@ -8,6 +8,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
+import ai.platform.aiassit.knowledge.manage.entity.dto.AiKbPublishTaskDTO;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
@@ -79,6 +80,11 @@ public class AiKnowledgeBasePageController {
     @PostMapping("/api/v1/ai/kb/document/sync")
     public R<AiKbSyncResponse> syncDocument(@RequestBody AiKbSyncRequest request) {
         return R.ok(domainService.syncDocument(request));
+    }
+
+    @GetMapping(value = "/api/v1/ai/kb/document/sync/task", produces = MediaType.APPLICATION_JSON_VALUE)
+    public R<AiKbPublishTaskDTO> getSyncTask(@RequestParam("taskCode") String taskCode) {
+        return R.ok(domainService.getSyncTask(taskCode));
     }
 
     @PostMapping("/api/v1/ai/kb/document/sync/check")

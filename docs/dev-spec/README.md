@@ -29,6 +29,8 @@
   - 适用于业务日志级别选择、可追溯字段、审计日志、异常日志边界相关任务。
 - [异常处理规范](./detail/backend/exception-module.md)
   - 适用于 Web 异常返回、业务异常抛出、自定义异常类设计、HTTP 状态语义相关任务。
+- [知识库客户端配置](./detail/backend/knowledge-client-config.md)
+  - 适用于系统参数中的知识库 Provider 客户端、认证信息和 KB Dataset 选择联动。
 
 ## 说明
 

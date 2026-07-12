@@ -11,6 +11,8 @@ import {
   deleteAiModelManage,
   editAiKbStore,
   editAiModelManage,
+  listAiKbClientDatasets,
+  listAiKbClientOptions,
   searchAiKbStores,
   searchAiModelManages,
   testAiModelChat,
@@ -18,6 +20,8 @@ import {
   updateAiModelManage,
   type AiKbStoreItem,
   type AiKbStoreUpsertPayload,
+  type AiKbClientOption,
+  type AiKbDatasetItem,
   type AiModelManageItem,
   type AiModelTestChatMessage,
   type AiModelManageUpsertPayload,
@@ -65,6 +69,10 @@ const testMessagesRef = ref<HTMLElement | null>(null)
 const testMessages = ref<TestChatMessage[]>([])
 const modelRecords = ref<AiModelManageItem[]>([])
 const kbRecords = ref<AiKbStoreItem[]>([])
+const kbClientOptions = ref<AiKbClientOption[]>([])
+const kbDatasetOptions = ref<AiKbDatasetItem[]>([])
+const kbClientOptionsLoading = ref(false)
+const kbDatasetsLoading = ref(false)
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
@@ -83,6 +91,7 @@ const kbForm = reactive({
   kbCode: '',
   kbName: '',
   clientType: 1,
+  clientKey: '',
   providerKbId: '',
   url: '',
   tagsText: '',
@@ -102,7 +111,7 @@ const chatClientTypeOptions = [
 
 const knowledgeClientTypeOptions = [
   { value: 1, label: '百炼知识库客户端' },
-  { value: 2, label: 'Rawflow 知识库客户端' },
+  { value: 2, label: 'RAGFlow 知识库客户端' },
 ]
 
 function resolveChatClientTypeName(clientType?: number) {
@@ -157,11 +166,12 @@ const currentCards = computed<PlatformCard[]>(() => {
       item.enabled === false ? '停用' : '启用',
     ],
     summary: item.url || item.providerKbId || '暂无知识库说明',
-    extras: [
-      { label: '知识库客户端', value: resolveKnowledgeClientTypeName(item.clientType) },
-      { label: '远端 KB ID', value: item.providerKbId || '-' },
-      { label: '地址', value: item.url || '-' },
-      { label: '标签数', value: String(item.tags?.length || 0) },
+      extras: [
+        { label: '知识库客户端', value: resolveKnowledgeClientTypeName(item.clientType) },
+        { label: '远端 KB ID', value: item.providerKbId || '-' },
+        { label: '地址', value: item.url || '-' },
+        { label: '认证', value: resolveKbAuthSummary(item.auth) },
+        { label: '标签数', value: String(item.tags?.length || 0) },
       { label: '更新时间', value: formatDateTime(item.updateTime || item.createTime) },
     ],
     enabled: item.enabled !== false,
@@ -184,12 +194,28 @@ function resetKbForm() {
   kbForm.kbCode = ''
   kbForm.kbName = ''
   kbForm.clientType = 1
+  kbForm.clientKey = ''
   kbForm.providerKbId = ''
   kbForm.url = ''
   kbForm.tagsText = ''
   kbForm.enabled = true
   kbForm.extJsonText = ''
 }
+
+const selectedKbClientOption = computed(() => kbClientOptions.value.find(item => item.key === kbForm.clientKey))
+const selectedKbClientUrl = computed(() => selectedKbClientOption.value?.url || '')
+const selectedKbClientAuthType = computed(() => selectedKbClientOption.value?.authType || '')
+const selectedKbClientAuthValueMasked = computed(() => selectedKbClientOption.value?.authValueMasked || '')
+const selectedKbClientAccessKeyIdMasked = computed(() => selectedKbClientOption.value?.accessKeyIdMasked || '')
+const selectedKbDatasetOptions = computed(() => {
+  if (!kbForm.providerKbId || kbDatasetOptions.value.some(item => item.kbId === kbForm.providerKbId)) {
+    return kbDatasetOptions.value
+  }
+  return [
+    ...kbDatasetOptions.value,
+    { kbId: kbForm.providerKbId, kbName: `当前已保存 ID：${kbForm.providerKbId}` },
+  ]
+})
 
 function resolveTotal(payloadTotal?: number, fallback = 0) {
   const numericTotal = Number(payloadTotal)
@@ -253,6 +279,9 @@ function openCreateDialog() {
     resetKbForm()
   }
   dialogVisible.value = true
+  if (activeTab.value === 'kb') {
+    void loadKbClientOptions()
+  }
 }
 
 function openEditDialog(card: PlatformCard) {
@@ -274,6 +303,7 @@ function openEditDialog(card: PlatformCard) {
     kbForm.kbCode = item.kbCode || ''
     kbForm.kbName = item.kbName || ''
     kbForm.clientType = item.clientType || 1
+    kbForm.clientKey = typeof item.extJson?.knowledgeClientKey === 'string' ? item.extJson.knowledgeClientKey : ''
     kbForm.providerKbId = item.providerKbId || ''
     kbForm.url = item.url || ''
     kbForm.tagsText = (item.tags || []).join(', ')
@@ -282,6 +312,9 @@ function openEditDialog(card: PlatformCard) {
   }
 
   dialogVisible.value = true
+  if (card.entityType === 'kb') {
+    void loadKbClientOptions()
+  }
 }
 
 function closeDialog() {
@@ -341,12 +374,18 @@ function buildKbPayload(): AiKbStoreUpsertPayload {
   return {
     kbCode: normalizeText(kbForm.kbCode) || undefined,
     kbName: normalizeText(kbForm.kbName) || undefined,
-    clientType: kbForm.clientType,
+    clientType: selectedKbClientOption.value?.clientType || kbForm.clientType,
     providerKbId: normalizeText(kbForm.providerKbId) || undefined,
-    url: normalizeText(kbForm.url) || undefined,
+    url: normalizeText(selectedKbClientUrl.value) || undefined,
     tags,
     enabled: kbForm.enabled,
-    extJson: parseJsonText(kbForm.extJsonText, '扩展配置'),
+    auth: {
+      type: resolveKbAuthType(selectedKbClientAuthType.value),
+    },
+    extJson: {
+      ...(parseJsonText(kbForm.extJsonText, '扩展配置') || {}),
+      knowledgeClientKey: kbForm.clientKey,
+    },
   }
 }
 
@@ -379,9 +418,95 @@ function validateCurrentForm() {
     if (!normalizeText(kbForm.kbName)) {
       return '请输入知识库名称'
     }
+    if (!kbForm.clientKey) {
+      return '请选择系统知识库客户端'
+    }
+    if (!normalizeText(kbForm.providerKbId)) {
+      return '请选择 Provider 知识库'
+    }
   }
 
   return ''
+}
+
+async function loadKbClientOptions() {
+  kbClientOptionsLoading.value = true
+  try {
+    kbClientOptions.value = await listAiKbClientOptions() || []
+    const selected = kbClientOptions.value.find(item => item.key === kbForm.clientKey)
+    if (selected) {
+      kbForm.clientType = selected.clientType
+      await loadKbDatasetOptions()
+    }
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '系统知识库客户端加载失败')
+  }
+  finally {
+    kbClientOptionsLoading.value = false
+  }
+}
+
+async function handleChangeKbClient() {
+  const selected = selectedKbClientOption.value
+  kbDatasetOptions.value = []
+  kbForm.providerKbId = ''
+  if (!selected) {
+    return
+  }
+  kbForm.clientType = selected.clientType
+  await loadKbDatasetOptions()
+}
+
+async function loadKbDatasetOptions() {
+  if (!kbForm.clientKey) {
+    kbDatasetOptions.value = []
+    return
+  }
+  kbDatasetsLoading.value = true
+  try {
+    kbDatasetOptions.value = await listAiKbClientDatasets(kbForm.clientKey, { page: 1, pageSize: 100 }) || []
+  }
+  catch (error) {
+    kbDatasetOptions.value = []
+    ElMessage.error(error instanceof Error ? error.message : 'Provider 知识库列表加载失败')
+  }
+  finally {
+    kbDatasetsLoading.value = false
+  }
+}
+
+function handleChangeKbDataset(kbId: string) {
+  const selected = kbDatasetOptions.value.find(item => item.kbId === kbId)
+  kbForm.kbCode = kbId
+  if (selected?.kbName && !normalizeText(kbForm.kbName)) {
+    kbForm.kbName = selected.kbName
+  }
+}
+
+function formatAuthType(authType?: string) {
+  const value = authType?.toLowerCase()
+  if (value === 'bearer') return 'Bearer Token'
+  if (value === 'aliyun_aksk' || value === 'aksk') return '阿里云 AK/SK'
+  if (value === 'header') return '自定义请求头'
+  if (value === 'apikey') return 'API Key'
+  return value === 'none' || !value ? '无需认证' : authType
+}
+
+function formatAuthDescription(authType?: string, maskedValue?: string) {
+  const type = formatAuthType(authType)
+  return maskedValue ? `${type} · ${maskedValue}` : type
+}
+
+function resolveKbAuthType(authType?: string) {
+  const value = authType?.toLowerCase()
+  return value === 'aliyun_aksk' || value === 'aksk' ? 2 : 1
+}
+
+function resolveKbAuthSummary(auth?: AiKbStoreItem['auth']) {
+  if (!auth?.type) return '未配置'
+  if (auth.type === 2) return `阿里云 AK/SK · ${auth.accessKeyIdMasked || '已配置'}`
+  return `Bearer Token · ${auth.apiKeyMasked || '已配置'}`
 }
 
 function validateModelTestForm() {
@@ -858,21 +983,55 @@ watch(
         <el-form-item label="知识库名称" required>
           <el-input v-model="kbForm.kbName" placeholder="请输入知识库名称" />
         </el-form-item>
-        <el-form-item label="知识库客户端类型" required>
-          <el-select v-model="kbForm.clientType" class="ai-platform-dialog-form__select">
+        <el-form-item label="系统知识库客户端" required>
+          <el-select
+            v-model="kbForm.clientKey"
+            class="ai-platform-dialog-form__select"
+            :loading="kbClientOptionsLoading"
+            placeholder="请选择系统参数中已配置的客户端"
+            @change="handleChangeKbClient"
+          >
             <el-option
-              v-for="option in knowledgeClientTypeOptions"
-              :key="option.value"
-              :label="option.label"
-              :value="option.value"
+              v-for="option in kbClientOptions"
+              :key="option.key"
+              :label="`${option.key} · ${resolveKnowledgeClientTypeName(option.clientType)}`"
+              :value="option.key"
             />
           </el-select>
         </el-form-item>
-        <el-form-item label="Provider KB">
-          <el-input v-model="kbForm.providerKbId" placeholder="请输入 Provider 侧 KB ID" />
-        </el-form-item>
         <el-form-item label="访问地址">
-          <el-input v-model="kbForm.url" placeholder="请输入知识库地址" />
+          <el-input :model-value="selectedKbClientUrl || '请先选择系统知识库客户端'" readonly />
+        </el-form-item>
+        <el-form-item label="认证方式">
+          <div class="ai-platform-dialog-form__hint">
+            {{ formatAuthDescription(selectedKbClientAuthType, selectedKbClientAuthValueMasked || selectedKbClientAccessKeyIdMasked) }}
+          </div>
+        </el-form-item>
+        <el-form-item label="Provider 知识库" required>
+          <el-select
+            v-model="kbForm.providerKbId"
+            class="ai-platform-dialog-form__select"
+            :loading="kbDatasetsLoading"
+            :disabled="!kbForm.clientKey"
+            filterable
+            placeholder="请选择客户端中的知识库"
+            @change="handleChangeKbDataset"
+          >
+            <el-option
+              v-for="dataset in selectedKbDatasetOptions"
+              :key="dataset.kbId"
+              :label="dataset.kbName ? `${dataset.kbName} · ${dataset.kbId}` : dataset.kbId"
+              :value="dataset.kbId"
+            >
+              <div class="ai-platform-dataset-option">
+                <span>{{ dataset.kbName || dataset.kbId }}</span>
+                <small v-if="dataset.kbName">· {{ dataset.kbId }}</small>
+              </div>
+            </el-option>
+          </el-select>
+        </el-form-item>
+        <el-form-item v-if="kbForm.clientKey && !kbDatasetsLoading && !kbDatasetOptions.length" label="">
+          <div class="ai-platform-dialog-form__hint">当前客户端未返回可选知识库，请检查访问地址、认证信息和 Provider 连通性。</div>
         </el-form-item>
         <el-form-item label="标签">
           <el-input
@@ -1257,6 +1416,44 @@ watch(
 
 .ai-platform-dialog-form :deep(.el-textarea__inner) {
   font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+.ai-platform-dialog-form__hint {
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--system-border-subtle);
+  border-radius: 8px;
+  background: var(--system-surface-muted);
+  color: var(--system-text-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.ai-platform-dataset-option {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  max-width: 100%;
+  gap: 6px;
+  line-height: 1.4;
+}
+
+.ai-platform-dataset-option span,
+.ai-platform-dataset-option small {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.ai-platform-dataset-option span {
+  flex: 0 1 auto;
+}
+
+.ai-platform-dataset-option small {
+  flex: 1 1 auto;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
 }
 
 .ai-platform-dialog__footer {

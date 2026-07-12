@@ -37,6 +37,7 @@ public interface AiChatBizCodeConstant {
     Integer REQUIRED_CONTENT = 53_01_0022;
     Integer REQUIRED_CHAT_CLIENT_TYPE = 53_01_0023;
     Integer REQUIRED_KNOWLEDGE_CLIENT_TYPE = 53_01_0024;
+    Integer REQUIRED_KB_AUTH = 53_01_0025;
 
     // 53_02_xxxx 参数取值非法
     Integer INVALID_WORKFLOW_OUTPUT = 53_02_0001;

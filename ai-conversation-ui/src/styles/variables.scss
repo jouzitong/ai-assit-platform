@@ -1,4 +1,17 @@
 :root {
+  --app-space-1: 4px;
+  --app-space-2: 8px;
+  --app-space-3: 12px;
+  --app-space-4: 16px;
+  --app-space-5: 20px;
+  --app-space-6: 24px;
+  --app-font-size-caption: 12px;
+  --app-font-size-body: 13px;
+  --app-font-size-title-sm: 16px;
+  --app-layout-header-height: 56px;
+  --app-layout-action-min-width: 76px;
+  --app-layout-dialog-body-max-height: min(60vh, 640px);
+
   --color-text: #0f172a;
   --color-muted: #64748b;
   --color-border: #dbe4f0;

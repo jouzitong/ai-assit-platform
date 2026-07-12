@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -94,6 +95,23 @@ class RagflowKnowledgeBaseClientTest {
         assertEquals("RAGFlow 对外知识库", dataset.getDescription());
     }
 
+    @Test
+    void shouldUseConfiguredCustomAuthHeaderWhenListingDatasets() throws Exception {
+        AiKbDatasetListRequest request = new AiKbDatasetListRequest();
+        request.setPage(2);
+        request.setPageSize(10);
+        request.setName("销售 知识库");
+        request.getMeta().getExt().put("knowledgeClientAuth", Map.of(
+                "type", "header",
+                "headerName", "X-API-Key",
+                "value", "custom-key"
+        ));
+
+        List<AiKbDatasetDTO> datasets = client.listDatasets(request);
+
+        assertEquals(1, datasets.size());
+    }
+
     private void handleDocuments(HttpExchange exchange) throws IOException {
         assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
         if ("POST".equals(exchange.getRequestMethod())) {
@@ -113,7 +131,7 @@ class RagflowKnowledgeBaseClientTest {
     private void handleChunks(HttpExchange exchange) throws IOException {
         assertEquals("POST", exchange.getRequestMethod());
         chunkCalls.incrementAndGet();
-        respond(exchange, 200, "{\"code\":0,\"data\":{\"id\":\"chunk-1\"}}");
+        respond(exchange, 200, "{\"code\":\"0\",\"data\":{\"id\":\"chunk-1\"}}");
     }
 
     private void handleRetrieval(HttpExchange exchange) throws IOException {
@@ -123,7 +141,11 @@ class RagflowKnowledgeBaseClientTest {
 
     private void handleDatasets(HttpExchange exchange) throws IOException {
         assertEquals("GET", exchange.getRequestMethod());
-        assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
+        if (exchange.getRequestHeaders().getFirst("X-API-Key") != null) {
+            assertEquals("custom-key", exchange.getRequestHeaders().getFirst("X-API-Key"));
+        } else {
+            assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
+        }
         String query = exchange.getRequestURI().getRawQuery();
         assertTrue(query.contains("page=2"));
         assertTrue(query.contains("page_size=10"));

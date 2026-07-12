@@ -1,6 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.entity;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
+import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -121,6 +122,21 @@ public class AiKbStoreEntity extends AuditableEntity {
     )
     @TableField("url")
     private String url;
+
+    /**
+     * 知识库 Provider 认证配置。
+     *
+     * <p>当前支持 Bearer API Key 与阿里云 AK/SK；业务空间等 Provider 专属参数存入
+     * {@link #extJson}。</p>
+     */
+    @JdbcColumn(
+            name = "auth_json",
+            dataType = "MEDIUMTEXT",
+            nullable = true,
+            comment = "知识库认证配置 JSON"
+    )
+    @TableField(value = "auth_json", typeHandler = JacksonTypeHandler.class)
+    private AiKbAuthConfig auth;
 
     /**
      * 扩展信息。

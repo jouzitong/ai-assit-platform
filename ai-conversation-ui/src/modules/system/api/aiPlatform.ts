@@ -5,6 +5,7 @@ const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
 
 const AI_MODEL_MANAGE_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/meta/internal/model-manage`
 const AI_KB_STORE_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/kb/internal/store`
+const AI_KB_CLIENT_OPTION_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/kb/internal/client-options`
 const AI_FLOW_SKILL_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/chat/workflow/internal/skill`
 
 export interface AiModelManageItem {
@@ -65,6 +66,7 @@ export interface AiKbStoreItem {
   enabled?: boolean
   tags?: string[]
   url?: string
+  auth?: AiKbAuthItem | null
   extJson?: Record<string, unknown> | null
   createTime?: string
   updateTime?: string
@@ -78,7 +80,46 @@ export interface AiKbStoreUpsertPayload {
   enabled?: boolean
   tags?: string[]
   url?: string
+  auth?: AiKbAuthPayload | null
   extJson?: Record<string, unknown> | null
+}
+
+export interface AiKbAuthPayload {
+  type?: number
+  apiKey?: string
+  accessKeyId?: string
+  accessKeySecret?: string
+}
+
+export interface AiKbAuthItem {
+  type?: number
+  apiKeyMasked?: string
+  accessKeyIdMasked?: string
+  accessKeySecretMasked?: string
+}
+
+export interface AiKbClientOption {
+  key: string
+  clientType: number
+  url?: string
+  authType?: string
+  authValueMasked?: string
+  accessKeyIdMasked?: string
+}
+
+export interface AiKbDatasetItem {
+  kbId: string
+  kbName?: string
+  clientType?: number
+  description?: string
+  documentCount?: number
+}
+
+export interface AiKbDatasetListPayload {
+  name?: string
+  page?: number
+  pageSize?: number
+  includeParsingStatus?: boolean
 }
 
 export interface AiFlowSkillItem {
@@ -167,6 +208,33 @@ export interface AiKbDocumentSyncResult {
   acceptedCount?: number
   taskCode?: string
   skippedDocumentCodes?: string[]
+}
+
+export interface AiKbSyncTaskDocumentResult {
+  documentCode?: string
+  documentName?: string
+  status?: string
+  message?: string
+}
+
+export interface AiKbSyncTaskResult {
+  totalCount?: number
+  completedCount?: number
+  successCount?: number
+  failedCount?: number
+  documents?: AiKbSyncTaskDocumentResult[]
+}
+
+export interface AiKbSyncTaskItem {
+  taskCode?: string
+  kbCode?: string
+  status?: number | string
+  progressPercent?: number
+  currentStage?: number | string
+  resultJson?: AiKbSyncTaskResult | null
+  errorMessage?: string
+  startedAt?: string
+  finishedAt?: string
 }
 
 export interface PageResult<T> {
@@ -273,6 +341,17 @@ export function deleteAiKbStore(id: string | number) {
   })
 }
 
+export function listAiKbClientOptions() {
+  return request<AiKbClientOption[]>(AI_KB_CLIENT_OPTION_API_PREFIX)
+}
+
+export function listAiKbClientDatasets(clientKey: string, payload: AiKbDatasetListPayload = {}) {
+  return request<AiKbDatasetItem[]>(`${AI_KB_CLIENT_OPTION_API_PREFIX}/${encodeURIComponent(clientKey)}/datasets`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
 export function searchAiKbDocuments(payload: AiKbDocumentQueryPayload = {}) {
   return request<PageResult<AiKbDocumentItem>>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/list`, {
     method: 'POST',
@@ -315,6 +394,13 @@ export function syncAiKbDocuments(payload: AiKbDocumentSyncPayload) {
   return request<AiKbDocumentSyncResult>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/sync`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function getAiKbSyncTask(taskCode: string) {
+  return request<AiKbSyncTaskItem>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/sync/task`, {
+    method: 'GET',
+    query: { taskCode },
   })
 }
 

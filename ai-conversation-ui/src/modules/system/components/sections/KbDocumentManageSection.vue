@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { ArrowLeft, Delete, EditPen, Plus, RefreshRight, Search, Upload, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppPagination } from '../../../../components'
 import { SERVICE_NAMES } from '../../../../config/services'
@@ -10,10 +10,12 @@ import {
   createOrUpdateAiKbDocument,
   deleteAiKbDocuments,
   getAiKbDocumentDetail,
+  getAiKbSyncTask,
   searchAiKbDocuments,
   syncAiKbDocuments,
   type AiKbDocumentDetail,
   type AiKbDocumentItem,
+  type AiKbSyncTaskItem,
 } from '../../api/aiPlatform'
 
 type DialogMode = 'create' | 'edit'
@@ -51,6 +53,7 @@ const loading = ref(false)
 const saving = ref(false)
 const detailLoading = ref(false)
 const syncSubmitting = ref(false)
+const syncCandidateLoading = ref(false)
 const errorMessage = ref('')
 const documentRows = ref<AiKbDocumentItem[]>([])
 const activeTab = ref<KbDocumentTab>('current')
@@ -59,6 +62,12 @@ const detailVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
 const editingId = ref<string | number | null>(null)
 const detailRecord = ref<AiKbDocumentDetail | null>(null)
+const syncSelectionVisible = ref(false)
+const syncTaskVisible = ref(false)
+const syncCandidates = ref<AiKbDocumentItem[]>([])
+const selectedSyncDocumentCodes = ref<string[]>([])
+const syncTask = ref<AiKbSyncTaskItem | null>(null)
+let syncTaskPollTimer: ReturnType<typeof window.setInterval> | undefined
 
 const form = reactive({
   documentCode: '',
@@ -77,6 +86,15 @@ const tabOptions = [
   { key: 'current' as const, label: '启用中' },
   { key: 'draft' as const, label: '已停用' },
 ]
+const pendingSyncCandidates = computed(() => syncCandidates.value.filter((item) => {
+  const status = Number(item.providerSyncStatus)
+  return status !== 2 && status !== 3
+}))
+const completedSyncCandidates = computed(() => syncCandidates.value.filter(item => Number(item.providerSyncStatus) === 3))
+const pendingSyncCandidatesAllSelected = computed(() => areSyncCandidatesSelected(pendingSyncCandidates.value))
+const completedSyncCandidatesAllSelected = computed(() => areSyncCandidatesSelected(completedSyncCandidates.value))
+const syncTaskResults = computed(() => syncTask.value?.resultJson?.documents || [])
+const syncTaskFinished = computed(() => [3, 4, 5].includes(Number(syncTask.value?.status)))
 
 const documentCards = computed(() => {
   return documentRows.value.map((item) => ({
@@ -148,6 +166,26 @@ function formatStatus(value: string | number | undefined) {
 
 function formatSyncStatus(value: string | number | undefined) {
   return String(getEnumLabel('aiKbProviderSyncStatus', value, SERVICE_NAMES.CHAT) || (value === undefined || value === null ? '-' : String(value)))
+}
+
+function formatSyncTaskStatus(value: string | number | undefined) {
+  const labels: Record<string, string> = {
+    1: '等待执行',
+    2: '同步中',
+    3: '同步完成',
+    4: '同步失败',
+    5: '已取消',
+  }
+  return labels[String(value)] || '-'
+}
+
+function syncTaskStatusType(value: string | number | undefined) {
+  const status = Number(value)
+  if (status === 3) return 'success'
+  if (status === 4) return 'danger'
+  if (status === 5) return 'info'
+  if (status === 2) return 'warning'
+  return 'primary'
 }
 
 function parseExtText(value: string) {
@@ -337,37 +375,127 @@ async function handleRefresh() {
   await loadDocuments()
 }
 
-async function handleSyncKnowledgeBase() {
+function selectableDocumentCode(item: AiKbDocumentItem) {
+  return item.documentCode?.trim() || ''
+}
+
+function setSyncSelection(items: AiKbDocumentItem[]) {
+  selectedSyncDocumentCodes.value = items
+    .map(selectableDocumentCode)
+    .filter(Boolean)
+}
+
+function areSyncCandidatesSelected(items: AiKbDocumentItem[]) {
+  const selectedCodes = new Set(selectedSyncDocumentCodes.value)
+  const candidateCodes = items.map(selectableDocumentCode).filter(Boolean)
+  return candidateCodes.length > 0 && candidateCodes.every(code => selectedCodes.has(code))
+}
+
+function toggleSyncSelection(items: AiKbDocumentItem[]) {
+  const candidateCodes = items.map(selectableDocumentCode).filter(Boolean)
+  if (!candidateCodes.length) {
+    return
+  }
+  if (areSyncCandidatesSelected(items)) {
+    const candidateCodeSet = new Set(candidateCodes)
+    selectedSyncDocumentCodes.value = selectedSyncDocumentCodes.value.filter(code => !candidateCodeSet.has(code))
+    return
+  }
+  selectedSyncDocumentCodes.value = [...new Set([...selectedSyncDocumentCodes.value, ...candidateCodes])]
+}
+
+function selectPendingDocuments() {
+  toggleSyncSelection(pendingSyncCandidates.value)
+}
+
+function selectCompletedDocuments() {
+  toggleSyncSelection(completedSyncCandidates.value)
+}
+
+function clearSyncTaskPolling() {
+  if (syncTaskPollTimer !== undefined) {
+    window.clearInterval(syncTaskPollTimer)
+    syncTaskPollTimer = undefined
+  }
+}
+
+async function refreshSyncTask(taskCode: string) {
+  try {
+    syncTask.value = await getAiKbSyncTask(taskCode)
+    if (syncTaskFinished.value) {
+      clearSyncTaskPolling()
+      await loadDocuments()
+    }
+  }
+  catch (error) {
+    clearSyncTaskPolling()
+    ElMessage.error(error instanceof Error ? error.message : '同步任务状态加载失败')
+  }
+}
+
+function startSyncTaskPolling(taskCode: string) {
+  clearSyncTaskPolling()
+  void refreshSyncTask(taskCode)
+  syncTaskPollTimer = window.setInterval(() => {
+    void refreshSyncTask(taskCode)
+  }, 1000)
+}
+
+async function openSyncSelectionDialog() {
   if (!kbCode.value) {
     ElMessage.error('缺少知识库编码，无法发起同步')
     return
   }
 
+  syncCandidateLoading.value = true
   try {
-    await ElMessageBox.confirm(
-      `确认同步知识库「${kbCode.value}」下的当前文档吗？`,
-      '知识库同步',
-      {
-        type: 'warning',
-        confirmButtonText: '确认同步',
-        cancelButtonText: '取消',
-      },
-    )
-
-    syncSubmitting.value = true
-    const result = await syncAiKbDocuments({
+    const result = await searchAiKbDocuments({
       kbCode: kbCode.value,
+      tab: 'current',
+      page: 1,
+      size: 1000,
     })
-    const acceptedCount = Number(result?.acceptedCount || 0)
-    const skippedCount = Array.isArray(result?.skippedDocumentCodes) ? result.skippedDocumentCodes.length : 0
-    ElMessage.success(`知识库同步已发起，受理 ${acceptedCount} 条，跳过 ${skippedCount} 条`)
-    await loadDocuments()
+    syncCandidates.value = result?.list || []
+    selectPendingDocuments()
+    syncSelectionVisible.value = true
   }
   catch (error) {
-    if (error === 'cancel') {
-      return
+    ElMessage.error(error instanceof Error ? error.message : '可同步文档加载失败')
+  }
+  finally {
+    syncCandidateLoading.value = false
+  }
+}
+
+async function handleSubmitSyncSelection() {
+  if (!selectedSyncDocumentCodes.value.length) {
+    ElMessage.warning('请至少选择一个需要同步的文档')
+    return
+  }
+
+  syncSubmitting.value = true
+  try {
+    const result = await syncAiKbDocuments({
+      kbCode: kbCode.value,
+      documentCodes: selectedSyncDocumentCodes.value,
+    })
+    if (!result?.taskCode) {
+      throw new Error('同步任务创建失败，未返回任务编码')
     }
-    ElMessage.error(error instanceof Error ? error.message : '知识库同步失败')
+    syncSelectionVisible.value = false
+    syncTask.value = {
+      taskCode: result.taskCode,
+      kbCode: kbCode.value,
+      status: 1,
+      progressPercent: 0,
+      resultJson: { totalCount: result.acceptedCount || selectedSyncDocumentCodes.value.length },
+    }
+    syncTaskVisible.value = true
+    startSyncTaskPolling(result.taskCode)
+    ElMessage.success(`已创建同步任务，包含 ${result.acceptedCount || selectedSyncDocumentCodes.value.length} 个文档`)
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '知识库同步任务创建失败')
   }
   finally {
     syncSubmitting.value = false
@@ -408,6 +536,10 @@ onMounted(() => {
   void loadServiceEnums(SERVICE_NAMES.CHAT)
   void loadDocuments()
 })
+
+onBeforeUnmount(() => {
+  clearSyncTaskPolling()
+})
 </script>
 
 <template>
@@ -446,7 +578,7 @@ onMounted(() => {
             <el-icon><RefreshRight /></el-icon>
             刷新
           </el-button>
-          <el-button plain :loading="syncSubmitting" @click="handleSyncKnowledgeBase">
+          <el-button plain :loading="syncCandidateLoading || syncSubmitting" @click="openSyncSelectionDialog">
             <el-icon><Upload /></el-icon>
             知识库同步
           </el-button>
@@ -530,6 +662,76 @@ onMounted(() => {
         />
       </footer>
     </div>
+
+    <el-dialog v-model="syncSelectionVisible" title="选择需要同步的文档" width="720px" destroy-on-close>
+      <div class="kb-sync-selection">
+        <p class="kb-sync-selection__hint">默认选择尚未同步成功的文档。也可以按同步状态批量切换选择。</p>
+        <div class="kb-sync-selection__actions">
+          <el-button plain @click="selectPendingDocuments">
+            {{ pendingSyncCandidatesAllSelected ? '取消选择未同步/失败' : '全选未同步/失败' }}（{{ pendingSyncCandidates.length }}）
+          </el-button>
+          <el-button plain @click="selectCompletedDocuments">
+            {{ completedSyncCandidatesAllSelected ? '取消选择已同步' : '全选已同步' }}（{{ completedSyncCandidates.length }}）
+          </el-button>
+        </div>
+        <el-scrollbar max-height="420px" class="kb-sync-selection__list">
+          <el-checkbox-group v-model="selectedSyncDocumentCodes">
+            <el-checkbox
+              v-for="item in syncCandidates"
+              :key="item.id"
+              :value="selectableDocumentCode(item)"
+              :disabled="!selectableDocumentCode(item) || Number(item.providerSyncStatus) === 2"
+              class="kb-sync-selection__item"
+            >
+              <span class="kb-sync-selection__item-title">{{ item.documentName || item.documentCode || '未命名文档' }}</span>
+              <span class="kb-sync-selection__item-code">{{ item.documentCode || '-' }}</span>
+              <el-tag size="small" effect="plain">{{ formatSyncStatus(item.providerSyncStatus) }}</el-tag>
+            </el-checkbox>
+          </el-checkbox-group>
+          <el-empty v-if="!syncCandidates.length" description="当前没有可同步的启用文档" :image-size="80" />
+        </el-scrollbar>
+      </div>
+      <template #footer>
+        <div class="kb-document-dialog__footer">
+          <el-button @click="syncSelectionVisible = false">取消</el-button>
+          <el-button type="primary" :loading="syncSubmitting" @click="handleSubmitSyncSelection">
+            创建同步任务（{{ selectedSyncDocumentCodes.length }}）
+          </el-button>
+        </div>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="syncTaskVisible" title="知识库同步任务" width="720px" destroy-on-close>
+      <div v-if="syncTask" class="kb-sync-task">
+        <div class="kb-sync-task__head">
+          <div>
+            <strong>{{ syncTask.taskCode || '-' }}</strong>
+            <span>任务状态：<el-tag :type="syncTaskStatusType(syncTask.status)" size="small">{{ formatSyncTaskStatus(syncTask.status) }}</el-tag></span>
+          </div>
+          <el-progress :percentage="Math.min(100, Math.max(0, Number(syncTask.progressPercent || 0)))" :status="syncTaskFinished && Number(syncTask.status) === 3 ? 'success' : undefined" />
+        </div>
+        <div class="kb-sync-task__summary">
+          <span>总计 {{ syncTask.resultJson?.totalCount || 0 }}</span>
+          <span>已处理 {{ syncTask.resultJson?.completedCount || 0 }}</span>
+          <span>成功 {{ syncTask.resultJson?.successCount || 0 }}</span>
+          <span>失败 {{ syncTask.resultJson?.failedCount || 0 }}</span>
+        </div>
+        <p v-if="syncTask.errorMessage" class="kb-sync-task__error">{{ syncTask.errorMessage }}</p>
+        <el-scrollbar max-height="360px" class="kb-sync-task__list">
+          <div v-for="item in syncTaskResults" :key="item.documentCode" class="kb-sync-task__item">
+            <div>
+              <strong>{{ item.documentName || item.documentCode || '-' }}</strong>
+              <span>{{ item.documentCode || '-' }}</span>
+            </div>
+            <el-tag :type="item.status === 'SUCCESS' ? 'success' : 'danger'" size="small">
+              {{ item.status === 'SUCCESS' ? '成功' : '失败' }}
+            </el-tag>
+            <p v-if="item.message">{{ item.message }}</p>
+          </div>
+          <el-empty v-if="!syncTaskResults.length" description="同步任务正在等待执行" :image-size="80" />
+        </el-scrollbar>
+      </div>
+    </el-dialog>
 
     <el-dialog v-model="dialogVisible" :title="dialogTitle" width="820px" destroy-on-close>
       <el-form label-width="112px" class="kb-document-dialog-form">
@@ -928,6 +1130,146 @@ onMounted(() => {
   word-break: break-word;
 }
 
+.kb-sync-selection,
+.kb-sync-task {
+  display: grid;
+  gap: 14px;
+}
+
+.kb-sync-selection__hint {
+  margin: 0;
+  color: var(--system-text-soft);
+  font-size: 13px;
+}
+
+.kb-sync-selection__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.kb-sync-selection__list,
+.kb-sync-task__list {
+  border: 1px solid var(--system-border-subtle);
+  border-radius: 12px;
+  background: var(--system-surface-muted);
+}
+
+.kb-sync-selection__list :deep(.el-checkbox-group) {
+  display: grid;
+}
+
+.kb-sync-selection__item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  min-height: 46px;
+  margin: 0;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--system-border-subtle);
+}
+
+.kb-sync-selection__item:last-child {
+  border-bottom: 0;
+}
+
+.kb-sync-selection__item :deep(.el-checkbox__label) {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(140px, auto) auto;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+  padding-left: 10px;
+}
+
+.kb-sync-selection__item-title,
+.kb-sync-task__item strong {
+  overflow: hidden;
+  color: var(--system-title);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-sync-selection__item-code,
+.kb-sync-task__item span {
+  overflow: hidden;
+  color: var(--system-text-soft);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-sync-task__head {
+  display: grid;
+  gap: 10px;
+}
+
+.kb-sync-task__head > div {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.kb-sync-task__head strong {
+  color: var(--system-title);
+  font-size: 13px;
+}
+
+.kb-sync-task__head span,
+.kb-sync-task__summary {
+  color: var(--system-text-soft);
+  font-size: 12px;
+}
+
+.kb-sync-task__summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kb-sync-task__summary span {
+  padding: 9px 10px;
+  border: 1px solid var(--system-border-subtle);
+  border-radius: 9px;
+  background: var(--system-surface-muted);
+}
+
+.kb-sync-task__error {
+  margin: 0;
+  color: var(--el-color-danger);
+  font-size: 12px;
+  word-break: break-word;
+}
+
+.kb-sync-task__item {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 12px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--system-border-subtle);
+}
+
+.kb-sync-task__item:last-child {
+  border-bottom: 0;
+}
+
+.kb-sync-task__item > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.kb-sync-task__item p {
+  grid-column: 1 / -1;
+  margin: 0;
+  color: var(--el-color-danger);
+  font-size: 12px;
+  word-break: break-word;
+}
+
 @media (max-width: 960px) {
   .kb-document-shell__header {
     flex-direction: column;
@@ -944,6 +1286,22 @@ onMounted(() => {
   .kb-document-card__meta,
   .kb-document-detail__summary {
     grid-template-columns: 1fr;
+  }
+
+  .kb-sync-selection__item {
+    align-items: flex-start;
+  }
+
+  .kb-sync-selection__item :deep(.el-checkbox__label) {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .kb-sync-selection__item-code {
+    grid-column: 1 / -1;
+  }
+
+  .kb-sync-task__summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .kb-document-card__actions {

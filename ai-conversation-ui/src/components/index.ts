@@ -1,6 +1,7 @@
 export * from './basic'
 export * from './canvas'
 export * from './input'
+export * from './layout'
 export * from './data'
 export * from './feedback'
 export * from './navigation'

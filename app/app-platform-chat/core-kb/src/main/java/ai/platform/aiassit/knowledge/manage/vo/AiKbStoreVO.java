@@ -1,17 +1,17 @@
-package ai.platform.aiassit.knowledge.manage.entity.dto;
+package ai.platform.aiassit.knowledge.manage.vo;
 
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
-import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
-import org.athena.framework.data.mybatis.entity.dto.BaseDTO;
+import org.athena.framework.data.mybatis.entity.dto.AuditableDTO;
 
 import java.util.List;
 import java.util.Map;
 
+/** 面向管理页面的本地知识库配置。 */
 @Data
 @EqualsAndHashCode(callSuper = true)
-public class AiKbStoreDTO extends BaseDTO {
+public class AiKbStoreVO extends AuditableDTO {
 
     private String kbCode;
 
@@ -27,7 +27,7 @@ public class AiKbStoreDTO extends BaseDTO {
 
     private String url;
 
-    private AiKbAuthConfig auth;
+    private AiKbAuthVO auth;
 
     private Map<String, Object> extJson;
 }

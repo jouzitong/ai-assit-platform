@@ -183,8 +183,8 @@ public class RagflowKnowledgeBaseClient {
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(URI.create(baseUrl + path))
                 .timeout(Duration.ofMillis(timeoutMs()))
-                .header("Accept", "application/json")
-                .header("Authorization", "Bearer " + resolveApiKey(meta));
+                .header("Accept", "application/json");
+        applyAuthHeader(builder, meta);
         if (payload != null) {
             builder.header("Content-Type", "application/json");
         }
@@ -206,11 +206,21 @@ public class RagflowKnowledgeBaseClient {
         }
         JsonNode root = objectMapper.readTree(response.body());
         JsonNode code = root.get("code");
-        if (code != null && !code.isNull() && code.asInt() != 0) {
+        if (!isSuccessfulResponseCode(code)) {
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
                     "RAGFlow error: " + firstText(root, "message", "msg"));
         }
         return root;
+    }
+
+    private boolean isSuccessfulResponseCode(JsonNode code) {
+        if (code == null || code.isNull()) {
+            return true;
+        }
+        if (code.isNumber()) {
+            return code.decimalValue().compareTo(java.math.BigDecimal.ZERO) == 0;
+        }
+        return code.isTextual() && "0".equals(code.textValue().trim());
     }
 
     private JsonNode data(JsonNode root) {
@@ -287,12 +297,31 @@ public class RagflowKnowledgeBaseClient {
         return normalized;
     }
 
-    private String resolveApiKey(RequestMeta meta) {
+    private void applyAuthHeader(HttpRequest.Builder builder, RequestMeta meta) {
+        Object configuredAuth = meta == null || meta.getExt() == null ? null : meta.getExt().get("knowledgeClientAuth");
+        if (configuredAuth instanceof Map<?, ?> auth) {
+            String type = firstText(text(auth.get("type")), "header").toLowerCase();
+            String value = text(auth.get("value"));
+            if ("none".equals(type)) {
+                return;
+            }
+            if (!StringUtils.hasText(value)) {
+                throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
+            }
+            String headerName = firstText(text(auth.get("headerName")), "Authorization");
+            String prefix = text(auth.get("prefix"));
+            if (!StringUtils.hasText(prefix) && "bearer".equals(type)) {
+                prefix = "Bearer ";
+            }
+            builder.header(headerName, (prefix == null ? "" : prefix) + value);
+            return;
+        }
+
         String apiKey = firstText(metaText(meta, "ragflowApiKey"), properties.getApiKey());
         if (!StringUtils.hasText(apiKey)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
         }
-        return apiKey.trim();
+        builder.header("Authorization", "Bearer " + apiKey.trim());
     }
 
     private int timeoutMs() {

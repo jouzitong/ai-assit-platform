@@ -38,6 +38,11 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-user-system-settings-api</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-provider-qwen-public</artifactId>
         </dependency>
         <dependency>
