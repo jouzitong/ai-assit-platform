@@ -198,12 +198,13 @@ onMounted(() => {
   <div
     class="system-settings-shell"
     :class="{ 'system-settings-shell--collapsed': sidebarCollapsed }"
-    :style="{ '--system-sidebar-width': sidebarCollapsed ? '88px' : '236px' }"
+    :style="{ '--system-sidebar-width': sidebarCollapsed ? '0px' : '236px' }"
   >
     <SystemSettingsSidebar
+      v-if="!sidebarCollapsed"
+      id="system-settings-sidebar"
       :sections="sections"
       :active-section="activeSection"
-      :collapsed="sidebarCollapsed"
       @navigate-home="navigateHome"
       @select-section="navigateToSection"
     />
@@ -211,6 +212,8 @@ onMounted(() => {
     <button
       class="system-settings-shell__toggle"
       type="button"
+      aria-controls="system-settings-sidebar"
+      :aria-expanded="!sidebarCollapsed"
       :aria-label="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
       :title="sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'"
       @click="toggleSidebar"
@@ -266,6 +269,10 @@ onMounted(() => {
   color: var(--system-accent-text);
 }
 
+.system-settings-shell--collapsed .system-settings-shell__toggle {
+  left: 12px;
+}
+
 .system-settings-content {
   display: flex;
   flex-direction: column;
@@ -273,6 +280,10 @@ onMounted(() => {
   min-height: 0;
   padding: 10px;
   overflow-y: auto;
+}
+
+.system-settings-shell--collapsed .system-settings-content {
+  padding-left: 52px;
 }
 
 @media (max-width: 960px) {
@@ -283,11 +294,16 @@ onMounted(() => {
   }
 
   .system-settings-shell__toggle {
-    display: none;
+    right: 12px;
+    left: auto;
   }
 
   .system-settings-content {
     overflow-y: visible;
+  }
+
+  .system-settings-shell--collapsed .system-settings-content {
+    padding: 64px 10px 10px;
   }
 }
 </style>
