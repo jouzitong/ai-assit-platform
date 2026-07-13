@@ -161,14 +161,6 @@
                                     </fileset>
                                 </copy>
 
-                                <copy todir="${project.build.directory}/app-platform-chat/config" overwrite="true">
-                                    <fileset dir="src/main/resources" erroronmissingdir="false">
-                                        <include name="application.yml"/>
-                                        <include name="bootstrap.yml"/>
-                                        <include name="logback-spring.xml"/>
-                                    </fileset>
-                                </copy>
-
                                 <copy todir="${project.build.directory}/app-platform-chat/python" overwrite="true">
                                     <fileset dir="../providers/ai-provider-ai-agent/src/main/python" erroronmissingdir="false">
                                         <exclude name="**/__pycache__/**"/>

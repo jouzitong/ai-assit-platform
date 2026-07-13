@@ -25,6 +25,23 @@ usage() {
   exit 1
 }
 
+validate_config() {
+  local required_files=(
+    "application.yml"
+    "bootstrap.yml"
+    "logback-spring.xml"
+    "ErrorCode-zh.properties"
+    "ErrorCode-en.properties"
+  )
+  local file_name
+  for file_name in "${required_files[@]}"; do
+    if [[ ! -f "${CONFIG_DIR}/${file_name}" ]]; then
+      echo "required config file not found: ${CONFIG_DIR}/${file_name}" >&2
+      exit 1
+    fi
+  done
+}
+
 dependency_fingerprint() {
   if command -v sha256sum > /dev/null 2>&1; then
     sha256sum "${PYTHON_PROJECT_FILE}" | awk '{print $1}'
@@ -90,6 +107,7 @@ start() {
     return 0
   fi
 
+  validate_config
   prepare_python
 
   boot_jar="$(find "${BASE_DIR}" -maxdepth 1 -name '*.jar' | head -n 1)"
@@ -106,7 +124,9 @@ start() {
     "-XX:+UseG1GC"
     "-Dloader.path=${LIB_DIR}"
     "-Dathena.log.dir=${LOG_DIR}"
+    "-Dlib.common.err-code-path=${CONFIG_DIR}"
     "-Dlogging.config=${CONFIG_DIR}/logback-spring.xml"
+    "-Dspring.cloud.bootstrap.additional-location=file:${CONFIG_DIR}/"
     "-Dai.provider.ai-agent.script-path=${PYTHON_DIR}/agent_provider/main.py"
     "-Dai.provider.ai-agent.working-directory=${PYTHON_DIR}"
     "-Dai.provider.ai-agent.python-command=${PYTHON_VENV_DIR}/bin/python"
@@ -114,7 +134,7 @@ start() {
   )
 
   nohup "${JAVA_CMD}" "${java_opts[@]}" -jar "${boot_jar}" \
-    --spring.config.additional-location="optional:file:${CONFIG_DIR}/" \
+    --spring.config.additional-location="file:${CONFIG_DIR}/" \
     > "${LOG_DIR}/console.out" 2>&1 &
 
   echo $! > "${PID_FILE}"
