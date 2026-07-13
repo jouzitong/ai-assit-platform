@@ -197,6 +197,14 @@ public class RenderNode extends BaseWorkflowNode {
                         && "ACTIVITY".equalsIgnoreCase(chunk.getProgressType())) {
                     Map<String, Object> ext = new LinkedHashMap<>(chunk.getExt());
                     ext.putIfAbsent("nodeCode", WorkflowNodeCodes.RENDER.getNodeCode());
+                    historyRecorder.saveActivity(
+                            context,
+                            StringUtils.hasText(chunk.getSource()) ? chunk.getSource() : ConversationEventSources.RENDER,
+                            chunk.getPhase(),
+                            chunk.getMessage(),
+                            chunk.getStatus(),
+                            ext
+                    );
                     context.publishActivityEvent(
                             StringUtils.hasText(chunk.getSource()) ? chunk.getSource() : ConversationEventSources.RENDER,
                             chunk.getPhase(),
@@ -263,6 +271,7 @@ public class RenderNode extends BaseWorkflowNode {
     private ChatRequest buildRenderRequest(ConversationQueryCommand command, ConversationRuntimeContext context) {
         ChatRequest request = new ChatRequest();
         request.setClientType(AiChatClientType.AI_AGENT);
+        request.setModelCode(command.getApiModel());
         request.setModel(resolveAgentModel(command));
         request.setMessages(List.of(
                 buildMessage(MessageRole.SYSTEM, RENDER_PROMPT),

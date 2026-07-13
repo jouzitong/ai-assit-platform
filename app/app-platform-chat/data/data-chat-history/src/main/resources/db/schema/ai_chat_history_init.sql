@@ -91,3 +91,34 @@ CREATE TABLE IF NOT EXISTS ai_chat_artifact (
     KEY idx_artifact_round_code (round_code),
     KEY idx_artifact_message_code (related_message_code)
 ) COMMENT='AI聊天过程产物表';
+
+CREATE TABLE IF NOT EXISTS ai_chat_activity (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    activity_code VARCHAR(64) NOT NULL COMMENT '活动事件编码',
+    session_code VARCHAR(64) NOT NULL COMMENT '会话编码',
+    round_code VARCHAR(64) NOT NULL COMMENT '轮次编码',
+    user_id BIGINT NOT NULL DEFAULT 0 COMMENT '用户ID',
+    node_code VARCHAR(64) DEFAULT NULL COMMENT '工作流节点编码',
+    correlation_code VARCHAR(128) DEFAULT NULL COMMENT '同一活动生命周期关联编码',
+    activity_type VARCHAR(32) NOT NULL COMMENT '活动类型',
+    activity_name VARCHAR(128) NOT NULL COMMENT '活动名称',
+    source VARCHAR(64) NOT NULL COMMENT '活动来源',
+    phase VARCHAR(32) DEFAULT NULL COMMENT '活动阶段',
+    status VARCHAR(32) NOT NULL DEFAULT 'RUNNING' COMMENT '活动状态',
+    message VARCHAR(512) DEFAULT NULL COMMENT '活动展示信息',
+    input_summary VARCHAR(1000) DEFAULT NULL COMMENT '输入摘要',
+    output_summary VARCHAR(1000) DEFAULT NULL COMMENT '输出摘要',
+    duration_ms BIGINT DEFAULT NULL COMMENT '耗时毫秒',
+    request_id VARCHAR(128) DEFAULT NULL COMMENT '请求追踪编码',
+    seq_no INT NOT NULL DEFAULT 1 COMMENT '轮次内事件顺序',
+    detail_json MEDIUMTEXT DEFAULT NULL COMMENT '活动结构化详情',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '更新者',
+    version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
+    UNIQUE KEY uk_chat_activity_code (activity_code),
+    KEY idx_chat_activity_session (session_code),
+    KEY idx_chat_activity_round_seq (round_code, seq_no),
+    KEY idx_chat_activity_correlation (round_code, correlation_code)
+) COMMENT='AI聊天执行活动事件表';

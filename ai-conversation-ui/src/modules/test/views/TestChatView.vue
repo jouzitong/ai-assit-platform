@@ -14,13 +14,13 @@ import {
   ChatDotRound,
   UserFilled,
 } from '@element-plus/icons-vue'
-import { computed, nextTick, onBeforeUnmount, ref, useTemplateRef, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import chatTransportProtocol from '../../../../../data/chatMessage/chat-transport-protocol.json'
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import DashboardCanvasPreview from '../components/DashboardCanvasPreview.vue'
-import { createChatTransportRequest, streamChatTransport } from '../../ai-chat/api'
-import type { ChatTransportEvent } from '../../ai-chat/types'
+import { createChatTransportRequest, fetchEnabledModels, streamChatTransport } from '../../ai-chat/api'
+import type { ChatEnabledModel, ChatTransportEvent } from '../../ai-chat/types'
 import { renderMarkdown } from '../../ai-chat/utils/markdown'
 
 type ChatRole = 'assistant' | 'user'
@@ -69,6 +69,9 @@ type StaticSession = {
   messages: StaticMessage[]
   serverSessionCode?: string
   runId?: string
+  currentRoundCode?: string
+  currentAssistantMessageId?: string
+  pendingUserMessageId?: string
 }
 
 type ProtocolContentBlock = {
@@ -236,8 +239,11 @@ const initialSessions: StaticSession[] = [
   },
 ]
 
-const selectedModelLabel = 'ZG GPT-Static'
 const prompt = ref('')
+const selectedModelId = ref<number | undefined>()
+const modelOptions = ref<ChatEnabledModel[]>([])
+const isLoadingModels = ref(false)
+const modelLoadError = ref('')
 const activeSessionId = ref(initialSessions[0]?.id || '')
 const sidebarExpanded = ref(true)
 const isStreaming = ref(false)
@@ -277,6 +283,11 @@ const activeSession = computed(() => sessions.value.find((session) => session.id
 const chatMessages = computed(() => activeSession.value?.messages || [])
 const isConversationMode = computed(() => Boolean(activeSessionId.value))
 const currentSessionName = computed(() => activeSession.value?.title || '静态测试会话')
+const selectedModelLabel = computed(() => {
+  const model = modelOptions.value.find((item) => item.id === selectedModelId.value)
+  return model?.modelName || model?.modelCode || model?.apiModel || '选择模型'
+})
+const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
 const shouldReserveThinkingDrawer = computed(() => thinkingDrawerVisible.value || thinkingDrawerTransitioning.value)
 const lastAssistantMessageId = computed(() => {
   return [...chatMessages.value].reverse().find((message) => message.role === 'assistant' && message.status === 'completed')?.id
@@ -418,13 +429,14 @@ function getThinkingStatusText(status: ThinkingActivityStatus) {
 }
 
 function normalizeProtocolStatus(status?: string): ThinkingActivityStatus {
-  if (status === 'completed') {
+  const normalized = status?.trim().toLowerCase()
+  if (normalized === 'completed' || normalized === 'success' || normalized === 'done') {
     return 'done'
   }
-  if (status === 'failed') {
+  if (normalized === 'failed' || normalized === 'error' || normalized === 'cancelled') {
     return 'failed'
   }
-  if (status === 'running') {
+  if (normalized === 'running' || normalized === 'started' || normalized === 'accepted') {
     return 'running'
   }
   return 'pending'
@@ -502,6 +514,7 @@ function resolveProtocolContent(blocks?: ProtocolContentBlock[]) {
 function resolveSimulationSession(payload?: Record<string, any>) {
   const conversation = payload?.conversation
   const sessionCode = conversation?.sessionCode || conversation?.id || 'static-risk-session'
+  const previousSession = activeSession.value
   let session = sessions.value.find((item) => item.id === sessionCode)
 
   if (!session) {
@@ -509,9 +522,14 @@ function resolveSimulationSession(payload?: Record<string, any>) {
       id: sessionCode,
       title: conversation?.title || '风控日报分析',
       meta: '刚刚',
-      messages: [],
+      messages: previousSession?.messages || [],
+      currentAssistantMessageId: previousSession?.currentAssistantMessageId,
+      pendingUserMessageId: previousSession?.pendingUserMessageId,
     }
     sessions.value.unshift(session)
+    if (previousSession && previousSession.id !== sessionCode && !previousSession.serverSessionCode) {
+      sessions.value = sessions.value.filter((item) => item !== previousSession)
+    }
   }
 
   session.title = conversation?.title || session.title
@@ -520,11 +538,15 @@ function resolveSimulationSession(payload?: Record<string, any>) {
   return session
 }
 
-function resolveSimulationAssistant(session: StaticSession, assistantId = 'risk-assistant-round-2') {
-  let message = session.messages.find((item) => item.id === assistantId)
+function resolveSimulationAssistant(session: StaticSession, assistantId?: string) {
+  const resolvedId = assistantId
+    || session.currentAssistantMessageId
+    || [...session.messages].reverse().find((item) => item.role === 'assistant' && item.status === 'running')?.id
+    || `assistant-${session.currentRoundCode || Date.now()}`
+  let message = session.messages.find((item) => item.id === resolvedId)
   if (!message) {
     message = {
-      id: assistantId,
+      id: resolvedId,
       role: 'assistant',
       status: 'pending',
       content: '',
@@ -533,6 +555,7 @@ function resolveSimulationAssistant(session: StaticSession, assistantId = 'risk-
     }
     session.messages.push(message)
   }
+  session.currentAssistantMessageId = message.id
   return message
 }
 
@@ -559,6 +582,50 @@ function applyThinkingNodes(nodes?: Array<Record<string, any>>) {
   activeThinking.value = nextActivities
 }
 
+function applyThinkingActivity(payload: Record<string, any>, eventId: string) {
+  if (payload.progressType !== 'ACTIVITY' && payload.action !== 'activity.updated') {
+    return
+  }
+  const protocolActivity = payload.activity && typeof payload.activity === 'object' ? payload.activity : {}
+  const activityId = protocolActivity.activityCode
+    || protocolActivity.id
+    || payload.activityCode
+    || payload.callId
+    || `${payload.source || 'activity'}-${eventId}`
+  const inputSummary = protocolActivity.inputSummary || payload.inputSummary
+  const outputSummary = protocolActivity.outputSummary || payload.outputSummary
+  const title = protocolActivity.activityName
+    || protocolActivity.title
+    || payload.toolName
+    || payload.thinking?.statusText
+    || 'AI 执行活动'
+  const activity: ThinkingActivity = {
+    id: String(activityId),
+    title,
+    status: normalizeProtocolStatus(protocolActivity.status || payload.thinking?.status || payload.status),
+    description: outputSummary || inputSummary || protocolActivity.description || payload.thinking?.statusText || '正在处理',
+    sources: [
+      payload.toolName ? { id: `${activityId}-tool`, label: payload.toolName, icon: 'tool' } : null,
+      payload.source ? { id: `${activityId}-source`, label: payload.source, icon: 'ai' } : null,
+    ].filter(Boolean) as ThinkingActivitySource[],
+    details: [
+      inputSummary ? { id: `${activityId}-input`, title: '输入摘要', content: inputSummary } : null,
+      outputSummary ? { id: `${activityId}-output`, title: '输出摘要', content: outputSummary } : null,
+    ].filter(Boolean) as ThinkingActivityDetail[],
+  }
+  const index = activeThinking.value.findIndex((item) => item.id === activity.id)
+  if (index >= 0) {
+    activeThinking.value[index] = {
+      ...activeThinking.value[index],
+      ...activity,
+      sources: activity.sources?.length ? activity.sources : activeThinking.value[index].sources,
+      details: activity.details?.length ? activity.details : activeThinking.value[index].details,
+    }
+  } else {
+    activeThinking.value.push(activity)
+  }
+}
+
 function showThinkingDrawer() {
   thinkingDrawerTransitioning.value = true
   thinkingDrawerVisible.value = true
@@ -582,10 +649,7 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
   }
 
   if (protocolEvent.event === 'session.initialized') {
-    const session = resolveSimulationSession(payload)
-    session.messages = []
-    hideThinkingDrawer()
-    activeThinking.value = []
+    resolveSimulationSession(payload)
     return
   }
 
@@ -593,7 +657,16 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
 
   if (protocolEvent.event === 'round.initialized') {
     const userMessage = payload.round?.userMessage
-    if (userMessage && !session.messages.some((message) => message.id === userMessage.id)) {
+    session.currentRoundCode = payload.round?.roundCode || protocolEvent.data.roundCode || session.currentRoundCode
+    const pendingUserMessage = session.pendingUserMessageId
+      ? session.messages.find((message) => message.id === session.pendingUserMessageId)
+      : undefined
+    if (userMessage && pendingUserMessage) {
+      pendingUserMessage.id = userMessage.id || pendingUserMessage.id
+      pendingUserMessage.createdAt = formatProtocolCreatedAt(userMessage.createdAt) || pendingUserMessage.createdAt
+      pendingUserMessage.content = resolveProtocolContent(userMessage.content) || pendingUserMessage.content
+      session.pendingUserMessageId = undefined
+    } else if (userMessage && !session.messages.some((message) => message.id === userMessage.id)) {
       session.messages.push({
         id: userMessage.id,
         role: 'user',
@@ -606,6 +679,13 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
 
   if (protocolEvent.event === 'assistant.started') {
     const assistant = payload.assistant
+    const pendingAssistant = session.currentAssistantMessageId
+      ? session.messages.find((message) => message.id === session.currentAssistantMessageId)
+      : undefined
+    if (pendingAssistant && assistant?.id && pendingAssistant.id !== assistant.id) {
+      pendingAssistant.id = assistant.id
+      session.currentAssistantMessageId = assistant.id
+    }
     const assistantMessage = resolveSimulationAssistant(session, assistant?.id)
     assistantMessage.status = 'running'
     assistantMessage.content = ''
@@ -625,6 +705,7 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
   if (protocolEvent.event === 'thinking.updated') {
     const assistantMessage = resolveSimulationAssistant(session)
     applyThinkingNodes(payload.nodes)
+    applyThinkingActivity(payload, protocolEvent.id)
     assistantMessage.thinking = activeThinking.value
     return
   }
@@ -633,10 +714,10 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
     const message = payload.message
     const assistantMessage = resolveSimulationAssistant(session)
     assistantMessage.createdAt = formatProtocolCreatedAt(message?.createdAt) || assistantMessage.createdAt
-    assistantMessage.content = resolveProtocolContent(message?.content)
+    const content = resolveProtocolContent(message?.content)
+    assistantMessage.content = message?.append ? `${assistantMessage.content}${content}` : content
     assistantMessage.thinking = activeThinking.value
     assistantMessage.status = 'running'
-    isStreaming.value = false
     return
   }
 
@@ -665,6 +746,9 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
     assistantMessage.thinking = activeThinking.value
     assistantMessage.canvas = Boolean(assistant?.artifacts?.length)
     assistantMessage.status = 'completed'
+    if (assistantMessage.thinkingStatus === 'running') {
+      completeThinkingClock(assistantMessage)
+    }
     isStreaming.value = false
     return
   }
@@ -688,6 +772,25 @@ function applyTransportEvent(event: { id: string; event: string; data: ChatTrans
     event: event.event,
     data: event.data,
   })
+}
+
+async function loadEnabledModelList() {
+  isLoadingModels.value = true
+  modelLoadError.value = ''
+  try {
+    const models = await fetchEnabledModels()
+    modelOptions.value = (Array.isArray(models) ? models : [])
+      .filter((model) => typeof model.id === 'number' && Number.isSafeInteger(model.id) && model.id > 0)
+    if (!modelOptions.value.some((model) => model.id === selectedModelId.value)) {
+      selectedModelId.value = modelOptions.value[0]?.id
+    }
+  } catch (error) {
+    modelOptions.value = []
+    selectedModelId.value = undefined
+    modelLoadError.value = error instanceof Error ? error.message : '模型列表加载失败'
+  } finally {
+    isLoadingModels.value = false
+  }
 }
 
 function startProtocolSimulation() {
@@ -843,20 +946,39 @@ async function handlePrimaryAction() {
   }
 
   const session = ensureSession()
+  const request = createChatTransportRequest({
+    sessionCode: session.serverSessionCode,
+    modelId: selectedModelId.value,
+    message,
+  }, '/test/chat')
+  const userMessage = createMessage('user', message)
+  userMessage.id = request.message.id
+  const assistantMessage = createMessage('assistant', '')
+  assistantMessage.id = `assistant-${request.requestId}`
+  assistantMessage.status = 'running'
+  assistantMessage.thinking = [{
+    id: `request-${request.requestId}`,
+    title: '正在连接 AI',
+    status: 'running',
+    description: '请求已提交，正在等待服务端接收并开始处理。',
+  }]
+  session.pendingUserMessageId = userMessage.id
+  session.currentAssistantMessageId = assistantMessage.id
+  session.messages.push(userMessage, assistantMessage)
+  activeThinking.value = assistantMessage.thinking
+  startThinkingClock(assistantMessage)
   prompt.value = ''
   isStreaming.value = true
   await syncTextareaHeights()
 
   try {
-    await streamChatTransport(createChatTransportRequest({
-      sessionCode: session.serverSessionCode,
-      message,
-    }, '/test/chat'), applyTransportEvent)
+    await streamChatTransport(request, applyTransportEvent)
   } catch (error) {
-    session.messages.push(createAssistantMessage(
-      error instanceof Error ? error.message : '对话发送失败，请稍后重试。',
-      message,
-    ))
+    assistantMessage.content = error instanceof Error ? error.message : '对话发送失败，请稍后重试。'
+    assistantMessage.status = 'completed'
+    assistantMessage.thinking = assistantMessage.thinking?.map((activity) => ({ ...activity, status: 'failed' }))
+    completeThinkingClock(assistantMessage)
+  } finally {
     isStreaming.value = false
   }
 }
@@ -889,6 +1011,10 @@ watch(prompt, () => {
 watch(isConversationMode, () => {
   void syncTextareaHeights()
 }, { immediate: true })
+
+onMounted(() => {
+  void loadEnabledModelList()
+})
 
 onBeforeUnmount(() => {
   clearSimulationTimer()
@@ -1006,9 +1132,30 @@ onBeforeUnmount(() => {
     <main class="chat-home-main">
       <header class="chat-home-topbar">
         <div class="chat-home-topbar__left">
-          <div class="chat-home-model-switcher">
-            <span>{{ selectedModelLabel }}</span>
-            <span class="chat-home-model-switcher__caret">⌄</span>
+          <div class="test-chat-model-controls">
+            <el-select
+              v-model="selectedModelId"
+              class="chat-home-model-switcher"
+              :loading="isLoadingModels"
+              :disabled="isLoadingModels"
+              :no-data-text="modelSelectEmptyText"
+              placeholder="选择模型"
+              filterable
+              fit-input-width
+              aria-label="选择测试对话模型"
+            >
+              <el-option
+                v-for="model in modelOptions"
+                :key="model.id"
+                :label="model.modelName || model.modelCode || model.apiModel"
+                :value="model.id"
+              >
+                <div class="chat-home-model-option">
+                  <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
+                  <small v-if="model.apiModel && model.apiModel !== model.modelName">{{ model.apiModel }}</small>
+                </div>
+              </el-option>
+            </el-select>
             <div class="chat-home-model-switcher__simulate-group">
               <button
                 class="chat-home-model-switcher__simulate"
@@ -1084,7 +1231,11 @@ onBeforeUnmount(() => {
           </div>
         </section>
 
-        <section v-else class="chat-home-conversation">
+        <section
+          v-else
+          class="chat-home-conversation"
+          :aria-busy="isStreaming"
+        >
           <div class="chat-home-center-column chat-home-center-column--conversation">
             <div v-if="chatMessages.length === 0" class="chat-home-assistant">
               <div class="chat-home-assistant__avatar">pr</div>
@@ -1116,7 +1267,12 @@ onBeforeUnmount(() => {
                     <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
                     <div class="chat-home-message__assistant-copy">
                       <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
-                      <div v-if="message.thinking?.length" class="chat-home-thinking">
+                      <div
+                        v-if="message.thinking?.length"
+                        class="chat-home-thinking"
+                        role="status"
+                        aria-live="polite"
+                      >
                         <button
                           :class="[
                             'chat-home-thinking__summary',
@@ -1306,4 +1462,10 @@ onBeforeUnmount(() => {
 
 <style scoped lang="scss">
 @use '../../../styles/chat-home';
+
+.test-chat-model-controls {
+  display: flex;
+  align-items: center;
+  gap: var(--chat-space-sm, 10px);
+}
 </style>

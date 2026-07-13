@@ -167,7 +167,7 @@ public class ConversationPreparationService {
         round.setSessionCode(session.getSessionCode());
         round.setUserId(userId);
         round.setModelCode(resolveModelCode(command.getApiModel()));
-        round.setActualModel(resolveActualModel(command.getApiModel()));
+        round.setActualModel(resolveActualModel(command));
         round.setStatus(STATUS_RUNNING);
         return roundService.add(round);
     }
@@ -225,8 +225,13 @@ public class ConversationPreparationService {
         return org.springframework.util.StringUtils.hasText(apiModel) ? apiModel.trim() : "DEFAULT";
     }
 
-    private String resolveActualModel(String apiModel) {
-        return org.springframework.util.StringUtils.hasText(apiModel) ? apiModel.trim() : "DEFAULT";
+    private String resolveActualModel(ConversationQueryCommand command) {
+        if (command != null && org.springframework.util.StringUtils.hasText(command.getActualModel())) {
+            return command.getActualModel().trim();
+        }
+        return command != null && org.springframework.util.StringUtils.hasText(command.getApiModel())
+                ? command.getApiModel().trim()
+                : "DEFAULT";
     }
 
     private String generateCode(String prefix) {

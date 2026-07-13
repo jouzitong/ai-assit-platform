@@ -152,7 +152,10 @@ public class ChatTransportProtocolAdapter {
 
     private Map<String, Object> thinkingUpdatedPayload(ConversationQueryStreamEvent event) {
         Map<String, Object> payload = new LinkedHashMap<>();
-        payload.put("action", normalize(event.getSource()) + "." + normalize(event.getPhase()));
+        boolean activityProgress = "ACTIVITY".equalsIgnoreCase(event.getProgressType());
+        payload.put("action", activityProgress
+                ? "activity.updated"
+                : normalize(event.getSource()) + "." + normalize(event.getPhase()));
         Map<String, Object> thinking = new LinkedHashMap<>();
         thinking.put("status", lower(defaultValue(event.getStatus(), "RUNNING")));
         thinking.put("statusText", event.getMessage());
@@ -166,7 +169,37 @@ public class ChatTransportProtocolAdapter {
         if (event.getExt() != null) {
             payload.putAll(event.getExt());
         }
+        if (activityProgress) {
+            payload.put("activity", activityPayload(event));
+        }
         return payload;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> activityPayload(ConversationQueryStreamEvent event) {
+        Map<String, Object> ext = event.getExt() == null ? Map.of() : event.getExt();
+        Map<String, Object> activity = ext.get("activity") instanceof Map<?, ?> value
+                ? new LinkedHashMap<>((Map<String, Object>) value)
+                : new LinkedHashMap<>();
+        String legacyActivity = ext.get("activity") instanceof String value ? value : null;
+        String code = firstText(activity.get("activityCode"), ext.get("activityCode"), ext.get("callId"),
+                activity.get("callId"), legacyActivity, ext.get("toolName"));
+        put(activity, "id", code);
+        put(activity, "activityCode", code);
+        put(activity, "activityType", firstText(activity.get("activityType"), ext.get("activityType")));
+        put(activity, "activityName", firstText(activity.get("activityName"), ext.get("activityName"),
+                ext.get("toolName"), event.getMessage()));
+        put(activity, "title", firstText(activity.get("title"), activity.get("activityName"), event.getMessage()));
+        put(activity, "description", firstText(activity.get("description"), event.getMessage()));
+        put(activity, "source", event.getSource());
+        put(activity, "phase", event.getPhase());
+        put(activity, "status", lower(event.getStatus()));
+        put(activity, "inputSummary", firstText(activity.get("inputSummary"), ext.get("inputSummary")));
+        put(activity, "outputSummary", firstText(activity.get("outputSummary"), ext.get("outputSummary")));
+        if (ext.get("durationMs") != null) {
+            activity.putIfAbsent("durationMs", ext.get("durationMs"));
+        }
+        return activity;
     }
 
     private Map<String, Object> answerPayload(ConversationQueryStreamEvent event, String content, boolean append) {
@@ -278,6 +311,19 @@ public class ChatTransportProtocolAdapter {
 
     private String stringValue(Object value) {
         return value == null ? null : String.valueOf(value);
+    }
+
+    private String firstText(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            String text = stringValue(value);
+            if (StringUtils.hasText(text)) {
+                return text.trim();
+            }
+        }
+        return null;
     }
 
     private String defaultValue(String value, String fallback) {

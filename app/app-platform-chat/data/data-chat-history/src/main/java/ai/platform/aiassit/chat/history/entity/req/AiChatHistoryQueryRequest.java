@@ -32,6 +32,12 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
 
     private String stage;
 
+    private String activityCode;
+
+    private String nodeCode;
+
+    private String activityType;
+
     private Boolean visibleFlag;
 
     private AiChatBusinessType businessType;

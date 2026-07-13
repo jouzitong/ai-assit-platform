@@ -1,9 +1,11 @@
 package ai.platform.aiassit.conversation.service.impl;
 
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
 import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
+import ai.platform.aiassit.chat.history.service.AiChatActivityService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.conversation.dto.protocol.RenderArtifactResponse;
 import ai.platform.aiassit.conversation.dto.protocol.RoundThinkingResponse;
@@ -26,13 +28,16 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
 
     private final AiChatRoundService roundService;
     private final AiChatArtifactService artifactService;
+    private final AiChatActivityService activityService;
     private final ObjectMapper objectMapper;
 
     public DefaultConversationProtocolQueryService(AiChatRoundService roundService,
                                                    AiChatArtifactService artifactService,
+                                                   AiChatActivityService activityService,
                                                    ObjectMapper objectMapper) {
         this.roundService = roundService;
         this.artifactService = artifactService;
+        this.activityService = activityService;
         this.objectMapper = objectMapper;
     }
 
@@ -57,6 +62,10 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
                 .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
                 .sorted(Comparator.comparing(AiChatArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
+        List<AiChatActivityDTO> activities = activityService.queryAll(query).stream()
+                .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
+                .sorted(Comparator.comparing(AiChatActivityDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .toList();
 
         RoundThinkingResponse response = new RoundThinkingResponse();
         response.setSessionCode(sessionCode);
@@ -66,10 +75,15 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         for (AiChatArtifactDTO artifact : artifacts) {
             String stage = StringUtils.hasText(artifact.getStage()) ? artifact.getStage() : "UNKNOWN";
             nodes.computeIfAbsent(stage, key -> node(key, artifact));
-            response.getActivities().add(activity(artifact));
+        }
+        for (AiChatActivityDTO activity : activities) {
+            String nodeCode = StringUtils.hasText(activity.getNodeCode()) ? activity.getNodeCode() : "AI_AGENT";
+            nodes.put(nodeCode, node(nodeCode, activity, nodes.get(nodeCode)));
+            response.getActivities().add(activity(activity));
         }
         response.setNodes(List.copyOf(nodes.values()));
         response.getExt().put("activityCount", response.getActivities().size());
+        response.getExt().put("artifactCount", artifacts.size());
         return response;
     }
 
@@ -106,14 +120,38 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         return node;
     }
 
-    private Map<String, Object> activity(AiChatArtifactDTO artifact) {
+    private Map<String, Object> node(String nodeCode,
+                                     AiChatActivityDTO activity,
+                                     Map<String, Object> current) {
+        Map<String, Object> node = current == null ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
+        node.put("id", nodeCode);
+        node.putIfAbsent("title", nodeCode);
+        node.put("status", activity.getStatus());
+        if (StringUtils.hasText(activity.getMessage())) {
+            node.put("description", activity.getMessage());
+        }
+        return node;
+    }
+
+    private Map<String, Object> activity(AiChatActivityDTO record) {
         Map<String, Object> activity = new LinkedHashMap<>();
-        activity.put("id", artifact.getArtifactCode());
-        activity.put("nodeId", artifact.getStage());
-        activity.put("title", artifact.getTitle());
-        activity.put("status", artifact.getStatus());
-        activity.put("artifactType", artifact.getArtifactType());
-        activity.put("contentFormat", artifact.getContentFormat());
+        activity.put("id", record.getActivityCode());
+        activity.put("activityCode", record.getCorrelationCode());
+        activity.put("nodeId", record.getNodeCode());
+        activity.put("activityType", record.getActivityType());
+        activity.put("title", record.getActivityName());
+        activity.put("status", record.getStatus());
+        activity.put("source", record.getSource());
+        activity.put("phase", record.getPhase());
+        activity.put("description", record.getMessage());
+        activity.put("inputSummary", record.getInputSummary());
+        activity.put("outputSummary", record.getOutputSummary());
+        activity.put("durationMs", record.getDurationMs());
+        activity.put("seqNo", record.getSeqNo());
+        Map<String, Object> detail = parseMap(record.getDetailJson());
+        if (!detail.isEmpty()) {
+            activity.put("detail", detail);
+        }
         return activity;
     }
 

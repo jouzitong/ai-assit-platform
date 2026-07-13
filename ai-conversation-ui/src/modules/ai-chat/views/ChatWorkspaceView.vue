@@ -63,7 +63,7 @@ type CurrentUserProfile = {
 }
 
 const prompt = ref('')
-const selectedModel = ref('')
+const selectedModel = ref<number | undefined>()
 const modelOptions = ref<ChatEnabledModel[]>([])
 const isLoadingModels = ref(false)
 const modelLoadError = ref('')
@@ -141,8 +141,8 @@ const currentUserAvatarUrl = computed(() =>
 )
 const currentUserAvatarText = computed(() => Array.from(currentUserName.value)[0]?.toLocaleUpperCase() || '?')
 const selectedModelLabel = computed(() => {
-  const matchedModel = modelOptions.value.find((item) => item.modelCode === selectedModel.value)
-  return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || selectedModel.value || '选择模型'
+  const matchedModel = modelOptions.value.find((item) => item.id === selectedModel.value)
+  return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || '选择模型'
 })
 const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
 const pinnedConversations = computed(() =>
@@ -339,15 +339,15 @@ async function loadEnabledModelList() {
   try {
     const models = await fetchEnabledModels()
     modelOptions.value = (Array.isArray(models) ? models : [])
-      .filter((model) => typeof model.modelCode === 'string' && model.modelCode.trim())
-    const selectedStillAvailable = modelOptions.value.some((model) => model.modelCode === selectedModel.value)
+      .filter((model) => typeof model.id === 'number' && Number.isSafeInteger(model.id) && model.id > 0)
+    const selectedStillAvailable = modelOptions.value.some((model) => model.id === selectedModel.value)
     if (!selectedStillAvailable) {
-      selectedModel.value = modelOptions.value[0]?.modelCode || ''
+      selectedModel.value = modelOptions.value[0]?.id
     }
   }
   catch (error) {
     modelOptions.value = []
-    selectedModel.value = ''
+    selectedModel.value = undefined
     modelLoadError.value = error instanceof Error ? error.message : '模型列表加载失败'
   }
   finally {
@@ -487,7 +487,7 @@ async function handlePrimaryAction() {
     await streamChatTransport(
       createChatTransportRequest({
         sessionCode: currentSessionCode.value || undefined,
-        modelCode: selectedModel.value || undefined,
+        modelId: selectedModel.value,
         message,
       }, route.path),
       (event) => handleStreamEvent(event, assistantMessageId),
@@ -824,9 +824,9 @@ watch(route, () => {
           >
             <el-option
               v-for="model in modelOptions"
-              :key="model.modelCode"
+              :key="model.id"
               :label="model.modelName || model.modelCode || model.apiModel"
-              :value="model.modelCode || ''"
+              :value="model.id"
             >
               <div class="chat-home-model-option">
                 <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>

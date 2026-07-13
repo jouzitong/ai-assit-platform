@@ -10,5 +10,7 @@ public interface AiModelConfigService extends IMapperService<AiModelConfigDTO> {
 
     AiModelConfigDTO getByModelCode(String modelCode);
 
+    AiModelConfigDTO getResolvedById(Long modelId);
+
     List<AiEnabledModelDTO> selectEnabledModels();
 }

@@ -64,7 +64,9 @@ public class AiAgentProcessExecutor {
     public JsonNode executeStream(AiAgentProperties properties,
                                   ProviderChatRequest request,
                                   Consumer<JsonNode> frameConsumer) {
-        validate(properties);
+        String apiKey = resolveValue(request == null ? null : request.getApiKey(), properties.getApiKey());
+        String baseUrl = resolveValue(request == null ? null : request.getBaseUrl(), properties.getBaseUrl());
+        validate(properties, apiKey);
         Path scriptPath = resolveScriptPath(properties);
         long timeoutMs = resolveTimeoutMs(properties, request);
         log.info("ai agent process preparing, scriptPath={}, pythonCommand={}, model={}, timeoutMs={}, workingDirectory={}",
@@ -79,9 +81,9 @@ public class AiAgentProcessExecutor {
             processBuilder.directory(Path.of(properties.getWorkingDirectory()).toFile());
         }
         Map<String, String> env = processBuilder.environment();
-        env.put("OPENAI_API_KEY", properties.getApiKey());
-        if (StringUtils.hasText(properties.getBaseUrl())) {
-            env.put("OPENAI_BASE_URL", properties.getBaseUrl());
+        env.put("OPENAI_API_KEY", apiKey);
+        if (StringUtils.hasText(baseUrl)) {
+            env.put("OPENAI_BASE_URL", baseUrl);
         }
         if (StringUtils.hasText(request.getModel())) {
             env.put("OPENAI_MODEL", request.getModel());
@@ -169,6 +171,7 @@ public class AiAgentProcessExecutor {
                 } else if ("result".equalsIgnoreCase(type)) {
                     resultRef.set(frame.get("data"));
                 } else if ("error".equalsIgnoreCase(type)) {
+                    frameConsumer.accept(frame);
                     throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
                             frame.path("message").asText("ai agent execution failed"));
                 } else {
@@ -229,13 +232,17 @@ public class AiAgentProcessExecutor {
         return Duration.ofSeconds(120).toMillis();
     }
 
-    private void validate(AiAgentProperties properties) {
-        if (!StringUtils.hasText(properties.getApiKey())) {
+    private void validate(AiAgentProperties properties, String apiKey) {
+        if (!StringUtils.hasText(apiKey)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_API_KEY);
         }
         if (!StringUtils.hasText(properties.getPythonCommand())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_AI_AGENT_PYTHON_COMMAND);
         }
+    }
+
+    private String resolveValue(String requestValue, String fallback) {
+        return StringUtils.hasText(requestValue) ? requestValue.trim() : fallback;
     }
 
     private Path resolveScriptPath(AiAgentProperties properties) {

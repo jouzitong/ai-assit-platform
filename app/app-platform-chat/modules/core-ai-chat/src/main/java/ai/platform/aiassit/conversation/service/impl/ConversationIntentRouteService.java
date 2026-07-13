@@ -79,7 +79,7 @@ public class ConversationIntentRouteService {
 
     private void bindWorkflowDefinition(ConversationRuntimeContext context, IntentAnalyzeResponse response) {
         String intentType = response == null ? null : response.getIntentType();
-        if (SIMPLE_CHAT.equalsIgnoreCase(intentType)) {
+        if (SIMPLE_CHAT.equalsIgnoreCase(intentType) || intentType == null) {
             context.setWorkflowDefinition(workflowDefinitionFactory.simpleChatWorkflow());
         } else {
             context.setWorkflowDefinition(workflowDefinitionFactory.queryRenderWorkflow());

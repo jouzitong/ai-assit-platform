@@ -74,7 +74,7 @@ export interface ChatMessageItem {
 
 export interface ChatQueryPayload {
   sessionCode?: string
-  modelCode?: string
+  modelId?: number
   message: string
   attachments?: unknown[]
   tools?: unknown[]
@@ -82,6 +82,7 @@ export interface ChatQueryPayload {
 }
 
 export interface ChatEnabledModel {
+  id?: number
   modelCode?: string
   modelName?: string
   apiModel?: string
@@ -129,7 +130,7 @@ export interface ChatTransportRequest {
   requestId: string
   sessionCode?: string
   roundCode?: string
-  modelCode?: string
+  modelId?: number
   message: ChatTransportMessage
   clientContext: {
     timezone: string

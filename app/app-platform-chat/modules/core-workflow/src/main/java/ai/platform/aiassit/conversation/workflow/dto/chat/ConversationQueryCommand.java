@@ -61,14 +61,18 @@ public class ConversationQueryCommand {
      */
     private AiChatBusinessType businessType;
 
+    /** 前端选择的模型配置主键，仅用于审计和轮次快照。 */
+    private Long modelId;
+
     /**
-     * 前端指定的实际模型标识（apiModel）。
+     * 服务端根据 modelId 解析得到的模型配置编码。
      *
-     * <p>这是允许前端传入的模型参数，对应模型配置中的 apiModel，而不是内部 modelCode。</p>
-     * <p>为空时表示由服务端自动选择默认模型；有值时 service 会直接用于构造 AI 引擎请求，
-     * 并基于模型配置反推出 provider 等执行信息。</p>
+     * <p>该兼容字段仍供工作流节点定位模型配置，前端不得直接传入。</p>
      */
     private String apiModel;
+
+    /** 服务端解析出的提供方真实模型名（ai_model_config.api_model）。 */
+    private String actualModel;
 
     /**
      * 用户本次输入的消息内容。
@@ -131,7 +135,9 @@ public class ConversationQueryCommand {
                 ", sessionCode='" + sessionCode + '\'' +
                 ", roundCode='" + roundCode + '\'' +
                 ", businessType=" + businessType +
+                ", modelId=" + modelId +
                 ", apiModel='" + apiModel + '\'' +
+                ", actualModel='" + actualModel + '\'' +
                 ", scene='" + scene + '\'' +
                 ", messageLength=" + (message == null ? 0 : message.length()) +
                 ", attachmentCount=" + (attachments == null ? 0 : attachments.size()) +

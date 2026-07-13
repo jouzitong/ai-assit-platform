@@ -128,18 +128,25 @@ public class AiAgentProvider implements AiChatService {
         ChatChunk chunk = new ChatChunk();
         chunk.setRequestId(text(frame, "requestId"));
         String type = text(frame, "type");
-        if ("activity".equalsIgnoreCase(type)) {
+        if ("activity".equalsIgnoreCase(type) || "error".equalsIgnoreCase(type)) {
             chunk.setEventType("progress");
             chunk.setProgressType("ACTIVITY");
             chunk.setSource(text(frame, "source"));
-            chunk.setPhase(text(frame, "phase"));
-            chunk.setStatus(text(frame, "status"));
+            chunk.setPhase(StringUtils.hasText(text(frame, "phase"))
+                    ? text(frame, "phase")
+                    : "error".equalsIgnoreCase(type) ? "FAILED" : null);
+            chunk.setStatus(StringUtils.hasText(text(frame, "status"))
+                    ? text(frame, "status")
+                    : "error".equalsIgnoreCase(type) ? "FAILED" : null);
             chunk.setMessage(text(frame, "message"));
             JsonNode extNode = frame.get("ext");
             if (extNode != null && extNode.isObject()) {
                 extNode.fields().forEachRemaining(entry ->
                         chunk.getExt().put(entry.getKey(), simpleValue(entry.getValue())));
             }
+            chunk.getExt().putIfAbsent("activityType", "error".equalsIgnoreCase(type)
+                    ? "AI_AGENT_EXECUTION"
+                    : "AI_AGENT_ACTIVITY");
         } else {
             chunk.setEventType("answer_delta");
             chunk.setOutputType(OutputType.TEXT);

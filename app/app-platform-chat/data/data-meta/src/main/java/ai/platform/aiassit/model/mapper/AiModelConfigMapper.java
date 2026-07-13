@@ -14,4 +14,6 @@ public interface AiModelConfigMapper extends CrudMapper<AiModelConfigEntity> {
     List<AiEnabledModelDTO> selectEnabledModels();
 
     AiModelConfigEntity selectResolvedByModelCode(@Param("modelCode") String modelCode);
+
+    AiModelConfigEntity selectResolvedById(@Param("modelId") Long modelId);
 }

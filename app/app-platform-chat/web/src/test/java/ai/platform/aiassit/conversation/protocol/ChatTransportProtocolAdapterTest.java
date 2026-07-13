@@ -70,6 +70,31 @@ class ChatTransportProtocolAdapterTest {
                 .containsExactly("thinking.completed", "round.completed");
     }
 
+    @Test
+    void projectsAgentActivityToStructuredThinkingUpdate() {
+        ConversationQueryStreamEvent event = event("progress", "9");
+        event.setProgressType("ACTIVITY");
+        event.setSource("AI_AGENT");
+        event.setPhase("RUNNING");
+        event.setStatus("RUNNING");
+        event.setMessage("AI Agent 正在调用工具");
+        event.setExt(new LinkedHashMap<>(Map.of(
+                "nodeCode", "render",
+                "activity", "tool_called",
+                "activityType", "TOOL_CALL",
+                "toolName", "render_json_validate_tool",
+                "callId", "call-1"
+        )));
+
+        ChatEventEnvelope result = adapter.adapt(event).get(0);
+
+        assertThat(result.getEventType()).isEqualTo("thinking.updated");
+        assertThat(result.getPayload().get("action")).isEqualTo("activity.updated");
+        assertThat(result.getPayload().get("progressType")).isEqualTo("ACTIVITY");
+        assertThat(result.getPayload().get("activity").toString())
+                .contains("call-1", "TOOL_CALL", "render_json_validate_tool");
+    }
+
     private ConversationQueryStreamEvent event(String type, String id) {
         ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
         event.setRunId("run-1");

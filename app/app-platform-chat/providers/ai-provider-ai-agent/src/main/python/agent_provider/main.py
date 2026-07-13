@@ -36,12 +36,39 @@ def _item_ext(item: Any, event_name: str) -> dict[str, Any]:
         or getattr(raw_item, "type", None)
     )
     call_id = getattr(raw_item, "call_id", None) or getattr(item, "call_id", None)
-    return {
+    ext = {
         "activity": event_name,
+        "activityCode": call_id or f"{event_name}:{tool_name or 'agent'}",
+        "activityType": "TOOL_CALL" if "tool" in event_name else "AGENT_HANDOFF",
+        "activityName": tool_name or event_name,
         "toolName": tool_name,
         "callId": call_id,
         "itemType": getattr(item, "type", None),
     }
+    input_summary = _summary(raw_item, "arguments", "input")
+    output_summary = _summary(item, "output", "result") or _summary(raw_item, "output", "result")
+    if input_summary:
+        ext["inputSummary"] = input_summary
+    if output_summary:
+        ext["outputSummary"] = output_summary
+    return ext
+
+
+def _summary(value: Any, *attributes: str) -> str | None:
+    for attribute in attributes:
+        candidate = getattr(value, attribute, None)
+        if candidate is None:
+            continue
+        if isinstance(candidate, str):
+            text = candidate.strip()
+        else:
+            try:
+                text = json.dumps(candidate, ensure_ascii=False, default=str)
+            except TypeError:
+                text = str(candidate)
+        if text:
+            return text[:1000]
+    return None
 
 
 def _emit_run_item_event(event: Any) -> None:
@@ -197,7 +224,13 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
         "phase": "STARTED",
         "status": "RUNNING",
         "message": "AI Agent 已开始执行",
-        "ext": {"activity": "agent_run", "enabledTools": enabled_tool_names},
+        "ext": {
+            "activity": "agent_run",
+            "activityCode": "agent_run",
+            "activityType": "AI_AGENT_EXECUTION",
+            "activityName": "AI Agent 执行",
+            "enabledTools": enabled_tool_names,
+        },
     })
     agent = Agent(
         name="AI Agent Provider",
@@ -211,7 +244,13 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
         "phase": "RUNNING",
         "status": "RUNNING",
         "message": "AI Agent 正在推理并调用工具",
-        "ext": {"activity": "agent_run", "enabledTools": enabled_tool_names},
+        "ext": {
+            "activity": "agent_run",
+            "activityCode": "agent_run",
+            "activityType": "AI_AGENT_EXECUTION",
+            "activityName": "AI Agent 执行",
+            "enabledTools": enabled_tool_names,
+        },
     })
     result = Runner.run_streamed(agent, transcript or "USER: ")
     async for event in result.stream_events():
@@ -232,7 +271,13 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
                 "phase": "RUNNING",
                 "status": "RUNNING",
                 "message": "AI Agent 已切换执行角色",
-                "ext": {"activity": "agent_updated", "agentName": agent_name},
+                "ext": {
+                    "activity": "agent_updated",
+                    "activityCode": f"agent_updated:{agent_name or 'unknown'}",
+                    "activityType": "AGENT_HANDOFF",
+                    "activityName": agent_name or "AI Agent 角色切换",
+                    "agentName": agent_name,
+                },
             })
     final_output = result.final_output
     outputs = _build_outputs(final_output, payload.get("responseFormat"))
@@ -259,7 +304,13 @@ async def _run(payload: dict[str, Any]) -> dict[str, Any]:
         "phase": "COMPLETED",
         "status": "SUCCESS",
         "message": "AI Agent 执行完成",
-        "ext": {"activity": "agent_run", "enabledTools": enabled_tool_names},
+        "ext": {
+            "activity": "agent_run",
+            "activityCode": "agent_run",
+            "activityType": "AI_AGENT_EXECUTION",
+            "activityName": "AI Agent 执行",
+            "enabledTools": enabled_tool_names,
+        },
     })
     return response
 

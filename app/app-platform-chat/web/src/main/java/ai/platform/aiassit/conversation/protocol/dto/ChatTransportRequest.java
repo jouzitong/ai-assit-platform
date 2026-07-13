@@ -24,7 +24,7 @@ public class ChatTransportRequest {
 
     private String roundCode;
 
-    private String modelCode;
+    private Long modelId;
 
     private Message message;
 

@@ -41,7 +41,7 @@
     "requestId": "req_20260708_225812_001",
     "sessionCode": "static-risk-session",
     "roundCode": "risk-round-2",
-    "modelCode": "zg-gpt-static",
+    "modelId": 1001,
     "message": {
       "id": "risk-user-1",
       "role": "user",
@@ -879,7 +879,7 @@
     },
     {
       "event": "thinking.updated",
-      "rule": "按 action 更新 thinking 节点和活动描述。节点初始化、开始执行、活动更新、完成、失败都使用此事件。"
+      "rule": "按 action 更新 thinking 节点和活动描述。action=activity.updated 时按 payload.activity.activityCode 合并同一活动的开始、更新、完成或失败状态。"
     },
     {
       "event": "assistant.message.delta",

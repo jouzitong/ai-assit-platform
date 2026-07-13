@@ -19,7 +19,7 @@
 
 当前实现相对旧版协议文档有以下变化，本文已经按实际实现修订：
 
-1. 发起对话的模型字段实际为 `modelCode`，不是 `apiModel`。
+1. 发起对话的模型字段为 `modelId`（模型配置主键），前端不再提交 `modelCode` 或 `apiModel`。
 2. 事件增加统一运行时信封字段：`protocolVersion`、`runId`、`eventId`、`timestamp`。
 3. SSE 增加 `id` 行，并与 payload 的 `eventId` 保持一致。
 4. 事件集合增加 `run.accepted`、`run.started`、`run.cancelled`。
@@ -28,6 +28,7 @@
 7. 运行任务支持本地单实例和 Redis 多实例协调；通信连接断开不等于取消任务。
 8. 后端实际抽象为 `ConversationRunManager`、`ConversationEventPublisher`、`ConversationCancellation` 和传输适配器，不再由业务上下文持有 `SseEmitter`。
 9. `PLAN`、`NODE` 当前仍属于逐步收敛的推荐 `progressType`，并非所有现有进度事件都会携带。
+10. AI Agent（Python）活动使用 `progressType=ACTIVITY`，实时投影为 `thinking.updated`，同时写入 `ai_chat_activity` 作为可查询的活动事件日志。
 
 ### 1.2 前端 `chat-event.v2` 适配层
 
@@ -66,7 +67,7 @@ Content-Type: application/json
 ```json
 {
   "sessionCode": "session-xxx",
-  "modelCode": "qwen-plus",
+  "modelId": 1001,
   "message": "帮我分析一下本月订单数据",
   "attachments": [],
   "tools": [],
@@ -77,11 +78,19 @@ Content-Type: application/json
 字段说明：
 
 - `sessionCode`：可选，继续已有会话时传入；为空时后端创建新会话。
-- `modelCode`：可选，前端选择的模型配置编码；为空时由后端选择默认模型。
+- `modelId`：可选，前端选择的 `ai_model_config.id`；为空时由后端选择默认模型。
 - `message`：必填，用户本轮输入。
 - `attachments`：可选，附件引用列表。
 - `tools`：可选，本轮允许或期望使用的工具声明。
 - `ext`：可选，扩展上下文。
+
+模型解析规则：
+
+1. 前端只能获得并提交启用模型的 `id`、展示名和非敏感模型信息，不返回 API Key。
+2. 服务端按 `modelId` 联表读取 `ai_model_config` 与 `ai_client_config`，解析客户端类型、Base URL、API Key 和提供方真实模型 `api_model`。
+3. 模型或关联客户端被停用、记录不存在时，请求直接失败，不回退使用前端提供的 URL、密钥或真实模型名。
+4. 轮次中的 `model_code` 保存内部配置编码，`actual_model` 保存最终解析出的提供方真实模型名。
+5. 兼容接口 `/api/v1/chat/completions/stream` 与 `chat-event.v2` 接口使用同一套 `modelId` 解析逻辑。
 
 ### 3.2 重新挂接流式输出
 
@@ -311,7 +320,8 @@ progress 子类型：
 
 当前实现状态：
 
-- `ACTIVITY` 已由专用发布方法显式写入。
+- `ACTIVITY` 已由专用发布方法显式写入；AI Agent（Python）的执行开始、工具调用、工具结果、角色切换、完成和失败均进入该通道。
+- AI Agent 活动在发送实时事件前写入 `ai_chat_activity`；同一工具调用通过 `correlationCode`（通常来自 `callId` 或 `activityCode`）关联多条生命周期事件。
 - `PLAN`、`NODE` 是协议支持和推荐值，但当前部分工作流事件仍未显式设置 `progressType`。
 - 前端必须保留“`progressType` 为空”的兼容逻辑，不能假设所有节点事件都已经规范化为 `NODE`。
 
@@ -360,6 +370,36 @@ progress 子类型：
         "order": 3
       }
     ]
+  }
+}
+```
+
+对应的 `chat-event.v2` 对外事件统一投影为：
+
+```json
+{
+  "eventType": "thinking.updated",
+  "payload": {
+    "action": "activity.updated",
+    "progressType": "ACTIVITY",
+    "nodeCode": "render",
+    "thinking": {
+      "status": "running",
+      "statusText": "AI Agent 正在调用工具"
+    },
+    "activity": {
+      "id": "call-xxx",
+      "activityCode": "call-xxx",
+      "activityType": "TOOL_CALL",
+      "activityName": "render_json_validate_tool",
+      "title": "render_json_validate_tool",
+      "description": "AI Agent 正在调用工具",
+      "source": "AI_AGENT",
+      "phase": "RUNNING",
+      "status": "running",
+      "inputSummary": "...",
+      "outputSummary": null
+    }
   }
 }
 ```
@@ -426,7 +466,7 @@ progress 子类型：
 
 - `progressType = PLAN`：初始化或更新本轮意图、工作流和计划节点列表。
 - `progressType = NODE`：按 `ext.nodeCode` 更新节点状态。
-- `progressType = ACTIVITY`：挂载到 `ext.nodeCode` 对应节点下，展示活动类型、输入摘要、输出摘要、产物和耗时。
+- `progressType = ACTIVITY`：按 `activity.activityCode` 合并同一活动的开始/完成状态，挂载到 `nodeCode` 对应节点下，展示活动类型、输入摘要、输出摘要、产物和耗时。
 - 历史或兼容事件如果没有 `progressType`，前端可按 `NODE` 或普通过程消息兜底处理。
 
 ### 6.3 `answer_delta`
@@ -656,7 +696,7 @@ answer + source=RENDER       -> Render JSON 回答
 error  + source=RENDER       -> Render JSON 生成失败
 ```
 
-当前仓库前端仍是部分接入状态：现有类型和页面逻辑主要消费 `complete`、`error` 及基础会话字段，尚未完整处理 `run.*`、`answer_delta`、`progressType`、`delta`、`ext`。页面中仍保留历史事件名 `answer-ready` 的判断，但当前后端发送的是 `answer`，不会发送 `answer-ready`；前端后续应迁移到本协议事件名。本节描述的是前端应完成的协议行为，而不是当前页面已经全部实现的行为。
+当前仓库前端的 `/test/chat` 已处理 `run.*`、`thinking.*`、`assistant.message.delta`、`ACTIVITY`、完成和失败事件，并在发出请求后立即创建“正在连接 AI / 思考中”占位。正式聊天页已使用 `modelId` 和基础流式回答事件，但思考抽屉仍以 `/test/chat` 的实现为交互参考逐步收敛。
 
 ## 10. 后端实现边界
 
@@ -671,6 +711,7 @@ error  + source=RENDER       -> Render JSON 生成失败
 7. `ChatTransportProtocolAdapter`：把内部运行/工作流事件投影为前端事件及 `payload` 快照。
 8. `ChatWebSocketHandler`：复用运行任务订阅、重放和中断能力，并编码与 SSE 相同的包络。
 9. `ConversationCancellation`：向 workflow 提供协作式取消检查。
+10. `WorkflowHistoryRecorder`：在活动发送前写入 `ai_chat_activity`；`ConversationProtocolQueryService` 通过思考详情接口返回真实活动时间线。
 
 关键约束：
 
@@ -678,7 +719,8 @@ error  + source=RENDER       -> Render JSON 生成失败
 - `ConversationRuntimeContext` 只持有传输无关的 `ConversationEventPublisher` 和 `ConversationCancellation`。
 - WebSocket 已复用 `ConversationRunManager.subscribe()`；后续增加交互式恢复时仍不得修改 workflow 与传输层的依赖方向。
 - 本地模式下任务和事件缓存在当前进程；Redis 模式下共享任务快照、索引、有限事件列表、取消标记，并通过 Pub/Sub 实时通知其他实例。
-- 实时事件缓存不是永久审计日志。缓存过期后，reconnect 只能回退到会话历史中的回答和终态快照，不能恢复全部过程事件。
+- 运行时实时事件缓存不是永久审计日志。缓存过期后，reconnect 仍只能回退到回答和终态快照；但已持久化的活动可通过 `/api/chat/sessions/{sessionCode}/rounds/{roundCode}/thinking` 查询，不依赖运行时缓存。
+- `ai_chat_activity` 记录结构化活动摘要和详情，不存储模型 API Key；敏感工具输出进入摘要或 `detail_json` 前应由活动生产方裁剪。
 
 ## 11. 兼容说明
 
@@ -716,7 +758,7 @@ complete
 ```json
 {
   "message": "统计本月每天的订单数和成交金额",
-  "modelCode": "qwen-plus"
+  "modelId": 1001
 }
 ```
 
@@ -792,7 +834,7 @@ data: {"eventType":"complete","source":"CONVERSATION","phase":"COMPLETED","reque
 ```json
 {
   "message": "你是谁？",
-  "modelCode": "qwen-plus"
+  "modelId": 1001
 }
 ```
 

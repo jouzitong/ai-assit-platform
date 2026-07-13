@@ -45,6 +45,15 @@ public class AiModelConfigServiceImpl
     }
 
     @Override
+    public AiModelConfigDTO getResolvedById(Long modelId) {
+        if (modelId == null || modelId <= 0) {
+            return null;
+        }
+        AiModelConfigEntity entity = baseMapper.selectResolvedById(modelId);
+        return entity == null ? null : convert().toDTO(entity);
+    }
+
+    @Override
     protected <Query extends BaseRequest> QueryWrapper<AiModelConfigEntity> buildQuery(Query query) {
         QueryWrapper<AiModelConfigEntity> wrapper = super.buildQuery(query);
         if (query instanceof AiMetaQueryRequest req) {

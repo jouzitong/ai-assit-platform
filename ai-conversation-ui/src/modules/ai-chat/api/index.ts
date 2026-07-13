@@ -100,7 +100,7 @@ export function createChatTransportRequest(payload: ChatQueryPayload, route: str
     type: 'chat.user_message',
     requestId,
     sessionCode: payload.sessionCode,
-    modelCode: payload.modelCode,
+    modelId: payload.modelId,
     message: {
       id: `user-${requestId}`,
       role: 'user',

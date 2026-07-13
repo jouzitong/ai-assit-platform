@@ -19,6 +19,7 @@
 
     <select id="selectEnabledModels" resultType="ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO">
         SELECT
+            m.id AS id,
             m.model_code AS modelCode,
             m.model_name AS modelName,
             m.api_model AS apiModel,
@@ -47,6 +48,20 @@
         FROM ai_model_config m
         LEFT JOIN ai_client_config c ON c.id = m.client_id
         WHERE m.model_code = #{modelCode}
+        LIMIT 1
+    </select>
+
+    <select id="selectResolvedById" resultMap="ResolvedModelResultMap">
+        SELECT m.id, m.client_id, m.model_code, m.model_name,
+               COALESCE(c.client_type, m.client_type) AS client_type,
+               COALESCE(c.base_url, m.base_url) AS base_url,
+               m.api_model,
+               CASE WHEN m.client_id IS NULL THEN m.enabled ELSE (m.enabled AND c.enabled) END AS enabled,
+               COALESCE(c.api_key, m.api_key) AS api_key,
+               m.ext_json
+        FROM ai_model_config m
+        LEFT JOIN ai_client_config c ON c.id = m.client_id
+        WHERE m.id = #{modelId}
         LIMIT 1
     </select>
 </mapper>

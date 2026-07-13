@@ -6,6 +6,8 @@ import lombok.Data;
 @Data
 public class AiEnabledModelDTO {
 
+    private Long id;
+
     private String modelCode;
 
     private String modelName;
