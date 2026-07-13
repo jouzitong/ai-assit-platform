@@ -650,6 +650,16 @@ phase = COMPLETED
 - 会话列表、会话详情、模型列表或页面初始化等独立资源加载失败，不归属于某个 round，可以使用页面级全局提示，并提供重新加载操作。
 - 即使轮次错误与页面级加载错误同时存在，也必须分别维护；关闭全局提示不能移除 round 底部错误卡。
 
+失败快照持久化：
+
+- 新产生 `round.failed` 时，后端必须把同一份安全错误快照写入该轮次的消息历史。当前实现复用 `ai_chat_message`，消息类型为 `ERROR_MESSAGE`，结构写入 `extJson.error`，不新增错误实体表。
+- `ERROR_MESSAGE.content` 可以保存 `userMessage` 作为兼容摘要；规范化字段以 `extJson.error` 为准，包含 `code`、`userMessage`、`retryable`、`traceId` 和可选 `detail`。
+- `detail` 在写库前同样必须完成脱敏、截断，不能因为进入历史数据而保存实时事件中禁止暴露的堆栈、密钥、认证头、完整提示词或工具输出。
+- 同一失败终态只保存一份最终错误快照；“重试本轮”产生新的执行请求，不得覆盖原失败轮次的快照。
+- 会话详情、页面刷新和持久化回放应读取该 round 的 `ERROR_MESSAGE.extJson.error`，还原相同的 `userMessage`、`detail`、`code`、`retryable`、`traceId` 以及 round 底部错误卡。
+- 历史旧数据没有结构化错误快照时，前端使用“本轮处理失败，请稍后重试。”作为通用中文兜底；不得直接展示历史记录中的原始异常字符串。
+- 错误快照写入失败时不得覆盖或掩盖原始业务错误；后端应告警并继续发送实时 `round.failed`，历史恢复按“旧数据无快照”规则兜底。
+
 ### 6.7 `complete`
 
 用于通知前端整轮会话流程已完成。
@@ -801,7 +811,7 @@ error  + source=RENDER       -> 当前 round 底部展示 Render JSON 生成失�
 - `session.initialized` 与 `round.initialized`，用于恢复会话和轮次标识。
 - 当前助手消息完整快照；优先作为可覆盖的完整消息块发送，不重放不可验证的 token 增量。
 - 已持久化的 thinking/activity 时间线，或可用于查询 `/thinking` 的引用。
-- `round.completed`、`round.failed`、`round.cancelled` 或 `assistant.input_required` 中与持久化状态一致的一个交互终态。
+- `round.completed`、`round.failed`、`round.cancelled` 或 `assistant.input_required` 中与持久化状态一致的一个交互终态。回放 `round.failed` 时，应从该轮 `ERROR_MESSAGE.extJson.error` 还原安全错误快照；旧数据缺少快照则返回通用中文兜底。
 
 回放事件仍须使用 `schemaVersion=chat-event.v2`。建议在 `payload.replay` 增加兼容性元数据：
 

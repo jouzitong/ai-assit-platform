@@ -262,6 +262,25 @@
       "retryAction": "仅 retryable=true 时显示“重试本轮”；使用原用户输入创建新执行请求，模型参数按客户端当前选择或轮次上下文策略确定，不复用 FAILED 任务。"
     },
     "globalErrorScope": "仅会话列表、会话详情、模型列表或页面初始化等不归属于具体 round 的加载错误可以使用页面级全局提示。",
+    "persistence": {
+      "requiredForNewFailures": true,
+      "newTableRequired": false,
+      "messageType": "ERROR_MESSAGE",
+      "storageField": "extJson.error",
+      "contentCompatibility": "ERROR_MESSAGE.content 可以保存 userMessage 作为兼容摘要。",
+      "snapshotFields": [
+        "code",
+        "userMessage",
+        "retryable",
+        "traceId",
+        "detail"
+      ],
+      "detailRule": "写库前必须脱敏、截断；禁止保存完整堆栈、密钥、认证头、完整提示词或敏感工具输出。",
+      "idempotency": "同一失败终态只保存一份最终快照；重试产生新执行请求，不覆盖原失败轮次。",
+      "restoreRule": "刷新、会话详情和持久化回放从对应 round 的 ERROR_MESSAGE.extJson.error 还原错误卡。",
+      "legacyFallback": "旧数据缺少结构化错误快照时使用“本轮处理失败，请稍后重试。”，不得直接展示原始异常字符串。",
+      "writeFailureRule": "写入失败时记录告警并继续发送实时 round.failed，不得覆盖原始业务错误。"
+    },
     "forbiddenDetail": [
       "api_key",
       "authorization_header",
@@ -269,7 +288,7 @@
       "full_model_prompt",
       "unredacted_tool_output"
     ],
-    "fallbackUserMessage": "处理失败，请稍后重试。"
+    "fallbackUserMessage": "本轮处理失败，请稍后重试。"
   },
   "activityFailurePolicy": {
     "statuses": [

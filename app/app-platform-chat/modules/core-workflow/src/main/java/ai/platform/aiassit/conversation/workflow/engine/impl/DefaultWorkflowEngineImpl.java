@@ -20,6 +20,7 @@ import ai.platform.aiassit.conversation.workflow.engine.IWorkflowEngine;
 import ai.platform.aiassit.conversation.workflow.engine.transition.TransitionResolver;
 import ai.platform.aiassit.conversation.workflow.node.IWorkflowNode;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
+import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import lombok.extern.slf4j.Slf4j;
@@ -36,20 +37,25 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
 
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_FAILED = "FAILED";
+    private static final String FAILURE_MESSAGE_PERSISTENCE_ATTEMPTED =
+            "workflow.failure-message-persistence-attempted";
 
     private final Map<String, IWorkflowNode> nodeRegistry;
     private final AiChatRoundService roundService;
     private final TransitionResolver transitionResolver;
+    private final WorkflowHistoryRecorder historyRecorder;
 
     public DefaultWorkflowEngineImpl(List<IWorkflowNode> nodes,
                                      AiChatRoundService roundService,
-                                     TransitionResolver transitionResolver) {
+                                     TransitionResolver transitionResolver,
+                                     WorkflowHistoryRecorder historyRecorder) {
         nodeRegistry = new HashMap<>();
         for (IWorkflowNode node : nodes) {
             nodeRegistry.put(node.code(), node);
         }
         this.roundService = roundService;
         this.transitionResolver = transitionResolver;
+        this.historyRecorder = historyRecorder;
     }
 
     @Override
@@ -186,12 +192,21 @@ public class DefaultWorkflowEngineImpl implements IWorkflowEngine {
 
     private void failWorkflow(ConversationRuntimeContext context, String errorMessage, String eventType, String eventMessage) {
         context.put(ConversationRuntimeContextKeys.Common.ERROR, errorMessage);
+        persistFailureMessageOnce(context, StringUtils.defaultIfBlank(errorMessage, eventMessage));
         if (ConversationEventTypes.ERROR.equals(eventType)) {
             context.publishErrorEvent(ConversationEventSources.WORKFLOW, ConversationEventPhases.FAILED, eventMessage);
         } else {
             context.publishEvent(eventType, ConversationEventSources.WORKFLOW, ConversationEventPhases.FAILED, eventMessage);
         }
         finishRound(context, STATUS_FAILED);
+    }
+
+    private void persistFailureMessageOnce(ConversationRuntimeContext context, String errorMessage) {
+        if (context == null || Boolean.TRUE.equals(context.get(FAILURE_MESSAGE_PERSISTENCE_ATTEMPTED))) {
+            return;
+        }
+        context.put(FAILURE_MESSAGE_PERSISTENCE_ATTEMPTED, Boolean.TRUE);
+        historyRecorder.saveFailureMessage(context, errorMessage);
     }
 
     private void finishRound(ConversationRuntimeContext context, String status) {
