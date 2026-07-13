@@ -14,4 +14,6 @@ public class DbTableMetaCascadeDeleteResultDTO {
     private Integer deletedFieldCount;
 
     private Integer deletedIndexCount;
+
+    private Integer deletedRelationCount;
 }

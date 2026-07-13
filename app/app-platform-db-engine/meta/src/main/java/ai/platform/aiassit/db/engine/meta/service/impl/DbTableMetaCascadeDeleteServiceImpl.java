@@ -5,20 +5,25 @@ import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableIndexMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaCascadeDeleteResultDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableMetaDTO;
+import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableRelationMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableFieldMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableIndexMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaCascadeDeleteRequest;
 import ai.platform.aiassit.db.engine.meta.entity.req.DbTableMetaQueryRequest;
+import ai.platform.aiassit.db.engine.meta.entity.req.DbTableRelationMetaQueryRequest;
 import ai.platform.aiassit.db.engine.meta.service.DbTableFieldMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableIndexMetaService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaCascadeDeleteService;
 import ai.platform.aiassit.db.engine.meta.service.DbTableMetaService;
+import ai.platform.aiassit.db.engine.meta.service.DbTableRelationMetaService;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 @Service
 public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDeleteService {
@@ -26,15 +31,18 @@ public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDe
     private final DbTableMetaService tableMetaService;
     private final DbTableFieldMetaService fieldMetaService;
     private final DbTableIndexMetaService indexMetaService;
+    private final DbTableRelationMetaService relationMetaService;
 
     public DbTableMetaCascadeDeleteServiceImpl(
             DbTableMetaService tableMetaService,
             DbTableFieldMetaService fieldMetaService,
-            DbTableIndexMetaService indexMetaService
+            DbTableIndexMetaService indexMetaService,
+            DbTableRelationMetaService relationMetaService
     ) {
         this.tableMetaService = tableMetaService;
         this.fieldMetaService = fieldMetaService;
         this.indexMetaService = indexMetaService;
+        this.relationMetaService = relationMetaService;
     }
 
     @Override
@@ -61,6 +69,18 @@ public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDe
             }
         }
 
+        Set<Long> relationIds = new LinkedHashSet<>();
+        collectRelationIds(relationIds,
+                relationMetaService.queryAll(buildSourceRelationQuery(sourceKey, tableName)));
+        collectRelationIds(relationIds,
+                relationMetaService.queryAll(buildTargetRelationQuery(sourceKey, tableName)));
+        int deletedRelationCount = 0;
+        for (Long relationId : relationIds) {
+            if (relationMetaService.delete(relationId)) {
+                deletedRelationCount++;
+            }
+        }
+
         List<DbTableMetaDTO> tables = tableMetaService.queryAll(buildTableQuery(sourceKey, tableName));
         int deletedTableCount = 0;
         for (DbTableMetaDTO table : tables) {
@@ -74,6 +94,7 @@ public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDe
         result.setTableName(tableName);
         result.setDeletedFieldCount(deletedFieldCount);
         result.setDeletedIndexCount(deletedIndexCount);
+        result.setDeletedRelationCount(deletedRelationCount);
         result.setDeletedTableCount(deletedTableCount);
         return result;
     }
@@ -100,6 +121,30 @@ public class DbTableMetaCascadeDeleteServiceImpl implements DbTableMetaCascadeDe
         query.setTableName(tableName);
         query.setSize(Integer.MAX_VALUE);
         return query;
+    }
+
+    private DbTableRelationMetaQueryRequest buildSourceRelationQuery(String sourceKey, String tableName) {
+        DbTableRelationMetaQueryRequest query = new DbTableRelationMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setSourceTableName(tableName);
+        query.setSize(Integer.MAX_VALUE);
+        return query;
+    }
+
+    private DbTableRelationMetaQueryRequest buildTargetRelationQuery(String sourceKey, String tableName) {
+        DbTableRelationMetaQueryRequest query = new DbTableRelationMetaQueryRequest();
+        query.setSourceKey(sourceKey);
+        query.setTargetTableName(tableName);
+        query.setSize(Integer.MAX_VALUE);
+        return query;
+    }
+
+    private void collectRelationIds(Set<Long> relationIds, List<DbTableRelationMetaDTO> relations) {
+        for (DbTableRelationMetaDTO relation : relations) {
+            if (relation != null && relation.getId() != null) {
+                relationIds.add(relation.getId());
+            }
+        }
     }
 
     private String requireText(String value, Integer code) {

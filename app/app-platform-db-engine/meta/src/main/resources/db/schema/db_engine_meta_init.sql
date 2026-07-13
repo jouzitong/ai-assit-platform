@@ -102,3 +102,23 @@ CREATE TABLE IF NOT EXISTS db_table_index_meta (
     KEY idx_index_primary_flag (primary_flag),
     KEY idx_index_unique_flag (unique_flag)
 ) COMMENT='数据表索引元数据表';
+
+CREATE TABLE IF NOT EXISTS db_table_relation_meta (
+    id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    source_key VARCHAR(64) NOT NULL COMMENT '所属数据源标识',
+    relation_name VARCHAR(128) NOT NULL COMMENT '关系名称',
+    source_table_name VARCHAR(128) NOT NULL COMMENT '源表名',
+    source_column_name VARCHAR(128) NOT NULL COMMENT '源字段名',
+    target_table_name VARCHAR(128) NOT NULL COMMENT '目标表名',
+    target_column_name VARCHAR(128) NOT NULL COMMENT '目标字段名',
+    enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否启用',
+    remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
+    create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by BIGINT NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by BIGINT NOT NULL DEFAULT 0 COMMENT '更新者',
+    version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
+    UNIQUE KEY uk_relation_source_column (source_key, source_table_name, relation_name, source_column_name),
+    KEY idx_relation_source_table (source_key, source_table_name, enabled),
+    KEY idx_relation_target_table (source_key, target_table_name, enabled)
+) COMMENT='数据表关联元数据表';
