@@ -35,6 +35,11 @@ defineProps<{
           class="virtual-table-node__handle virtual-table-node__handle--target"
           type="target"
           :position="Position.Left"
+          :connectable="true"
+          :connectable-start="false"
+          :connectable-end="true"
+          :aria-label="`关联到字段 ${field.fieldName || field.fieldCode}`"
+          title="目标连接点：拖到这里"
         />
         <div class="virtual-table-node__field-name">
           <el-icon v-if="field.primaryKey"><Key /></el-icon>
@@ -47,6 +52,11 @@ defineProps<{
           class="virtual-table-node__handle virtual-table-node__handle--source"
           type="source"
           :position="Position.Right"
+          :connectable="true"
+          :connectable-start="true"
+          :connectable-end="false"
+          :aria-label="`从字段 ${field.fieldName || field.fieldCode} 建立关联`"
+          title="来源连接点：从这里开始拖拽"
         />
       </div>
       <div v-if="!data.fields.length" class="virtual-table-node__empty">暂无可关联字段</div>
@@ -195,18 +205,25 @@ defineProps<{
 }
 
 .virtual-table-node__handle {
-  width: 10px;
-  height: 10px;
+  z-index: 2;
+  width: 14px;
+  height: 14px;
   border: 2px solid var(--app-surface-solid);
   background: var(--app-accent);
+  box-shadow: 0 0 0 2px var(--app-accent-bg);
   cursor: crosshair;
+  transition: box-shadow 180ms ease;
+}
+
+.virtual-table-node__field:hover .virtual-table-node__handle {
+  box-shadow: 0 0 0 4px var(--app-accent-bg);
 }
 
 .virtual-table-node__handle--target {
-  left: -5px;
+  left: 7px;
 }
 
 .virtual-table-node__handle--source {
-  right: -5px;
+  right: 7px;
 }
 </style>

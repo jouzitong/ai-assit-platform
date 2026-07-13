@@ -1,7 +1,8 @@
 <script setup lang="ts">
 import { Grid, Share } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { searchDbDataSources, type DbDataSourceItem, type DbTableMetaItem } from '../api/dataSources'
 import {
   createVirtualBinding,
@@ -20,6 +21,7 @@ import {
   updateVirtualRelation,
   validateFieldTransformRule,
   validateVirtualCatalog,
+  type CatalogStatus,
   type FieldTransformPortItem,
   type FieldTransformPortPayload,
   type FieldTransformRulePayload,
@@ -47,10 +49,49 @@ import VirtualTableCatalog from './views/VirtualTableCatalog.vue'
 import VirtualTableInitializeDialog from './views/VirtualTableInitializeDialog.vue'
 import VirtualTableModelDrawer from './views/VirtualTableModelDrawer.vue'
 
+type ActiveView = 'catalog' | 'relations'
+
 const emptyOverview = (): VirtualCatalogOverview => ({ entities: [], fields: [], bindings: [], relations: [] })
 const emptyWorkspace = (): VirtualTableWorkspace => ({ fields: [], bindings: [], rules: [], ports: [], physicalFields: [] })
 
-const activeView = ref<'catalog' | 'relations'>('catalog')
+const route = useRoute()
+const router = useRouter()
+const routeQueryKeys = [
+  'view',
+  'catalogKeyword',
+  'catalogSource',
+  'catalogStatus',
+  'relationKeyword',
+  'relationSources',
+  'relationEntities',
+] as const
+
+function queryText(value: unknown) {
+  const normalized = Array.isArray(value) ? value[0] : value
+  return typeof normalized === 'string' ? normalized : ''
+}
+
+function queryList(value: unknown) {
+  const values = Array.isArray(value) ? value : [value]
+  return values.filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+}
+
+function queryView(value: unknown): ActiveView {
+  return queryText(value) === 'relations' ? 'relations' : 'catalog'
+}
+
+function queryCatalogStatus(value: unknown): CatalogStatus | '' {
+  const status = queryText(value)
+  return status === '0' || status === '1' || status === '2' ? Number(status) as CatalogStatus : ''
+}
+
+const activeView = ref<ActiveView>(queryView(route.query.view))
+const catalogKeyword = ref(queryText(route.query.catalogKeyword))
+const catalogSource = ref(queryText(route.query.catalogSource))
+const catalogStatus = ref<CatalogStatus | ''>(queryCatalogStatus(route.query.catalogStatus))
+const relationKeyword = ref(queryText(route.query.relationKeyword))
+const relationSources = ref<string[]>(queryList(route.query.relationSources))
+const relationEntities = ref<string[]>(queryList(route.query.relationEntities))
 const overview = ref<VirtualCatalogOverview>(emptyOverview())
 const dataSources = ref<DbDataSourceItem[]>([])
 const physicalTables = ref<DbTableMetaItem[]>([])
@@ -78,6 +119,41 @@ const summaries = computed<VirtualEntitySummary[]>(() => overview.value.entities
 }))
 
 const existingCodes = computed(() => overview.value.entities.map(entity => entity.entityCode || '').filter(Boolean))
+
+function applyRouteState() {
+  activeView.value = queryView(route.query.view)
+  catalogKeyword.value = queryText(route.query.catalogKeyword)
+  catalogSource.value = queryText(route.query.catalogSource)
+  catalogStatus.value = queryCatalogStatus(route.query.catalogStatus)
+  relationKeyword.value = queryText(route.query.relationKeyword)
+  relationSources.value = queryList(route.query.relationSources)
+  relationEntities.value = queryList(route.query.relationEntities)
+}
+
+function buildRouteQuery() {
+  const query = { ...route.query }
+  routeQueryKeys.forEach(key => delete query[key])
+  query.view = activeView.value
+  if (catalogKeyword.value.trim()) query.catalogKeyword = catalogKeyword.value.trim()
+  if (catalogSource.value) query.catalogSource = catalogSource.value
+  if (catalogStatus.value !== '') query.catalogStatus = String(catalogStatus.value)
+  if (relationKeyword.value.trim()) query.relationKeyword = relationKeyword.value.trim()
+  if (relationSources.value.length) query.relationSources = [...relationSources.value]
+  if (relationEntities.value.length) query.relationEntities = [...relationEntities.value]
+  return query
+}
+
+function syncRouteState(mode: 'push' | 'replace' = 'replace') {
+  const target = { path: route.path, query: buildRouteQuery() }
+  if (router.resolve(target).fullPath === route.fullPath) return
+  void router[mode](target)
+}
+
+function switchView(view: ActiveView) {
+  if (activeView.value === view) return
+  activeView.value = view
+  syncRouteState('push')
+}
 
 async function loadPage() {
   loading.value = true
@@ -287,7 +363,17 @@ function removeRelation(id: VirtualDataId) {
   return runMutation(() => deleteVirtualRelation(id), '字段关联已删除', false)
 }
 
-onMounted(loadPage)
+watch(() => route.query, applyRouteState, { deep: true })
+watch(
+  [catalogKeyword, catalogSource, catalogStatus, relationKeyword, relationSources, relationEntities],
+  () => syncRouteState(),
+  { deep: true },
+)
+
+onMounted(() => {
+  syncRouteState()
+  void loadPage()
+})
 </script>
 
 <template>
@@ -299,10 +385,10 @@ onMounted(loadPage)
         <p>在物理数据库之上维护统一实体、字段语义、跨源映射与动态关联。</p>
       </div>
       <nav class="virtual-table-page__switch" aria-label="虚拟表工作区">
-        <button :class="{ 'is-active': activeView === 'catalog' }" type="button" @click="activeView = 'catalog'">
+        <button :class="{ 'is-active': activeView === 'catalog' }" type="button" @click="switchView('catalog')">
           <el-icon><Grid /></el-icon><span>虚拟表目录</span>
         </button>
-        <button :class="{ 'is-active': activeView === 'relations' }" type="button" @click="activeView = 'relations'">
+        <button :class="{ 'is-active': activeView === 'relations' }" type="button" @click="switchView('relations')">
           <el-icon><Share /></el-icon><span>关系画布</span>
         </button>
       </nav>
@@ -311,6 +397,9 @@ onMounted(loadPage)
     <main class="virtual-table-page__content">
       <VirtualTableCatalog
         v-if="activeView === 'catalog'"
+        v-model:keyword="catalogKeyword"
+        v-model:source-key="catalogSource"
+        v-model:status="catalogStatus"
         :rows="summaries"
         :loading="loading"
         @initialize="initializeVisible = true"
@@ -318,10 +407,13 @@ onMounted(loadPage)
         @open-entity="openEntity"
         @validate-entity="validateEntity"
         @publish-entity="publishEntity"
-        @open-canvas="activeView = 'relations'"
+        @open-canvas="switchView('relations')"
       />
       <VirtualRelationCanvas
         v-else
+        v-model:keyword="relationKeyword"
+        v-model:selected-sources="relationSources"
+        v-model:selected-entity-ids="relationEntities"
         :entities="overview.entities"
         :fields="overview.fields"
         :bindings="overview.bindings"

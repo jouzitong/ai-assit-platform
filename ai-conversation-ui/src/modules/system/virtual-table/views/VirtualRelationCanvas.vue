@@ -28,9 +28,9 @@ const emit = defineEmits<{
   deleteRelation: [id: VirtualDataId]
 }>()
 
-const keyword = ref('')
-const selectedSources = ref<string[]>([])
-const selectedEntityIds = ref<VirtualDataId[]>([])
+const keyword = defineModel<string>('keyword', { default: '' })
+const selectedSources = defineModel<string[]>('selectedSources', { default: () => [] })
+const selectedEntityIds = defineModel<string[]>('selectedEntityIds', { default: () => [] })
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const fitViewTrigger = ref(0)
@@ -75,9 +75,8 @@ const fieldsByEntity = computed(() => {
 })
 
 const entityOptions = computed(() => props.entities.map(entity => ({
-  id: entity.id,
-  label: entity.entityName || entity.entityCode || String(entity.id),
-  code: entity.entityCode || '',
+  id: String(entity.id),
+  label: keyNameLabel(entity.entityCode, entity.entityName, entity.id),
 })))
 
 const filteredEntities = computed(() => {
@@ -110,6 +109,19 @@ function fieldById(id: VirtualDataId) {
 
 function fieldsForEntity(entityId: VirtualDataId) {
   return fieldsByEntity.value.get(String(entityId)) || []
+}
+
+function keyNameLabel(key: string | undefined, name: string | undefined, fallback: VirtualDataId) {
+  const normalizedKey = key?.trim() || ''
+  const normalizedName = name?.trim() || ''
+  if (normalizedKey && normalizedName && normalizedKey !== normalizedName) {
+    return `${normalizedKey} · ${normalizedName}`
+  }
+  return normalizedKey || normalizedName || String(fallback)
+}
+
+function fieldOptionLabel(field: VirtualFieldItem) {
+  return keyNameLabel(field.fieldCode, field.fieldName, field.id)
 }
 
 function normalizeRelationCode(value: string) {
@@ -218,10 +230,10 @@ function openEditRelation(event: EdgeMouseEvent) {
   Object.assign(relationForm, {
     relationCode: relation.relationCode || '',
     relationName: relation.relationName || '',
-    sourceEntityId: relation.sourceEntityId,
-    sourceFieldId: relation.sourceFieldId,
-    targetEntityId: relation.targetEntityId,
-    targetFieldId: relation.targetFieldId,
+    sourceEntityId: String(relation.sourceEntityId),
+    sourceFieldId: String(relation.sourceFieldId),
+    targetEntityId: String(relation.targetEntityId),
+    targetFieldId: String(relation.targetFieldId),
     enabled: relation.enabled !== false,
     remark: relation.remark || '',
   })
@@ -291,7 +303,7 @@ watch(
           <el-option v-for="source in sourceOptions" :key="source" :label="source" :value="source" />
         </el-select>
         <el-select v-model="selectedEntityIds" multiple collapse-tags clearable filterable placeholder="显示虚拟表" aria-label="显示虚拟表">
-          <el-option v-for="entity in entityOptions" :key="entity.id" :label="`${entity.label} · ${entity.code}`" :value="entity.id" />
+          <el-option v-for="entity in entityOptions" :key="entity.id" :label="entity.label" :value="entity.id" />
         </el-select>
         <el-button :icon="Filter" @click="resetFilters">重置</el-button>
       </div>
@@ -304,7 +316,7 @@ watch(
 
     <div class="relation-canvas-panel__hint">
       <el-icon><Link /></el-icon>
-      从字段右侧连接点拖到目标字段左侧连接点即可建立关联；点击已有连线可以编辑或删除。
+      从来源字段右侧蓝色圆点拖到目标字段左侧蓝色圆点即可建立关联；点击已有连线可以编辑或删除。
     </div>
 
     <div v-loading="loading" class="relation-canvas-panel__canvas">
@@ -333,20 +345,20 @@ watch(
           <div>
             <span>来源</span>
             <el-select v-model="relationForm.sourceEntityId" filterable aria-label="来源虚拟表" @change="relationForm.sourceFieldId = ''">
-              <el-option v-for="entity in entityOptions" :key="entity.id" :label="`${entity.label} · ${entity.code}`" :value="entity.id" />
+              <el-option v-for="entity in entityOptions" :key="entity.id" :label="entity.label" :value="entity.id" />
             </el-select>
             <el-select v-model="relationForm.sourceFieldId" filterable aria-label="来源字段">
-              <el-option v-for="field in fieldsForEntity(relationForm.sourceEntityId)" :key="field.id" :label="`${field.fieldName || field.fieldCode} · ${field.fieldCode}`" :value="field.id" />
+              <el-option v-for="field in fieldsForEntity(relationForm.sourceEntityId)" :key="field.id" :label="fieldOptionLabel(field)" :value="String(field.id)" />
             </el-select>
           </div>
           <el-icon><Link /></el-icon>
           <div>
             <span>目标</span>
             <el-select v-model="relationForm.targetEntityId" filterable aria-label="目标虚拟表" @change="relationForm.targetFieldId = ''">
-              <el-option v-for="entity in entityOptions" :key="entity.id" :label="`${entity.label} · ${entity.code}`" :value="entity.id" />
+              <el-option v-for="entity in entityOptions" :key="entity.id" :label="entity.label" :value="entity.id" />
             </el-select>
             <el-select v-model="relationForm.targetFieldId" filterable aria-label="目标字段">
-              <el-option v-for="field in fieldsForEntity(relationForm.targetEntityId)" :key="field.id" :label="`${field.fieldName || field.fieldCode} · ${field.fieldCode}`" :value="field.id" />
+              <el-option v-for="field in fieldsForEntity(relationForm.targetEntityId)" :key="field.id" :label="fieldOptionLabel(field)" :value="String(field.id)" />
             </el-select>
           </div>
         </div>
@@ -484,9 +496,14 @@ watch(
 }
 
 .relation-editor__footer {
-  display: grid;
-  grid-template-columns: auto 1fr auto auto;
+  display: flex;
   gap: var(--app-space-2);
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.relation-editor__footer > span {
+  flex: 1;
 }
 
 @media (max-width: 1100px) {

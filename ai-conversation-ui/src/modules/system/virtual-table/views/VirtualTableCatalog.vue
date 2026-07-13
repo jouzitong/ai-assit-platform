@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { Check, EditPen, Link, Plus, RefreshRight, Search, UploadFilled } from '@element-plus/icons-vue'
-import { computed, ref } from 'vue'
+import { computed } from 'vue'
 import type { CatalogStatus, VirtualDataId } from '../../api/virtualData'
 import { catalogStatusLabel, catalogStatusOptions, catalogStatusType } from '../data/options'
 import type { VirtualEntitySummary } from '../data/types'
@@ -19,9 +19,9 @@ const emit = defineEmits<{
   openCanvas: []
 }>()
 
-const keyword = ref('')
-const sourceKey = ref('')
-const status = ref<CatalogStatus | ''>('')
+const keyword = defineModel<string>('keyword', { default: '' })
+const sourceKey = defineModel<string>('sourceKey', { default: '' })
+const status = defineModel<CatalogStatus | ''>('status', { default: '' })
 
 const sourceOptions = computed(() => Array.from(new Set(props.rows.flatMap(row => row.sources))).sort())
 const filteredRows = computed(() => {
@@ -29,7 +29,7 @@ const filteredRows = computed(() => {
   return props.rows.filter((row) => {
     const keywordMatched = !normalized || `${row.entityName || ''} ${row.entityCode || ''} ${row.physicalTables.join(' ')}`.toLowerCase().includes(normalized)
     const sourceMatched = !sourceKey.value || row.sources.includes(sourceKey.value)
-    const statusMatched = !status.value || row.status === status.value
+    const statusMatched = status.value === '' || row.status === status.value
     return keywordMatched && sourceMatched && statusMatched
   })
 })
