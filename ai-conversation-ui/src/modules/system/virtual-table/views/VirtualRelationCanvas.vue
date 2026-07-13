@@ -335,7 +335,15 @@ function rebuildCanvas() {
       selectable: true,
       focusable: true,
       style: { stroke: 'var(--app-accent)', strokeWidth: 2 },
-      labelStyle: { fill: 'var(--app-text)', fontSize: 11 },
+      labelStyle: { fill: 'var(--app-text)', fontSize: 11, fontWeight: 500 },
+      labelShowBg: true,
+      labelBgStyle: {
+        fill: 'var(--app-surface-solid)',
+        stroke: 'var(--app-accent-border)',
+        strokeWidth: 1,
+      },
+      labelBgPadding: [8, 5] as [number, number],
+      labelBgBorderRadius: 6,
       ariaLabel: `${relation.relationName || relation.relationCode || '字段关联'}，从来源字段指向目标字段`,
       data: { relation },
     }))
