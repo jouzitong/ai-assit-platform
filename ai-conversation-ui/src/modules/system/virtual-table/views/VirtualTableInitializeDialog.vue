@@ -96,6 +96,7 @@ watch(() => props.modelValue, (visible) => {
           <el-input v-model="keyword" clearable placeholder="搜索物理表" :disabled="!sourceKey" />
         </div>
         <el-table
+          class="virtual-init__table"
           v-loading="loading"
           :data="filteredTables"
           row-key="id"
@@ -174,11 +175,18 @@ watch(() => props.modelValue, (visible) => {
 }
 
 .virtual-init__table-head {
+  grid-column: 2;
   display: flex;
   gap: var(--app-space-4);
   align-items: center;
   justify-content: space-between;
   margin-bottom: var(--app-space-3);
+}
+
+.virtual-init__table {
+  grid-column: 2;
+  width: 100%;
+  min-width: 0;
 }
 
 .virtual-init__table-head :deep(.el-input) {
