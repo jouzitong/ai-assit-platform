@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeftBold, ArrowRightBold, Connection, Cpu, DataAnalysis, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
+import { ArrowLeftBold, ArrowRightBold, Coin, Connection, Cpu, DataAnalysis, Grid, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
@@ -14,6 +14,7 @@ import MetadataConfigSection from '../components/sections/MetadataConfigSection.
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
 import UserManagementSection from '../components/sections/UserManagementSection.vue'
 import WorkflowSection from '../components/sections/WorkflowSection.vue'
+import VirtualTableManagement from '../virtual-table/index.vue'
 
 type SettingsSection = {
   key: string
@@ -47,12 +48,29 @@ const sections: SettingsSection[] = [
     component: SystemParamsSection,
   },
   {
-    key: 'data-source',
+    key: 'data-management',
     label: '数据源',
-    icon: Connection,
-    title: '数据源配置',
-    description: '维护数据库连接、授权信息和查询可用范围。',
-    component: DataSourceSection,
+    icon: Coin,
+    title: '数据源管理',
+    description: '统一维护物理数据源和跨数据源虚拟模型。',
+    children: [
+      {
+        key: 'data-source',
+        label: '数据源配置',
+        icon: Connection,
+        title: '数据源配置',
+        description: '维护数据库连接、授权信息和物理表元数据。',
+        component: DataSourceSection,
+      },
+      {
+        key: 'virtual-table',
+        label: '虚拟表管理',
+        icon: Grid,
+        title: '虚拟表管理',
+        description: '维护虚拟字段、物理映射、转换规则和表关联。',
+        component: VirtualTableManagement,
+      },
+    ],
   },
   {
     key: 'err-code',
@@ -116,6 +134,7 @@ const sections: SettingsSection[] = [
 
 const routeSection = computed(() => typeof route.params.section === 'string' ? route.params.section : '')
 const routeSourceKey = computed(() => typeof route.params.sourceKey === 'string' ? route.params.sourceKey : '')
+const navigableSections = computed(() => sections.flatMap(item => item.children?.length ? item.children : [item]))
 const isAiPlatformSection = computed(() => routeSection.value === 'ai-platform')
 const aiPlatformTab = computed<'model' | 'kb'>(() => {
   if (routeSourceKey.value && routeSourceKey.value !== 'model') {
@@ -128,12 +147,12 @@ const activeSection = computed(() => {
   if (isAiPlatformSection.value) {
     return `ai-platform-${aiPlatformTab.value}`
   }
-  return sections.some((item) => item.key === routeSection.value) ? routeSection.value : sections[0].key
+  return navigableSections.value.some(item => item.key === routeSection.value) ? routeSection.value : navigableSections.value[0].key
 })
 
 const hasDataSourceDetail = computed(() => routeSection.value === 'data-source' && routeSourceKey.value.trim().length > 0)
 const hasAiPlatformKbDetail = computed(() => isAiPlatformSection.value && !['model', 'kb'].includes(routeSourceKey.value) && routeSourceKey.value.trim().length > 0)
-const currentSection = computed(() => sections.find((item) => item.key === routeSection.value) || sections[0])
+const currentSection = computed(() => navigableSections.value.find(item => item.key === routeSection.value) || navigableSections.value[0])
 
 async function navigateToSection(sectionKey: string) {
   if (activeSection.value === sectionKey) {
@@ -159,8 +178,8 @@ function toggleSidebar() {
 }
 
 onMounted(() => {
-  if (!sections.some((item) => item.key === routeSection.value)) {
-    void router.replace(`/settings/system/${sections[0].key}`)
+  if (!navigableSections.value.some(item => item.key === routeSection.value)) {
+    void router.replace(`/settings/system/${navigableSections.value[0].key}`)
     return
   }
 

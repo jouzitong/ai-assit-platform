@@ -20,6 +20,7 @@
 8. 单绑定 INSERT/UPDATE/DELETE、写回端口完整性、组合字段部分写保护、写冲突保护和进程内幂等键。
 9. 跨绑定 `BEST_EFFORT` 结果明细；跨绑定 `LOCAL/ATOMIC` 明确拒绝，不伪装成分布式原子事务。
 10. 稳定错误类别、任务上下文、脱敏错误响应和执行摘要日志。
+11. `/settings/system` 下的数据源二级菜单、虚拟表批量初始化、模型维护抽屉和字段拖拽关系画布。
 
 ## 2. 关键文件
 
@@ -31,6 +32,9 @@
 | 字段变换管理 | `app/app-platform-data-virtualization/core/src/main/java/ai/platform/aiassit/data/virtualization/core/transform/FieldTransformManagementService.java` |
 | 查询与跨源关联 | `app/app-platform-data-virtualization/core/src/main/java/ai/platform/aiassit/data/virtualization/core/execution/VirtualDataQueryService.java` |
 | 写入编排 | `app/app-platform-data-virtualization/core/src/main/java/ai/platform/aiassit/data/virtualization/core/execution/VirtualDataCommandService.java` |
+| 虚拟表管理页面 | `ai-conversation-ui/src/modules/system/virtual-table/index.vue` |
+| 虚拟数据前端 API | `ai-conversation-ui/src/modules/system/api/virtualData.ts` |
+| 字段关联画布 | `ai-conversation-ui/src/modules/system/virtual-table/views/VirtualRelationCanvas.vue` |
 | 联调请求样例 | `http/dbEngine/data-virtualization.http` |
 
 ## 3. 验收准备
@@ -67,6 +71,16 @@
 4. 配置 `vd_relation` 后，使用 `relationCodes` 和 `relationCode.fieldCode` 执行跨源关联。
 5. 降低 `maxPhysicalTasks` 或 `maxScanRows`，确认扇出、扫描和 Hash Join 超限时被拒绝。
 
+### 4.4 管理端页面
+
+1. 进入 `/settings/system/data-source`，确认侧边栏“数据源”下存在“数据源配置”和“虚拟表管理”两个二级菜单。
+2. 进入 `/settings/system/virtual-table`，选择数据源并同步物理元数据，再批量选择物理表初始化。
+3. 确认默认虚拟表 name/key 使用规范化后的 `sourceKey_tableName`；源或表名包含非法字符时转换为下划线，超长时截断到 64 位。
+4. 打开“模型配置”，分别维护虚拟字段、物理绑定、字段变换规则和物理/虚拟端口。
+5. 切换到“关系画布”，使用数据源、虚拟表和关键词筛选可见节点。
+6. 从来源字段右侧连接点拖到目标字段左侧连接点，创建关联；点击连线验证编辑、停用和删除。
+7. 确认不同逻辑类型的字段不能在页面上直接建立关联，重复字段关联也会被阻止。
+
 ## 5. 安全边界
 
 - 虚拟请求不接收真实表名、`sourceKey` 或任意 SQL。
@@ -84,6 +98,7 @@
 mvn -pl app/app-platform-data-virtualization/core -am test
 mvn -pl app/app-platform-db-engine/boot -am clean compile -DskipTests
 mvn clean compile -DskipTests
+cd ai-conversation-ui && npm run build
 codegraph sync
 codegraph status
 ```

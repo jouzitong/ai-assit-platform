@@ -5,6 +5,8 @@
 > 目标：在现有真实数据库元数据与单数据源执行能力之上，引入独立的虚拟数据定义层，为跨数据库查询、路由、分片、副本、语义适配、结果合并和后续事务编排提供稳定边界。
 > 验收说明：见 [cross-source-virtual-data-model-acceptance.md](cross-source-virtual-data-model-acceptance.md)
 
+> 管理端已补充 `/settings/system/virtual-table`：支持按数据源同步并初始化虚拟表、维护字段/绑定/变换规则，以及通过字段拖拽维护跨表关联；默认虚拟表 name/key 采用规范化后的 `sourceKey_tableName`。
+
 ## 1. 结论
 
 新增独立聚合模块：

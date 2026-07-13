@@ -46,16 +46,21 @@ public class VirtualEntityDraftFactory {
 
     @Transactional(rollbackFor = Exception.class)
     public CatalogSnapshot create(CreateVirtualEntityFromTableRequest request) {
-        if (request == null || request.getPhysicalTableMetaId() == null || request.getEntityCode() == null
-                || !request.getEntityCode().matches("[A-Za-z][A-Za-z0-9_]{1,63}")) {
-            throw new VirtualDataException("CATALOG_NOT_FOUND", "物理表 ID 和合法 entityCode 不能为空");
-        }
-        if (repository.entityByCode(request.getEntityCode()) != null) {
-            throw new VirtualDataException("CATALOG_VERSION_CONFLICT", "虚拟实体编码已存在: " + request.getEntityCode());
+        if (request == null || request.getPhysicalTableMetaId() == null) {
+            throw new VirtualDataException("CATALOG_NOT_FOUND", "物理表 ID 不能为空");
         }
         DbTableMetaEntity table = tableMetaMapper.selectById(request.getPhysicalTableMetaId());
         if (table == null || !Boolean.TRUE.equals(table.getEnabled())) {
             throw new VirtualDataException("CATALOG_NOT_FOUND", "物理表不存在或未启用: " + request.getPhysicalTableMetaId());
+        }
+        String entityCode = request.getEntityCode() == null || request.getEntityCode().isBlank()
+                ? VirtualEntityNaming.fromPhysicalTable(table.getSourceKey(), table.getTableName())
+                : request.getEntityCode().trim();
+        if (!entityCode.matches("[A-Za-z][A-Za-z0-9_]{1,63}")) {
+            throw new VirtualDataException("CATALOG_VALIDATION_FAILED", "entityCode 只允许字母、数字和下划线，且必须以字母开头");
+        }
+        if (repository.entityByCode(entityCode) != null) {
+            throw new VirtualDataException("CATALOG_VERSION_CONFLICT", "虚拟实体编码已存在: " + entityCode);
         }
         List<DbTableFieldMetaEntity> physicalFields = fieldMetaMapper.selectList(Wrappers.<DbTableFieldMetaEntity>lambdaQuery()
                 .eq(DbTableFieldMetaEntity::getSourceKey, table.getSourceKey())
@@ -67,8 +72,8 @@ public class VirtualEntityDraftFactory {
         }
 
         VirtualEntityEntity entity = new VirtualEntityEntity();
-        entity.setEntityCode(request.getEntityCode());
-        entity.setEntityName(text(request.getEntityName(), text(table.getTableComment(), table.getTableName())));
+        entity.setEntityCode(entityCode);
+        entity.setEntityName(text(request.getEntityName(), entityCode));
         entity.setDescription("由物理表 " + table.getSourceKey() + "." + table.getTableName() + " 生成");
         entity.setStatus(CatalogStatus.DRAFT);
         entity.setCatalogVersion(0L);

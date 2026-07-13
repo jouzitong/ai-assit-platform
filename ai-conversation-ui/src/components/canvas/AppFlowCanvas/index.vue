@@ -6,7 +6,7 @@ import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
-import type { CoordinateExtent, Edge, Node } from '@vue-flow/core'
+import type { Connection, CoordinateExtent, Edge, EdgeMouseEvent, Node } from '@vue-flow/core'
 
 type SnapGrid = [number, number]
 
@@ -56,6 +56,10 @@ const props = withDefaults(defineProps<{
 
 const nodes = defineModel<Node[]>('nodes', { default: () => [] })
 const edges = defineModel<Edge[]>('edges', { default: () => [] })
+const emit = defineEmits<{
+  connect: [connection: Connection]
+  edgeClick: [event: EdgeMouseEvent]
+}>()
 const { fitView } = useVueFlow()
 
 const resolvedNodeExtent = computed(() => props.nodeExtent || props.canvasExtent)
@@ -95,6 +99,8 @@ watch(
       :min-zoom="minZoom"
       :max-zoom="maxZoom"
       :fit-view-on-init="fitViewOnInit"
+      @connect="emit('connect', $event)"
+      @edge-click="emit('edgeClick', $event)"
     >
       <template #node-renderer="slotProps">
         <slot name="node-renderer" v-bind="slotProps" />
