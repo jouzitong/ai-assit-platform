@@ -6,5 +6,14 @@ public enum DbAccessDbType {
     CLICKHOUSE,
     ORACLE,
     SQL_SERVER,
-    HIVE
+    HIVE,
+    MONGODB,
+    DM8,
+    KINGBASE_ES,
+    GAUSSDB,
+    OCEANBASE,
+    TDSQL,
+    GOLDENDB,
+    GBASE,
+    SHENTONG
 }

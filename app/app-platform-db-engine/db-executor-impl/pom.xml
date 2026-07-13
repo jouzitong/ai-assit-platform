@@ -17,6 +17,8 @@
 
     <modules>
         <module>mysql</module>
+        <module>jdbc</module>
+        <module>mongodb</module>
         <module>http</module>
     </modules>
 </project>

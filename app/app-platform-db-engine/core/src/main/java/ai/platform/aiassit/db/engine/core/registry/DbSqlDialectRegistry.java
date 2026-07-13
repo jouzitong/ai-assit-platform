@@ -17,10 +17,17 @@ public class DbSqlDialectRegistry {
     }
 
     public DbSqlDialect get(DbAccessDbType dbType) throws DbAccessException {
+        DbSqlDialect matched = null;
         for (DbSqlDialect dialect : dialects) {
             if (dialect.dbType() == dbType) {
-                return dialect;
+                if (matched != null) {
+                    throw new DbAccessException("数据库存在多个 SQL 方言: " + dbType);
+                }
+                matched = dialect;
             }
+        }
+        if (matched != null) {
+            return matched;
         }
         throw new DbAccessException("未找到数据库 SQL 方言: " + dbType);
     }

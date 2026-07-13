@@ -278,8 +278,9 @@ public class MysqlDbAccessExecutor implements DbAccessExecutor {
         String sql = MysqlSqlGuard.validateExecute(request.getSql());
         Instant start = Instant.now();
         try (Connection connection = connectionSupport.openConnection(context);
-             Statement statement = connection.createStatement()) {
-            int affectedRows = statement.executeUpdate(sql);
+             PreparedStatement statement = connection.prepareStatement(sql)) {
+            bindParameters(statement, request.getParameters());
+            int affectedRows = statement.executeUpdate();
             return ExecuteResult.builder()
                     .affectedRows(affectedRows)
                     .executionMs(Duration.between(start, Instant.now()).toMillis())

@@ -26,6 +26,14 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-db-engine-db-executor-jdbc</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-db-engine-db-executor-mongodb</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-db-engine-data-executor-http</artifactId>
         </dependency>
         <dependency>

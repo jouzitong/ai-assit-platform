@@ -32,4 +32,6 @@ public class DbColumnMeta {
     private Integer ordinalPosition;
 
     private String columnComment;
+
+    private Boolean autoIncrement;
 }

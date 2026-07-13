@@ -18,10 +18,17 @@ public class DbAccessProviderRegistry {
     }
 
     public DbAccessProvider getProvider(DbAccessSourceType sourceType, DbAccessDbType dbType) throws DbAccessException {
+        DbAccessProvider matched = null;
         for (DbAccessProvider provider : providers) {
             if (provider.supports(sourceType, dbType)) {
-                return provider;
+                if (matched != null) {
+                    throw new DbAccessException("存在多个匹配的数据访问执行器: " + sourceType + "/" + dbType);
+                }
+                matched = provider;
             }
+        }
+        if (matched != null) {
+            return matched;
         }
         throw new DbAccessException("未找到匹配的数据访问执行器: " + sourceType + "/" + dbType);
     }

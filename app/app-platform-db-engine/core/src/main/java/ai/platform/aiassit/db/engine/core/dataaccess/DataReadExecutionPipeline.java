@@ -34,7 +34,7 @@ public class DataReadExecutionPipeline {
                 policy.apply(sourceContext, command);
             }
             audit.beforeRead(sourceContext, command);
-            DataReadResult result = adapterRegistry.get(sourceContext.getSourceType()).read(sourceContext, command);
+            DataReadResult result = adapterRegistry.get(sourceContext).read(sourceContext, command);
             audit.afterSuccess(sourceContext, command, result);
             return result;
         } catch (DbAccessException ex) {

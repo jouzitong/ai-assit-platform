@@ -17,14 +17,51 @@
 
     <properties>
         <app.platform.db.engine.version>1.0.0-SNAPSHOT</app.platform.db.engine.version>
+        <dameng.jdbc.version>8.1.4.125</dameng.jdbc.version>
+        <kingbase.jdbc.version>9.0.1</kingbase.jdbc.version>
+        <gaussdb.jdbc.version>506.0.0.b058</gaussdb.jdbc.version>
+        <oceanbase.jdbc.version>2.4.14</oceanbase.jdbc.version>
+        <mongodb.driver.version>5.8.0</mongodb.driver.version>
     </properties>
 
     <dependencyManagement>
         <dependencies>
             <dependency>
+                <groupId>org.mongodb</groupId>
+                <artifactId>mongodb-driver-bom</artifactId>
+                <version>${mongodb.driver.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+            <dependency>
                 <groupId>commons-io</groupId>
                 <artifactId>commons-io</artifactId>
                 <version>2.16.1</version>
+            </dependency>
+            <dependency>
+                <groupId>com.dameng</groupId>
+                <artifactId>DmJdbcDriver8</artifactId>
+                <version>${dameng.jdbc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>cn.com.kingbase</groupId>
+                <artifactId>kingbase8</artifactId>
+                <version>${kingbase.jdbc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.huaweicloud.gaussdb</groupId>
+                <artifactId>gaussdbjdbc</artifactId>
+                <version>${gaussdb.jdbc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>com.oceanbase</groupId>
+                <artifactId>oceanbase-client</artifactId>
+                <version>${oceanbase.jdbc.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.mongodb</groupId>
+                <artifactId>mongodb-driver-sync</artifactId>
+                <version>${mongodb.driver.version}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
@@ -49,6 +86,16 @@
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-db-executor-mysql</artifactId>
+                <version>${app.platform.db.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-db-engine-db-executor-jdbc</artifactId>
+                <version>${app.platform.db.engine.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-db-engine-db-executor-mongodb</artifactId>
                 <version>${app.platform.db.engine.version}</version>
             </dependency>
             <dependency>

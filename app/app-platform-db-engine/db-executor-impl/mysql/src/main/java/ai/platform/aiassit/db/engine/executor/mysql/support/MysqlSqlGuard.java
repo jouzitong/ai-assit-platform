@@ -4,8 +4,11 @@ import ai.platform.aiassit.db.engine.executor.spi.exception.DbAccessException;
 import org.springframework.util.StringUtils;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 public final class MysqlSqlGuard {
+
+    private static final Pattern MUTATING_TOKEN = Pattern.compile("(?i)\\b(INSERT|UPDATE|DELETE|MERGE)\\b");
 
     private MysqlSqlGuard() {
     }
@@ -15,6 +18,9 @@ public final class MysqlSqlGuard {
         String operation = firstKeyword(normalized);
         if (!"SELECT".equals(operation) && !"WITH".equals(operation)) {
             throw new DbAccessException("查询只允许执行 SELECT/WITH 语句");
+        }
+        if ("WITH".equals(operation) && MUTATING_TOKEN.matcher(withoutStringLiterals(normalized)).find()) {
+            throw new DbAccessException("查询不允许包含数据修改 CTE");
         }
         return normalized;
     }
@@ -52,5 +58,25 @@ public final class MysqlSqlGuard {
         int index = sql.indexOf(' ');
         String keyword = index < 0 ? sql : sql.substring(0, index);
         return keyword.trim().toUpperCase(Locale.ROOT);
+    }
+
+    private static String withoutStringLiterals(String sql) {
+        StringBuilder result = new StringBuilder(sql.length());
+        boolean quoted = false;
+        for (int index = 0; index < sql.length(); index++) {
+            char current = sql.charAt(index);
+            if (current == '\'' && quoted && index + 1 < sql.length() && sql.charAt(index + 1) == '\'') {
+                result.append(' ').append(' ');
+                index++;
+                continue;
+            }
+            if (current == '\'') {
+                quoted = !quoted;
+                result.append(' ');
+            } else {
+                result.append(quoted ? ' ' : current);
+            }
+        }
+        return result.toString();
     }
 }

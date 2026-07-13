@@ -43,6 +43,13 @@ public class MysqlDataSourceAdapter implements DataSourceAdapter {
     }
 
     @Override
+    public boolean supports(DbAccessContext context) {
+        return context != null
+                && context.getSourceType() == DbAccessSourceType.DATABASE
+                && context.getDbType() == DbAccessDbType.MYSQL;
+    }
+
+    @Override
     public DataSourceCapabilities capabilities() {
         return DataSourceCapabilities.readOnly();
     }
@@ -60,7 +67,7 @@ public class MysqlDataSourceAdapter implements DataSourceAdapter {
         StringBuilder sql = new StringBuilder("SELECT * FROM ").append(table);
         appendFilters(sql, parameters, command.getParameters());
         Integer pageSize = normalizePageSize(command.getPageSize());
-        int offset = (normalizePage(command.getPage()) - 1) * pageSize;
+        long offset = (long) (normalizePage(command.getPage()) - 1) * pageSize;
         sql.append(" LIMIT ? OFFSET ?");
         parameters.add(pageSize);
         parameters.add(offset);

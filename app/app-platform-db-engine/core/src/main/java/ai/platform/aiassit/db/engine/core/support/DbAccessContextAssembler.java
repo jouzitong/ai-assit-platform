@@ -47,7 +47,7 @@ public class DbAccessContextAssembler {
                 .endpoint(httpConfig == null ? null : httpConfig.getBaseUrl())
                 .network(toNetwork(databaseConfig == null ? httpConfig == null ? null : httpConfig.getNetwork() : databaseConfig.getNetwork()))
                 .auth(toAuth(databaseConfig == null ? httpConfig == null ? null : httpConfig.getCredential() : databaseConfig.getCredential()))
-                .database(databaseConfig == null ? null : toDatabase(databaseConfig.getConnection()))
+                .database(databaseConfig == null ? null : toDatabase(databaseConfig.getConnection(), databaseConfig.getDbType()))
                 .attributes(databaseConfig == null ? httpConfig == null ? null : httpConfig.getAttributes() : databaseConfig.getDriverProperties())
                 .build();
     }
@@ -69,10 +69,23 @@ public class DbAccessContextAssembler {
         if (dbType == null) {
             throw new DbAccessException("数据库类型不能为空");
         }
-        if (dbType != DbDataSourceDbType.MYSQL) {
-            throw new DbAccessException("暂不支持的数据库类型: " + dbType);
-        }
-        return DbAccessDbType.MYSQL;
+        return switch (dbType) {
+            case MYSQL -> DbAccessDbType.MYSQL;
+            case POSTGRESQL -> DbAccessDbType.POSTGRESQL;
+            case CLICKHOUSE -> DbAccessDbType.CLICKHOUSE;
+            case ORACLE -> DbAccessDbType.ORACLE;
+            case SQL_SERVER -> DbAccessDbType.SQL_SERVER;
+            case HIVE -> DbAccessDbType.HIVE;
+            case MONGODB -> DbAccessDbType.MONGODB;
+            case DM8 -> DbAccessDbType.DM8;
+            case KINGBASE_ES -> DbAccessDbType.KINGBASE_ES;
+            case GAUSSDB -> DbAccessDbType.GAUSSDB;
+            case OCEANBASE -> DbAccessDbType.OCEANBASE;
+            case TDSQL -> DbAccessDbType.TDSQL;
+            case GOLDENDB -> DbAccessDbType.GOLDENDB;
+            case GBASE -> DbAccessDbType.GBASE;
+            case SHENTONG -> DbAccessDbType.SHENTONG;
+        };
     }
 
     private DbAccessNetwork toNetwork(DbDataSourceNetworkConfig network) {
@@ -97,7 +110,10 @@ public class DbAccessContextAssembler {
                 .build();
     }
 
-    private DbAccessDatabase toDatabase(DatabaseConnectionConfig connection) throws DbAccessException {
+    private DbAccessDatabase toDatabase(
+            DatabaseConnectionConfig connection,
+            DbDataSourceDbType dbType
+    ) throws DbAccessException {
         if (connection == null || connection.getMode() == null) {
             throw new DbAccessException("数据库连接配置不能为空");
         }
@@ -106,9 +122,13 @@ public class DbAccessContextAssembler {
             throw new DbAccessException("JDBC_URL 模式必须配置 jdbcUrl");
         }
         if (connection.getMode() == ai.platform.aiassit.db.engine.meta.enums.DatabaseConnectionMode.HOST_PORT
-                && (!org.springframework.util.StringUtils.hasText(connection.getHost())
-                || !org.springframework.util.StringUtils.hasText(connection.getDatabaseName()))) {
-            throw new DbAccessException("HOST_PORT 模式必须配置 host 和 databaseName");
+                && !org.springframework.util.StringUtils.hasText(connection.getHost())) {
+            throw new DbAccessException("HOST_PORT 模式必须配置 host");
+        }
+        if (connection.getMode() == ai.platform.aiassit.db.engine.meta.enums.DatabaseConnectionMode.HOST_PORT
+                && dbType != DbDataSourceDbType.DM8
+                && !org.springframework.util.StringUtils.hasText(connection.getDatabaseName())) {
+            throw new DbAccessException("HOST_PORT 模式必须配置 databaseName");
         }
         if (connection.getMode() == ai.platform.aiassit.db.engine.meta.enums.DatabaseConnectionMode.JDBC_URL) {
             return DbAccessDatabase.builder().jdbcUrl(connection.getJdbcUrl()).schemaName(connection.getSchemaName()).build();
