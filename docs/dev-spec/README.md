@@ -31,6 +31,8 @@
   - 适用于 Web 异常返回、业务异常抛出、自定义异常类设计、HTTP 状态语义相关任务。
 - [知识库客户端配置](./detail/backend/knowledge-client-config.md)
   - 适用于系统参数中的知识库 Provider 客户端、认证信息和 KB Dataset 选择联动。
+- [AI 客户端与模型配置](./detail/backend/ai-client-model-config.md)
+  - 适用于多 AI 客户端、标准模型发现、模型启停和运行时配置解析。
 
 ## 说明
 

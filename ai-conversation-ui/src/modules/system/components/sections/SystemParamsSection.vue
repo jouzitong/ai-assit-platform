@@ -707,7 +707,7 @@ onMounted(() => {
 
   display: grid;
   gap: 12px;
-  //padding-right: var(--app-space-5);
+  /* padding-right: var(--app-space-5); */
 }
 
 .system-params-dialog__form :deep(.el-form-item) {

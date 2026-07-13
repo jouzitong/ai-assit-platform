@@ -26,6 +26,10 @@ import java.util.Map;
 @TableName(value = "ai_model_config", autoResultMap = true)
 public class AiModelConfigEntity extends AuditableEntity {
 
+    @JdbcColumn(name = "client_id", dataType = "BIGINT", nullable = true, comment = "AI客户端配置ID")
+    @TableField("client_id")
+    private Long clientId;
+
     /**
      * 模型编码。（内部）
      */

@@ -11,6 +11,12 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class AiModelManageVO extends AuditableDTO {
 
+    private Long clientId;
+
+    private String clientCode;
+
+    private String clientName;
+
     private String modelCode;
 
     private String modelName;

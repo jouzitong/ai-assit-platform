@@ -1,6 +1,7 @@
 package ai.platform.aiassit.model.domainservice;
 
 import ai.platform.aiassit.model.entity.dto.AiModelManageDTO;
+import ai.platform.aiassit.model.entity.dto.AiModelBatchSaveDTO;
 import ai.platform.aiassit.model.entity.req.AiModelManageQueryRequest;
 import ai.platform.aiassit.model.entity.vo.AiModelManageVO;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
@@ -12,6 +13,8 @@ public interface AiModelManageDomainService {
     AiModelManageVO get(Long id);
 
     AiModelManageVO add(AiModelManageDTO dto);
+
+    java.util.List<AiModelManageVO> batchSave(AiModelBatchSaveDTO dto);
 
     AiModelManageVO update(Long id, AiModelManageDTO dto);
 

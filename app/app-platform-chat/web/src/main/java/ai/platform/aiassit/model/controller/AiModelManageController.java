@@ -5,6 +5,7 @@ import ai.platform.aiassit.execution.dto.AiModelTestChatResultVO;
 import ai.platform.aiassit.execution.service.AiModelTestService;
 import ai.platform.aiassit.model.domainservice.AiModelManageDomainService;
 import ai.platform.aiassit.model.entity.dto.AiModelManageDTO;
+import ai.platform.aiassit.model.entity.dto.AiModelBatchSaveDTO;
 import ai.platform.aiassit.model.entity.req.AiModelManageQueryRequest;
 import ai.platform.aiassit.model.entity.vo.AiModelManageVO;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
@@ -44,6 +45,11 @@ public class AiModelManageController {
     @PostMapping
     public AiModelManageVO add(@RequestBody AiModelManageDTO dto) {
         return domainService.add(dto);
+    }
+
+    @PostMapping("/_batch")
+    public java.util.List<AiModelManageVO> batchSave(@RequestBody AiModelBatchSaveDTO dto) {
+        return domainService.batchSave(dto);
     }
 
     @PostMapping("/_test-chat")

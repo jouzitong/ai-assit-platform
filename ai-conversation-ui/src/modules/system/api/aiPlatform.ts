@@ -4,6 +4,7 @@ import { getBackendService, SERVICE_NAMES } from '../../../config/services'
 const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
 
 const AI_MODEL_MANAGE_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/meta/internal/model-manage`
+const AI_CLIENT_MANAGE_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/meta/internal/client-manage`
 const AI_KB_STORE_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/kb/internal/store`
 const AI_KB_CLIENT_OPTION_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/kb/internal/client-options`
 const AI_FLOW_SKILL_API_PREFIX = `${CHAT_API_PREFIX}/api/v1/ai/chat/workflow/internal/skill`
@@ -12,6 +13,9 @@ export interface AiModelManageItem {
   id: string | number
   modelCode?: string
   modelName?: string
+  clientId?: string | number
+  clientCode?: string
+  clientName?: string
   clientType?: number
   baseUrl?: string
   apiModel?: string
@@ -20,6 +24,37 @@ export interface AiModelManageItem {
   extJson?: Record<string, unknown> | null
   createTime?: string
   updateTime?: string
+}
+
+export interface AiClientConfigItem {
+  id: string | number
+  clientCode?: string
+  clientName?: string
+  clientType?: number
+  baseUrl?: string
+  apiKeyMasked?: string
+  enabled?: boolean
+  modelCount?: number
+  extJson?: Record<string, unknown> | null
+  createTime?: string
+  updateTime?: string
+}
+
+export interface AiClientConfigUpsertPayload {
+  clientCode?: string
+  clientName?: string
+  clientType?: number
+  baseUrl?: string
+  apiKey?: string
+  enabled?: boolean
+  extJson?: Record<string, unknown> | null
+}
+
+export interface AiProviderModelItem {
+  id: string
+  object?: string
+  created?: number
+  ownedBy?: string
 }
 
 export interface AiModelManageUpsertPayload {
@@ -286,6 +321,39 @@ export function createAiModelManage(payload: AiModelManageUpsertPayload) {
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function batchSaveAiModels(clientId: string | number, apiModels: string[]) {
+  return request<AiModelManageItem[]>(`${AI_MODEL_MANAGE_API_PREFIX}/_batch`, {
+    method: 'POST',
+    body: JSON.stringify({ clientId, apiModels }),
+  })
+}
+
+export function listAiClients() {
+  return request<AiClientConfigItem[]>(AI_CLIENT_MANAGE_API_PREFIX)
+}
+
+export function createAiClient(payload: AiClientConfigUpsertPayload) {
+  return request<AiClientConfigItem>(AI_CLIENT_MANAGE_API_PREFIX, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateAiClient(id: string | number, payload: AiClientConfigUpsertPayload) {
+  return request<AiClientConfigItem>(`${AI_CLIENT_MANAGE_API_PREFIX}/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteAiClient(id: string | number) {
+  return request<boolean>(`${AI_CLIENT_MANAGE_API_PREFIX}/${id}`, { method: 'DELETE' })
+}
+
+export function discoverAiClientModels(id: string | number) {
+  return request<AiProviderModelItem[]>(`${AI_CLIENT_MANAGE_API_PREFIX}/${id}/_models`, { method: 'POST' })
 }
 
 export function editAiModelManage(id: string | number, payload: Partial<AiModelManageUpsertPayload>) {

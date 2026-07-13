@@ -11,6 +11,8 @@ import java.util.Map;
 @EqualsAndHashCode(callSuper = true)
 public class AiModelConfigDTO extends BaseDTO {
 
+    private Long clientId;
+
     private String modelCode;
 
     private String modelName;

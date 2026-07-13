@@ -4,20 +4,50 @@
         "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
 <mapper namespace="ai.platform.aiassit.model.mapper.AiModelConfigMapper">
 
+    <resultMap id="ResolvedModelResultMap" type="ai.platform.aiassit.model.entity.AiModelConfigEntity">
+        <id property="id" column="id"/>
+        <result property="clientId" column="client_id"/>
+        <result property="modelCode" column="model_code"/>
+        <result property="modelName" column="model_name"/>
+        <result property="clientType" column="client_type" javaType="ai.platform.aiassit.service.ai.api.enums.AiChatClientType" typeHandler="org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler"/>
+        <result property="baseUrl" column="base_url"/>
+        <result property="apiModel" column="api_model"/>
+        <result property="enabled" column="enabled"/>
+        <result property="apiKey" column="api_key"/>
+        <result property="extJson" column="ext_json" typeHandler="com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler"/>
+    </resultMap>
+
     <select id="selectEnabledModels" resultType="ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO">
         SELECT
             m.model_code AS modelCode,
             m.model_name AS modelName,
             m.api_model AS apiModel,
-            m.client_type AS clientType,
+            COALESCE(c.client_type, m.client_type) AS clientType,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxContextTokens')) AS SIGNED) AS maxContextTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxOutputTokens')) AS SIGNED) AS maxOutputTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED) AS priority
         FROM ai_model_config m
+        LEFT JOIN ai_client_config c ON c.id = m.client_id AND c.deleted = 0
         WHERE m.enabled = TRUE
+          AND (m.client_id IS NULL OR c.enabled = TRUE)
         ORDER BY
             COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED), 100) ASC,
             m.update_time DESC,
             m.id DESC
+    </select>
+
+    <select id="selectResolvedByModelCode" resultMap="ResolvedModelResultMap">
+        SELECT m.id, m.client_id, m.model_code, m.model_name,
+               COALESCE(c.client_type, m.client_type) AS client_type,
+               COALESCE(c.base_url, m.base_url) AS base_url,
+               m.api_model,
+               CASE WHEN m.client_id IS NULL THEN m.enabled ELSE (m.enabled AND c.enabled) END AS enabled,
+               COALESCE(c.api_key, m.api_key) AS api_key,
+               m.ext_json
+        FROM ai_model_config m
+        LEFT JOIN ai_client_config c ON c.id = m.client_id AND c.deleted = 0
+        WHERE m.model_code = #{modelCode}
+          AND m.deleted = 0
+        LIMIT 1
     </select>
 </mapper>

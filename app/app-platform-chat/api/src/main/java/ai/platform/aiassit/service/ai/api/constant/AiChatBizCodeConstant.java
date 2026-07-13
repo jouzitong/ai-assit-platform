@@ -38,6 +38,8 @@ public interface AiChatBizCodeConstant {
     Integer REQUIRED_CHAT_CLIENT_TYPE = 53_01_0023;
     Integer REQUIRED_KNOWLEDGE_CLIENT_TYPE = 53_01_0024;
     Integer REQUIRED_KB_AUTH = 53_01_0025;
+    Integer REQUIRED_AI_CLIENT_CODE = 53_01_0026;
+    Integer REQUIRED_AI_CLIENT_NAME = 53_01_0027;
 
     // 53_02_xxxx 参数取值非法
     Integer INVALID_WORKFLOW_OUTPUT = 53_02_0001;
@@ -48,6 +50,10 @@ public interface AiChatBizCodeConstant {
     Integer AI_CHAT_SERVICE_NOT_FOUND = 53_03_0003;
     Integer KNOWLEDGE_SERVICE_NOT_FOUND = 53_03_0004;
     Integer MODEL_CONFIG_NOT_FOUND = 53_03_0005;
+    Integer AI_CLIENT_CONFIG_NOT_FOUND = 53_03_0006;
+
+    // 53_04_xxxx 状态或约束冲突
+    Integer AI_CLIENT_IN_USE = 53_04_0001;
 
     // 53_06_xxxx 系统处理异常
     Integer WORKFLOW_EXECUTION_FAILED = 53_06_0001;

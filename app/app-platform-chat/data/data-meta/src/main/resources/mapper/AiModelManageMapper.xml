@@ -8,6 +8,9 @@
         <id property="id" column="id"/>
         <result property="modelCode" column="model_code"/>
         <result property="modelName" column="model_name"/>
+        <result property="clientId" column="client_id"/>
+        <result property="clientCode" column="client_code"/>
+        <result property="clientName" column="client_name"/>
         <result property="clientType" column="client_type" javaType="ai.platform.aiassit.service.ai.api.enums.AiChatClientType" typeHandler="org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler"/>
         <result property="baseUrl" column="base_url"/>
         <result property="apiModel" column="api_model"/>
@@ -24,15 +27,18 @@
         m.id,
         m.model_code,
         m.model_name,
-        m.client_type,
-        m.base_url,
+        m.client_id,
+        c.client_code,
+        c.client_name,
+        COALESCE(c.client_type, m.client_type) AS client_type,
+        COALESCE(c.base_url, m.base_url) AS base_url,
         m.api_model,
         m.enabled,
         CASE
-            WHEN m.api_key IS NULL OR m.api_key = '' THEN NULL
-            WHEN CHAR_LENGTH(m.api_key) &lt;= 2 THEN CONCAT(SUBSTRING(m.api_key, 1, 1), '***', SUBSTRING(m.api_key, CHAR_LENGTH(m.api_key), 1))
-            WHEN CHAR_LENGTH(m.api_key) &lt;= 8 THEN CONCAT(SUBSTRING(m.api_key, 1, 2), '****', SUBSTRING(m.api_key, CHAR_LENGTH(m.api_key), 1))
-            ELSE CONCAT(SUBSTRING(m.api_key, 1, 4), '****', SUBSTRING(m.api_key, CHAR_LENGTH(m.api_key) - 3, 4))
+            WHEN COALESCE(c.api_key, m.api_key) IS NULL OR COALESCE(c.api_key, m.api_key) = '' THEN NULL
+            WHEN CHAR_LENGTH(COALESCE(c.api_key, m.api_key)) &lt;= 2 THEN CONCAT(SUBSTRING(COALESCE(c.api_key, m.api_key), 1, 1), '***', SUBSTRING(COALESCE(c.api_key, m.api_key), CHAR_LENGTH(COALESCE(c.api_key, m.api_key)), 1))
+            WHEN CHAR_LENGTH(COALESCE(c.api_key, m.api_key)) &lt;= 8 THEN CONCAT(SUBSTRING(COALESCE(c.api_key, m.api_key), 1, 2), '****', SUBSTRING(COALESCE(c.api_key, m.api_key), CHAR_LENGTH(COALESCE(c.api_key, m.api_key)), 1))
+            ELSE CONCAT(SUBSTRING(COALESCE(c.api_key, m.api_key), 1, 4), '****', SUBSTRING(COALESCE(c.api_key, m.api_key), CHAR_LENGTH(COALESCE(c.api_key, m.api_key)) - 3, 4))
         END AS api_key_masked,
         m.ext_json,
         m.create_time,
@@ -44,12 +50,13 @@
 
     <sql id="AggregateFrom">
         FROM ai_model_config m
+        LEFT JOIN ai_client_config c ON c.id = m.client_id
     </sql>
 
     <sql id="AggregateWhere">
         <if test="query != null">
             <if test="query.clientType != null">
-                AND m.client_type = #{query.clientType,javaType=ai.platform.aiassit.service.ai.api.enums.AiChatClientType,typeHandler=org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler}
+                AND COALESCE(c.client_type, m.client_type) = #{query.clientType,javaType=ai.platform.aiassit.service.ai.api.enums.AiChatClientType,typeHandler=org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler}
             </if>
             <if test="query.modelCode != null and query.modelCode != ''">
                 AND m.model_code = #{query.modelCode}
@@ -62,7 +69,9 @@
                     m.model_code LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.model_name LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.api_model LIKE CONCAT('%', #{query.keyword}, '%')
-                    OR m.base_url LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR COALESCE(c.base_url, m.base_url) LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR c.client_code LIKE CONCAT('%', #{query.keyword}, '%')
+                    OR c.client_name LIKE CONCAT('%', #{query.keyword}, '%')
                     OR m.ext_json LIKE CONCAT('%', #{query.keyword}, '%')
                 )
             </if>

@@ -40,12 +40,8 @@ public class AiModelConfigServiceImpl
         if (!org.springframework.util.StringUtils.hasText(modelCode)) {
             return null;
         }
-        AiMetaQueryRequest query = new AiMetaQueryRequest();
-        query.setModelCode(modelCode.trim());
-        query.setPage(1);
-        query.setSize(1);
-        List<AiModelConfigDTO> records = queryAll(query);
-        return records.isEmpty() ? null : records.get(0);
+        AiModelConfigEntity entity = baseMapper.selectResolvedByModelCode(modelCode.trim());
+        return entity == null ? null : convert().toDTO(entity);
     }
 
     @Override

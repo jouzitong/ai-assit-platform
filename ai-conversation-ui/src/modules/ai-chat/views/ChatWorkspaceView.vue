@@ -65,6 +65,8 @@ type CurrentUserProfile = {
 const prompt = ref('')
 const selectedModel = ref('')
 const modelOptions = ref<ChatEnabledModel[]>([])
+const isLoadingModels = ref(false)
+const modelLoadError = ref('')
 const activeNav = ref('chats')
 const sidebarExpanded = ref(true)
 const activeUserMenu = ref<'topbar' | 'sidebar' | null>(null)
@@ -142,6 +144,7 @@ const selectedModelLabel = computed(() => {
   const matchedModel = modelOptions.value.find((item) => item.modelCode === selectedModel.value)
   return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || selectedModel.value || '选择模型'
 })
+const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
 const pinnedConversations = computed(() =>
   [...conversationList.value]
     .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)))
@@ -331,11 +334,24 @@ function closeConversationMenu() {
 }
 
 async function loadEnabledModelList() {
-  const models = await fetchEnabledModels().catch(() => [])
-  modelOptions.value = Array.isArray(models) ? models : []
-  if (!selectedModel.value) {
-    const firstModel = modelOptions.value[0]
-    selectedModel.value = firstModel?.modelCode || ''
+  isLoadingModels.value = true
+  modelLoadError.value = ''
+  try {
+    const models = await fetchEnabledModels()
+    modelOptions.value = (Array.isArray(models) ? models : [])
+      .filter((model) => typeof model.modelCode === 'string' && model.modelCode.trim())
+    const selectedStillAvailable = modelOptions.value.some((model) => model.modelCode === selectedModel.value)
+    if (!selectedStillAvailable) {
+      selectedModel.value = modelOptions.value[0]?.modelCode || ''
+    }
+  }
+  catch (error) {
+    modelOptions.value = []
+    selectedModel.value = ''
+    modelLoadError.value = error instanceof Error ? error.message : '模型列表加载失败'
+  }
+  finally {
+    isLoadingModels.value = false
   }
 }
 
@@ -788,11 +804,29 @@ watch(route, () => {
     <main class="chat-home-main">
       <header class="chat-home-topbar">
         <div class="chat-home-topbar__left">
-          <div class="chat-home-model-switcher">
-            <span>{{ selectedModelLabel }}</span>
-            <span class="chat-home-model-switcher__caret">⌄</span>
-            <button class="chat-home-model-switcher__plus" type="button">+</button>
-          </div>
+          <el-select
+            v-model="selectedModel"
+            class="chat-home-model-switcher"
+            :loading="isLoadingModels"
+            :disabled="isLoadingModels || !modelOptions.length"
+            :no-data-text="modelSelectEmptyText"
+            placeholder="选择模型"
+            filterable
+            fit-input-width
+            aria-label="选择对话模型"
+          >
+            <el-option
+              v-for="model in modelOptions"
+              :key="model.modelCode"
+              :label="model.modelName || model.modelCode || model.apiModel"
+              :value="model.modelCode || ''"
+            >
+              <div class="chat-home-model-option">
+                <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
+                <small v-if="model.apiModel && model.apiModel !== model.modelName">{{ model.apiModel }}</small>
+              </div>
+            </el-option>
+          </el-select>
         </div>
 
         <div class="chat-home-topbar__right">

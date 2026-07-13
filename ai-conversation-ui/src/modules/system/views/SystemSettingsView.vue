@@ -4,6 +4,7 @@ import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
 import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
+import AiModelManagementSection from '../components/sections/AiModelManagementSection.vue'
 import ComponentManageSection from '../components/sections/ComponentManageSection.vue'
 import DataSourceSection from '../components/sections/DataSourceSection.vue'
 import DataSourceTableSection from '../components/sections/DataSourceTableSection.vue'
@@ -204,6 +205,7 @@ onMounted(() => {
     <main class="system-settings-content">
       <DataSourceTableSection v-if="hasDataSourceDetail" />
       <KbDocumentManageSection v-else-if="hasAiPlatformKbDetail" />
+      <AiModelManagementSection v-else-if="isAiPlatformSection && aiPlatformTab === 'model'" />
       <AiPlatformSection v-else-if="isAiPlatformSection" :active-tab="aiPlatformTab" />
       <component v-else :is="currentSection.component" />
     </main>
