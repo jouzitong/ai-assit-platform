@@ -5,9 +5,7 @@ import {
   Download,
   Delete,
   EditPen,
-  FolderAdd,
   Lock,
-  Reading,
   RefreshRight,
   Search,
   Upload,
@@ -16,18 +14,16 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { AppCodeEditor, AppPagination } from '../../../../components'
+import { AppPagination } from '../../../../components'
 import {
   listDbAccessTables,
   deleteDbTableMetaCascade,
   downloadDbMetaTemplateWorkbook,
   exportDbMetaWorkbook,
-  previewDbTableKnowledge,
   previewDbAccessTableData,
   searchDbTableFields,
   searchDbTables,
   streamDbMetaImportWorkbook,
-  syncDbTableKnowledge,
   syncDbAccessTableMeta,
   updateDbTableMeta,
   type DbAccessTableCandidate,
@@ -71,14 +67,6 @@ const exportDialogVisible = ref(false)
 const exportFormat = ref<'json' | 'excel'>('json')
 const exportSubmitting = ref(false)
 const templateSubmitting = ref(false)
-const knowledgePreviewDialogVisible = ref(false)
-const knowledgePreviewLoading = ref(false)
-const knowledgePreviewError = ref('')
-const knowledgePreviewTableName = ref('')
-const knowledgePreviewType = ref('markdown')
-const knowledgePreviewContent = ref('')
-const knowledgeSyncSubmitting = ref(false)
-const knowledgeSyncTarget = ref('')
 const tableSyncDialogVisible = ref(false)
 const tableSyncLoading = ref(false)
 const tableSyncSubmitting = ref(false)
@@ -136,7 +124,6 @@ const tableSyncPendingCount = computed(() => tableSyncCandidates.value.filter(it
 const tableSyncAllChecked = computed(() => tableSyncCandidateCount.value > 0 && tableSyncSelectedCount.value === tableSyncCandidateCount.value)
 const tableSyncIndeterminate = computed(() => tableSyncSelectedCount.value > 0 && tableSyncSelectedCount.value < tableSyncCandidateCount.value)
 const importFormatLabel = computed(() => importFormat.value === 'json' ? 'JSON' : 'Excel')
-const knowledgePreviewFormat = computed(() => knowledgePreviewType.value === 'markdown' ? 'markdown' : 'text')
 
 function resolveTotal(payloadTotal?: number) {
   const numericTotal = Number(payloadTotal)
@@ -298,10 +285,6 @@ function handleTableAction(actionLabel: string, row: DbTableMetaItem) {
   }
   if (actionLabel === '删除') {
     void deleteTableMeta(row)
-    return
-  }
-  if (actionLabel === '知识库预览') {
-    void openKnowledgePreview(row)
     return
   }
   ElMessage.info(`${actionLabel}：${row.tableName || '-'}`)
@@ -594,10 +577,6 @@ function handleHeaderAction(actionLabel: string) {
     void openTableSyncDialog()
     return
   }
-  if (actionLabel === '知识库同步') {
-    void syncKnowledgeBase()
-    return
-  }
   ElMessage.info(`${actionLabel}：${sourceKey.value || '-'}`)
 }
 
@@ -623,51 +602,6 @@ function openExportDialog() {
 function closeExportDialog() {
   exportDialogVisible.value = false
   exportFormat.value = 'json'
-}
-
-function resetKnowledgePreview() {
-  knowledgePreviewLoading.value = false
-  knowledgePreviewError.value = ''
-  knowledgePreviewTableName.value = ''
-  knowledgePreviewType.value = 'markdown'
-  knowledgePreviewContent.value = ''
-}
-
-function closeKnowledgePreviewDialog() {
-  knowledgePreviewDialogVisible.value = false
-  resetKnowledgePreview()
-}
-
-async function openKnowledgePreview(row: DbTableMetaItem) {
-  if (!sourceKey.value) {
-    ElMessage.error('当前数据源信息不完整，无法预览知识库')
-    return
-  }
-
-  const tableName = row.tableName || ''
-  if (!tableName) {
-    ElMessage.error('当前数据表信息不完整，无法预览知识库')
-    return
-  }
-
-  knowledgePreviewDialogVisible.value = true
-  knowledgePreviewLoading.value = true
-  knowledgePreviewError.value = ''
-  knowledgePreviewTableName.value = tableName
-  knowledgePreviewType.value = 'markdown'
-  knowledgePreviewContent.value = ''
-
-  try {
-    const payload = await previewDbTableKnowledge(sourceKey.value, tableName)
-    knowledgePreviewType.value = String(payload?.type || 'markdown').toLowerCase()
-    knowledgePreviewContent.value = payload?.content || ''
-  }
-  catch (error) {
-    knowledgePreviewError.value = error instanceof Error ? error.message : '知识库预览加载失败'
-  }
-  finally {
-    knowledgePreviewLoading.value = false
-  }
 }
 
 function handleImportFileChange(uploadFile: { raw?: File }) {
@@ -959,54 +893,6 @@ async function submitTableSync() {
   }
 }
 
-async function syncKnowledgeBase(row?: DbTableMetaItem) {
-  if (!sourceKey.value) {
-    ElMessage.error('当前数据源信息不完整，无法同步知识库')
-    return
-  }
-  if (knowledgeSyncSubmitting.value) {
-    return
-  }
-
-  const tableName = row?.tableName || ''
-  const title = tableName ? '同步当前表到知识库' : '同步当前数据源到知识库'
-  const message = tableName
-    ? `确认同步数据表「${tableName}」到知识库吗？`
-    : `确认同步当前数据源「${sourceKey.value}」下的全部数据表到知识库吗？`
-
-  try {
-    await ElMessageBox.confirm(message, title, {
-      type: 'warning',
-      confirmButtonText: '确认同步',
-      cancelButtonText: '取消',
-      draggable: true,
-      overflow: true,
-    })
-  }
-  catch {
-    return
-  }
-
-  knowledgeSyncSubmitting.value = true
-  knowledgeSyncTarget.value = tableName
-  try {
-    const payload = await syncDbTableKnowledge({
-      sourceKey: sourceKey.value,
-      tableName: tableName || undefined,
-    })
-    ElMessage.success(
-      `知识库同步完成：共 ${Number(payload?.totalCount ?? 0)} 张表，新增 ${Number(payload?.createdCount ?? 0)}，更新 ${Number(payload?.updatedCount ?? 0)}，未变更 ${Number(payload?.unchangedCount ?? 0)}`,
-    )
-  }
-  catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '知识库同步失败')
-  }
-  finally {
-    knowledgeSyncSubmitting.value = false
-    knowledgeSyncTarget.value = ''
-  }
-}
-
 watch(sourceKey, () => {
   keyword.value = ''
   currentPage.value = 1
@@ -1058,10 +944,6 @@ onMounted(() => {
             <el-button plain @click="handleHeaderAction('表格同步')">
               <el-icon><RefreshRight /></el-icon>
               表格同步
-            </el-button>
-            <el-button plain :loading="knowledgeSyncSubmitting && !knowledgeSyncTarget" :disabled="knowledgeSyncSubmitting" @click="handleHeaderAction('知识库同步')">
-              <el-icon v-if="!knowledgeSyncSubmitting || knowledgeSyncTarget"><FolderAdd /></el-icon>
-              知识库同步
             </el-button>
             <el-button plain @click="handleRefresh">
               <el-icon><RefreshRight /></el-icon>
@@ -1214,16 +1096,6 @@ onMounted(() => {
                   <el-tooltip content="删除表元数据" placement="top">
                     <el-button circle plain type="danger" @click="handleTableAction('删除', row)">
                       <el-icon><Delete /></el-icon>
-                    </el-button>
-                  </el-tooltip>
-                  <el-tooltip content="知识库预览" placement="top">
-                    <el-button
-                      circle
-                      plain
-                      :loading="knowledgePreviewLoading && knowledgePreviewTableName === (row.tableName || '')"
-                      @click="handleTableAction('知识库预览', row)"
-                    >
-                      <el-icon><Reading /></el-icon>
                     </el-button>
                   </el-tooltip>
                   <el-tooltip content="权限控制" placement="top">
@@ -1489,42 +1361,6 @@ onMounted(() => {
           <el-button type="primary" :loading="tableEditSubmitting" @click="submitTableEdit">
             {{ tableEditSubmitting ? '保存中...' : '保存' }}
           </el-button>
-        </div>
-      </template>
-    </el-dialog>
-
-    <el-dialog
-      v-model="knowledgePreviewDialogVisible"
-      :title="knowledgePreviewTableName ? `知识库预览 · ${knowledgePreviewTableName}` : '知识库预览'"
-      width="820"
-      draggable
-      overflow
-      destroy-on-close
-      @closed="closeKnowledgePreviewDialog"
-    >
-      <section class="knowledge-preview-dialog">
-        <div v-if="knowledgePreviewLoading" class="knowledge-preview-dialog__state">
-          正在加载知识库预览...
-        </div>
-        <div v-else-if="knowledgePreviewError" class="knowledge-preview-dialog__state knowledge-preview-dialog__state--error">
-          {{ knowledgePreviewError }}
-        </div>
-        <div v-else-if="!knowledgePreviewContent" class="knowledge-preview-dialog__state">
-          暂无预览内容
-        </div>
-        <AppCodeEditor
-          v-else
-          :model-value="knowledgePreviewContent"
-          :format="knowledgePreviewFormat"
-          readonly
-          :show-format-switcher="false"
-          :toolbar-label="knowledgePreviewFormat === 'markdown' ? 'Markdown' : 'Text'"
-          min-height="420px"
-        />
-      </section>
-      <template #footer>
-        <div class="knowledge-preview-dialog__footer">
-          <el-button @click="closeKnowledgePreviewDialog">关闭</el-button>
         </div>
       </template>
     </el-dialog>
@@ -2036,30 +1872,6 @@ onMounted(() => {
   gap: 12px;
 }
 
-.knowledge-preview-dialog {
-  display: grid;
-  min-height: 420px;
-}
-
-.knowledge-preview-dialog__state {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  min-height: 420px;
-  color: var(--system-text-muted);
-  font-size: 13px;
-}
-
-.knowledge-preview-dialog__state--error {
-  color: var(--system-danger);
-}
-
-.knowledge-preview-dialog__footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-}
-
 .table-data-preview-dialog__content {
   display: grid;
   gap: 12px;
@@ -2306,14 +2118,12 @@ onMounted(() => {
   gap: 10px;
 }
 
-.knowledge-preview-dialog__footer :deep(.el-button),
 .table-sync-dialog__footer :deep(.el-button),
 .data-transfer-dialog__footer :deep(.el-button) {
   min-width: 76px;
   border-radius: 10px;
 }
 
-.knowledge-preview-dialog__footer :deep(.el-button:not(.el-button--primary)),
 .table-sync-dialog__footer :deep(.el-button:not(.el-button--primary)),
 .data-transfer-dialog__footer :deep(.el-button:not(.el-button--primary)) {
   border-color: var(--system-border);
@@ -2321,7 +2131,6 @@ onMounted(() => {
   color: var(--system-text);
 }
 
-.knowledge-preview-dialog__footer :deep(.el-button--primary),
 .table-sync-dialog__footer :deep(.el-button--primary),
 .data-transfer-dialog__footer :deep(.el-button--primary) {
   border-color: var(--system-accent-border);

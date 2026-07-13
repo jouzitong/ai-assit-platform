@@ -1,8 +1,10 @@
 <script setup lang="ts">
 import { Grid, Share } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { AppCodeEditor } from '../../../components'
+import { searchAiKbStores, type AiKbStoreItem } from '../api/aiPlatform'
 import { searchDbDataSources, type DbDataSourceItem, type DbTableMetaItem } from '../api/dataSources'
 import {
   createVirtualBinding,
@@ -14,7 +16,12 @@ import {
   deleteVirtualField,
   deleteVirtualRelation,
   listFieldTransformers,
-  publishVirtualCatalog,
+  checkVirtualUnpublish,
+  getVirtualKnowledgeStatus,
+  previewVirtualKnowledge,
+  publishVirtualCatalogBatch,
+  syncVirtualKnowledge,
+  unpublishVirtualCatalog,
   updateVirtualBinding,
   updateVirtualEntity,
   updateVirtualField,
@@ -31,9 +38,11 @@ import {
   type VirtualEntityItem,
   type VirtualEntityPayload,
   type VirtualFieldPayload,
+  type VirtualKnowledgeStatusItem,
   type VirtualRelationPayload,
 } from '../api/virtualData'
 import type { VirtualEntitySummary } from './data/types'
+import type { RelationLayoutMode } from './service/relationLayout'
 import {
   initializeVirtualTables,
   loadPhysicalTables,
@@ -61,9 +70,13 @@ const routeQueryKeys = [
   'catalogKeyword',
   'catalogSource',
   'catalogStatus',
+  'catalogPage',
+  'catalogPageSize',
+  'catalogKb',
   'relationKeyword',
   'relationSources',
   'relationEntities',
+  'layout',
 ] as const
 
 function queryText(value: unknown) {
@@ -85,17 +98,37 @@ function queryCatalogStatus(value: unknown): CatalogStatus | '' {
   return status === '0' || status === '1' || status === '2' ? Number(status) as CatalogStatus : ''
 }
 
+function queryPositiveInteger(value: unknown, fallback: number) {
+  const parsed = Number(queryText(value))
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback
+}
+
+function queryCatalogPageSize(value: unknown) {
+  const parsed = queryPositiveInteger(value, 20)
+  return [10, 20, 50, 100].includes(parsed) ? parsed : 20
+}
+
+function queryRelationLayoutMode(value: unknown): RelationLayoutMode {
+  return queryText(value) === 'relation' ? 'relation' : 'manual'
+}
+
 const activeView = ref<ActiveView>(queryView(route.query.view))
 const catalogKeyword = ref(queryText(route.query.catalogKeyword))
 const catalogSource = ref(queryText(route.query.catalogSource))
 const catalogStatus = ref<CatalogStatus | ''>(queryCatalogStatus(route.query.catalogStatus))
+const catalogPage = ref(queryPositiveInteger(route.query.catalogPage, 1))
+const catalogPageSize = ref(queryCatalogPageSize(route.query.catalogPageSize))
+const knowledgeBaseCode = ref(queryText(route.query.catalogKb))
 const relationKeyword = ref(queryText(route.query.relationKeyword))
 const relationSources = ref<string[]>(queryList(route.query.relationSources))
 const relationEntities = ref<string[]>(queryList(route.query.relationEntities))
+const relationLayoutMode = ref<RelationLayoutMode>(queryRelationLayoutMode(route.query.layout))
 const overview = ref<VirtualCatalogOverview>(emptyOverview())
 const dataSources = ref<DbDataSourceItem[]>([])
 const physicalTables = ref<DbTableMetaItem[]>([])
 const transformers = ref<TransformerDescriptor[]>([])
+const knowledgeBases = ref<AiKbStoreItem[]>([])
+const knowledgeStatuses = ref<VirtualKnowledgeStatusItem[]>([])
 const selectedEntity = ref<VirtualEntityItem | null>(null)
 const workspace = ref<VirtualTableWorkspace>(emptyWorkspace())
 const loading = ref(false)
@@ -105,6 +138,20 @@ const initializeLoading = ref(false)
 const physicalTableLoading = ref(false)
 const physicalSyncing = ref(false)
 const modelDrawerVisible = ref(false)
+const operationLoading = ref(false)
+const knowledgePreviewVisible = ref(false)
+const knowledgePreviewLoading = ref(false)
+const knowledgePreviewTitle = ref('知识库预览')
+const knowledgePreviewType = ref('markdown')
+const knowledgePreviewContent = ref('')
+const knowledgeSyncVisible = ref(false)
+const knowledgeSyncSubmitting = ref(false)
+const knowledgeSyncEntityIds = ref<VirtualDataId[]>([])
+
+const knowledgeBaseOptions = computed(() => knowledgeBases.value
+  .filter(item => item.enabled !== false && item.kbCode)
+  .map(item => ({ code: item.kbCode || '', label: `${item.kbName || item.kbCode} · ${item.kbCode}` })))
+const knowledgePreviewFormat = computed(() => knowledgePreviewType.value === 'markdown' ? 'markdown' : 'text')
 
 const summaries = computed<VirtualEntitySummary[]>(() => overview.value.entities.map((entity) => {
   const entityBindings = overview.value.bindings.filter(binding => String(binding.entityId) === String(entity.id))
@@ -125,9 +172,13 @@ function applyRouteState() {
   catalogKeyword.value = queryText(route.query.catalogKeyword)
   catalogSource.value = queryText(route.query.catalogSource)
   catalogStatus.value = queryCatalogStatus(route.query.catalogStatus)
+  catalogPage.value = queryPositiveInteger(route.query.catalogPage, 1)
+  catalogPageSize.value = queryCatalogPageSize(route.query.catalogPageSize)
+  knowledgeBaseCode.value = queryText(route.query.catalogKb)
   relationKeyword.value = queryText(route.query.relationKeyword)
   relationSources.value = queryList(route.query.relationSources)
   relationEntities.value = queryList(route.query.relationEntities)
+  relationLayoutMode.value = queryRelationLayoutMode(route.query.layout)
 }
 
 function buildRouteQuery() {
@@ -137,9 +188,13 @@ function buildRouteQuery() {
   if (catalogKeyword.value.trim()) query.catalogKeyword = catalogKeyword.value.trim()
   if (catalogSource.value) query.catalogSource = catalogSource.value
   if (catalogStatus.value !== '') query.catalogStatus = String(catalogStatus.value)
+  query.catalogPage = String(catalogPage.value)
+  query.catalogPageSize = String(catalogPageSize.value)
+  if (knowledgeBaseCode.value) query.catalogKb = knowledgeBaseCode.value
   if (relationKeyword.value.trim()) query.relationKeyword = relationKeyword.value.trim()
   if (relationSources.value.length) query.relationSources = [...relationSources.value]
   if (relationEntities.value.length) query.relationEntities = [...relationEntities.value]
+  if (relationLayoutMode.value === 'relation') query.layout = 'relation'
   return query
 }
 
@@ -158,14 +213,20 @@ function switchView(view: ActiveView) {
 async function loadPage() {
   loading.value = true
   try {
-    const [catalog, sourceResult, transformerResult] = await Promise.all([
+    const [catalog, sourceResult, transformerResult, knowledgeBaseResult] = await Promise.all([
       loadVirtualCatalogOverview(),
       searchDbDataSources({ page: 1, size: 1000, enabled: true }),
       listFieldTransformers(),
+      searchAiKbStores({ page: 1, size: 1000, enabled: true }).catch((error) => {
+        ElMessage.warning(error instanceof Error ? error.message : '可用知识库加载失败')
+        return { list: [] }
+      }),
     ])
     overview.value = catalog
     dataSources.value = sourceResult?.list || []
     transformers.value = transformerResult || []
+    knowledgeBases.value = knowledgeBaseResult?.list || []
+    await loadKnowledgeStatuses(catalog.entities)
     if (selectedEntity.value) {
       selectedEntity.value = catalog.entities.find(item => String(item.id) === String(selectedEntity.value?.id)) || null
     }
@@ -182,6 +243,7 @@ async function refreshOverview() {
   loading.value = true
   try {
     overview.value = await loadVirtualCatalogOverview()
+    await loadKnowledgeStatuses(overview.value.entities)
     if (selectedEntity.value) {
       selectedEntity.value = overview.value.entities.find(item => String(item.id) === String(selectedEntity.value?.id)) || null
     }
@@ -191,6 +253,20 @@ async function refreshOverview() {
   }
   finally {
     loading.value = false
+  }
+}
+
+async function loadKnowledgeStatuses(entities: VirtualEntityItem[]) {
+  if (!entities.length) {
+    knowledgeStatuses.value = []
+    return
+  }
+  try {
+    knowledgeStatuses.value = await getVirtualKnowledgeStatus(entities.map(entity => entity.id)) || []
+  }
+  catch (error) {
+    knowledgeStatuses.value = []
+    ElMessage.warning(error instanceof Error ? error.message : '知识库同步状态加载失败')
   }
 }
 
@@ -348,7 +424,149 @@ function validateEntity(id: VirtualDataId) {
 }
 
 function publishEntity(id: VirtualDataId) {
-  return runMutation(() => publishVirtualCatalog(id), '虚拟表已发布', false)
+  return publishEntities([id])
+}
+
+async function publishEntities(ids: VirtualDataId[], skipConfirm = false) {
+  const uniqueIds = [...new Set(ids.map(String))]
+    .map(id => overview.value.entities.find(entity => String(entity.id) === id)?.id)
+    .filter((id): id is VirtualDataId => id !== undefined)
+  const unpublishedIds = uniqueIds.filter(id => overview.value.entities.find(entity => String(entity.id) === String(id))?.status !== 1)
+  if (!unpublishedIds.length) {
+    ElMessage.info('所选虚拟表均已发布')
+    return true
+  }
+  if (!skipConfirm) {
+    try {
+      await ElMessageBox.confirm(`确认发布所选 ${unpublishedIds.length} 张虚拟表吗？`, '批量发布', {
+        type: 'warning',
+        confirmButtonText: '确认发布',
+        cancelButtonText: '取消',
+      })
+    }
+    catch {
+      return false
+    }
+  }
+  operationLoading.value = true
+  try {
+    await publishVirtualCatalogBatch(unpublishedIds)
+    ElMessage.success(`已发布 ${unpublishedIds.length} 张虚拟表`)
+    await refreshOverview()
+    return true
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '虚拟表发布失败')
+    return false
+  }
+  finally {
+    operationLoading.value = false
+  }
+}
+
+async function unpublishEntities(ids: VirtualDataId[]) {
+  const publishedIds = ids.filter(id => overview.value.entities.find(entity => String(entity.id) === String(id))?.status === 1)
+  if (!publishedIds.length) {
+    ElMessage.info('所选虚拟表均未发布')
+    return
+  }
+  operationLoading.value = true
+  try {
+    const statuses = await checkVirtualUnpublish(publishedIds)
+    const syncedStatuses = (statuses || []).filter(item => item.kbCodes?.length)
+    const syncedKbCodes = [...new Set(syncedStatuses.flatMap(item => item.kbCodes || []))]
+    const message = syncedStatuses.length
+      ? `其中 ${syncedStatuses.length} 张虚拟表已同步到知识库「${syncedKbCodes.join('、')}」。取消发布会同步删除这些知识文档，是否确认？`
+      : `确认取消发布所选 ${publishedIds.length} 张虚拟表吗？`
+    await ElMessageBox.confirm(message, '取消发布确认', {
+      type: 'warning',
+      confirmButtonText: syncedStatuses.length ? '取消发布并删除知识文档' : '确认取消发布',
+      cancelButtonText: '取消',
+    })
+    const result = await unpublishVirtualCatalog(publishedIds)
+    ElMessage.success(`已取消发布 ${Number(result?.unpublishedCount || 0)} 张虚拟表，删除 ${Number(result?.deletedDocumentCount || 0)} 篇知识文档`)
+    await refreshOverview()
+  }
+  catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : '取消发布失败')
+    }
+  }
+  finally {
+    operationLoading.value = false
+  }
+}
+
+async function prepareKnowledgeSync(ids: VirtualDataId[]) {
+  const uniqueIds = [...new Set(ids.map(String))]
+    .map(id => overview.value.entities.find(entity => String(entity.id) === id)?.id)
+    .filter((id): id is VirtualDataId => id !== undefined)
+  if (!uniqueIds.length) return
+  if (!knowledgeBaseOptions.value.length) {
+    ElMessage.warning('暂无可用知识库，请先在知识库管理中创建并启用知识库')
+    return
+  }
+  const unpublishedIds = uniqueIds.filter(id => overview.value.entities.find(entity => String(entity.id) === String(id))?.status !== 1)
+  if (unpublishedIds.length) {
+    try {
+      await ElMessageBox.confirm(
+        `所选虚拟表中有 ${unpublishedIds.length} 张尚未发布。知识库同步仅支持已发布虚拟表，是否先发布再继续？`,
+        '发布后同步',
+        { type: 'warning', confirmButtonText: '确认发布', cancelButtonText: '取消' },
+      )
+    }
+    catch {
+      return
+    }
+    if (!await publishEntities(unpublishedIds, true)) return
+  }
+  knowledgeSyncEntityIds.value = uniqueIds
+  if (!knowledgeBaseOptions.value.some(item => item.code === knowledgeBaseCode.value)) {
+    knowledgeBaseCode.value = knowledgeBaseOptions.value[0]?.code || ''
+  }
+  knowledgeSyncVisible.value = true
+}
+
+async function submitKnowledgeSync() {
+  if (!knowledgeBaseCode.value) {
+    ElMessage.warning('请选择目标知识库')
+    return
+  }
+  knowledgeSyncSubmitting.value = true
+  try {
+    const result = await syncVirtualKnowledge({
+      kbCode: knowledgeBaseCode.value,
+      entityIds: knowledgeSyncEntityIds.value,
+    })
+    ElMessage.success(`同步完成：新增 ${Number(result?.createdCount || 0)}，更新 ${Number(result?.updatedCount || 0)}，未变更 ${Number(result?.unchangedCount || 0)}`)
+    knowledgeSyncVisible.value = false
+    await loadKnowledgeStatuses(overview.value.entities)
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '知识库同步失败')
+  }
+  finally {
+    knowledgeSyncSubmitting.value = false
+  }
+}
+
+async function openKnowledgePreview(id: VirtualDataId) {
+  const entity = overview.value.entities.find(item => String(item.id) === String(id))
+  knowledgePreviewTitle.value = `知识库预览 · ${entity?.entityName || entity?.entityCode || id}`
+  knowledgePreviewVisible.value = true
+  knowledgePreviewLoading.value = true
+  knowledgePreviewContent.value = ''
+  try {
+    const result = await previewVirtualKnowledge(id)
+    knowledgePreviewType.value = String(result?.type || 'markdown').toLowerCase()
+    knowledgePreviewContent.value = result?.content || ''
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '知识库预览加载失败')
+  }
+  finally {
+    knowledgePreviewLoading.value = false
+  }
 }
 
 function saveRelation(id: VirtualDataId | null, payload: VirtualRelationPayload) {
@@ -365,7 +583,7 @@ function removeRelation(id: VirtualDataId) {
 
 watch(() => route.query, applyRouteState, { deep: true })
 watch(
-  [catalogKeyword, catalogSource, catalogStatus, relationKeyword, relationSources, relationEntities],
+  [catalogKeyword, catalogSource, catalogStatus, catalogPage, catalogPageSize, knowledgeBaseCode, relationKeyword, relationSources, relationEntities, relationLayoutMode],
   () => syncRouteState(),
   { deep: true },
 )
@@ -400,13 +618,23 @@ onMounted(() => {
         v-model:keyword="catalogKeyword"
         v-model:source-key="catalogSource"
         v-model:status="catalogStatus"
+        v-model:current-page="catalogPage"
+        v-model:page-size="catalogPageSize"
+        v-model:knowledge-base-code="knowledgeBaseCode"
         :rows="summaries"
+        :knowledge-statuses="knowledgeStatuses"
+        :knowledge-bases="knowledgeBaseOptions"
         :loading="loading"
+        :operation-loading="operationLoading"
         @initialize="initializeVisible = true"
         @refresh="refreshOverview"
         @open-entity="openEntity"
         @validate-entity="validateEntity"
         @publish-entity="publishEntity"
+        @batch-publish="publishEntities"
+        @batch-unpublish="unpublishEntities"
+        @sync-knowledge="prepareKnowledgeSync"
+        @preview-knowledge="openKnowledgePreview"
         @open-canvas="switchView('relations')"
       />
       <VirtualRelationCanvas
@@ -414,6 +642,7 @@ onMounted(() => {
         v-model:keyword="relationKeyword"
         v-model:selected-sources="relationSources"
         v-model:selected-entity-ids="relationEntities"
+        v-model:layout-mode="relationLayoutMode"
         :entities="overview.entities"
         :fields="overview.fields"
         :bindings="overview.bindings"
@@ -454,6 +683,38 @@ onMounted(() => {
       @delete-rule="removeRule"
       @validate-rule="validateRule"
     />
+
+    <el-dialog v-model="knowledgeSyncVisible" title="同步虚拟表知识库" width="560px" append-to-body destroy-on-close>
+      <section class="virtual-knowledge-sync-dialog">
+        <p>将以 Upsert 方式同步 {{ knowledgeSyncEntityIds.length }} 张已发布虚拟表：文档存在则更新，不存在则新增。</p>
+        <el-form label-position="top">
+          <el-form-item label="目标知识库" required>
+            <el-select v-model="knowledgeBaseCode" filterable placeholder="请选择知识库">
+              <el-option v-for="item in knowledgeBaseOptions" :key="item.code" :label="item.label" :value="item.code" />
+            </el-select>
+          </el-form-item>
+        </el-form>
+      </section>
+      <template #footer>
+        <el-button @click="knowledgeSyncVisible = false">取消</el-button>
+        <el-button type="primary" :loading="knowledgeSyncSubmitting" @click="submitKnowledgeSync">确认同步</el-button>
+      </template>
+    </el-dialog>
+
+    <el-dialog v-model="knowledgePreviewVisible" :title="knowledgePreviewTitle" width="860px" append-to-body destroy-on-close>
+      <div v-loading="knowledgePreviewLoading" class="virtual-knowledge-preview">
+        <AppCodeEditor
+          v-if="knowledgePreviewContent"
+          :model-value="knowledgePreviewContent"
+          :format="knowledgePreviewFormat"
+          readonly
+          :show-format-switcher="false"
+          :toolbar-label="knowledgePreviewFormat === 'markdown' ? 'Markdown' : 'Text'"
+          min-height="460px"
+        />
+        <el-empty v-else-if="!knowledgePreviewLoading" description="暂无知识库预览内容" />
+      </div>
+    </el-dialog>
   </section>
 </template>
 
@@ -546,6 +807,25 @@ onMounted(() => {
 .virtual-table-page__content {
   min-height: 0;
   overflow: hidden;
+}
+
+.virtual-knowledge-sync-dialog {
+  display: grid;
+  gap: var(--app-space-3);
+}
+
+.virtual-knowledge-sync-dialog p {
+  margin: 0;
+  color: var(--app-text-muted);
+  line-height: 1.7;
+}
+
+.virtual-knowledge-sync-dialog :deep(.el-select) {
+  width: 100%;
+}
+
+.virtual-knowledge-preview {
+  min-height: 460px;
 }
 
 @media (max-width: 960px) {

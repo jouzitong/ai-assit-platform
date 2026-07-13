@@ -118,23 +118,6 @@ export interface DbDataSourceUpsertPayload {
   config: DbDataSourceConfig
 }
 
-export interface KnowledgeSyncPayload {
-  sourceKey: string
-  tableName?: string
-}
-
-export interface KnowledgePreviewResult {
-  type?: string
-  content?: string
-}
-
-export interface KnowledgeSyncResult {
-  totalCount?: number
-  createdCount?: number
-  updatedCount?: number
-  unchangedCount?: number
-}
-
 export interface DbDataSourceTestConnectionResult {
   success?: boolean
   message?: string
@@ -315,23 +298,6 @@ export function testDbDataSourceConnection(payload: DbDataSourceUpsertPayload) {
   return request<DbDataSourceTestConnectionResult>(`${DB_ACCESS_API_PREFIX}/test-connection`, {
     method: 'POST',
     body: JSON.stringify(payload),
-  })
-}
-
-export function syncDbTableKnowledge(payload: KnowledgeSyncPayload) {
-  return request<KnowledgeSyncResult>(`${TABLE_META_API_PREFIX}/knowledge-sync`, {
-    method: 'POST',
-    body: JSON.stringify(payload),
-  })
-}
-
-export function previewDbTableKnowledge(sourceKey: string, tableName: string) {
-  return request<KnowledgePreviewResult>(`${TABLE_META_API_PREFIX}/knowledge-preview`, {
-    method: 'GET',
-    query: {
-      sourceKey,
-      tableName,
-    },
   })
 }
 

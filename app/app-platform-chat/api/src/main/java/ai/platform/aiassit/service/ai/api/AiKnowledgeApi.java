@@ -7,6 +7,9 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentBatchRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentDeleteResponse;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
@@ -56,6 +59,14 @@ public interface AiKnowledgeApi {
      */
     @PostMapping("/internal/v1/ai/kb/document/content/update")
     R<AiKbDocumentUpsertResponse> updateDocumentContent(@RequestBody AiKbDocumentContentUpdateRequest request);
+
+    /** 按稳定文档编码批量查询本地知识库文档。 */
+    @PostMapping("/internal/v1/ai/kb/document/list")
+    R<List<AiKbDocumentListItemDTO>> listDocuments(@RequestBody AiKbDocumentBatchRequest request);
+
+    /** 删除本地知识库文档及其已同步到 Provider 的文档。 */
+    @PostMapping("/internal/v1/ai/kb/document/delete")
+    R<AiKbDocumentDeleteResponse> deleteDocuments(@RequestBody AiKbDocumentBatchRequest request);
 
     /**
      * 根据知识库条件获取本地知识库标识。

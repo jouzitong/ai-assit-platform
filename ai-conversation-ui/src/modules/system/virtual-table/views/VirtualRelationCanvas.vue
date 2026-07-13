@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Aim, Delete, Filter, Link, RefreshRight, Search } from '@element-plus/icons-vue'
+import { Aim, Delete, Filter, Link, MagicStick, RefreshLeft, RefreshRight, Search } from '@element-plus/icons-vue'
 import type { Connection, Edge, EdgeMouseEvent, Node } from '@vue-flow/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, markRaw, reactive, ref, watch } from 'vue'
@@ -12,6 +12,8 @@ import type {
   VirtualRelationItem,
   VirtualRelationPayload,
 } from '../../api/virtualData'
+import { calculateRelationLayout, type RelationLayoutMode } from '../service/relationLayout'
+import type { VirtualTableNodeData } from '../data/types'
 import VirtualTableNode from './VirtualTableNode.vue'
 
 const props = defineProps<{
@@ -31,12 +33,17 @@ const emit = defineEmits<{
 const keyword = defineModel<string>('keyword', { default: '' })
 const selectedSources = defineModel<string[]>('selectedSources', { default: () => [] })
 const selectedEntityIds = defineModel<string[]>('selectedEntityIds', { default: () => [] })
+const layoutMode = defineModel<RelationLayoutMode>('layoutMode', { default: 'manual' })
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const fitViewTrigger = ref(0)
+const layoutLoading = ref(false)
+const canUndoLayout = ref(false)
 const relationDialogVisible = ref(false)
 const editingRelationId = ref<VirtualDataId | null>(null)
 const nodeTypes = { virtualTable: markRaw(VirtualTableNode) }
+let undoLayoutPositions: Map<string, { x: number, y: number }> | null = null
+let layoutRunId = 0
 
 const relationForm = reactive<VirtualRelationPayload>({
   relationCode: '',
@@ -138,7 +145,85 @@ function defaultRelationCode(sourceEntityId: VirtualDataId, sourceFieldId: Virtu
   return normalizeRelationCode(`${sourceEntity}_${sourceField}_to_${targetEntity}_${targetField}`)
 }
 
+function estimatedNodeHeight(node: Node) {
+  const data = node.data as VirtualTableNodeData | undefined
+  const fieldHeight = Math.max(data?.fields.length || 0, 1) * 42
+  const sourceRows = data?.sourceLabels.length ? Math.ceil(data.sourceLabels.length / 2) : 0
+  const sourceHeight = 16 + sourceRows * 19
+  return 58 + sourceHeight + fieldHeight
+}
+
+function snapshotNodePositions() {
+  return new Map(nodes.value.map(node => [String(node.id), { ...node.position }]))
+}
+
+async function applyRelationLayout() {
+  if (!nodes.value.length) {
+    layoutLoading.value = false
+    return
+  }
+  const currentRunId = ++layoutRunId
+  layoutLoading.value = true
+  try {
+    const positions = await calculateRelationLayout(
+      nodes.value.map(node => ({
+        id: String(node.id),
+        width: 292,
+        height: estimatedNodeHeight(node),
+      })),
+      edges.value.map(edge => ({
+        id: String(edge.id),
+        source: String(edge.source),
+        target: String(edge.target),
+      })),
+    )
+    if (currentRunId !== layoutRunId) return
+    nodes.value = nodes.value.map((node) => ({
+      ...node,
+      position: positions.get(String(node.id)) || node.position,
+    }))
+    fitViewTrigger.value += 1
+  }
+  catch (error) {
+    if (currentRunId !== layoutRunId) return
+    layoutMode.value = 'manual'
+    ElMessage.error(error instanceof Error ? error.message : '关系布局计算失败')
+  }
+  finally {
+    if (currentRunId === layoutRunId) layoutLoading.value = false
+  }
+}
+
+function beautifyCanvas() {
+  if (!nodes.value.length || layoutLoading.value) return
+  undoLayoutPositions = snapshotNodePositions()
+  canUndoLayout.value = true
+  if (layoutMode.value === 'relation') {
+    void applyRelationLayout()
+    return
+  }
+  layoutMode.value = 'relation'
+}
+
+function undoCanvasLayout() {
+  if (!undoLayoutPositions) return
+  layoutRunId += 1
+  nodes.value = nodes.value.map(node => ({
+    ...node,
+    position: undoLayoutPositions?.get(String(node.id)) || node.position,
+  }))
+  undoLayoutPositions = null
+  canUndoLayout.value = false
+  layoutLoading.value = false
+  layoutMode.value = 'manual'
+  fitViewTrigger.value += 1
+}
+
 function rebuildCanvas() {
+  layoutRunId += 1
+  layoutLoading.value = false
+  undoLayoutPositions = null
+  canUndoLayout.value = false
   const previousPositions = new Map(nodes.value.map(node => [String(node.id), node.position]))
   nodes.value = filteredEntities.value.map((entity, index) => {
     const entityId = String(entity.id)
@@ -169,13 +254,20 @@ function rebuildCanvas() {
       sourceHandle: `out:${relation.sourceFieldId}`,
       targetHandle: `in:${relation.targetFieldId}`,
       label: relation.relationName || relation.relationCode,
+      type: 'smoothstep',
+      pathOptions: { borderRadius: 14, offset: 28 },
       animated: false,
       selectable: true,
       style: { stroke: 'var(--app-accent)', strokeWidth: 2 },
       labelStyle: { fill: 'var(--app-text)', fontSize: 11 },
       data: { relation },
     }))
-  fitViewTrigger.value += 1
+  if (layoutMode.value === 'relation') {
+    void applyRelationLayout()
+  }
+  else {
+    fitViewTrigger.value += 1
+  }
 }
 
 function parseHandle(handle: string | null | undefined) {
@@ -290,6 +382,10 @@ watch(
   rebuildCanvas,
   { deep: true, immediate: true },
 )
+
+watch(layoutMode, (mode) => {
+  if (mode === 'relation') void applyRelationLayout()
+})
 </script>
 
 <template>
@@ -309,6 +405,8 @@ watch(
       </div>
       <div class="relation-canvas-panel__actions">
         <span>显示 {{ filteredEntities.length }} 张表<span v-if="hiddenCount">，隐藏 {{ hiddenCount }} 张</span></span>
+        <el-button type="primary" plain :icon="MagicStick" :loading="layoutLoading" @click="beautifyCanvas">智能美化</el-button>
+        <el-button :icon="RefreshLeft" :disabled="!canUndoLayout || layoutLoading" @click="undoCanvasLayout">撤销布局</el-button>
         <el-button :icon="Aim" @click="fitViewTrigger += 1">适应画布</el-button>
         <el-button :icon="RefreshRight" :loading="loading" @click="emit('refresh')">刷新</el-button>
       </div>
@@ -329,8 +427,8 @@ watch(
         :zoom-on-scroll="true"
         :zoom-on-pinch="true"
         :fit-view-trigger="fitViewTrigger"
-        :canvas-extent="[[-1200, -800], [5200, 5200]]"
-        :node-extent="[[-800, -600], [4800, 4800]]"
+        :canvas-extent="[[-2000, -1200], [16000, 16000]]"
+        :node-extent="[[-1600, -1000], [15000, 15000]]"
         @connect="openCreateRelation"
         @edge-click="openEditRelation"
       />

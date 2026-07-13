@@ -196,6 +196,34 @@ export interface CatalogSnapshot {
   enabled?: boolean
 }
 
+export interface VirtualKnowledgePreviewResult {
+  type?: string
+  content?: string
+}
+
+export interface VirtualKnowledgeStatusItem {
+  entityId: VirtualDataId
+  kbCodes?: string[]
+}
+
+export interface VirtualKnowledgeSyncPayload {
+  kbCode: string
+  entityIds: VirtualDataId[]
+}
+
+export interface VirtualKnowledgeSyncResult {
+  kbCode?: string
+  totalCount?: number
+  createdCount?: number
+  updatedCount?: number
+  unchangedCount?: number
+}
+
+export interface VirtualUnpublishResult {
+  unpublishedCount?: number
+  deletedDocumentCount?: number
+}
+
 export interface TransformerDescriptor {
   code?: string
   version?: number
@@ -341,6 +369,48 @@ export function publishVirtualCatalog(entityId: VirtualDataId) {
   return request<CatalogSnapshot>(`${VIRTUAL_DATA_API_PREFIX}/publish`, {
     method: 'POST',
     query: { entityId },
+  })
+}
+
+export function publishVirtualCatalogBatch(entityIds: VirtualDataId[]) {
+  return request<CatalogSnapshot[]>(`${VIRTUAL_DATA_API_PREFIX}/publish-batch`, {
+    method: 'POST',
+    body: JSON.stringify({ entityIds }),
+  })
+}
+
+export function previewVirtualKnowledge(entityId: VirtualDataId) {
+  return request<VirtualKnowledgePreviewResult>(`${VIRTUAL_DATA_API_PREFIX}/knowledge-preview`, {
+    method: 'GET',
+    query: { entityId },
+  })
+}
+
+export function getVirtualKnowledgeStatus(entityIds: VirtualDataId[]) {
+  return request<VirtualKnowledgeStatusItem[]>(`${VIRTUAL_DATA_API_PREFIX}/knowledge-status`, {
+    method: 'POST',
+    body: JSON.stringify({ entityIds }),
+  })
+}
+
+export function syncVirtualKnowledge(payload: VirtualKnowledgeSyncPayload) {
+  return request<VirtualKnowledgeSyncResult>(`${VIRTUAL_DATA_API_PREFIX}/knowledge-sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function checkVirtualUnpublish(entityIds: VirtualDataId[]) {
+  return request<VirtualKnowledgeStatusItem[]>(`${VIRTUAL_DATA_API_PREFIX}/unpublish-check`, {
+    method: 'POST',
+    body: JSON.stringify({ entityIds }),
+  })
+}
+
+export function unpublishVirtualCatalog(entityIds: VirtualDataId[]) {
+  return request<VirtualUnpublishResult>(`${VIRTUAL_DATA_API_PREFIX}/unpublish`, {
+    method: 'POST',
+    body: JSON.stringify({ entityIds }),
   })
 }
 

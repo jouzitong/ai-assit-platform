@@ -1,6 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.domainservice;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentDetailDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentBatchRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListRequest;
@@ -61,6 +62,9 @@ public interface AiKnowledgeManageDomainService {
      * @return 知识库文档列表项
      */
     PageResultVO<AiKbDocumentListItemDTO> listDocuments(AiKbDocumentListRequest request);
+
+    /** 按稳定文档编码批量查询，不受页面大小限制。 */
+    List<AiKbDocumentListItemDTO> listDocumentsByCodes(AiKbDocumentBatchRequest request);
 
     /**
      * 获取知识库文档详情。

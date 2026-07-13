@@ -7,6 +7,13 @@ import ai.platform.aiassit.data.virtualization.core.catalog.CatalogSnapshot;
 import ai.platform.aiassit.data.virtualization.core.catalog.CreateVirtualEntityFromTableRequest;
 import ai.platform.aiassit.data.virtualization.core.catalog.VirtualCatalogPublisher;
 import ai.platform.aiassit.data.virtualization.core.catalog.VirtualEntityDraftFactory;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeBatchRequest;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgePreviewResponse;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeService;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeStatusItem;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeSyncRequest;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeSyncResponse;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualUnpublishResponse;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformManagementService;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformerRegistry;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -24,15 +31,18 @@ public class VirtualCatalogManagementController {
     private final VirtualEntityDraftFactory draftFactory;
     private final VirtualCatalogPublisher publisher;
     private final FieldTransformManagementService transformService;
+    private final VirtualKnowledgeService knowledgeService;
 
     public VirtualCatalogManagementController(
             VirtualEntityDraftFactory draftFactory,
             VirtualCatalogPublisher publisher,
-            FieldTransformManagementService transformService
+            FieldTransformManagementService transformService,
+            VirtualKnowledgeService knowledgeService
     ) {
         this.draftFactory = draftFactory;
         this.publisher = publisher;
         this.transformService = transformService;
+        this.knowledgeService = knowledgeService;
     }
 
     @PostMapping("/entities/from-physical-table")
@@ -43,6 +53,36 @@ public class VirtualCatalogManagementController {
     @PostMapping("/publish")
     public CatalogSnapshot publish(@RequestParam Long entityId) {
         return publisher.publish(entityId);
+    }
+
+    @PostMapping("/publish-batch")
+    public List<CatalogSnapshot> publishBatch(@RequestBody VirtualKnowledgeBatchRequest request) {
+        return entityIds(request).stream().distinct().map(publisher::publish).toList();
+    }
+
+    @GetMapping("/knowledge-preview")
+    public VirtualKnowledgePreviewResponse knowledgePreview(@RequestParam Long entityId) {
+        return knowledgeService.preview(entityId);
+    }
+
+    @PostMapping("/knowledge-status")
+    public List<VirtualKnowledgeStatusItem> knowledgeStatus(@RequestBody VirtualKnowledgeBatchRequest request) {
+        return knowledgeService.status(entityIds(request));
+    }
+
+    @PostMapping("/knowledge-sync")
+    public VirtualKnowledgeSyncResponse knowledgeSync(@RequestBody VirtualKnowledgeSyncRequest request) {
+        return knowledgeService.sync(request);
+    }
+
+    @PostMapping("/unpublish-check")
+    public List<VirtualKnowledgeStatusItem> unpublishCheck(@RequestBody VirtualKnowledgeBatchRequest request) {
+        return knowledgeService.status(entityIds(request));
+    }
+
+    @PostMapping("/unpublish")
+    public VirtualUnpublishResponse unpublish(@RequestBody VirtualKnowledgeBatchRequest request) {
+        return knowledgeService.unpublish(entityIds(request));
     }
 
     @PostMapping("/validate")
@@ -71,5 +111,9 @@ public class VirtualCatalogManagementController {
             @RequestParam(required = false) Long physicalFieldMetaId
     ) {
         return transformService.lineage(virtualFieldId, physicalFieldMetaId);
+    }
+
+    private List<Long> entityIds(VirtualKnowledgeBatchRequest request) {
+        return request == null || request.getEntityIds() == null ? List.of() : request.getEntityIds();
     }
 }

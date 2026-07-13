@@ -7,6 +7,9 @@ import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.req.BaseRequest;
 import org.athena.framework.data.mybatis.annotations.IgnoredQuery;
 
+import java.util.ArrayList;
+import java.util.List;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class AiKbDocumentQueryRequest extends BaseRequest {
@@ -17,6 +20,9 @@ public class AiKbDocumentQueryRequest extends BaseRequest {
 
     @IgnoredQuery
     private String documentCode;
+
+    @IgnoredQuery
+    private List<String> documentCodes = new ArrayList<>();
 
     @IgnoredQuery
     private String keyword;

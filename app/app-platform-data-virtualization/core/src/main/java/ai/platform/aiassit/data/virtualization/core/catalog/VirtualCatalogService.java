@@ -54,4 +54,10 @@ public class VirtualCatalogService {
         cache.keySet().removeIf(key -> key.startsWith(snapshot.entityCode() + ":"));
         cache.put(snapshot.entityCode() + ":" + snapshot.catalogVersion(), snapshot);
     }
+
+    public void evict(String entityCode) {
+        if (entityCode != null) {
+            cache.keySet().removeIf(key -> key.startsWith(entityCode + ":"));
+        }
+    }
 }

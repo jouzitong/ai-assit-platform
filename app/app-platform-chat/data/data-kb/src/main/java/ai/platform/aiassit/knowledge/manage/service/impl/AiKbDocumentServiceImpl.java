@@ -66,6 +66,16 @@ public class AiKbDocumentServiceImpl
             if (StringUtils.hasText(req.getDocumentCode())) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode().trim());
             }
+            if (req.getDocumentCodes() != null && !req.getDocumentCodes().isEmpty()) {
+                List<String> documentCodes = req.getDocumentCodes().stream()
+                        .filter(StringUtils::hasText)
+                        .map(String::trim)
+                        .distinct()
+                        .toList();
+                if (!documentCodes.isEmpty()) {
+                    wrapper.lambda().in(AiKbDocumentEntity::getDocumentCode, documentCodes);
+                }
+            }
             if (StringUtils.hasText(req.getKeyword())) {
                 String keyword = req.getKeyword().trim();
                 wrapper.and(w -> w.lambda()

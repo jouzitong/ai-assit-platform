@@ -7,7 +7,6 @@ import { AppPagination } from '../../../../components'
 import {
   createDbDataSource,
   searchDbDataSources,
-  syncDbTableKnowledge,
   testDbDataSourceConnection,
   type DatabaseSourceConfig,
   type DbDataSourceItem,
@@ -28,7 +27,6 @@ const total = ref(0)
 const loading = ref(false)
 const saving = ref(false)
 const testing = ref(false)
-const knowledgeSyncSubmitting = ref(false)
 const errorMessage = ref('')
 const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
@@ -495,29 +493,6 @@ async function handleTestConnection() {
   }
 }
 
-async function handleKnowledgeSync(card: ReturnType<typeof mapDataSourceCard>) {
-  if (!card.key || card.key === '-') {
-    ElMessage.error('当前数据源信息不完整，无法同步知识库')
-    return
-  }
-
-  knowledgeSyncSubmitting.value = true
-  try {
-    const payload = await syncDbTableKnowledge({ sourceKey: card.key })
-    const totalCount = Number(payload?.totalCount ?? 0)
-    const createdCount = Number(payload?.createdCount ?? 0)
-    const updatedCount = Number(payload?.updatedCount ?? 0)
-    const unchangedCount = Number(payload?.unchangedCount ?? 0)
-    ElMessage.success(`同步完成：共 ${totalCount} 张表，新增 ${createdCount}，更新 ${updatedCount}，未变更 ${unchangedCount}`)
-  }
-  catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '知识库同步失败')
-  }
-  finally {
-    knowledgeSyncSubmitting.value = false
-  }
-}
-
 async function openSourceDetail(card: ReturnType<typeof mapDataSourceCard>) {
   if (!card.isDatabase) {
     ElMessage.info('HTTP API 数据源暂不提供表元数据浏览')
@@ -600,11 +575,6 @@ onMounted(() => {
               </el-tag>
             </div>
             <div class="data-source-card__actions">
-              <el-tooltip v-if="item.isDatabase" content="知识库同步" placement="top">
-                <el-button circle plain @click.stop="handleKnowledgeSync(item)">
-                  <el-icon><DataBoard /></el-icon>
-                </el-button>
-              </el-tooltip>
               <el-tooltip content="编辑" placement="top">
                 <el-button circle plain type="primary" @click.stop="openEditDialog(item)">
                   <el-icon><EditPen /></el-icon>

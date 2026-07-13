@@ -4,6 +4,7 @@ import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.constant.AiKbBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentBatchRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentDetailDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListItemDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListRequest;
@@ -183,6 +184,28 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                 .map(this::toDocumentListItem)
                 .toList();
         return PageResultVO.of(records, new PageInfo(result.getPageInfo().total(), size, page));
+    }
+
+    @Override
+    public List<AiKbDocumentListItemDTO> listDocumentsByCodes(AiKbDocumentBatchRequest request) {
+        if (request == null || request.getDocumentCodes() == null || request.getDocumentCodes().isEmpty()) {
+            return List.of();
+        }
+        List<String> documentCodes = request.getDocumentCodes().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (documentCodes.isEmpty()) {
+            return List.of();
+        }
+        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        query.setKbCode(trimToNull(request.getKbCode()));
+        query.setDocumentCodes(documentCodes);
+        query.setStatus(AiKbDocumentStatus.ACTIVE);
+        query.setPage(1);
+        query.setSize(Integer.MAX_VALUE);
+        return documentService.listByQuery(query).stream().map(this::toDocumentListItem).toList();
     }
 
     @Override
