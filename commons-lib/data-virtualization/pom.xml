@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>ai.platform.aiassit</groupId>
+        <artifactId>commons-lib</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>commons-lib-data-virtualization</artifactId>
+    <packaging>pom</packaging>
+    <name>commons-lib-data-virtualization</name>
+
+    <properties>
+        <commons.lib.data.virtualization.version>1.0.0-SNAPSHOT</commons.lib.data.virtualization.version>
+    </properties>
+
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>commons-lib-data-virtualization-api</artifactId>
+                <version>${commons.lib.data.virtualization.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>commons-lib-data-virtualization-data</artifactId>
+                <version>${commons.lib.data.virtualization.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>commons-lib-data-virtualization-core</artifactId>
+                <version>${commons.lib.data.virtualization.version}</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
+
+    <modules>
+        <module>api</module>
+        <module>data</module>
+        <module>core</module>
+    </modules>
+</project>

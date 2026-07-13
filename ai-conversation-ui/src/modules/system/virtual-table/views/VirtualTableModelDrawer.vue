@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, Delete, EditPen, Plus, RefreshRight, Setting } from '@element-plus/icons-vue'
+import { Check, Delete, EditPen, MagicStick, Plus, RefreshRight, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, reactive, ref, watch } from 'vue'
 import type { DbTableFieldMetaItem } from '../../api/dataSources'
@@ -27,6 +27,7 @@ const props = defineProps<{
   workspace: VirtualTableWorkspace
   transformers: TransformerDescriptor[]
   loading?: boolean
+  descriptionGenerating?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -40,6 +41,7 @@ const emit = defineEmits<{
   saveRule: [id: VirtualDataId | null, payload: FieldTransformRulePayload, ports: Array<FieldTransformPortPayload & { id?: VirtualDataId }>, existingPorts: FieldTransformPortItem[]]
   deleteRule: [id: VirtualDataId]
   validateRule: [id: VirtualDataId]
+  generateDescription: [id: VirtualDataId, currentDescription: string, apply: (description: string) => void]
 }>()
 
 type PortEditorRow = FieldTransformPortPayload & { id?: VirtualDataId }
@@ -161,6 +163,13 @@ function submitEntity() {
   }
   emit('saveEntity', props.entity.id, { ...entityForm })
   entityDialogVisible.value = false
+}
+
+function requestDescriptionGeneration() {
+  if (!props.entity) return
+  emit('generateDescription', props.entity.id, entityForm.description || '', (description) => {
+    entityForm.description = description
+  })
 }
 
 function openFieldEditor(field?: VirtualFieldItem) {
@@ -418,7 +427,28 @@ watch(() => props.modelValue, (visible) => {
     </div>
 
     <el-dialog v-model="entityDialogVisible" title="编辑虚拟表" width="620px" append-to-body>
-      <el-form label-position="top"><div class="virtual-editor-grid"><el-form-item label="虚拟表编码"><el-input v-model="entityForm.entityCode" maxlength="64" /></el-form-item><el-form-item label="虚拟表名称"><el-input v-model="entityForm.entityName" maxlength="128" /></el-form-item></div><el-form-item label="说明"><el-input v-model="entityForm.description" type="textarea" :rows="3" /></el-form-item><el-form-item label="状态"><el-switch v-model="entityForm.enabled" active-text="启用" inactive-text="停用" /></el-form-item></el-form>
+      <el-form label-position="top">
+        <div class="virtual-editor-grid"><el-form-item label="虚拟表编码"><el-input v-model="entityForm.entityCode" maxlength="64" /></el-form-item><el-form-item label="虚拟表名称"><el-input v-model="entityForm.entityName" maxlength="128" /></el-form-item></div>
+        <el-form-item class="virtual-description-editor">
+          <template #label>
+            <div class="virtual-description-editor__label">
+              <span>说明</span>
+              <el-button
+                text
+                type="primary"
+                size="small"
+                :icon="MagicStick"
+                :loading="descriptionGenerating"
+                :disabled="descriptionGenerating"
+                @click="requestDescriptionGeneration"
+              >AI 智能补充</el-button>
+            </div>
+          </template>
+          <el-input v-model="entityForm.description" type="textarea" :rows="5" maxlength="512" show-word-limit :disabled="descriptionGenerating" />
+          <p class="virtual-description-editor__hint">以 Markdown 格式面向知识库语义检索生成；仅使用数据表定义、字段和关联，不包含物理映射。生成后请确认内容再保存。</p>
+        </el-form-item>
+        <el-form-item label="状态"><el-switch v-model="entityForm.enabled" active-text="启用" inactive-text="停用" /></el-form-item>
+      </el-form>
       <template #footer><el-button @click="entityDialogVisible = false">取消</el-button><el-button type="primary" @click="submitEntity">保存</el-button></template>
     </el-dialog>
 
@@ -550,6 +580,20 @@ watch(() => props.modelValue, (visible) => {
   padding: var(--app-space-3);
   border-radius: 8px;
   background: var(--app-surface-muted);
+}
+
+.virtual-description-editor__label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+}
+
+.virtual-description-editor__hint {
+  margin: var(--app-space-2) 0 0;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+  line-height: 1.6;
 }
 
 .transform-rule-editor__configs {

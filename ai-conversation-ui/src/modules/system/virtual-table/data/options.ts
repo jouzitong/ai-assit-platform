@@ -1,4 +1,11 @@
 import type { CatalogStatus, LogicalType, TransformMode } from '../../api/virtualData'
+import type { RelationLineStyle } from './types'
+
+export const relationLineStyleOptions: Array<{ label: string; value: RelationLineStyle }> = [
+  { label: '曲线', value: 'curve' },
+  { label: '折线', value: 'polyline' },
+  { label: '直线', value: 'straight' },
+]
 
 export const catalogStatusOptions: Array<{ label: string; value: CatalogStatus }> = [
   { label: '草稿', value: 0 },

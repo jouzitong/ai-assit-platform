@@ -30,6 +30,8 @@ import java.util.Map;
 @Service
 public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainService {
 
+    private static final String DEFAULT_CHUNK_METHOD = "one";
+
     private final AiKbStoreService storeService;
     private final KnowledgeClientConfigService knowledgeClientConfigService;
     private final AiKnowledgeDatasetService datasetService;
@@ -58,13 +60,14 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     @Transactional(rollbackFor = Exception.class)
     public AiKbStoreVO add(AiKbStoreDTO dto) {
         AiKbStoreDTO target = merge(null, dto, true);
+        applyDefaultChunkMethod(target);
         validate(target);
         target.setAuth(resolveConfiguredAuth());
         AiKbDatasetDTO dataset = datasetService.createDataset(requireRagflowClientKey(), toDatasetSaveRequest(target));
         if (!StringUtils.hasText(dataset.getKbId())) {
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "RAGFlow dataset id is empty");
         }
-        target.setProviderKbId(dataset.getKbId());
+        applyRemoteIdentifiers(target, dataset.getKbId());
         try {
             return toVO(storeService.add(target));
         } catch (RuntimeException ex) {
@@ -80,7 +83,8 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         validate(target);
         target.setAuth(resolveConfiguredAuth());
         requireProviderKbId(target);
-        datasetService.updateDataset(requireRagflowClientKey(), target.getProviderKbId(), toDatasetSaveRequest(target));
+        AiKbDatasetDTO dataset = datasetService.updateDataset(requireRagflowClientKey(), target.getProviderKbId(), toDatasetSaveRequest(target));
+        applyRemoteIdentifiers(target, dataset.getKbId());
         return toVO(storeService.update(id, target));
     }
 
@@ -89,11 +93,11 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     public AiKbStoreVO edit(Long id, AiKbStoreDTO dto) {
         AiKbStoreDTO current = requireStore(id);
         AiKbStoreDTO target = merge(current, dto, false);
+        validate(target);
         target.setAuth(resolveConfiguredAuth());
-        if (strategyChanged(current, target)) {
-            requireProviderKbId(target);
-            datasetService.updateDataset(requireRagflowClientKey(), target.getProviderKbId(), toDatasetSaveRequest(target));
-        }
+        requireProviderKbId(target);
+        AiKbDatasetDTO dataset = datasetService.updateDataset(requireRagflowClientKey(), target.getProviderKbId(), toDatasetSaveRequest(target));
+        applyRemoteIdentifiers(target, dataset.getKbId());
         return toVO(storeService.edit(id, target));
     }
 
@@ -110,10 +114,10 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         AiKbStoreDTO source = incoming == null ? new AiKbStoreDTO() : incoming;
         AiKbStoreDTO target = new AiKbStoreDTO();
         target.setId(current == null ? source.getId() : current.getId());
-        target.setKbCode(choose(trimToNull(source.getKbCode()), current == null ? null : current.getKbCode(), replaceNulls));
+        // 知识库编码与 Provider Dataset ID 均由 RAGFlow 分配，页面请求不可覆盖。
+        target.setKbCode(current == null ? null : current.getKbCode());
         target.setKbName(choose(trimToNull(source.getKbName()), current == null ? null : current.getKbName(), replaceNulls));
-        // Provider Dataset ID is assigned by RAGFlow during creation and must never be supplied by the page.
-        target.setProviderKbId(choose(trimToNull(source.getProviderKbId()), current == null ? null : current.getProviderKbId(), false));
+        target.setProviderKbId(current == null ? null : current.getProviderKbId());
         target.setDescription(choose(trimToNull(source.getDescription()), current == null ? null : current.getDescription(), replaceNulls));
         target.setEmbeddingModel(choose(trimToNull(source.getEmbeddingModel()), current == null ? null : current.getEmbeddingModel(), replaceNulls));
         target.setPermission(choose(trimToNull(source.getPermission()), current == null ? null : current.getPermission(), replaceNulls));
@@ -129,11 +133,14 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     }
 
     private void validate(AiKbStoreDTO dto) {
-        if (!StringUtils.hasText(dto.getKbCode())) {
-            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_KB_ID);
-        }
         if (!StringUtils.hasText(dto.getKbName())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
+        }
+        if (!StringUtils.hasText(dto.getEmbeddingModel())) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_EMBEDDING_MODEL);
+        }
+        if (!StringUtils.hasText(dto.getChunkMethod()) && !StringUtils.hasText(dto.getPipelineId())) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CHUNK_METHOD);
         }
         if (StringUtils.hasText(dto.getPipelineId())
                 && (StringUtils.hasText(dto.getChunkMethod()) || (dto.getParserConfig() != null && !dto.getParserConfig().isEmpty()))) {
@@ -226,15 +233,19 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         }
     }
 
-    private boolean strategyChanged(AiKbStoreDTO current, AiKbStoreDTO target) {
-        return !java.util.Objects.equals(current.getKbName(), target.getKbName())
-                || !java.util.Objects.equals(current.getDescription(), target.getDescription())
-                || !java.util.Objects.equals(current.getEmbeddingModel(), target.getEmbeddingModel())
-                || !java.util.Objects.equals(current.getPermission(), target.getPermission())
-                || !java.util.Objects.equals(current.getChunkMethod(), target.getChunkMethod())
-                || !java.util.Objects.equals(current.getParserConfig(), target.getParserConfig())
-                || !java.util.Objects.equals(current.getParseType(), target.getParseType())
-                || !java.util.Objects.equals(current.getPipelineId(), target.getPipelineId());
+    private void applyDefaultChunkMethod(AiKbStoreDTO target) {
+        if (!StringUtils.hasText(target.getChunkMethod()) && !StringUtils.hasText(target.getPipelineId())) {
+            target.setChunkMethod(DEFAULT_CHUNK_METHOD);
+        }
+    }
+
+    private void applyRemoteIdentifiers(AiKbStoreDTO target, String providerKbId) {
+        String remoteId = trimToNull(providerKbId);
+        if (!StringUtils.hasText(remoteId)) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "RAGFlow dataset id is empty");
+        }
+        target.setProviderKbId(remoteId);
+        target.setKbCode(remoteId);
     }
 
     private String trimToNull(String value) {

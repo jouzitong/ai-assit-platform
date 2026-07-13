@@ -44,6 +44,19 @@ type PlatformCard = {
   raw: AiModelManageItem | AiKbStoreItem
 }
 
+const NO_CHUNKING_METHOD = 'no-chunking'
+const RAGFLOW_SINGLE_CHUNK_METHOD = 'one'
+const noChunkingAdvancedConfigText = JSON.stringify({ chunkMethod: RAGFLOW_SINGLE_CHUNK_METHOD }, null, 2)
+
+const kbChunkMethodOptions = [
+  { value: NO_CHUNKING_METHOD, label: '无需切片' },
+  { value: 'naive', label: '通用分片 (naive)' },
+  { value: 'qa', label: '问答分片 (qa)' },
+  { value: 'table', label: '表格分片 (table)' },
+  { value: 'manual', label: '手册分片 (manual)' },
+  { value: 'presentation', label: '演示文稿 (presentation)' },
+]
+
 const props = defineProps<{
   activeTab: PlatformTab
 }>()
@@ -83,12 +96,11 @@ const modelForm = reactive({
 })
 
 const kbForm = reactive({
-  kbCode: '',
   kbName: '',
   description: '',
   embeddingModel: '',
   permission: 'team',
-  chunkMethod: 'naive',
+  chunkMethod: NO_CHUNKING_METHOD,
   parserConfigText: '',
   parseType: '',
   pipelineId: '',
@@ -114,6 +126,7 @@ const createButtonLabel = computed(() => `新增${currentTabLabel.value}`)
 const currentSearchPlaceholder = computed(() => props.activeTab === 'model'
   ? '搜索名称 / 编码 / 客户端类型'
   : '搜索名称 / 编码 / 知识库客户端')
+const isNoChunking = computed(() => kbForm.chunkMethod === NO_CHUNKING_METHOD)
 
 const currentCards = computed<PlatformCard[]>(() => {
   if (props.activeTab === 'model') {
@@ -144,7 +157,7 @@ const currentCards = computed<PlatformCard[]>(() => {
     title: item.kbName || item.kbCode || '未命名知识库',
     code: item.kbCode || '-',
     tags: [
-      item.chunkMethod ? `分片：${item.chunkMethod}` : 'RAGFlow Dataset',
+      item.chunkMethod ? resolveKbChunkMethodLabel(item.chunkMethod) : 'RAGFlow Dataset',
       ...(item.tags || []).slice(0, 3),
       item.enabled === false ? '停用' : '启用',
     ],
@@ -174,12 +187,11 @@ function resetModelForm() {
 }
 
 function resetKbForm() {
-  kbForm.kbCode = ''
   kbForm.kbName = ''
   kbForm.description = ''
   kbForm.embeddingModel = ''
   kbForm.permission = 'team'
-  kbForm.chunkMethod = 'naive'
+  kbForm.chunkMethod = NO_CHUNKING_METHOD
   kbForm.parserConfigText = ''
   kbForm.parseType = ''
   kbForm.pipelineId = ''
@@ -202,6 +214,21 @@ function formatDateTime(value?: string) {
 
 function normalizeText(value?: string) {
   return value?.trim() || ''
+}
+
+function resolveKbChunkMethodLabel(chunkMethod?: string) {
+  if (chunkMethod === RAGFLOW_SINGLE_CHUNK_METHOD) {
+    return '无需切片'
+  }
+  return kbChunkMethodOptions.find(item => item.value === chunkMethod)?.label || `分片：${chunkMethod}`
+}
+
+function toFormChunkMethod(chunkMethod?: string) {
+  return chunkMethod === RAGFLOW_SINGLE_CHUNK_METHOD ? NO_CHUNKING_METHOD : chunkMethod || ''
+}
+
+function toRagflowChunkMethod(chunkMethod?: string) {
+  return chunkMethod === NO_CHUNKING_METHOD ? RAGFLOW_SINGLE_CHUNK_METHOD : normalizeText(chunkMethod) || undefined
 }
 
 function formatJsonText(value?: Record<string, unknown> | null) {
@@ -294,12 +321,11 @@ function openEditDialog(card: PlatformCard) {
     modelForm.extJsonText = formatJsonText(item.extJson)
   } else if (card.entityType === 'kb') {
     const item = card.raw as AiKbStoreItem
-    kbForm.kbCode = item.kbCode || ''
     kbForm.kbName = item.kbName || ''
     kbForm.description = item.description || ''
     kbForm.embeddingModel = item.embeddingModel || ''
     kbForm.permission = item.permission || 'team'
-    kbForm.chunkMethod = item.chunkMethod || ''
+    kbForm.chunkMethod = toFormChunkMethod(item.chunkMethod)
     kbForm.parserConfigText = formatJsonText(item.parserConfig)
     kbForm.parseType = item.parseType || ''
     kbForm.pipelineId = item.pipelineId || ''
@@ -367,12 +393,11 @@ function buildKbPayload(): AiKbStoreUpsertPayload {
     .filter(Boolean)
 
   return {
-    kbCode: normalizeText(kbForm.kbCode) || undefined,
     kbName: normalizeText(kbForm.kbName) || undefined,
     description: normalizeText(kbForm.description) || undefined,
     embeddingModel: normalizeText(kbForm.embeddingModel) || undefined,
     permission: normalizeText(kbForm.permission) || undefined,
-    chunkMethod: normalizeText(kbForm.chunkMethod) || undefined,
+    chunkMethod: toRagflowChunkMethod(kbForm.chunkMethod),
     parserConfig: parseJsonText(kbForm.parserConfigText, '分片高级配置'),
     parseType: normalizeText(kbForm.parseType) || undefined,
     pipelineId: normalizeText(kbForm.pipelineId) || undefined,
@@ -405,11 +430,14 @@ function validateCurrentForm() {
   }
 
   if (props.activeTab === 'kb') {
-    if (!normalizeText(kbForm.kbCode)) {
-      return '请输入知识库编码'
-    }
     if (!normalizeText(kbForm.kbName)) {
       return '请输入知识库名称'
+    }
+    if (!normalizeText(kbForm.embeddingModel)) {
+      return '请选择或输入 Embedding 模型'
+    }
+    if (!normalizeText(kbForm.chunkMethod) && !normalizeText(kbForm.pipelineId)) {
+      return '请选择分片方式'
     }
     if (normalizeText(kbForm.pipelineId) && (normalizeText(kbForm.chunkMethod) || normalizeText(kbForm.parserConfigText))) {
       return '自定义 Pipeline 不能与内置分片方式或分片高级配置同时使用'
@@ -698,6 +726,15 @@ watch(
 )
 
 watch(
+  () => kbForm.chunkMethod,
+  (chunkMethod) => {
+    if (chunkMethod === NO_CHUNKING_METHOD) {
+      kbForm.parserConfigText = ''
+    }
+  },
+)
+
+watch(
   () => props.activeTab,
   () => {
     dialogVisible.value = false
@@ -861,7 +898,7 @@ watch(
 
       <el-form v-else-if="props.activeTab === 'kb'" label-width="112px" class="ai-platform-dialog-form">
         <el-alert
-          title="RAGFlow 地址与 API Key 由系统参数统一维护；保存时会直接创建或更新远端 Dataset。"
+          title="RAGFlow 地址与 API Key 由系统参数统一维护；保存时会先创建或更新远端 Dataset，知识库编码以远端 Dataset ID 为准。"
           type="info"
           :closable="false"
           show-icon
@@ -873,17 +910,14 @@ watch(
             <span>认证由系统参数统一维护，保存知识库时会同步保留认证快照。</span>
           </div>
         </el-form-item>
-        <el-form-item label="知识库编码" required>
-          <el-input v-model="kbForm.kbCode" :disabled="dialogMode === 'edit'" placeholder="例如：faq" />
-        </el-form-item>
         <el-form-item label="知识库名称" required>
           <el-input v-model="kbForm.kbName" placeholder="请输入知识库名称" />
         </el-form-item>
         <el-form-item label="描述">
           <el-input v-model="kbForm.description" type="textarea" :rows="2" placeholder="说明该知识库适用的内容和检索范围" />
         </el-form-item>
-        <el-form-item label="Embedding 模型">
-          <el-input v-model="kbForm.embeddingModel" placeholder="留空使用 RAGFlow 默认模型" />
+        <el-form-item label="Embedding 模型" required>
+          <el-input v-model="kbForm.embeddingModel" placeholder="请输入 RAGFlow Embedding 模型" />
         </el-form-item>
         <el-form-item label="权限">
           <el-select v-model="kbForm.permission" class="ai-platform-dialog-form__select">
@@ -891,22 +925,24 @@ watch(
             <el-option label="私有 (private)" value="private" />
           </el-select>
         </el-form-item>
-        <el-form-item label="分片方式">
+        <el-form-item label="分片方式" required>
           <el-select v-model="kbForm.chunkMethod" class="ai-platform-dialog-form__select" :disabled="Boolean(kbForm.pipelineId)">
-            <el-option label="通用分片 (naive)" value="naive" />
-            <el-option label="问答分片 (qa)" value="qa" />
-            <el-option label="表格分片 (table)" value="table" />
-            <el-option label="手册分片 (manual)" value="manual" />
-            <el-option label="演示文稿 (presentation)" value="presentation" />
+            <el-option
+              v-for="option in kbChunkMethodOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            />
           </el-select>
         </el-form-item>
         <el-form-item label="分片高级配置">
           <el-input
-            v-model="kbForm.parserConfigText"
+            :model-value="isNoChunking ? noChunkingAdvancedConfigText : kbForm.parserConfigText"
             type="textarea"
             :rows="5"
-            :disabled="Boolean(kbForm.pipelineId)"
-            placeholder="{&#10;  &quot;chunk_token_num&quot;: 512,&#10;  &quot;delimiter&quot;: &quot;\n!?;。；！？&quot;&#10;}"
+            :disabled="Boolean(kbForm.pipelineId) || isNoChunking"
+            :placeholder="'{\n  &quot;chunk_token_num&quot;: 512,\n  &quot;delimiter&quot;: &quot;\\n!?;。；！？&quot;\n}'"
+            @update:model-value="kbForm.parserConfigText = $event"
           />
         </el-form-item>
         <el-form-item label="自定义 Pipeline">

@@ -113,7 +113,6 @@ export interface AiKbStoreItem {
 }
 
 export interface AiKbStoreUpsertPayload {
-  kbCode?: string
   kbName?: string
   description?: string
   embeddingModel?: string

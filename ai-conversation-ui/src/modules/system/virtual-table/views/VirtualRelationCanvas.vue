@@ -1,8 +1,9 @@
 <script setup lang="ts">
 import { Aim, Delete, Filter, Link, MagicStick, RefreshLeft, RefreshRight, Search } from '@element-plus/icons-vue'
+import { ConnectionLineType, MarkerType } from '@vue-flow/core'
 import type { Connection, Edge, EdgeMouseEvent, Node } from '@vue-flow/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, markRaw, reactive, ref, watch } from 'vue'
+import { computed, markRaw, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import AppFlowCanvas from '../../../../components/canvas/AppFlowCanvas/index.vue'
 import type {
   VirtualBindingItem,
@@ -12,8 +13,13 @@ import type {
   VirtualRelationItem,
   VirtualRelationPayload,
 } from '../../api/virtualData'
-import { calculateRelationLayout, type RelationLayoutMode } from '../service/relationLayout'
-import type { VirtualTableNodeData } from '../data/types'
+import {
+  calculateRelationLayout,
+  calculateResponsiveGridLayout,
+  type RelationLayoutMode,
+} from '../service/relationLayout'
+import { relationLineStyleOptions } from '../data/options'
+import type { RelationLineStyle, VirtualTableNodeData } from '../data/types'
 import VirtualTableNode from './VirtualTableNode.vue'
 
 const props = defineProps<{
@@ -34,8 +40,13 @@ const keyword = defineModel<string>('keyword', { default: '' })
 const selectedSources = defineModel<string[]>('selectedSources', { default: () => [] })
 const selectedEntityIds = defineModel<string[]>('selectedEntityIds', { default: () => [] })
 const layoutMode = defineModel<RelationLayoutMode>('layoutMode', { default: 'manual' })
+const lineStyle = defineModel<RelationLineStyle>('lineStyle', { default: 'curve' })
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
+const flowCanvas = ref<{
+  getNodeDimensions: () => Map<string, { width: number; height: number }>
+  getCanvasSize: () => { width: number; height: number }
+} | null>(null)
 const fitViewTrigger = ref(0)
 const layoutLoading = ref(false)
 const canUndoLayout = ref(false)
@@ -44,6 +55,24 @@ const editingRelationId = ref<VirtualDataId | null>(null)
 const nodeTypes = { virtualTable: markRaw(VirtualTableNode) }
 let undoLayoutPositions: Map<string, { x: number, y: number }> | null = null
 let layoutRunId = 0
+
+const edgeMarker = {
+  type: MarkerType.ArrowClosed,
+  color: 'var(--app-accent)',
+  width: 18,
+  height: 18,
+}
+
+const connectionLineType = computed(() => {
+  if (lineStyle.value === 'straight') return ConnectionLineType.Straight
+  if (lineStyle.value === 'polyline') return ConnectionLineType.SmoothStep
+  return ConnectionLineType.Bezier
+})
+
+const connectionLineOptions = computed(() => ({
+  markerEnd: edgeMarker,
+  style: { stroke: 'var(--app-accent)', strokeWidth: 2 },
+}))
 
 const relationForm = reactive<VirtualRelationPayload>({
   relationCode: '',
@@ -147,10 +176,54 @@ function defaultRelationCode(sourceEntityId: VirtualDataId, sourceFieldId: Virtu
 
 function estimatedNodeHeight(node: Node) {
   const data = node.data as VirtualTableNodeData | undefined
-  const fieldHeight = Math.max(data?.fields.length || 0, 1) * 42
-  const sourceRows = data?.sourceLabels.length ? Math.ceil(data.sourceLabels.length / 2) : 0
-  const sourceHeight = 16 + sourceRows * 19
-  return 58 + sourceHeight + fieldHeight
+  const fieldHeight = data?.fields.length ? data.fields.length * 42 : 52
+  const sourceCount = data?.sourceLabels.length || 0
+  const sourceHeight = sourceCount
+    ? 17 + sourceCount * 21 + Math.max(0, sourceCount - 1) * 6
+    : 17
+  return 57 + sourceHeight + fieldHeight + 2
+}
+
+function canvasSize() {
+  return flowCanvas.value?.getCanvasSize() || { width: 0, height: 0 }
+}
+
+function layoutNodes(measured = new Map<string, { width: number; height: number }>()) {
+  return nodes.value.map((node) => {
+    const dimensions = measured.get(String(node.id))
+    return {
+      id: String(node.id),
+      width: dimensions?.width || 292,
+      height: dimensions?.height || estimatedNodeHeight(node),
+    }
+  })
+}
+
+function nextAnimationFrame() {
+  return new Promise<void>(resolve => window.requestAnimationFrame(() => resolve()))
+}
+
+async function measuredNodeDimensions() {
+  await nextTick()
+  let dimensions = new Map<string, { width: number; height: number }>()
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    dimensions = flowCanvas.value?.getNodeDimensions() || dimensions
+    const complete = nodes.value.every((node) => {
+      const size = dimensions.get(String(node.id))
+      return Boolean(size?.width && size?.height)
+    })
+    if (complete) break
+    await nextAnimationFrame()
+  }
+  return dimensions
+}
+
+function applyResponsiveGridLayout(measured = new Map<string, { width: number; height: number }>()) {
+  const positions = calculateResponsiveGridLayout(layoutNodes(measured), canvasSize())
+  nodes.value = nodes.value.map(node => ({
+    ...node,
+    position: positions.get(String(node.id)) || node.position,
+  }))
 }
 
 function snapshotNodePositions() {
@@ -165,17 +238,16 @@ async function applyRelationLayout() {
   const currentRunId = ++layoutRunId
   layoutLoading.value = true
   try {
+    const measured = await measuredNodeDimensions()
+    if (currentRunId !== layoutRunId) return
     const positions = await calculateRelationLayout(
-      nodes.value.map(node => ({
-        id: String(node.id),
-        width: 292,
-        height: estimatedNodeHeight(node),
-      })),
+      layoutNodes(measured),
       edges.value.map(edge => ({
         id: String(edge.id),
         source: String(edge.source),
         target: String(edge.target),
       })),
+      canvasSize(),
     )
     if (currentRunId !== layoutRunId) return
     nodes.value = nodes.value.map((node) => ({
@@ -225,15 +297,12 @@ function rebuildCanvas() {
   undoLayoutPositions = null
   canUndoLayout.value = false
   const previousPositions = new Map(nodes.value.map(node => [String(node.id), node.position]))
-  nodes.value = filteredEntities.value.map((entity, index) => {
+  const nextNodes = filteredEntities.value.map((entity) => {
     const entityId = String(entity.id)
     return {
       id: entityId,
       type: 'virtualTable',
-      position: previousPositions.get(entityId) || {
-        x: 72 + (index % 3) * 356,
-        y: 64 + Math.floor(index / 3) * 520,
-      },
+      position: previousPositions.get(entityId) || { x: 0, y: 0 },
       data: {
         entity,
         fields: fieldsByEntity.value.get(entityId) || [],
@@ -244,6 +313,12 @@ function rebuildCanvas() {
       },
     }
   })
+  nodes.value = nextNodes
+  const initialPositions = calculateResponsiveGridLayout(layoutNodes(), canvasSize())
+  nodes.value = nextNodes.map(node => ({
+    ...node,
+    position: previousPositions.get(String(node.id)) || initialPositions.get(String(node.id)) || node.position,
+  }))
   edges.value = props.relations
     .filter(relation => relation.enabled !== false)
     .filter(relation => visibleEntityIds.value.has(String(relation.sourceEntityId)) && visibleEntityIds.value.has(String(relation.targetEntityId)))
@@ -254,12 +329,14 @@ function rebuildCanvas() {
       sourceHandle: `out:${relation.sourceFieldId}`,
       targetHandle: `in:${relation.targetFieldId}`,
       label: relation.relationName || relation.relationCode,
-      type: 'smoothstep',
-      pathOptions: { borderRadius: 14, offset: 28 },
+      ...relationLinePresentation(lineStyle.value),
+      markerEnd: edgeMarker,
       animated: false,
       selectable: true,
+      focusable: true,
       style: { stroke: 'var(--app-accent)', strokeWidth: 2 },
       labelStyle: { fill: 'var(--app-text)', fontSize: 11 },
+      ariaLabel: `${relation.relationName || relation.relationCode || '字段关联'}，从来源字段指向目标字段`,
       data: { relation },
     }))
   if (layoutMode.value === 'relation') {
@@ -268,6 +345,23 @@ function rebuildCanvas() {
   else {
     fitViewTrigger.value += 1
   }
+}
+
+function relationLinePresentation(style: RelationLineStyle) {
+  if (style === 'straight') {
+    return { type: 'straight' as const }
+  }
+  if (style === 'polyline') {
+    return { type: 'smoothstep' as const, pathOptions: { borderRadius: 0, offset: 28 } }
+  }
+  return { type: 'default' as const, pathOptions: { curvature: 0.25 } }
+}
+
+function updateRelationLineStyle() {
+  edges.value = edges.value.map(edge => ({
+    ...edge,
+    ...relationLinePresentation(lineStyle.value),
+  }))
 }
 
 function parseHandle(handle: string | null | undefined) {
@@ -386,6 +480,15 @@ watch(
 watch(layoutMode, (mode) => {
   if (mode === 'relation') void applyRelationLayout()
 })
+
+watch(lineStyle, updateRelationLineStyle)
+
+onMounted(async () => {
+  if (layoutMode.value !== 'manual' || !nodes.value.length) return
+  const measured = await measuredNodeDimensions()
+  applyResponsiveGridLayout(measured)
+  fitViewTrigger.value += 1
+})
 </script>
 
 <template>
@@ -405,6 +508,12 @@ watch(layoutMode, (mode) => {
       </div>
       <div class="relation-canvas-panel__actions">
         <span>显示 {{ filteredEntities.length }} 张表<span v-if="hiddenCount">，隐藏 {{ hiddenCount }} 张</span></span>
+        <label class="relation-canvas-panel__line-style">
+          <span>连线</span>
+          <el-select v-model="lineStyle" aria-label="连线样式">
+            <el-option v-for="option in relationLineStyleOptions" :key="option.value" :label="option.label" :value="option.value" />
+          </el-select>
+        </label>
         <el-button type="primary" plain :icon="MagicStick" :loading="layoutLoading" @click="beautifyCanvas">智能美化</el-button>
         <el-button :icon="RefreshLeft" :disabled="!canUndoLayout || layoutLoading" @click="undoCanvasLayout">撤销布局</el-button>
         <el-button :icon="Aim" @click="fitViewTrigger += 1">适应画布</el-button>
@@ -419,6 +528,7 @@ watch(layoutMode, (mode) => {
 
     <div v-loading="loading" class="relation-canvas-panel__canvas">
       <AppFlowCanvas
+        ref="flowCanvas"
         v-model:nodes="nodes"
         v-model:edges="edges"
         :node-types="nodeTypes"
@@ -426,7 +536,10 @@ watch(layoutMode, (mode) => {
         :show-controls="true"
         :zoom-on-scroll="true"
         :zoom-on-pinch="true"
+        :connection-line-type="connectionLineType"
+        :connection-line-options="connectionLineOptions"
         :fit-view-trigger="fitViewTrigger"
+        :fit-view-padding="0.06"
         :canvas-extent="[[-2000, -1200], [16000, 16000]]"
         :node-extent="[[-1600, -1000], [15000, 15000]]"
         @connect="openCreateRelation"
@@ -512,6 +625,11 @@ watch(layoutMode, (mode) => {
   align-items: center;
 }
 
+.relation-canvas-panel__actions {
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
 .relation-canvas-panel__filters :deep(.el-input) {
   width: 220px;
 }
@@ -523,6 +641,17 @@ watch(layoutMode, (mode) => {
 .relation-canvas-panel__actions span {
   color: var(--app-text-muted);
   font-size: var(--app-font-size-caption);
+}
+
+.relation-canvas-panel__line-style {
+  display: flex;
+  gap: var(--app-space-2);
+  align-items: center;
+  white-space: nowrap;
+}
+
+.relation-canvas-panel__line-style :deep(.el-select) {
+  width: 92px;
 }
 
 .relation-canvas-panel__hint {

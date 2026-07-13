@@ -224,6 +224,15 @@ export interface VirtualUnpublishResult {
   deletedDocumentCount?: number
 }
 
+export interface VirtualDescriptionGeneratePayload {
+  entityId: VirtualDataId
+  currentDescription?: string
+}
+
+export interface VirtualDescriptionGenerateResult {
+  description?: string
+}
+
 export interface TransformerDescriptor {
   code?: string
   version?: number
@@ -265,6 +274,13 @@ export function searchVirtualEntities(payload: SearchPayload & { entityCode?: st
 
 export function updateVirtualEntity(id: VirtualDataId, payload: VirtualEntityPayload) {
   return update<VirtualEntityItem>('entities', id, payload)
+}
+
+export function generateVirtualDescription(payload: VirtualDescriptionGeneratePayload) {
+  return request<VirtualDescriptionGenerateResult>(`${VIRTUAL_DATA_API_PREFIX}/entities/description/generate`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
 }
 
 export function deleteVirtualEntity(id: VirtualDataId) {

@@ -27,7 +27,7 @@ import java.util.Map;
 public class AiKbStoreEntity extends AuditableEntity {
 
     /**
-     * 本地知识库编码。
+     * RAGFlow Dataset ID，同时作为本地知识库编码。
      *
      * @see #providerKbId 与 kbCode 相同
      */
@@ -37,7 +37,7 @@ public class AiKbStoreEntity extends AuditableEntity {
             length = 64,
             nullable = false,
             unique = true,
-            comment = "本地知识库编码"
+            comment = "RAGFlow Dataset ID（本地知识库编码）"
     )
     @TableField("kb_code")
     private String kbCode;

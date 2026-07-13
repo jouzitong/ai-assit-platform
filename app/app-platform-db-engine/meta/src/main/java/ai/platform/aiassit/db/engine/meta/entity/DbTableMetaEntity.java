@@ -23,7 +23,9 @@ import java.time.LocalDateTime;
 @TableName("db_table_meta")
 public class DbTableMetaEntity extends AuditableEntity {
 
-    /** 所属数据源标识。 */
+    /**
+     * 所属数据源标识。
+     */
     @JdbcColumn(
             name = "source_key",
             dataType = "VARCHAR(64)",
@@ -34,7 +36,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("source_key")
     private String sourceKey;
 
-    /** 表名。 */
+    /**
+     * 表名。
+     */
     @JdbcColumn(
             name = "table_name",
             dataType = "VARCHAR(128)",
@@ -45,7 +49,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("table_name")
     private String tableName;
 
-    /** 表中文说明。 */
+    /**
+     * 表中文说明。
+     */
     @JdbcColumn(
             name = "table_comment",
             dataType = "VARCHAR(512)",
@@ -56,7 +62,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("table_comment")
     private String tableComment;
 
-    /** 表类型，例如 TABLE、VIEW、API_OBJECT。 */
+    /**
+     * 表类型，例如 TABLE、VIEW、API_OBJECT。
+     */
     @JdbcColumn(
             name = "table_type",
             dataType = "VARCHAR(32)",
@@ -67,7 +75,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("table_type")
     private String tableType;
 
-    /** 分层类型，例如 ODS、DWD、DWS、ADS。 */
+    /**
+     * 分层类型，例如 ODS、DWD、DWS、ADS。
+     */
     @JdbcColumn(
             name = "layer_type",
             dataType = "VARCHAR(32)",
@@ -78,7 +88,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("layer_type")
     private String layerType;
 
-    /** 数据量快照。 */
+    /**
+     * 数据量快照。
+     */
     @JdbcColumn(
             name = "row_count",
             dataType = "BIGINT",
@@ -88,7 +100,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("row_count")
     private Long rowCount;
 
-    /** 字段数快照。 */
+    /**
+     * 字段数快照。
+     */
     @JdbcColumn(
             name = "column_count",
             dataType = "INT",
@@ -98,7 +112,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("column_count")
     private Integer columnCount;
 
-    /** 分区键。 */
+    /**
+     * 分区键。
+     */
     @JdbcColumn(
             name = "partition_key",
             dataType = "VARCHAR(128)",
@@ -109,7 +125,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("partition_key")
     private String partitionKey;
 
-    /** 数据新鲜度，单位秒。 */
+    /**
+     * 数据新鲜度，单位秒。
+     */
     @JdbcColumn(
             name = "freshness_seconds",
             dataType = "INT",
@@ -119,7 +137,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("freshness_seconds")
     private Integer freshnessSeconds;
 
-    /** 状态。 */
+    /**
+     * 状态。
+     */
     @JdbcColumn(
             name = "status",
             dataType = "VARCHAR(32)",
@@ -131,7 +151,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("status")
     private String status;
 
-    /** 是否启用。 */
+    /**
+     * 是否启用。
+     */
     @JdbcColumn(
             name = "enabled",
             dataType = "BOOLEAN",
@@ -142,7 +164,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("enabled")
     private Boolean enabled;
 
-    /** 最近扫描时间。 */
+    /**
+     * 最近扫描时间。
+     */
     @JdbcColumn(
             name = "last_scan_at",
             dataType = "DATETIME",
@@ -152,7 +176,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("last_scan_at")
     private LocalDateTime lastScanAt;
 
-    /** 最近同步时间。 */
+    /**
+     * 最近同步时间。
+     */
     @JdbcColumn(
             name = "last_sync_at",
             dataType = "DATETIME",
@@ -162,7 +188,9 @@ public class DbTableMetaEntity extends AuditableEntity {
     @TableField("last_sync_at")
     private LocalDateTime lastSyncAt;
 
-    /** 备注。 */
+    /**
+     * 备注。
+     */
     @JdbcColumn(
             name = "remark",
             dataType = "VARCHAR(512)",

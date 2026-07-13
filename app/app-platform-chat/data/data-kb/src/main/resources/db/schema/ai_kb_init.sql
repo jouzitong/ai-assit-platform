@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS ai_kb_store (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    kb_code VARCHAR(64) NOT NULL COMMENT '本地知识库编码',
+    kb_code VARCHAR(64) NOT NULL COMMENT 'RAGFlow Dataset ID（本地知识库编码）',
     kb_name VARCHAR(128) NOT NULL COMMENT '知识库名称',
     provider_kb_id VARCHAR(128) DEFAULT NULL COMMENT 'AI 侧真实知识库 ID',
     description VARCHAR(512) DEFAULT NULL COMMENT 'RAGFlow Dataset 描述',

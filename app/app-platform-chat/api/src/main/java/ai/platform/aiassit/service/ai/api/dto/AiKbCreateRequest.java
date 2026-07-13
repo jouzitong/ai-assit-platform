@@ -10,11 +10,22 @@ import java.util.Map;
 @Data
 public class AiKbCreateRequest implements Serializable {
 
-    /** 本地知识库编码。 */
+    /**
+     * 历史兼容字段；知识库编码由远端 Dataset 创建成功后回填，不再使用请求值。
+     */
     private String kbCode;
 
     /** 知识库名称。 */
     private String kbName;
+
+    /** 向量化模型标识。 */
+    private String embeddingModel;
+
+    /** RAGFlow 分片方式；未传时按无需切片处理。 */
+    private String chunkMethod = "one";
+
+    /** RAGFlow 分片配置。 */
+    private Map<String, Object> parserConfig;
 
     /** 知识库客户端类型。 */
     private AiKnowledgeClientType clientType;

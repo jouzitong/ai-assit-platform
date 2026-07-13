@@ -5,6 +5,8 @@ import type {
   VirtualRelationItem,
 } from '../../api/virtualData'
 
+export type RelationLineStyle = 'curve' | 'polyline' | 'straight'
+
 export interface VirtualEntitySummary extends VirtualEntityItem {
   sources: string[]
   physicalTables: string[]

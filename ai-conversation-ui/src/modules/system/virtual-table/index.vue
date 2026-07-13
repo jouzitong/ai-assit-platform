@@ -18,6 +18,7 @@ import {
   listFieldTransformers,
   checkVirtualUnpublish,
   getVirtualKnowledgeStatus,
+  generateVirtualDescription,
   previewVirtualKnowledge,
   publishVirtualCatalogBatch,
   syncVirtualKnowledge,
@@ -41,7 +42,7 @@ import {
   type VirtualKnowledgeStatusItem,
   type VirtualRelationPayload,
 } from '../api/virtualData'
-import type { VirtualEntitySummary } from './data/types'
+import type { RelationLineStyle, VirtualEntitySummary } from './data/types'
 import type { RelationLayoutMode } from './service/relationLayout'
 import {
   initializeVirtualTables,
@@ -77,6 +78,7 @@ const routeQueryKeys = [
   'relationSources',
   'relationEntities',
   'layout',
+  'lineStyle',
 ] as const
 
 function queryText(value: unknown) {
@@ -112,6 +114,11 @@ function queryRelationLayoutMode(value: unknown): RelationLayoutMode {
   return queryText(value) === 'relation' ? 'relation' : 'manual'
 }
 
+function queryRelationLineStyle(value: unknown): RelationLineStyle {
+  const style = queryText(value)
+  return style === 'polyline' || style === 'straight' ? style : 'curve'
+}
+
 const activeView = ref<ActiveView>(queryView(route.query.view))
 const catalogKeyword = ref(queryText(route.query.catalogKeyword))
 const catalogSource = ref(queryText(route.query.catalogSource))
@@ -123,6 +130,7 @@ const relationKeyword = ref(queryText(route.query.relationKeyword))
 const relationSources = ref<string[]>(queryList(route.query.relationSources))
 const relationEntities = ref<string[]>(queryList(route.query.relationEntities))
 const relationLayoutMode = ref<RelationLayoutMode>(queryRelationLayoutMode(route.query.layout))
+const relationLineStyle = ref<RelationLineStyle>(queryRelationLineStyle(route.query.lineStyle))
 const overview = ref<VirtualCatalogOverview>(emptyOverview())
 const dataSources = ref<DbDataSourceItem[]>([])
 const physicalTables = ref<DbTableMetaItem[]>([])
@@ -147,6 +155,7 @@ const knowledgePreviewContent = ref('')
 const knowledgeSyncVisible = ref(false)
 const knowledgeSyncSubmitting = ref(false)
 const knowledgeSyncEntityIds = ref<VirtualDataId[]>([])
+const descriptionGenerating = ref(false)
 
 const knowledgeBaseOptions = computed(() => knowledgeBases.value
   .filter(item => item.enabled !== false && item.kbCode)
@@ -179,6 +188,7 @@ function applyRouteState() {
   relationSources.value = queryList(route.query.relationSources)
   relationEntities.value = queryList(route.query.relationEntities)
   relationLayoutMode.value = queryRelationLayoutMode(route.query.layout)
+  relationLineStyle.value = queryRelationLineStyle(route.query.lineStyle)
 }
 
 function buildRouteQuery() {
@@ -195,6 +205,7 @@ function buildRouteQuery() {
   if (relationSources.value.length) query.relationSources = [...relationSources.value]
   if (relationEntities.value.length) query.relationEntities = [...relationEntities.value]
   if (relationLayoutMode.value === 'relation') query.layout = 'relation'
+  if (relationLineStyle.value !== 'curve') query.lineStyle = relationLineStyle.value
   return query
 }
 
@@ -364,6 +375,26 @@ async function runMutation(action: () => Promise<unknown>, successMessage: strin
 
 function saveEntity(id: VirtualDataId, payload: VirtualEntityPayload) {
   return runMutation(() => updateVirtualEntity(id, payload), '虚拟表信息已保存')
+}
+
+async function generateDescription(
+  id: VirtualDataId,
+  currentDescription: string,
+  apply: (description: string) => void,
+) {
+  descriptionGenerating.value = true
+  try {
+    const result = await generateVirtualDescription({ entityId: id, currentDescription })
+    if (!result.description?.trim()) throw new Error('AI 未返回有效说明')
+    apply(result.description.trim())
+    ElMessage.success('AI 说明已生成，请确认后保存')
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'AI 说明生成失败')
+  }
+  finally {
+    descriptionGenerating.value = false
+  }
 }
 
 function saveField(id: VirtualDataId | null, payload: VirtualFieldPayload) {
@@ -583,7 +614,7 @@ function removeRelation(id: VirtualDataId) {
 
 watch(() => route.query, applyRouteState, { deep: true })
 watch(
-  [catalogKeyword, catalogSource, catalogStatus, catalogPage, catalogPageSize, knowledgeBaseCode, relationKeyword, relationSources, relationEntities, relationLayoutMode],
+  [catalogKeyword, catalogSource, catalogStatus, catalogPage, catalogPageSize, knowledgeBaseCode, relationKeyword, relationSources, relationEntities, relationLayoutMode, relationLineStyle],
   () => syncRouteState(),
   { deep: true },
 )
@@ -643,6 +674,7 @@ onMounted(() => {
         v-model:selected-sources="relationSources"
         v-model:selected-entity-ids="relationEntities"
         v-model:layout-mode="relationLayoutMode"
+        v-model:line-style="relationLineStyle"
         :entities="overview.entities"
         :fields="overview.fields"
         :bindings="overview.bindings"
@@ -673,6 +705,7 @@ onMounted(() => {
       :workspace="workspace"
       :transformers="transformers"
       :loading="workspaceLoading"
+      :description-generating="descriptionGenerating"
       @refresh="refreshWorkspace"
       @save-entity="saveEntity"
       @save-field="saveField"
@@ -682,6 +715,7 @@ onMounted(() => {
       @save-rule="saveRule"
       @delete-rule="removeRule"
       @validate-rule="validateRule"
+      @generate-description="generateDescription"
     />
 
     <el-dialog v-model="knowledgeSyncVisible" title="同步虚拟表知识库" width="560px" append-to-body destroy-on-close>

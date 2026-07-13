@@ -40,6 +40,8 @@ public interface AiChatBizCodeConstant {
     Integer REQUIRED_KB_AUTH = 53_01_0025;
     Integer REQUIRED_AI_CLIENT_CODE = 53_01_0026;
     Integer REQUIRED_AI_CLIENT_NAME = 53_01_0027;
+    Integer REQUIRED_EMBEDDING_MODEL = 53_01_0028;
+    Integer REQUIRED_CHUNK_METHOD = 53_01_0029;
 
     // 53_02_xxxx 参数取值非法
     Integer INVALID_WORKFLOW_OUTPUT = 53_02_0001;

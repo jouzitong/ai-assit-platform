@@ -54,7 +54,7 @@
         <module>app/app-gateway</module>
         <module>app/app-platform-chat</module>
         <module>app/app-platform-db-engine</module>
-        <module>app/app-platform-data-virtualization</module>
+        <module>commons-lib</module>
         <module>app/app-platform-file</module>
         <module>app/app-platform-render</module>
         <module>app/app-platform-user</module>

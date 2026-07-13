@@ -1,12 +1,20 @@
 <script setup lang="ts">
-import { computed, nextTick, watch } from 'vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useVueFlow, VueFlow } from '@vue-flow/core'
 import { Background } from '@vue-flow/background'
 import { Controls } from '@vue-flow/controls'
 import '@vue-flow/core/dist/style.css'
 import '@vue-flow/core/dist/theme-default.css'
 import '@vue-flow/controls/dist/style.css'
-import type { Connection, CoordinateExtent, Edge, EdgeMouseEvent, Node } from '@vue-flow/core'
+import type {
+  Connection,
+  ConnectionLineOptions,
+  ConnectionLineType,
+  CoordinateExtent,
+  Edge,
+  EdgeMouseEvent,
+  Node,
+} from '@vue-flow/core'
 
 type SnapGrid = [number, number]
 
@@ -25,6 +33,8 @@ const props = withDefaults(defineProps<{
   zoomOnDoubleClick?: boolean
   minZoom?: number
   maxZoom?: number
+  connectionLineType?: ConnectionLineType | null
+  connectionLineOptions?: ConnectionLineOptions
   fitViewOnInit?: boolean
   fitViewTrigger?: string | number | boolean
   fitViewPadding?: number
@@ -46,6 +56,8 @@ const props = withDefaults(defineProps<{
   zoomOnDoubleClick: false,
   minZoom: 0.35,
   maxZoom: 1.4,
+  connectionLineType: null,
+  connectionLineOptions: () => ({}),
   fitViewOnInit: true,
   fitViewTrigger: undefined,
   fitViewPadding: 0.12,
@@ -56,11 +68,12 @@ const props = withDefaults(defineProps<{
 
 const nodes = defineModel<Node[]>('nodes', { default: () => [] })
 const edges = defineModel<Edge[]>('edges', { default: () => [] })
+const canvasElement = ref<HTMLElement | null>(null)
 const emit = defineEmits<{
   connect: [connection: Connection]
   edgeClick: [event: EdgeMouseEvent]
 }>()
-const { fitView } = useVueFlow()
+const { fitView, getNodes } = useVueFlow()
 
 const resolvedNodeExtent = computed(() => props.nodeExtent || props.canvasExtent)
 
@@ -76,10 +89,23 @@ watch(
     })
   },
 )
+
+function getNodeDimensions() {
+  return new Map(getNodes.value.map(node => [String(node.id), { ...node.dimensions }]))
+}
+
+function getCanvasSize() {
+  return {
+    width: canvasElement.value?.clientWidth || 0,
+    height: canvasElement.value?.clientHeight || 0,
+  }
+}
+
+defineExpose({ getNodeDimensions, getCanvasSize })
 </script>
 
 <template>
-  <div class="app-flow-canvas">
+  <div ref="canvasElement" class="app-flow-canvas">
     <VueFlow
       v-model:nodes="nodes"
       v-model:edges="edges"
@@ -98,6 +124,8 @@ watch(
       :zoom-on-double-click="zoomOnDoubleClick"
       :min-zoom="minZoom"
       :max-zoom="maxZoom"
+      :connection-line-type="connectionLineType"
+      :connection-line-options="connectionLineOptions"
       :fit-view-on-init="fitViewOnInit"
       @connect="emit('connect', $event)"
       @edge-click="emit('edgeClick', $event)"

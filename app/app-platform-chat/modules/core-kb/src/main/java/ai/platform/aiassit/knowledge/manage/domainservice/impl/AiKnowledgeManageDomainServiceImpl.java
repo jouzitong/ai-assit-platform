@@ -133,22 +133,19 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     @Transactional(rollbackFor = Exception.class)
     public AiKbInfoDTO createKnowledgeBase(AiKbCreateRequest request) {
         validateCreateRequest(request);
-        String kbCode = request.getKbCode().trim();
-        AiKbStoreDTO existing = storeService.getByKbCode(kbCode);
-        if (existing != null) {
-            throw BizException.of(AiKbBizCodeConstant.KB_STORE_EXISTS, kbCode);
-        }
-
         Map<String, Object> ext = normalizeExt(request.getExt());
 
         AiKbStoreDTO store = new AiKbStoreDTO();
-        store.setKbCode(kbCode);
         store.setKbName(request.getKbName().trim());
+        store.setEmbeddingModel(request.getEmbeddingModel().trim());
+        store.setChunkMethod(trimToNull(request.getChunkMethod()));
+        store.setParserConfig(request.getParserConfig());
         store.setEnabled(request.getEnabled() == null ? Boolean.TRUE : request.getEnabled());
         store.setTags(normalizeTags(request.getTags()));
         store.setExtJson(ext);
         AiKbStoreVO saved = storeManageDomainService.add(store);
         store.setId(saved.getId());
+        store.setKbCode(saved.getKbCode());
         store.setProviderKbId(saved.getProviderKbId());
         log.info("ai kb store created, kbCode={}, kbName={}, enabled={}",
                 store.getKbCode(), store.getKbName(), store.getEnabled());
@@ -974,11 +971,11 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (request == null) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
         }
-        if (!StringUtils.hasText(request.getKbCode())) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_ID);
-        }
         if (!StringUtils.hasText(request.getKbName())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_NAME);
+        }
+        if (!StringUtils.hasText(request.getEmbeddingModel())) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_EMBEDDING_MODEL);
         }
     }
 
