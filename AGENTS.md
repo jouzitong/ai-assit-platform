@@ -155,7 +155,8 @@ Do not commit `.codegraph/`.
 - 单独验证网关模块：
   - `mvn -pl app/app-gateway -am clean compile -DskipTests`
 - 前端构建：
-  - `cd ai-assit-ui && npm run build`
+  - `cd ai-conversation-ui && npm run build`
+- 前端页面修改默认只执行编译/构建检查，确保修改能够编译且无报错；不主动进行浏览器交互或页面功能、视觉验证，页面验收由开发人员完成。只有在开发人员明确要求时，才执行浏览器验证。
 
 ## 7. 变更原则
 
