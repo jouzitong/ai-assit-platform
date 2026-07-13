@@ -18,6 +18,11 @@
     <dependencies>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-data-virtualization-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-db-engine-core</artifactId>
         </dependency>
         <dependency>

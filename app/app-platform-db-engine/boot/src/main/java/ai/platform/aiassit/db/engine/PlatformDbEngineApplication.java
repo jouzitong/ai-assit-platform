@@ -5,11 +5,15 @@ import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.cloud.openfeign.EnableFeignClients;
+import org.mybatis.spring.annotation.MapperScan;
 
 import java.util.Map;
 
-@SpringBootApplication
-//@MapperScan("com.zhouzhitong.test.mybatis.mapper")
+@MapperScan({
+        "ai.platform.aiassit.db.engine.meta.mapper",
+        "ai.platform.aiassit.data.virtualization.data.mapper"
+})
+@SpringBootApplication(scanBasePackages = "ai.platform.aiassit")
 @EnableFeignClients(basePackageClasses = {
         AiKnowledgeApi.class,
         SystemSettingInternalApi.class,

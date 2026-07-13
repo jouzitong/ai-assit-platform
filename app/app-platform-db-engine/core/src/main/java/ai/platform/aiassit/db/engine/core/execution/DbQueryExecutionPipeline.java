@@ -37,7 +37,16 @@ public class DbQueryExecutionPipeline {
     }
 
     public QueryResult execute(DbQueryPlan plan) {
-        DbExecutionContext context = contextFactory.create(plan.getModel(), plan.getOperationType());
+        return execute(null, plan);
+    }
+
+    /**
+     * 执行已经由上层路由到明确数据源的物理查询计划。
+     */
+    public QueryResult execute(String sourceKey, DbQueryPlan plan) {
+        DbExecutionContext context = sourceKey == null
+                ? contextFactory.create(plan.getModel(), plan.getOperationType())
+                : contextFactory.create(sourceKey, plan.getModel(), plan.getOperationType());
         try {
             for (DbExecutionPolicy policy : policies) {
                 policy.apply(context, plan);

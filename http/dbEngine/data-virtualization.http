@@ -1,0 +1,129 @@
+@apiPrefix = /dbEngine
+@contentType = application/json;charset=UTF-8
+@acceptJson = application/json
+@physicalTableMetaId = 1
+@entityId = 1
+@entityCode = customerOrder
+@catalogVersion = 1
+
+### 1. 从真实表创建虚拟实体草稿
+POST {{host}}{{apiPrefix}}/api/v1/virtual-data/entities/from-physical-table
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "physicalTableMetaId": {{physicalTableMetaId}},
+  "entityCode": "{{entityCode}}",
+  "entityName": "客户订单"
+}
+
+### 2. 校验目录
+POST {{host}}{{apiPrefix}}/api/v1/virtual-data/validate?entityId={{entityId}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 3. 发布目录
+POST {{host}}{{apiPrefix}}/api/v1/virtual-data/publish?entityId={{entityId}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 4. 查看可用字段变换器
+GET {{host}}{{apiPrefix}}/api/v1/virtual-data/field-transformers
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+### 5. Explain：枚举按稳定 code 传输，LIST=0、PREDICATE=3、EQ=0、STRONG=0
+POST {{host}}{{apiPrefix}}/internal/v1/virtual-data/explain
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "entityCode": "{{entityCode}}",
+  "catalogVersion": {{catalogVersion}},
+  "queryType": 0,
+  "fields": ["id"],
+  "filter": {
+    "type": 3,
+    "field": "id",
+    "operator": 0,
+    "value": 1
+  },
+  "consistency": 0,
+  "hints": {
+    "maxPhysicalTasks": 16,
+    "maxScanRows": 10000,
+    "timeoutMs": 30000,
+    "allowLocalTransform": true
+  }
+}
+
+### 6. 查询虚拟实体
+POST {{host}}{{apiPrefix}}/internal/v1/virtual-data/query
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "entityCode": "{{entityCode}}",
+  "catalogVersion": {{catalogVersion}},
+  "queryType": 0,
+  "fields": ["id"],
+  "page": {
+    "number": 1,
+    "size": 20
+  },
+  "consistency": 0
+}
+
+### 7. 跨源关联查询：先在 vd_relation 配置 customer 关系
+POST {{host}}{{apiPrefix}}/internal/v1/virtual-data/query
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "entityCode": "{{entityCode}}",
+  "catalogVersion": {{catalogVersion}},
+  "queryType": 0,
+  "fields": ["id", "customer.name"],
+  "relationCodes": ["customer"],
+  "page": {
+    "number": 1,
+    "size": 20
+  },
+  "consistency": 0
+}
+
+### 8. 新增：commandType INSERT=0，transactionMode LOCAL=0
+POST {{host}}{{apiPrefix}}/internal/v1/virtual-data/command
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "entityCode": "{{entityCode}}",
+  "catalogVersion": {{catalogVersion}},
+  "commandType": 0,
+  "records": [
+    {
+      "id": 10001
+    }
+  ],
+  "transactionMode": 0,
+  "idempotencyKey": "acceptance-insert-10001"
+}
+
+### 9. 按目标实体反查虚拟关系
+POST {{host}}{{apiPrefix}}/api/v1/virtual-data/relations/_search
+Content-Type: {{contentType}}
+Accept: {{acceptJson}}
+Authorization: Bearer {{token}}
+
+{
+  "page": 1,
+  "size": 20,
+  "targetEntityId": {{entityId}},
+  "enabled": true
+}

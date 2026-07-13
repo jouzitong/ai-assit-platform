@@ -25,9 +25,15 @@ public class DbExecutionContextFactory {
     }
 
     public DbExecutionContext create(String model, DbOperationType operationType) {
+        return create(sourceKeyResolver.resolve(null), model, operationType);
+    }
+
+    /**
+     * 为已经完成数据源路由的上层计划创建执行上下文。
+     */
+    public DbExecutionContext create(String sourceKey, String model, DbOperationType operationType) {
         UserContext userContext = SystemContext.getUserContext();
         AuthorizationSnapshot authorization = userContext == null ? null : userContext.authorization();
-        String sourceKey = sourceKeyResolver.resolve(null);
         return DbExecutionContext.builder()
                 .requestId(UUID.randomUUID().toString())
                 .startedAt(Instant.now())
