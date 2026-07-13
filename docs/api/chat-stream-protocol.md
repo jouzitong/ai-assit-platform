@@ -29,6 +29,8 @@
 8. 后端实际抽象为 `ConversationRunManager`、`ConversationEventPublisher`、`ConversationCancellation` 和传输适配器，不再由业务上下文持有 `SseEmitter`。
 9. `PLAN`、`NODE` 当前仍属于逐步收敛的推荐 `progressType`，并非所有现有进度事件都会携带。
 10. AI Agent（Python）活动使用 `progressType=ACTIVITY`，实时投影为 `thinking.updated`，同时写入 `ai_chat_activity` 作为可查询的活动事件日志。
+11. 明确区分业务终态事件与传输层 EOF：只有协议终态事件可以结束当前轮次，连接自然结束、超时或网络断开均不能推断为成功。
+12. `chat-event.v2` 的重连同时支持运行时缓存重放和持久化快照回放；实时事件按 `runId + eventId` 去重，持久化快照按回放标识和业务对象幂等覆盖。
 
 ### 1.2 前端 `chat-event.v2` 适配层
 
@@ -51,6 +53,9 @@
 5. 单个节点完成通过 `progress` 或 `answer` 配合 `source`、`phase` 表达。
 6. `runId`、`sessionCode`、`roundCode` 语义相互独立：分别表示执行实例、会话和对话轮次。
 7. SSE 连接断开只取消订阅，不自动取消后端运行任务。
+8. 只有 `round.completed` 表示本轮成功；`thinking.completed`、HTTP 200、SSE EOF 和 WebSocket close 都不是业务成功标志。
+9. 传输恢复必须有限重试，不允许无限重连；重试期间后端任务继续运行，除非用户明确发起停止。
+10. 面向用户的错误信息与内部诊断信息分离，响应不得泄露 API Key、模型原始请求、Python 堆栈或未经裁剪的工具输出。
 
 ## 3. 当前接口
 
@@ -105,7 +110,7 @@ Content-Type: application/json
 ```json
 {
   "runId": "run-xxx",
-  "lastEventId": "18",
+  "lastEventId": "18.2",
   "sessionCode": "session-xxx",
   "roundCode": "round-xxx"
 }
@@ -120,6 +125,16 @@ Content-Type: application/json
 - 如果运行任务不存在，后端从会话历史回放初始化、回答快照以及完成、失败或取消状态；此时 `sessionCode` 和 `roundCode` 必填。
 - `lastEventId` 是请求体字段。当前接口为 POST，不依赖浏览器原生 `EventSource` 的 `Last-Event-ID` 请求头。
 - 当前默认每个任务最多缓存 512 个事件；Redis 活动任务 TTL 默认 2 小时，终态任务和本地终态缓存默认保留 30 分钟，均可通过 `ai.chat.runtime` 配置调整。
+
+重连与去重规则：
+
+1. 客户端只有在事件 JSON 解析成功且本地状态应用成功后，才更新 `lastEventId`；解析失败不能跳过该事件序号。
+2. 实时事件以 `(runId, eventId)` 作为幂等键。收到已应用事件时必须忽略，尤其不能再次追加 `answer_delta` 或 `assistant.message.delta`。
+3. `{sequence}.{subSequence}` 按数字分段比较，不得按普通字符串比较。例如 `12.10` 大于 `12.2`。
+4. 同一个 `runId` 同一时刻最多保留一个活动订阅。新重连成功后，应先关闭旧连接，避免双流重复消费。
+5. 建议自动重试最多 3 次，使用 1 秒、2 秒、4 秒指数退避并加入小幅随机抖动。网络错误、HTTP 408/429 和 5xx 可以重试；其他 4xx 默认不可重试。
+6. 自动重试前先查询运行状态：`ACCEPTED`、`RUNNING`、`CANCELLING` 时继续重连；`WAITING_INPUT` 时转入等待用户输入；运行任务已终态或已过期时请求持久化快照。
+7. 重试耗尽后保留已接收回答和活动，展示“连接已中断”，提供“重新连接”和“停止任务”操作，不得把本轮标记为完成。
 
 ### 3.3 查询运行任务
 
@@ -199,6 +214,16 @@ data: {"protocolVersion":"1.0","runId":"run-xxx","eventId":"5","timestamp":17837
 - SSE `id` 必须等于 payload 的 `eventId`。
 - `eventId` 在同一个 `runId` 内单调递增，不保证跨任务全局唯一。
 - `timestamp` 为 Unix epoch 毫秒时间戳。
+
+### 4.1 心跳与无活动处理
+
+- SSE 服务端可以发送注释心跳帧 `: heartbeat\n\n`。心跳没有 `eventId`，不进入业务事件分发，也不能推进 `lastEventId`。
+- WebSocket 可以使用协议层 ping/pong；不得把心跳伪装成 `thinking.updated` 或回答事件。
+- 建议服务端心跳间隔不超过 15 秒，客户端无活动检测阈值为 30 秒；部署环境可调整，但客户端阈值应大于两次心跳间隔。
+- 客户端收到任何有效字节、SSE 注释心跳、WebSocket pong 或业务事件时刷新最后活动时间。
+- 超过无活动阈值仅表示连接可能失活。客户端应进入 `RECONNECTING` 并查询任务状态，不能直接转为 `FAILED`、`CANCELLED` 或 `COMPLETED`。
+- 未实现心跳的部署中，长时间没有业务事件同样不表示任务结束；客户端可用相同状态查询与有限重连机制探活。
+- SSE EOF、读取超时、代理断流和 WebSocket close 都属于传输层信号。若此前未收到本节定义的交互终态事件，必须按异常断流处理。
 
 ## 5. 事件结构
 
@@ -567,6 +592,8 @@ phase = COMPLETED
 
 当前实现说明：`WAITING_INPUT` 和同一 `runId` 内提交交互答案尚未接入工作流恢复机制。当前收到 `clarification` 后，应按“结束当前执行、下一轮补充信息”处理，不能假设可以通过 WebSocket 恢复原任务。
 
+`chat-event.v2` 将该语义投影为 `assistant.input_required`。它是当前流的交互终态，但不是运行结果的成功或失败终态。前端应停止旋转加载态，保留上下文，展示明确的补充输入提示并聚焦输入区；当前实现通过新一轮消息继续，未来工作流恢复能力接入后才允许复用同一 `runId`。
+
 ### 6.6 `error`
 
 用于通知前端当前流式任务失败。
@@ -586,9 +613,28 @@ phase = COMPLETED
   "source": "RENDER",
   "phase": "FAILED",
   "status": "FAILED",
-  "message": "render json validate failed"
+  "message": "暂时无法生成可视化结果，请稍后重试。",
+  "ext": {
+    "error": {
+      "code": "RENDER_VALIDATE_FAILED",
+      "userMessage": "暂时无法生成可视化结果，请稍后重试。",
+      "retryable": true,
+      "traceId": "trace-id",
+      "detail": "render schema validation failed"
+    }
+  }
 }
 ```
+
+安全错误结构：
+
+- `code`：稳定、可枚举的机器错误码，前端可以据此选择恢复动作，不应使用异常类名。
+- `userMessage`：可以直接向普通用户展示的安全文案；缺失时前端使用统一兜底文案。
+- `retryable`：是否建议重试。它只表达服务端判断，前端仍须遵守有限重试规则。
+- `traceId`：排障关联标识，建议与事件 `requestId` 保持一致，可提供复制入口。
+- `detail`：可选的裁剪后技术详情，只在开发或有权限的诊断界面展示。不得包含堆栈、密钥、认证头、完整模型提示词或敏感工具结果。
+
+`chat-event.v2` 的 `round.failed` 应在 `payload.error` 携带同一结构，并可在 `payload.round` 返回失败快照。兼容实现可以继续提供 `message`，但前端优先使用 `payload.error.userMessage`，不能直接展示原始异常字符串。
 
 前端处理规则：
 
@@ -625,6 +671,28 @@ phase = COMPLETED
 - 标记执行完成。
 - 使用 `sessionCode`、`roundCode` 刷新会话详情。
 - 不要用 `complete` 表示 Render JSON 或某个 workflow 节点完成。
+
+### 6.8 交互终态与运行终态
+
+`chat-event.v2` 当前流的交互终态事件集合固定为：
+
+| 事件 | 前端状态 | 是否运行结果终态 | 语义 |
+| --- | --- | --- | --- |
+| `round.completed` | `COMPLETED` | 是 | 本轮唯一成功终态 |
+| `round.failed` | `FAILED` | 是 | 执行失败，保留已生成内容和活动 |
+| `round.cancelled` | `CANCELLED` | 是 | 用户或系统中断，不应展示为执行失败 |
+| `assistant.input_required` | `WAITING_INPUT` | 否 | 当前流结束并等待用户补充，不表示成功或失败 |
+
+内部 `1.0` 事件分别对应 `complete`、`error`、`run.cancelled` 和 `clarification`。`thinking.completed` 只是思考阶段结束，`assistant.message.delta` 只是内容更新，均不是交互终态。
+
+前端在收到交互终态后才可以结束当前流式 UI 状态，并按下列规则处理尚未结束的活动：
+
+- `round.failed`：明确失败的当前活动标记为 `failed`；无法确认结果但被终止的活动标记为 `interrupted`。
+- `round.cancelled`：仍为 `running` 的活动标记为 `interrupted`，并注明取消来源。
+- `assistant.input_required`：仍为 `running` 的活动标记为 `interrupted` 或 `waiting_input`，不得标记为完成。
+- `round.completed`：只有已收到完成事件或由最终快照确认成功的活动才标记为 `completed`；缺少结果的活动不得被批量推断成功。
+
+EOF、HTTP 200、SSE `onCompletion`、读取超时、网络错误和 WebSocket close 不属于上述集合。如果连接结束前没有收到交互终态，客户端必须进入 `RECONNECTING`，不能把助手消息或思考活动改为 `completed`。
 
 ## 7. 事件来源
 
@@ -669,6 +737,14 @@ phase = COMPLETED
 
 `status` 字段的语义取决于事件对象：运行时事件使用任务状态，节点和活动事件可以使用 `RUNNING`、`SUCCESS`、`FAILED` 等业务状态。
 
+状态语义约束：
+
+- `WAITING_INPUT` 是稳定的非结果终态：当前流不再保持加载动画，但任务上下文可以保留。当前实现通过新轮次补充，不能把它显示成 `FAILED` 或 `COMPLETED`。
+- `FAILED` 表示系统、模型、工具或工作流未能完成任务。前端保留部分回答和活动，展示安全错误信息及可用的重试操作。
+- `CANCELLED` 表示用户或系统明确中断。它与失败分开展示，并保留“重新发起”入口。
+- `CANCELLING` 只表示取消请求已接受，前端显示“正在停止”，直到收到 `round.cancelled` 或状态查询确认 `CANCELLED`。
+- UI 可以增加只存在于客户端的 `RECONNECTING` 状态；它不是后端运行状态，表示流失活但任务结果未知。
+
 ## 9. 推荐前端处理逻辑
 
 前端应按 `eventType` 做一级分发：
@@ -698,6 +774,40 @@ error  + source=RENDER       -> Render JSON 生成失败
 
 当前仓库前端的 `/test/chat` 已处理 `run.*`、`thinking.*`、`assistant.message.delta`、`ACTIVITY`、完成和失败事件，并在发出请求后立即创建“正在连接 AI / 思考中”占位。正式聊天页已使用 `modelId` 和基础流式回答事件，但思考抽屉仍以 `/test/chat` 的实现为交互参考逐步收敛。
 
+### 9.1 异常断流处理流程
+
+客户端必须记录本轮是否已经收到交互终态事件。流读取结束时按以下顺序处理：
+
+1. 已收到 `round.completed`、`round.failed`、`round.cancelled` 或 `assistant.input_required`：按对应状态结束本轮 UI，不再重连。
+2. 未收到交互终态但发生 EOF、超时或网络错误：保留当前内容，将本地状态切换为 `RECONNECTING`，展示“连接中断，正在恢复”。
+3. 查询 `/api/chat/runs/{runId}`。运行中则按 `runId + lastEventId` 重新挂接；`WAITING_INPUT` 则进入等待输入；任务终态或运行缓存不存在则用 `sessionCode + roundCode` 请求持久化快照。
+4. 重放事件先按 `(runId, eventId)` 去重，再更新 UI。不能因为重放而重复追加消息、活动或 artifact。
+5. 自动恢复最多 3 次。恢复失败后停止自动请求，保持失败前页面内容，展示可操作的“重新连接”和“停止任务”。
+
+### 9.2 `chat-event.v2` 持久化回放
+
+运行时任务或有限事件缓存过期后，重连端点必须支持使用 `sessionCode + roundCode` 回放持久化快照，并继续输出 `chat-event.v2` 包络。请求应同时携带原 `runId`（若已知）和 `lastEventId`，便于诊断与兼容。
+
+持久化回放至少应包含：
+
+- `session.initialized` 与 `round.initialized`，用于恢复会话和轮次标识。
+- 当前助手消息完整快照；优先作为可覆盖的完整消息块发送，不重放不可验证的 token 增量。
+- 已持久化的 thinking/activity 时间线，或可用于查询 `/thinking` 的引用。
+- `round.completed`、`round.failed`、`round.cancelled` 或 `assistant.input_required` 中与持久化状态一致的一个交互终态。
+
+回放事件仍须使用 `schemaVersion=chat-event.v2`。建议在 `payload.replay` 增加兼容性元数据：
+
+```json
+{
+  "replayId": "replay-xxx",
+  "mode": "PERSISTED_SNAPSHOT",
+  "source": "CONVERSATION_HISTORY",
+  "snapshot": true
+}
+```
+
+`payload.replay` 是可选字段，旧客户端可以忽略。持久化回放可以重新编号 `eventId`，但同一次回放流内必须单调递增；存在 `replayId` 时客户端以 `(replayId, eventId)` 去重。兼容服务未提供 `replayId` 时，客户端按 `sessionCode + roundCode + eventType + 业务对象 id` 幂等覆盖，不能将快照内容重复追加。
+
 ## 10. 后端实现边界
 
 当前实现分层：
@@ -721,6 +831,10 @@ error  + source=RENDER       -> Render JSON 生成失败
 - 本地模式下任务和事件缓存在当前进程；Redis 模式下共享任务快照、索引、有限事件列表、取消标记，并通过 Pub/Sub 实时通知其他实例。
 - 运行时实时事件缓存不是永久审计日志。缓存过期后，reconnect 仍只能回退到回答和终态快照；但已持久化的活动可通过 `/api/chat/sessions/{sessionCode}/rounds/{roundCode}/thinking` 查询，不依赖运行时缓存。
 - `ai_chat_activity` 记录结构化活动摘要和详情，不存储模型 API Key；敏感工具输出进入摘要或 `detail_json` 前应由活动生产方裁剪。
+- 活动记录属于可观测性和历史详情数据。默认采用 best-effort、异步队列或 outbox 降级策略；活动表、日志或消息队列暂时不可用时，应记录监控告警，但不能因此把原本可成功的模型回答改为 `round.failed`。
+- 如果业务场景要求活动审计强一致，必须通过显式配置启用，并使用稳定错误码说明失败原因；不得依赖未捕获的数据库异常隐式中断整轮。
+- 活动持久化失败后，实时 `thinking.updated` 可以继续发送，并可在诊断字段中标记 `persistenceStatus=degraded`。该字段不能向普通用户暴露内部数据库信息。
+- `ProtocolSseConversationTransport` 和 WebSocket 的 `chat-event.v2` 重连必须同时实现运行时缓存重放与第 9.2 节的持久化快照回放，不能仅依赖仍驻留内存或 Redis 的活动任务。
 
 ## 11. 兼容说明
 

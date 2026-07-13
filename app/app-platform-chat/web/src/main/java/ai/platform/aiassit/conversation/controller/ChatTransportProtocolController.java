@@ -11,6 +11,7 @@ import ai.platform.aiassit.conversation.support.ConversationRequestContextResolv
 import ai.platform.aiassit.conversation.transport.sse.ProtocolSseConversationTransport;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import org.springframework.http.MediaType;
+import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -66,11 +67,14 @@ public class ChatTransportProtocolController {
     @PostMapping(value = "/stream/reconnect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter reconnect(@RequestBody ChatTransportRequest request,
                                 @RequestHeader(value = "Last-Event-ID", required = false) String headerLastEventId) {
-        String lastEventId = request != null && request.getLastEventId() != null
-                ? request.getLastEventId()
-                : headerLastEventId;
-        return sseTransport.reconnect(request == null ? null : request.getRunId(),
-                lastEventId, contextResolver.currentUserId());
+        ChatTransportRequest reconnectRequest = request == null ? new ChatTransportRequest() : request;
+        if (!StringUtils.hasText(reconnectRequest.getLastEventId())) {
+            reconnectRequest.setLastEventId(headerLastEventId);
+        }
+        return sseTransport.reconnect(
+                reconnectRequest,
+                contextResolver.currentUserId(),
+                contextResolver.traceId());
     }
 
     @GetMapping("/sessions/{sessionCode}/rounds/{roundCode}/thinking")

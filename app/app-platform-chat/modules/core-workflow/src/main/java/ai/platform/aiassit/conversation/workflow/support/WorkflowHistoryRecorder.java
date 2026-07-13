@@ -13,6 +13,7 @@ import ai.platform.aiassit.chat.history.service.AiChatActivityService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
@@ -20,9 +21,11 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
 
 @Component
+@Slf4j
 public class WorkflowHistoryRecorder {
 
     private final AiChatMessageService messageService;
@@ -75,39 +78,51 @@ public class WorkflowHistoryRecorder {
         return created;
     }
 
-    /** 按事件时间线持久化节点内活动，correlationCode 用于前端合并同一活动的开始/完成状态。 */
-    public AiChatActivityDTO saveActivity(ConversationRuntimeContext context,
-                                          String source,
-                                          String phase,
-                                          String message,
-                                          String status,
-                                          Map<String, Object> ext) {
+    /**
+     * 按事件时间线尽力持久化节点内活动。
+     *
+     * <p>活动属于可观测数据，持久化故障不能中断 AI 回答或实时事件发布。
+     * correlationCode 用于前端合并同一活动的开始/完成状态。</p>
+     */
+    public Optional<AiChatActivityDTO> saveActivity(ConversationRuntimeContext context,
+                                                    String source,
+                                                    String phase,
+                                                    String message,
+                                                    String status,
+                                                    Map<String, Object> ext) {
         Map<String, Object> detail = ext == null ? Map.of() : new LinkedHashMap<>(ext);
         Map<String, Object> activity = mapValue(detail.get("activity"));
-        AiChatActivityDTO record = new AiChatActivityDTO();
-        record.setActivityCode(generateCode("activity"));
-        record.setSessionCode(context.getSession().getSessionCode());
-        record.setRoundCode(context.getRound().getRoundCode());
-        record.setUserId(context.getSession().getUserId());
-        record.setNodeCode(truncate(firstText(detail.get("nodeCode"), activity.get("nodeCode")), 64));
-        record.setCorrelationCode(truncate(firstText(
+        String correlationCode = firstText(
                 activity.get("activityCode"), detail.get("activityCode"), detail.get("callId"),
-                activity.get("callId"), detail.get("activity"), detail.get("toolName")), 128));
-        record.setActivityType(truncate(defaultText(
-                firstText(activity.get("activityType"), detail.get("activityType")), "AI_AGENT_ACTIVITY"), 32));
-        record.setActivityName(truncate(defaultText(firstText(
-                activity.get("activityName"), detail.get("activityName"), detail.get("toolName"), message), "AI 执行活动"), 128));
-        record.setSource(truncate(defaultText(source, "AI_AGENT"), 64));
-        record.setPhase(truncate(phase, 32));
-        record.setStatus(truncate(defaultText(status, "RUNNING"), 32));
-        record.setMessage(truncate(message, 512));
-        record.setInputSummary(truncate(firstText(activity.get("inputSummary"), detail.get("inputSummary")), 1000));
-        record.setOutputSummary(truncate(firstText(activity.get("outputSummary"), detail.get("outputSummary")), 1000));
-        record.setDurationMs(longValue(activity.get("durationMs"), detail.get("durationMs")));
-        record.setRequestId(truncate(context.getCommand() == null ? null : context.getCommand().getTraceId(), 128));
-        record.setSeqNo(nextActivitySeqNo(context));
-        record.setDetailJson(toJson(detail));
-        return activityService.add(record);
+                activity.get("callId"), detail.get("activity"), detail.get("toolName"));
+        try {
+            AiChatActivityDTO record = new AiChatActivityDTO();
+            record.setActivityCode(generateCode("activity"));
+            record.setSessionCode(context.getSession().getSessionCode());
+            record.setRoundCode(context.getRound().getRoundCode());
+            record.setUserId(context.getSession().getUserId());
+            record.setNodeCode(truncate(firstText(detail.get("nodeCode"), activity.get("nodeCode")), 64));
+            record.setCorrelationCode(truncate(correlationCode, 128));
+            record.setActivityType(truncate(defaultText(
+                    firstText(activity.get("activityType"), detail.get("activityType")), "AI_AGENT_ACTIVITY"), 32));
+            record.setActivityName(truncate(defaultText(firstText(
+                    activity.get("activityName"), detail.get("activityName"), detail.get("toolName"), message), "AI 执行活动"), 128));
+            record.setSource(truncate(defaultText(source, "AI_AGENT"), 64));
+            record.setPhase(truncate(phase, 32));
+            record.setStatus(truncate(defaultText(status, "RUNNING"), 32));
+            record.setMessage(truncate(message, 512));
+            record.setInputSummary(truncate(firstText(activity.get("inputSummary"), detail.get("inputSummary")), 1000));
+            record.setOutputSummary(truncate(firstText(activity.get("outputSummary"), detail.get("outputSummary")), 1000));
+            record.setDurationMs(longValue(activity.get("durationMs"), detail.get("durationMs")));
+            record.setRequestId(truncate(context.getCommand() == null ? null : context.getCommand().getTraceId(), 128));
+            record.setSeqNo(nextActivitySeqNo(context));
+            record.setDetailJson(toJson(detail));
+            return Optional.ofNullable(activityService.add(record));
+        } catch (RuntimeException ex) {
+            log.warn("AI activity persistence degraded, sessionCode={}, roundCode={}, source={}, phase={}, correlationCode={}",
+                    sessionCode(context), roundCode(context), source, phase, correlationCode, ex);
+            return Optional.empty();
+        }
     }
 
     public AiChatArtifactDTO saveArtifact(ConversationRuntimeContext context,
@@ -239,5 +254,13 @@ public class WorkflowHistoryRecorder {
 
     private String generateCode(String prefix) {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
+    }
+
+    private String sessionCode(ConversationRuntimeContext context) {
+        return context == null || context.getSession() == null ? null : context.getSession().getSessionCode();
+    }
+
+    private String roundCode(ConversationRuntimeContext context) {
+        return context == null || context.getRound() == null ? null : context.getRound().getRoundCode();
     }
 }

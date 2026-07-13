@@ -9,10 +9,16 @@ import type {
   ChatConversationRenamePayload,
   ChatEnabledModel,
   ChatQueryPayload,
+  ChatRoundThinkingDetail,
+  ChatRunStatus,
   ChatSessionItem,
   ChatStreamEvent,
   ChatTransportEvent,
+  ChatTransportReconnectRequest,
   ChatTransportRequest,
+  ChatTransportStreamOptions,
+  ChatTransportStreamResult,
+  ChatTransportTerminalEventName,
 } from '../types'
 
 const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
@@ -59,7 +65,7 @@ export function fetchEnabledModels() {
 }
 
 function parseSseChunk(chunk: string) {
-  const lines = chunk.replaceAll('\r\n', '\n').split('\n')
+  const lines = chunk.replace(/\r\n/g, '\n').split('\n')
   let eventId = ''
   let eventName = 'message'
   const dataLines: string[] = []
@@ -90,6 +96,115 @@ function parseSseChunk(chunk: string) {
   }
 }
 
+type ChatTransportStreamEvent = { id: string; event: string; data: ChatTransportEvent }
+
+const CHAT_TRANSPORT_TERMINAL_EVENTS = new Set<ChatTransportTerminalEventName>([
+  'round.completed',
+  'round.failed',
+  'round.cancelled',
+  'assistant.input_required',
+])
+
+export class ChatStreamInterruptedError extends Error {
+  readonly result: ChatTransportStreamResult
+
+  constructor(result: ChatTransportStreamResult) {
+    super('聊天连接已中断，尚未收到任务终态')
+    this.name = 'ChatStreamInterruptedError'
+    this.result = result
+  }
+}
+
+function resolveEventId(event: ChatTransportStreamEvent) {
+  return event.data.eventId || event.id || ''
+}
+
+async function consumeChatTransportStream(
+  response: Response,
+  onEvent: (event: ChatTransportStreamEvent) => void,
+  options: ChatTransportStreamOptions = {},
+) {
+  if (!response.body) {
+    throw new Error('聊天连接未返回可读取的数据流')
+  }
+
+  const result: ChatTransportStreamResult = { terminalEventReceived: false }
+  const seenEventIds = options.seenEventIds ?? new Set<string>()
+  const reader = response.body.getReader()
+  const decoder = new TextDecoder('utf-8')
+  const inactivityTimeoutMs = options.inactivityTimeoutMs ?? 30_000
+  let buffer = ''
+  let inactivityTimer: number | undefined
+
+  const armInactivityTimer = () => {
+    if (inactivityTimer !== undefined) {
+      window.clearTimeout(inactivityTimer)
+    }
+    if (inactivityTimeoutMs <= 0) {
+      return
+    }
+    inactivityTimer = window.setTimeout(() => {
+      void reader.cancel('chat stream inactivity timeout')
+    }, inactivityTimeoutMs)
+  }
+
+  const acceptEvent = (event: ChatTransportStreamEvent | null) => {
+    if (!event) {
+      return
+    }
+
+    const eventId = resolveEventId(event)
+    if (eventId && seenEventIds.has(eventId)) {
+      return
+    }
+    if (eventId) {
+      seenEventIds.add(eventId)
+      result.lastEventId = eventId
+    }
+
+    result.runId = event.data.runId || result.runId
+    result.sessionCode = event.data.sessionCode || result.sessionCode
+    result.roundCode = event.data.roundCode || result.roundCode
+    if (CHAT_TRANSPORT_TERMINAL_EVENTS.has(event.event as ChatTransportTerminalEventName)) {
+      result.terminalEventReceived = true
+      result.terminalEventName = event.event as ChatTransportTerminalEventName
+    }
+    onEvent(event)
+  }
+
+  try {
+    armInactivityTimer()
+    while (true) {
+      const { value, done } = await reader.read()
+      if (done) {
+        break
+      }
+
+      armInactivityTimer()
+      buffer += decoder.decode(value, { stream: true })
+      const chunks = buffer.split(/\r?\n\r?\n/)
+      buffer = chunks.pop() ?? ''
+      chunks.forEach((chunk) => acceptEvent(parseSseChunk(chunk.trim())))
+    }
+
+    buffer += decoder.decode()
+    const lastChunk = buffer.trim()
+    if (lastChunk) {
+      acceptEvent(parseSseChunk(lastChunk))
+    }
+  } finally {
+    if (inactivityTimer !== undefined) {
+      window.clearTimeout(inactivityTimer)
+    }
+    reader.releaseLock()
+  }
+
+  if (options.requireTerminalEvent !== false && !result.terminalEventReceived) {
+    throw new ChatStreamInterruptedError(result)
+  }
+  return result
+}
+
 export function createChatTransportRequest(payload: ChatQueryPayload, route: string): ChatTransportRequest {
   const timestamp = new Date().toISOString()
   const requestId = typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
@@ -118,49 +233,56 @@ export function createChatTransportRequest(payload: ChatQueryPayload, route: str
 
 export async function streamChatTransport(
   payload: ChatTransportRequest,
-  onEvent: (event: { id: string; event: string; data: ChatTransportEvent }) => void,
-) {
+  onEvent: (event: ChatTransportStreamEvent) => void,
+  options: ChatTransportStreamOptions = {},
+): Promise<ChatTransportStreamResult> {
   const endpoint = payload.sessionCode
     ? `${CHAT_API_PREFIX}/api/chat/sessions/${encodeURIComponent(payload.sessionCode)}/rounds/stream`
     : `${CHAT_API_PREFIX}/api/chat/rounds/stream`
   const response = await requestRaw(endpoint, {
     method: 'POST',
+    headers: { Accept: 'text/event-stream' },
     body: JSON.stringify(payload),
+    signal: options.signal,
   })
 
-  if (!response.body) {
-    throw new Error('stream response body is empty')
-  }
+  return consumeChatTransportStream(response, onEvent, options)
+}
 
-  const reader = response.body.getReader()
-  const decoder = new TextDecoder('utf-8')
-  let buffer = ''
+export async function reconnectChatTransport(
+  payload: ChatTransportReconnectRequest,
+  onEvent: (event: ChatTransportStreamEvent) => void,
+  options: ChatTransportStreamOptions = {},
+): Promise<ChatTransportStreamResult> {
+  const response = await requestRaw(`${CHAT_API_PREFIX}/api/chat/stream/reconnect`, {
+    method: 'POST',
+    headers: {
+      Accept: 'text/event-stream',
+      ...(payload.lastEventId ? { 'Last-Event-ID': payload.lastEventId } : {}),
+    },
+    body: JSON.stringify(payload),
+    signal: options.signal,
+  })
+  return consumeChatTransportStream(response, onEvent, options)
+}
 
-  while (true) {
-    const { value, done } = await reader.read()
-    if (done) {
-      break
-    }
+export function fetchChatRunStatus(runId: string) {
+  return request<ChatRunStatus>(`${CHAT_API_PREFIX}/api/chat/runs/${encodeURIComponent(runId)}`, {
+    method: 'GET',
+  })
+}
 
-    buffer += decoder.decode(value, { stream: true })
-    const chunks = buffer.split(/\r?\n\r?\n/)
-    buffer = chunks.pop() ?? ''
+export function stopChatRun(runId: string) {
+  return request<boolean>(`${CHAT_API_PREFIX}/api/chat/runs/${encodeURIComponent(runId)}/stop`, {
+    method: 'POST',
+  })
+}
 
-    chunks.forEach((chunk) => {
-      const parsed = parseSseChunk(chunk.trim())
-      if (parsed) {
-        onEvent(parsed)
-      }
-    })
-  }
-
-  const lastChunk = buffer.trim()
-  if (lastChunk) {
-    const parsed = parseSseChunk(lastChunk)
-    if (parsed) {
-      onEvent(parsed)
-    }
-  }
+export function fetchRoundThinking(sessionCode: string, roundCode: string) {
+  return request<ChatRoundThinkingDetail>(
+    `${CHAT_API_PREFIX}/api/chat/sessions/${encodeURIComponent(sessionCode)}/rounds/${encodeURIComponent(roundCode)}/thinking`,
+    { method: 'GET' },
+  )
 }
 
 /** @deprecated Use the chat-event.v2 transport functions above. */

@@ -113,6 +113,7 @@ export interface ChatTransportEvent {
   runId?: string
   requestId?: string
   sessionCode?: string
+  sessionName?: string
   roundCode?: string
   timestamp?: string
   payload: Record<string, any>
@@ -138,6 +139,62 @@ export interface ChatTransportRequest {
     route: string
     renderCapabilities: string[]
   }
+}
+
+export interface ChatTransportReconnectRequest {
+  runId: string
+  lastEventId?: string
+  sessionCode?: string
+  roundCode?: string
+}
+
+export interface ChatTransportStreamResult {
+  terminalEventReceived: boolean
+  terminalEventName?: ChatTransportTerminalEventName
+  lastEventId?: string
+  runId?: string
+  sessionCode?: string
+  roundCode?: string
+}
+
+export type ChatTransportTerminalEventName =
+  | 'round.completed'
+  | 'round.failed'
+  | 'round.cancelled'
+  | 'assistant.input_required'
+
+export interface ChatTransportStreamOptions {
+  signal?: AbortSignal
+  /** Reuse the same set across reconnect attempts to ignore replayed events. */
+  seenEventIds?: Set<string>
+  /** Defaults to true. EOF without a protocol terminal event is treated as an interruption. */
+  requireTerminalEvent?: boolean
+  /** Maximum interval without receiving any SSE bytes (including heartbeat comments). Defaults to 30s. */
+  inactivityTimeoutMs?: number
+}
+
+export interface ChatRunStatus {
+  runId?: string
+  requestId?: string
+  sessionCode?: string
+  roundCode?: string
+  status?: 'accepted' | 'running' | 'waiting_input' | 'cancelling' | 'cancelled' | 'completed' | 'failed' | string
+  active?: boolean
+  createdAt?: string
+  startedAt?: string
+  finishedAt?: string
+  error?: string
+}
+
+export interface ChatRoundThinkingDetail {
+  schemaVersion?: string
+  sessionCode?: string
+  roundCode?: string
+  status?: string
+  summary?: string
+  nodes?: Array<Record<string, unknown>>
+  activities?: Array<Record<string, unknown>>
+  ext?: Record<string, unknown>
 }
 
 export interface ChatUiMessage {

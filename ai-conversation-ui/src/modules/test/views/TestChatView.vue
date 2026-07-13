@@ -12,6 +12,8 @@ import {
   Promotion,
   Search,
   ChatDotRound,
+  CloseBold,
+  RefreshRight,
   UserFilled,
 } from '@element-plus/icons-vue'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
@@ -19,13 +21,32 @@ import chatTransportProtocol from '../../../../../data/chatMessage/chat-transpor
 import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import DashboardCanvasPreview from '../components/DashboardCanvasPreview.vue'
-import { createChatTransportRequest, fetchEnabledModels, streamChatTransport } from '../../ai-chat/api'
-import type { ChatEnabledModel, ChatTransportEvent } from '../../ai-chat/types'
+import {
+  createChatTransportRequest,
+  fetchChatRunStatus,
+  fetchEnabledModels,
+  fetchRoundThinking,
+  reconnectChatTransport,
+  stopChatRun,
+  streamChatTransport,
+} from '../../ai-chat/api'
+import type { ChatEnabledModel, ChatTransportEvent, ChatTransportRequest } from '../../ai-chat/types'
 import { renderMarkdown } from '../../ai-chat/utils/markdown'
 
 type ChatRole = 'assistant' | 'user'
 
-type ThinkingActivityStatus = 'done' | 'running' | 'pending' | 'failed'
+type ThinkingActivityStatus = 'done' | 'running' | 'pending' | 'failed' | 'cancelled'
+
+type ChatRunPhase =
+  | 'idle'
+  | 'submitting'
+  | 'processing'
+  | 'reconnecting'
+  | 'waiting_input'
+  | 'cancelling'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
 
 type ThinkingActivityDetail = {
   id: string
@@ -53,9 +74,9 @@ type StaticMessage = {
   id: string
   role: ChatRole
   content: string
-  status?: 'pending' | 'running' | 'completed'
+  status?: 'pending' | 'running' | 'reconnecting' | 'waiting_input' | 'completed' | 'failed' | 'cancelled'
   createdAt?: string
-  thinkingStatus?: 'running' | 'completed'
+  thinkingStatus?: 'running' | 'completed' | 'failed' | 'cancelled'
   thinkingStartedAt?: number
   thinkingElapsedSeconds?: number
   thinking?: ThinkingActivity[]
@@ -69,6 +90,7 @@ type StaticSession = {
   messages: StaticMessage[]
   serverSessionCode?: string
   runId?: string
+  lastEventId?: string
   currentRoundCode?: string
   currentAssistantMessageId?: string
   pendingUserMessageId?: string
@@ -247,6 +269,9 @@ const modelLoadError = ref('')
 const activeSessionId = ref(initialSessions[0]?.id || '')
 const sidebarExpanded = ref(true)
 const isStreaming = ref(false)
+const runPhase = ref<ChatRunPhase>('idle')
+const streamNotice = ref('')
+const lastSubmittedPrompt = ref('')
 const thinkingDrawerVisible = ref(false)
 const thinkingDrawerTransitioning = ref(false)
 const activeThinking = ref<ThinkingActivity[]>([])
@@ -256,6 +281,11 @@ const isSimulationPaused = ref(false)
 const simulationEventIndex = ref(0)
 let simulationTimer: number | null = null
 let thinkingClockTimer: number | null = null
+const processedEventKeys = new Set<string>()
+const transportSeenEventIds = new Set<string>()
+let activeStreamAbortController: AbortController | null = null
+const stopRequested = ref(false)
+let stopRequestInFlight = false
 const welcomeTextarea = useTemplateRef<HTMLTextAreaElement>('welcomeTextarea')
 const conversationTextarea = useTemplateRef<HTMLTextAreaElement>('conversationTextarea')
 
@@ -288,6 +318,27 @@ const selectedModelLabel = computed(() => {
   return model?.modelName || model?.modelCode || model?.apiModel || '选择模型'
 })
 const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
+const canSubmit = computed(() => (
+  Boolean(prompt.value.trim())
+  && Boolean(selectedModelId.value)
+  && !isStreaming.value
+  && !isSimulationRunning.value
+))
+const canRetry = computed(() => runPhase.value === 'failed' && Boolean(lastSubmittedPrompt.value))
+const runStatusLabel = computed(() => {
+  const labels: Record<ChatRunPhase, string> = {
+    idle: '',
+    submitting: '正在连接 AI…',
+    processing: streamNotice.value || 'AI 正在处理…',
+    reconnecting: '连接中断，正在恢复…',
+    waiting_input: 'AI 需要你补充信息',
+    cancelling: '正在停止任务…',
+    completed: '',
+    failed: streamNotice.value || '对话执行失败，请重试。',
+    cancelled: '本轮对话已停止。',
+  }
+  return labels[runPhase.value]
+})
 const shouldReserveThinkingDrawer = computed(() => thinkingDrawerVisible.value || thinkingDrawerTransitioning.value)
 const lastAssistantMessageId = computed(() => {
   return [...chatMessages.value].reverse().find((message) => message.role === 'assistant' && message.status === 'completed')?.id
@@ -424,6 +475,7 @@ function getThinkingStatusText(status: ThinkingActivityStatus) {
     running: '进行中',
     pending: '待处理',
     failed: '失败',
+    cancelled: '已取消',
   }
   return statusMap[status]
 }
@@ -433,7 +485,10 @@ function normalizeProtocolStatus(status?: string): ThinkingActivityStatus {
   if (normalized === 'completed' || normalized === 'success' || normalized === 'done') {
     return 'done'
   }
-  if (normalized === 'failed' || normalized === 'error' || normalized === 'cancelled') {
+  if (normalized === 'cancelled' || normalized === 'canceled') {
+    return 'cancelled'
+  }
+  if (normalized === 'failed' || normalized === 'error') {
     return 'failed'
   }
   if (normalized === 'running' || normalized === 'started' || normalized === 'accepted') {
@@ -474,7 +529,16 @@ function resolveThinkingElapsedSeconds(message?: StaticMessage) {
 }
 
 function resolveThinkingTitle(message?: StaticMessage) {
-  return message?.thinkingStatus === 'running' ? '思考中' : '思考过程'
+  if (message?.thinkingStatus === 'running') {
+    return '思考中'
+  }
+  if (message?.thinkingStatus === 'failed') {
+    return '处理失败'
+  }
+  if (message?.thinkingStatus === 'cancelled') {
+    return '处理已停止'
+  }
+  return '思考过程'
 }
 
 function resolveThinkingMeta(message?: StaticMessage) {
@@ -504,6 +568,27 @@ function completeThinkingClock(message: StaticMessage) {
   clearThinkingClock()
 }
 
+function finishThinkingClock(message: StaticMessage, status: 'completed' | 'failed' | 'cancelled') {
+  message.thinkingElapsedSeconds = resolveThinkingElapsedSeconds(message)
+  message.thinkingStatus = status
+  clearThinkingClock()
+}
+
+function settleRunningActivities(
+  activities: ThinkingActivity[] | undefined,
+  status: 'failed' | 'cancelled',
+) {
+  return activities?.map((activity) => (
+    activity.status === 'running' || activity.status === 'pending'
+      ? {
+          ...activity,
+          status,
+          description: activity.description || (status === 'cancelled' ? '活动已随任务停止。' : '活动因本轮失败而中断。'),
+        }
+      : activity
+  ))
+}
+
 function resolveProtocolContent(blocks?: ProtocolContentBlock[]) {
   if (!blocks?.length) {
     return ''
@@ -523,6 +608,9 @@ function resolveSimulationSession(payload?: Record<string, any>) {
       title: conversation?.title || '风控日报分析',
       meta: '刚刚',
       messages: previousSession?.messages || [],
+      runId: previousSession?.runId,
+      lastEventId: previousSession?.lastEventId,
+      currentRoundCode: previousSession?.currentRoundCode,
       currentAssistantMessageId: previousSession?.currentAssistantMessageId,
       pendingUserMessageId: previousSession?.pendingUserMessageId,
     }
@@ -645,6 +733,11 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
   if (protocolEvent.event === 'run.accepted') {
     const session = ensureSession()
     session.runId = protocolEvent.data.runId || payload.run?.id || session.runId
+    runPhase.value = stopRequested.value ? 'cancelling' : 'processing'
+    streamNotice.value = ''
+    if (stopRequested.value && session.runId) {
+      void requestStopActiveRun(session.runId)
+    }
     return
   }
 
@@ -690,6 +783,7 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
     assistantMessage.status = 'running'
     assistantMessage.content = ''
     isStreaming.value = true
+    runPhase.value = stopRequested.value ? 'cancelling' : 'processing'
     return
   }
 
@@ -749,24 +843,61 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
     if (assistantMessage.thinkingStatus === 'running') {
       completeThinkingClock(assistantMessage)
     }
-    isStreaming.value = false
+    runPhase.value = 'completed'
+    streamNotice.value = ''
     return
   }
 
-  if (protocolEvent.event === 'assistant.input_required' || protocolEvent.event === 'round.failed' || protocolEvent.event === 'round.cancelled') {
+  if (protocolEvent.event === 'assistant.input_required') {
     const assistantMessage = resolveSimulationAssistant(session)
-    const message = protocolEvent.event === 'assistant.input_required'
-      ? payload.input?.message
-      : payload.round?.message
-    assistantMessage.content = message || (protocolEvent.event === 'round.cancelled' ? '对话已取消。' : '对话执行失败，请稍后重试。')
-    assistantMessage.status = 'completed'
+    const message = payload.input?.message || '请补充信息后继续对话。'
+    assistantMessage.content = message
+    assistantMessage.status = 'waiting_input'
     completeThinkingClock(assistantMessage)
     hideThinkingDrawer()
-    isStreaming.value = false
+    runPhase.value = 'waiting_input'
+    streamNotice.value = message
+    void nextTick(() => conversationTextarea.value?.focus())
+    return
+  }
+
+  if (protocolEvent.event === 'round.failed' || protocolEvent.event === 'round.cancelled') {
+    const assistantMessage = resolveSimulationAssistant(session)
+    const cancelled = protocolEvent.event === 'round.cancelled'
+    const message = payload.error?.userMessage
+      || payload.round?.message
+      || (cancelled ? '本轮对话已停止。' : '对话执行失败，请稍后重试。')
+    assistantMessage.content = assistantMessage.content
+      ? `${assistantMessage.content}\n\n${message}`
+      : message
+    assistantMessage.status = cancelled ? 'cancelled' : 'failed'
+    assistantMessage.thinking = settleRunningActivities(
+      assistantMessage.thinking,
+      cancelled ? 'cancelled' : 'failed',
+    )
+    activeThinking.value = assistantMessage.thinking || []
+    finishThinkingClock(assistantMessage, cancelled ? 'cancelled' : 'failed')
+    if (activeThinking.value.length) {
+      showThinkingDrawer()
+    }
+    runPhase.value = cancelled ? 'cancelled' : 'failed'
+    streamNotice.value = message
   }
 }
 
 function applyTransportEvent(event: { id: string; event: string; data: ChatTransportEvent }) {
+  const runId = event.data.runId || activeSession.value?.runId || 'pending'
+  const eventId = event.data.eventId || event.id
+  const eventKey = eventId ? `${runId}:${eventId}` : ''
+  if (eventKey && processedEventKeys.has(eventKey)) {
+    return
+  }
+  if (eventKey) {
+    processedEventKeys.add(eventKey)
+  }
+  if (eventId && activeSession.value) {
+    activeSession.value.lastEventId = eventId
+  }
   applySimulationEvent({
     id: event.id,
     event: event.event,
@@ -812,6 +943,7 @@ function scheduleNextSimulationEvent(delay = 1000) {
   if (simulationEventIndex.value >= stream.length) {
     isSimulationRunning.value = false
     isSimulationPaused.value = false
+    isStreaming.value = false
     return
   }
 
@@ -839,6 +971,8 @@ function resetSimulationState() {
   activeThinking.value = []
   hideThinkingDrawer()
   isStreaming.value = false
+  runPhase.value = 'idle'
+  streamNotice.value = ''
 }
 
 function restartProtocolSimulation() {
@@ -939,9 +1073,169 @@ function ensureSession() {
   return session
 }
 
+function isTerminalRunPhase() {
+  return ['completed', 'failed', 'cancelled', 'waiting_input'].includes(runPhase.value)
+}
+
+function waitForReconnect(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = window.setTimeout(resolve, delay)
+    signal.addEventListener('abort', () => {
+      window.clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }, { once: true })
+  })
+}
+
+function markReconnecting(assistantMessage: StaticMessage, attempt: number) {
+  runPhase.value = 'reconnecting'
+  assistantMessage.status = 'reconnecting'
+  const activityId = assistantMessage.thinking?.[0]?.id
+  if (activityId) {
+    assistantMessage.thinking = assistantMessage.thinking?.map((activity) => (
+      activity.id === activityId
+        ? {
+            ...activity,
+            status: 'running',
+            title: '正在恢复连接',
+            description: `连接意外中断，正在进行第 ${attempt} 次恢复，不会重复执行已收到的活动。`,
+          }
+        : activity
+    ))
+    activeThinking.value = assistantMessage.thinking || []
+  }
+}
+
+async function hydratePersistedThinking(session: StaticSession, assistantMessage: StaticMessage) {
+  if (!session.serverSessionCode || !session.currentRoundCode) {
+    return
+  }
+  try {
+    const detail = await fetchRoundThinking(session.serverSessionCode, session.currentRoundCode)
+    if (!detail.nodes?.length && !detail.activities?.length) {
+      return
+    }
+    activeThinking.value = []
+    applyThinkingNodes(detail.nodes as Array<Record<string, any>> | undefined)
+    for (const activity of detail.activities || []) {
+      applyThinkingActivity({
+        progressType: 'ACTIVITY',
+        action: 'activity.updated',
+        source: activity.source,
+        activity,
+      }, String(activity.id || activity.activityCode || Date.now()))
+    }
+    assistantMessage.thinking = activeThinking.value
+  } catch {
+    // The live activity timeline remains usable when historical detail is temporarily unavailable.
+  }
+}
+
+async function runTransportWithRecovery(
+  request: ChatTransportRequest,
+  session: StaticSession,
+  assistantMessage: StaticMessage,
+  signal: AbortSignal,
+) {
+  const reconnectDelays = [500, 1000, 2000]
+  let reconnectAttempt = 0
+  let firstConnection = true
+  let lastError: unknown
+
+  while (firstConnection || reconnectAttempt <= reconnectDelays.length) {
+    try {
+      const options = { signal, seenEventIds: transportSeenEventIds }
+      const result = firstConnection
+        ? await streamChatTransport(request, applyTransportEvent, options)
+        : await reconnectChatTransport({
+            runId: session.runId || '',
+            lastEventId: session.lastEventId,
+            sessionCode: activeSession.value?.serverSessionCode || session.serverSessionCode,
+            roundCode: activeSession.value?.currentRoundCode || session.currentRoundCode,
+          }, applyTransportEvent, options)
+      session.runId = result.runId || session.runId
+      session.lastEventId = result.lastEventId || session.lastEventId
+      return result
+    } catch (error) {
+      if (isTerminalRunPhase()) {
+        return
+      }
+      if (signal.aborted) {
+        throw error
+      }
+      lastError = error
+      if (!session.runId || reconnectAttempt >= reconnectDelays.length) {
+        break
+      }
+
+      reconnectAttempt += 1
+      firstConnection = false
+      markReconnecting(assistantMessage, reconnectAttempt)
+      await waitForReconnect(reconnectDelays[reconnectAttempt - 1], signal)
+      try {
+        const status = await fetchChatRunStatus(session.runId)
+        session.serverSessionCode = status.sessionCode || session.serverSessionCode
+        session.currentRoundCode = status.roundCode || session.currentRoundCode
+      } catch {
+        // Reconnect itself is authoritative; status lookup failure does not stop recovery.
+      }
+    }
+  }
+
+  throw lastError instanceof Error ? lastError : new Error('连接恢复失败，请重新尝试。')
+}
+
+async function requestStopActiveRun(runId: string) {
+  if (!runId || stopRequestInFlight) {
+    return
+  }
+  stopRequestInFlight = true
+  runPhase.value = 'cancelling'
+  streamNotice.value = ''
+  try {
+    const accepted = await stopChatRun(runId)
+    if (!accepted) {
+      const status = await fetchChatRunStatus(runId).catch(() => null)
+      if (!status || status.active) {
+        stopRequested.value = false
+        runPhase.value = 'processing'
+        streamNotice.value = '暂时无法停止任务，AI 仍在继续处理。'
+      }
+    }
+  } catch (error) {
+    stopRequested.value = false
+    runPhase.value = 'processing'
+    streamNotice.value = error instanceof Error ? `停止失败：${error.message}` : '停止任务失败。'
+  } finally {
+    stopRequestInFlight = false
+  }
+}
+
+function handleStopAction() {
+  if (!isStreaming.value || stopRequested.value) {
+    return
+  }
+  stopRequested.value = true
+  runPhase.value = 'cancelling'
+  streamNotice.value = ''
+  const runId = activeSession.value?.runId
+  if (runId) {
+    void requestStopActiveRun(runId)
+  }
+}
+
 async function handlePrimaryAction() {
   const message = prompt.value.trim()
-  if (!message || isStreaming.value) {
+  if (!message || isStreaming.value || isSimulationRunning.value) {
+    return
+  }
+  if (!selectedModelId.value) {
+    runPhase.value = 'failed'
+    streamNotice.value = modelLoadError.value || '请先选择一个可用模型。'
     return
   }
 
@@ -965,22 +1259,57 @@ async function handlePrimaryAction() {
   session.pendingUserMessageId = userMessage.id
   session.currentAssistantMessageId = assistantMessage.id
   session.messages.push(userMessage, assistantMessage)
+  processedEventKeys.clear()
+  transportSeenEventIds.clear()
+  session.runId = undefined
+  session.lastEventId = undefined
   activeThinking.value = assistantMessage.thinking
+  activeStreamAbortController = new AbortController()
+  stopRequested.value = false
   startThinkingClock(assistantMessage)
   prompt.value = ''
   isStreaming.value = true
+  runPhase.value = 'submitting'
+  streamNotice.value = ''
+  lastSubmittedPrompt.value = message
   await syncTextareaHeights()
 
   try {
-    await streamChatTransport(request, applyTransportEvent)
+    await runTransportWithRecovery(request, session, assistantMessage, activeStreamAbortController.signal)
+    if (!['completed', 'failed', 'cancelled', 'waiting_input'].includes(runPhase.value)) {
+      throw new Error('连接已中断，且未收到任务结束状态。')
+    }
+    const finalSession = activeSession.value || session
+    await hydratePersistedThinking(finalSession, assistantMessage)
   } catch (error) {
-    assistantMessage.content = error instanceof Error ? error.message : '对话发送失败，请稍后重试。'
-    assistantMessage.status = 'completed'
-    assistantMessage.thinking = assistantMessage.thinking?.map((activity) => ({ ...activity, status: 'failed' }))
-    completeThinkingClock(assistantMessage)
+    const errorMessage = error instanceof Error ? error.message : '对话发送失败，请稍后重试。'
+    assistantMessage.content = assistantMessage.content
+      ? `${assistantMessage.content}\n\n${errorMessage}`
+      : errorMessage
+    assistantMessage.status = 'failed'
+    assistantMessage.thinking = settleRunningActivities(assistantMessage.thinking, 'failed')
+    activeThinking.value = assistantMessage.thinking || []
+    finishThinkingClock(assistantMessage, 'failed')
+    runPhase.value = 'failed'
+    streamNotice.value = errorMessage
+    if (activeThinking.value.length) {
+      showThinkingDrawer()
+    }
   } finally {
     isStreaming.value = false
+    activeStreamAbortController = null
+    stopRequested.value = false
   }
+}
+
+function retryLastMessage() {
+  if (!lastSubmittedPrompt.value || isStreaming.value) {
+    return
+  }
+  prompt.value = lastSubmittedPrompt.value
+  runPhase.value = 'idle'
+  streamNotice.value = ''
+  void handlePrimaryAction()
 }
 
 function handlePromptKeydown(event: KeyboardEvent) {
@@ -993,14 +1322,24 @@ function handlePromptKeydown(event: KeyboardEvent) {
 }
 
 function startNewChat() {
+  if (isStreaming.value) {
+    return
+  }
   activeSessionId.value = ''
   prompt.value = ''
+  runPhase.value = 'idle'
+  streamNotice.value = ''
   void syncTextareaHeights()
 }
 
 function selectSession(sessionId: string) {
+  if (isStreaming.value) {
+    return
+  }
   activeSessionId.value = sessionId
   prompt.value = ''
+  runPhase.value = 'idle'
+  streamNotice.value = ''
   void syncTextareaHeights()
 }
 
@@ -1019,6 +1358,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   clearSimulationTimer()
   clearThinkingClock()
+  activeStreamAbortController?.abort()
 })
 </script>
 
@@ -1040,6 +1380,7 @@ onBeforeUnmount(() => {
           type="button"
           aria-label="返回静态聊天首页"
           title="返回静态聊天首页"
+          :disabled="isStreaming"
           @click="startNewChat"
         >
           <img
@@ -1056,6 +1397,7 @@ onBeforeUnmount(() => {
           :key="item.key"
           :class="['chat-home-nav__item', { 'is-active': item.key === 'new-chat' && !isConversationMode }]"
           type="button"
+          :disabled="isStreaming"
           @click="item.key === 'new-chat' ? startNewChat() : undefined"
         >
           <span class="chat-home-nav__leading">
@@ -1086,7 +1428,8 @@ onBeforeUnmount(() => {
           v-for="conversation in pinnedConversations"
           :key="conversation.id"
           :class="['chat-home-thread', { 'is-current': activeSessionId === conversation.id }]"
-          type="button"
+              type="button"
+              :disabled="isStreaming"
           @click="selectSession(conversation.id)"
         >
           <div class="chat-home-thread__leading">
@@ -1137,7 +1480,7 @@ onBeforeUnmount(() => {
               v-model="selectedModelId"
               class="chat-home-model-switcher"
               :loading="isLoadingModels"
-              :disabled="isLoadingModels"
+              :disabled="isLoadingModels || isStreaming"
               :no-data-text="modelSelectEmptyText"
               placeholder="选择模型"
               filterable
@@ -1160,6 +1503,7 @@ onBeforeUnmount(() => {
               <button
                 class="chat-home-model-switcher__simulate"
                 type="button"
+                :disabled="isStreaming"
                 @click="toggleProtocolSimulation"
               >
                 {{ resolveSimulationButtonText() }}
@@ -1167,9 +1511,16 @@ onBeforeUnmount(() => {
               <button
                 class="chat-home-model-switcher__simulate"
                 type="button"
+                :disabled="isStreaming"
                 @click="restartProtocolSimulation"
               >
                 重新开始
+              </button>
+            </div>
+            <div v-if="modelLoadError" class="test-chat-model-error" role="alert">
+              <span>{{ modelLoadError }}</span>
+              <button type="button" :disabled="isLoadingModels" @click="loadEnabledModelList">
+                重新加载
               </button>
             </div>
           </div>
@@ -1208,8 +1559,14 @@ onBeforeUnmount(() => {
                 </div>
                 <div class="chat-home-composer__actions">
                   <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
-                  <button class="composer-send-button" type="button" :disabled="isStreaming" @click="handlePrimaryAction">
-                    <el-icon><Promotion /></el-icon>
+                  <button
+                    :class="['composer-send-button', { 'is-stop': isStreaming }]"
+                    type="button"
+                    :disabled="isStreaming ? stopRequested : !canSubmit"
+                    :aria-label="isStreaming ? '停止 AI 任务' : '发送消息'"
+                    @click="isStreaming ? handleStopAction() : handlePrimaryAction()"
+                  >
+                    <el-icon><CloseBold v-if="isStreaming" /><Promotion v-else /></el-icon>
                   </button>
                 </div>
               </div>
@@ -1237,6 +1594,19 @@ onBeforeUnmount(() => {
           :aria-busy="isStreaming"
         >
           <div class="chat-home-center-column chat-home-center-column--conversation">
+            <div
+              v-if="runStatusLabel"
+              :class="['test-chat-run-status', `is-${runPhase}`]"
+              :role="runPhase === 'failed' ? 'alert' : 'status'"
+              :aria-live="runPhase === 'failed' ? 'assertive' : 'polite'"
+            >
+              <span v-if="['submitting', 'processing', 'reconnecting', 'cancelling'].includes(runPhase)" class="test-chat-run-status__pulse" aria-hidden="true"></span>
+              <span>{{ runStatusLabel }}</span>
+              <button v-if="canRetry" type="button" @click="retryLastMessage">
+                <el-icon><RefreshRight /></el-icon>
+                重新尝试
+              </button>
+            </div>
             <div v-if="chatMessages.length === 0" class="chat-home-assistant">
               <div class="chat-home-assistant__avatar">pr</div>
               <div class="chat-home-assistant__body">
@@ -1260,7 +1630,7 @@ onBeforeUnmount(() => {
               <article
                 v-for="message in chatMessages"
                 :key="message.id"
-                :class="['chat-home-message', `is-${message.role}`]"
+                :class="['chat-home-message', `is-${message.role}`, message.status ? `is-${message.status}` : '']"
               >
                 <template v-if="message.role === 'assistant'">
                   <div class="chat-home-message__assistant-row">
@@ -1296,6 +1666,12 @@ onBeforeUnmount(() => {
                         class="chat-home-message__assistant-text"
                         v-html="renderMarkdown(message.content)"
                       ></div>
+                      <div
+                        v-if="message.status === 'failed' || message.status === 'cancelled' || message.status === 'waiting_input'"
+                        :class="['test-chat-message-status', `is-${message.status}`]"
+                      >
+                        {{ message.status === 'failed' ? '执行失败' : message.status === 'cancelled' ? '已停止' : '等待补充信息' }}
+                      </div>
                       <DashboardCanvasPreview v-if="message.canvas" />
                       <div
                         v-if="message.id === lastAssistantMessageId"
@@ -1365,8 +1741,14 @@ onBeforeUnmount(() => {
               </div>
               <div class="chat-home-composer__actions">
                 <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
-                <button class="composer-send-button" type="button" :disabled="isStreaming" @click="handlePrimaryAction">
-                  <el-icon><Promotion /></el-icon>
+                <button
+                  :class="['composer-send-button', { 'is-stop': isStreaming }]"
+                  type="button"
+                  :disabled="isStreaming ? stopRequested : !canSubmit"
+                  :aria-label="isStreaming ? '停止 AI 任务' : '发送消息'"
+                  @click="isStreaming ? handleStopAction() : handlePrimaryAction()"
+                >
+                  <el-icon><CloseBold v-if="isStreaming" /><Promotion v-else /></el-icon>
                 </button>
               </div>
             </div>
@@ -1466,6 +1848,90 @@ onBeforeUnmount(() => {
 .test-chat-model-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: var(--chat-space-sm, 10px);
+}
+
+.test-chat-model-error,
+.test-chat-run-status,
+.test-chat-message-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--chat-text-muted);
+  font-size: 12px;
+}
+
+.test-chat-model-error {
+  color: var(--chat-danger);
+}
+
+.test-chat-model-error button,
+.test-chat-run-status button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  border: 1px solid var(--chat-panel-border);
+  border-radius: 999px;
+  background: var(--chat-main-bg);
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+}
+
+.test-chat-run-status {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  align-self: center;
+  min-height: 34px;
+  margin-bottom: 12px;
+  padding: 6px 12px;
+  border: 1px solid var(--chat-panel-border);
+  border-radius: 999px;
+  background: var(--chat-panel-bg);
+  box-shadow: var(--chat-panel-shadow);
+}
+
+.test-chat-run-status.is-failed,
+.test-chat-message-status.is-failed {
+  color: var(--chat-danger);
+}
+
+.test-chat-run-status__pulse {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--chat-thinking-active);
+  animation: test-chat-status-pulse 1.2s ease-in-out infinite;
+}
+
+.test-chat-message-status {
+  margin-top: 8px;
+  font-weight: 600;
+}
+
+.composer-send-button.is-stop {
+  background: var(--chat-danger);
+}
+
+.chat-home-thinking-activity.is-failed .chat-home-thinking-activity__marker {
+  background: var(--chat-danger);
+}
+
+.chat-home-thinking-activity.is-cancelled .chat-home-thinking-activity__marker {
+  background: var(--chat-text-subtle);
+}
+
+@keyframes test-chat-status-pulse {
+  0%, 100% { opacity: 0.45; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .test-chat-run-status__pulse {
+    animation: none;
+  }
 }
 </style>

@@ -22,4 +22,11 @@ class ChatProtocolEventCursorTest {
         assertThat(cursor.isAfter("8", "8")).isFalse();
         assertThat(cursor.isAfter("9", "8")).isTrue();
     }
+
+    @Test
+    void rebasesPersistedReplayAfterClientCursor() {
+        assertThat(cursor.persistedReplayEventId("1", "8.3", 1)).isEqualTo("9");
+        assertThat(cursor.persistedReplayEventId("2", "8.3", 2)).isEqualTo("10");
+        assertThat(cursor.persistedReplayEventId("5", null, 1)).isEqualTo("5");
+    }
 }

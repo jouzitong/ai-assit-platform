@@ -26,6 +26,19 @@ public class ChatProtocolEventCursor {
         return candidate.subSequence() > last.subSequence();
     }
 
+    /**
+     * Persisted replay events use a fresh, short sequence. Rebase them after the
+     * client cursor so event-id de-duplication cannot discard the recovery snapshot.
+     */
+    public String persistedReplayEventId(String sourceEventId,
+                                         String lastProtocolEventId,
+                                         int replayOffset) {
+        long sourceSequence = parse(sourceEventId).sequence();
+        long lastSequence = parse(lastProtocolEventId).sequence();
+        long offset = Math.max(1L, replayOffset);
+        return String.valueOf(Math.max(sourceSequence, lastSequence + offset));
+    }
+
     private Cursor parse(String eventId) {
         if (!StringUtils.hasText(eventId)) {
             return new Cursor(0L, 0L);

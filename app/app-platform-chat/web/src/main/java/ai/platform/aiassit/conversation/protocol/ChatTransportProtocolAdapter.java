@@ -244,7 +244,23 @@ public class ChatTransportProtocolAdapter {
             ));
         }
         put(round, "message", event.getMessage());
-        return Map.of("round", round);
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("round", round);
+        if ("failed".equals(status)) {
+            payload.put("error", errorPayload(event));
+        }
+        return payload;
+    }
+
+    private Map<String, Object> errorPayload(ConversationQueryStreamEvent event) {
+        Map<String, Object> error = new LinkedHashMap<>();
+        Map<String, Object> ext = event.getExt() == null ? Map.of() : event.getExt();
+        error.put("code", defaultValue(firstText(ext.get("errorCode"), ext.get("code")), "CHAT_RUN_FAILED"));
+        error.put("userMessage", defaultValue(firstText(ext.get("userMessage")), "AI 处理失败，请稍后重试"));
+        Object retryable = ext.get("retryable");
+        error.put("retryable", retryable instanceof Boolean value ? value : Boolean.TRUE);
+        put(error, "traceId", event.getRequestId());
+        return error;
     }
 
     private Map<String, Object> inputRequiredPayload(ConversationQueryStreamEvent event) {

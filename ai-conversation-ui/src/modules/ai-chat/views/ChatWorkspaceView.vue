@@ -3,6 +3,7 @@ import {
   Calendar,
   ChatDotRound,
   Check,
+  CloseBold,
   Clock,
   Collection,
   Crop,
@@ -40,6 +41,10 @@ import {
   deleteConversation,
   pinConversation,
   renameConversation,
+  ChatStreamInterruptedError,
+  fetchChatRunStatus,
+  reconnectChatTransport,
+  stopChatRun,
   streamChatTransport,
 } from '../api'
 import type {
@@ -47,6 +52,7 @@ import type {
   ChatEnabledModel,
   ChatSessionItem,
   ChatTransportEvent,
+  ChatTransportStreamResult,
   ChatUiMessage,
 } from '../types'
 
@@ -83,6 +89,28 @@ const isStreaming = ref(false)
 const conversationError = ref('')
 const currentRunId = ref('')
 const lastEventId = ref('')
+type ChatInteractionState =
+  | 'idle'
+  | 'connecting'
+  | 'thinking'
+  | 'streaming'
+  | 'reconnecting'
+  | 'stopping'
+  | 'waiting_input'
+  | 'completed'
+  | 'failed'
+  | 'cancelled'
+
+const MAX_RECONNECT_ATTEMPTS = 3
+const ASSISTANT_PLACEHOLDERS = new Set(['正在连接 AI...', '正在思考...', '正在生成回复...', '正在处理...'])
+const interactionState = ref<ChatInteractionState>('idle')
+const reconnectAttempt = ref(0)
+const activeAssistantMessageId = ref('')
+const lastFailedMessage = ref('')
+const stopRequested = ref(false)
+let activeStreamController: AbortController | null = null
+let activeSeenEventIds = new Set<string>()
+let stopRequestInFlight = false
 const renameDialogVisible = ref(false)
 const renameSubmitting = ref(false)
 const renamingConversation = ref<ChatSessionItem | null>(null)
@@ -145,6 +173,44 @@ const selectedModelLabel = computed(() => {
   return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || '选择模型'
 })
 const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
+const modelAvailabilityMessage = computed(() => {
+  if (modelLoadError.value) {
+    return `模型列表加载失败：${modelLoadError.value}`
+  }
+  if (!isLoadingModels.value && modelOptions.value.length === 0) {
+    return '当前没有可用模型，暂时无法开始对话。'
+  }
+  return ''
+})
+const interactionStatusText = computed(() => {
+  switch (interactionState.value) {
+    case 'connecting':
+      return '正在连接 AI...'
+    case 'thinking':
+      return 'AI 正在思考和处理...'
+    case 'streaming':
+      return 'AI 正在生成回复...'
+    case 'reconnecting':
+      return `连接中断，正在恢复（${reconnectAttempt.value}/${MAX_RECONNECT_ATTEMPTS}）...`
+    case 'stopping':
+      return '正在停止本轮任务...'
+    case 'waiting_input':
+      return 'AI 需要你补充信息后才能继续。'
+    case 'cancelled':
+      return '本轮对话已取消。'
+    default:
+      return ''
+  }
+})
+const isInteractionBusy = computed(() =>
+  ['connecting', 'thinking', 'streaming', 'reconnecting', 'stopping'].includes(interactionState.value),
+)
+const isPrimaryActionDisabled = computed(() => {
+  if (isStreaming.value) {
+    return interactionState.value === 'stopping'
+  }
+  return isLoadingModels.value || !selectedModel.value || !prompt.value.trim()
+})
 const pinnedConversations = computed(() =>
   [...conversationList.value]
     .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)))
@@ -216,6 +282,54 @@ function upsertAssistantMessage(messageId: string, payload: Partial<ChatUiMessag
   if (payload.status !== undefined) {
     target.status = payload.status
   }
+}
+
+function findAssistantMessage(messageId: string) {
+  return chatMessages.value.find((item) => item.id === messageId)
+}
+
+function preserveAssistantContent(messageId: string, fallback: string) {
+  const content = findAssistantMessage(messageId)?.content || ''
+  return !content || ASSISTANT_PLACEHOLDERS.has(content) ? fallback : content
+}
+
+function syncStreamResult(result?: ChatTransportStreamResult) {
+  if (!result) {
+    return
+  }
+  currentRunId.value = result.runId || currentRunId.value
+  lastEventId.value = result.lastEventId || lastEventId.value
+  pendingSessionCode.value = result.sessionCode || pendingSessionCode.value
+  currentRoundCode.value = result.roundCode || currentRoundCode.value
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof DOMException && error.name === 'AbortError'
+}
+
+function waitForReconnect(delay: number, signal: AbortSignal) {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) {
+      reject(new DOMException('Aborted', 'AbortError'))
+      return
+    }
+    const timer = window.setTimeout(() => {
+      signal.removeEventListener('abort', handleAbort)
+      resolve()
+    }, delay)
+    const handleAbort = () => {
+      window.clearTimeout(timer)
+      reject(new DOMException('Aborted', 'AbortError'))
+    }
+    signal.addEventListener('abort', handleAbort, { once: true })
+  })
+}
+
+function normalizeChatError(error: unknown) {
+  if (error instanceof ChatStreamInterruptedError || error instanceof TypeError) {
+    return '聊天连接未能恢复，请检查网络后重试。已接收的回复内容会保留。'
+  }
+  return error instanceof Error && error.message.trim() ? error.message : '对话发送失败，请稍后重试。'
 }
 
 async function loadConversationList() {
@@ -361,7 +475,7 @@ function handleModelDropdownVisible(visible: boolean) {
   }
 }
 
-async function loadConversationDetail(sessionCode: string) {
+async function loadConversationDetail(sessionCode: string, preserveMessagesOnError = false) {
   if (!sessionCode) {
     chatMessages.value = []
     currentRoundCode.value = ''
@@ -378,9 +492,11 @@ async function loadConversationDetail(sessionCode: string) {
     const lastRound = [...(detail.rounds || [])].reverse().find((item) => item.round?.roundCode)
     currentRoundCode.value = lastRound?.round?.roundCode || ''
   } catch (error) {
-    chatMessages.value = []
-    currentRoundCode.value = ''
-    currentSessionName.value = ''
+    if (!preserveMessagesOnError) {
+      chatMessages.value = []
+      currentRoundCode.value = ''
+      currentSessionName.value = ''
+    }
     conversationError.value = error instanceof Error ? error.message : '会话详情加载失败'
   } finally {
     isLoadingDetail.value = false
@@ -412,8 +528,27 @@ function handleStreamEvent(
     currentRoundCode.value = data.roundCode
   }
 
-  if (eventName === 'assistant.started') {
-    upsertAssistantMessage(assistantMessageId, { status: 'RUNNING' })
+  if (eventName === 'run.accepted') {
+    interactionState.value = stopRequested.value ? 'stopping' : 'connecting'
+    if (stopRequested.value && currentRunId.value) {
+      void requestStopCurrentRun()
+    }
+    return
+  }
+
+  if (eventName === 'run.started' || eventName === 'assistant.started' || eventName === 'thinking.started') {
+    conversationError.value = ''
+    interactionState.value = stopRequested.value ? 'stopping' : 'thinking'
+    upsertAssistantMessage(assistantMessageId, {
+      content: preserveAssistantContent(assistantMessageId, '正在思考...'),
+      status: 'RUNNING',
+    })
+    return
+  }
+
+  if (eventName === 'thinking.updated') {
+    conversationError.value = ''
+    interactionState.value = stopRequested.value ? 'stopping' : 'thinking'
     return
   }
 
@@ -421,7 +556,10 @@ function handleStreamEvent(
     const message = payload.message as { content?: Array<{ text?: string; markdown?: string }>; append?: boolean } | undefined
     const content = (message?.content || []).map((item) => item.markdown || item.text || '').join('\n')
     if (content) {
-      const previous = chatMessages.value.find((item) => item.id === assistantMessageId)?.content || ''
+      conversationError.value = ''
+      interactionState.value = stopRequested.value ? 'stopping' : 'streaming'
+      const existingContent = findAssistantMessage(assistantMessageId)?.content || ''
+      const previous = ASSISTANT_PLACEHOLDERS.has(existingContent) ? '' : existingContent
       upsertAssistantMessage(assistantMessageId, {
         content: message?.append ? `${previous}${content}` : content,
         roundCode: data.roundCode,
@@ -438,34 +576,191 @@ function handleStreamEvent(
       .map((item) => item.markdown || item.text || '')
       .join('\n')
     upsertAssistantMessage(assistantMessageId, {
-      content: content || chatMessages.value.find((item) => item.id === assistantMessageId)?.content || '已收到，正在整理回复。',
+      content: content || preserveAssistantContent(assistantMessageId, '回复已完成，正在同步内容...'),
       roundCode: data.roundCode,
       status: 'COMPLETED',
     })
+    interactionState.value = 'completed'
+    stopRequested.value = false
+    conversationError.value = ''
     return
   }
 
-  if (eventName === 'round.failed' || eventName === 'round.cancelled' || eventName === 'assistant.input_required') {
-    const message = eventName === 'assistant.input_required'
-      ? (payload.input as { message?: string } | undefined)?.message
-      : (payload.round as { message?: string } | undefined)?.message
+  if (eventName === 'assistant.input_required') {
+    const message = (payload.input as { message?: string } | undefined)?.message
     upsertAssistantMessage(assistantMessageId, {
-      content: message || (eventName === 'round.cancelled' ? '对话已取消。' : '对话执行失败，请稍后重试。'),
+      content: preserveAssistantContent(assistantMessageId, message || '请补充更多信息后继续。'),
       roundCode: data.roundCode,
-      status: eventName === 'round.cancelled' ? 'CANCELLED' : 'FAILED',
+      status: 'WAITING_INPUT',
     })
-    conversationError.value = message || '对话执行失败，请稍后重试。'
+    interactionState.value = 'waiting_input'
+    stopRequested.value = false
+    conversationError.value = ''
+    void nextTick(() => conversationTextarea.value?.focus())
+    return
+  }
+
+  if (eventName === 'round.failed' || eventName === 'round.cancelled') {
+    const message = (payload.error as { userMessage?: string } | undefined)?.userMessage
+      || (payload.round as { message?: string } | undefined)?.message
+    const cancelled = eventName === 'round.cancelled'
+    const fallback = cancelled ? '对话已取消。' : '对话执行失败，请稍后重试。'
+    upsertAssistantMessage(assistantMessageId, {
+      content: preserveAssistantContent(assistantMessageId, message || fallback),
+      roundCode: data.roundCode,
+      status: cancelled ? 'CANCELLED' : 'FAILED',
+    })
+    interactionState.value = cancelled ? 'cancelled' : 'failed'
+    stopRequested.value = false
+    conversationError.value = cancelled ? '' : (message || fallback)
   }
 }
 
-async function handlePrimaryAction() {
-  const message = prompt.value.trim()
-  if (!message || isStreaming.value) {
-    return
+function applyTerminalRunStatus(status: string | undefined, assistantMessageId: string, error?: string) {
+  const normalizedStatus = status?.toLowerCase()
+  if (normalizedStatus === 'completed') {
+    interactionState.value = 'completed'
+    stopRequested.value = false
+    upsertAssistantMessage(assistantMessageId, {
+      content: preserveAssistantContent(assistantMessageId, '回复已完成，正在同步内容...'),
+      status: 'COMPLETED',
+    })
+    return true
   }
+  if (normalizedStatus === 'failed') {
+    const message = error || '对话执行失败，请稍后重试。'
+    interactionState.value = 'failed'
+    stopRequested.value = false
+    conversationError.value = message
+    upsertAssistantMessage(assistantMessageId, {
+      content: preserveAssistantContent(assistantMessageId, message),
+      status: 'FAILED',
+    })
+    return true
+  }
+  if (normalizedStatus === 'cancelled') {
+    interactionState.value = 'cancelled'
+    stopRequested.value = false
+    conversationError.value = ''
+    upsertAssistantMessage(assistantMessageId, {
+      content: preserveAssistantContent(assistantMessageId, '对话已取消。'),
+      status: 'CANCELLED',
+    })
+    return true
+  }
+  if (normalizedStatus === 'waiting_input') {
+    interactionState.value = 'waiting_input'
+    stopRequested.value = false
+    upsertAssistantMessage(assistantMessageId, { status: 'WAITING_INPUT' })
+    return true
+  }
+  if (normalizedStatus === 'cancelling') {
+    interactionState.value = 'stopping'
+  }
+  return false
+}
 
+async function streamWithRecovery(
+  requestPayload: ReturnType<typeof createChatTransportRequest>,
+  assistantMessageId: string,
+  controller: AbortController,
+) {
+  const handleEvent = (event: { id: string; event: string; data: ChatTransportEvent }) =>
+    handleStreamEvent(event, assistantMessageId)
+
+  try {
+    const result = await streamChatTransport(requestPayload, handleEvent, {
+      signal: controller.signal,
+      seenEventIds: activeSeenEventIds,
+    })
+    syncStreamResult(result)
+    return result
+  } catch (initialError) {
+    if (isAbortError(initialError)) {
+      throw initialError
+    }
+    if (initialError instanceof ChatStreamInterruptedError) {
+      syncStreamResult(initialError.result)
+    }
+
+    let lastError: unknown = initialError
+    for (let attempt = 1; attempt <= MAX_RECONNECT_ATTEMPTS; attempt += 1) {
+      if (!currentRunId.value) {
+        break
+      }
+
+      reconnectAttempt.value = attempt
+      interactionState.value = 'reconnecting'
+      conversationError.value = ''
+      await waitForReconnect(attempt * 500, controller.signal)
+
+      try {
+        const run = await fetchChatRunStatus(currentRunId.value)
+        currentRunId.value = run.runId || currentRunId.value
+        pendingSessionCode.value = run.sessionCode || pendingSessionCode.value
+        currentRoundCode.value = run.roundCode || currentRoundCode.value
+        if (applyTerminalRunStatus(run.status, assistantMessageId, run.error)) {
+          return {
+            terminalEventReceived: true,
+            terminalEventName: run.status === 'cancelled'
+              ? 'round.cancelled'
+              : run.status === 'failed'
+                ? 'round.failed'
+                : run.status === 'waiting_input'
+                  ? 'assistant.input_required'
+                  : 'round.completed',
+            lastEventId: lastEventId.value,
+            runId: currentRunId.value,
+            sessionCode: pendingSessionCode.value,
+            roundCode: currentRoundCode.value,
+          } as ChatTransportStreamResult
+        }
+      } catch (statusError) {
+        if (isAbortError(statusError)) {
+          throw statusError
+        }
+        lastError = statusError
+      }
+
+      try {
+        const result = await reconnectChatTransport({
+          runId: currentRunId.value,
+          lastEventId: lastEventId.value || undefined,
+          sessionCode: pendingSessionCode.value || currentSessionCode.value || undefined,
+          roundCode: currentRoundCode.value || undefined,
+        }, handleEvent, {
+          signal: controller.signal,
+          seenEventIds: activeSeenEventIds,
+        })
+        syncStreamResult(result)
+        return result
+      } catch (reconnectError) {
+        if (isAbortError(reconnectError)) {
+          throw reconnectError
+        }
+        if (reconnectError instanceof ChatStreamInterruptedError) {
+          syncStreamResult(reconnectError.result)
+        }
+        lastError = reconnectError
+      }
+    }
+    throw lastError
+  }
+}
+
+async function submitChatMessage(message: string) {
   const userMessageId = `user-${Date.now()}`
   const assistantMessageId = `assistant-${Date.now()}`
+  activeAssistantMessageId.value = assistantMessageId
+  currentRunId.value = ''
+  lastEventId.value = ''
+  reconnectAttempt.value = 0
+  lastFailedMessage.value = ''
+  activeSeenEventIds = new Set<string>()
+  stopRequested.value = false
+  const streamController = new AbortController()
+  activeStreamController = streamController
+
   chatMessages.value.push({
     id: userMessageId,
     role: 'user',
@@ -474,39 +769,126 @@ async function handlePrimaryAction() {
   chatMessages.value.push({
     id: assistantMessageId,
     role: 'assistant',
-    content: '正在生成回复...',
+    content: '正在连接 AI...',
     status: 'RUNNING',
   })
 
-  prompt.value = ''
   conversationError.value = ''
+  interactionState.value = 'connecting'
   isStreaming.value = true
   await syncTextareaHeights()
 
   try {
-    await streamChatTransport(
+    const result = await streamWithRecovery(
       createChatTransportRequest({
         sessionCode: currentSessionCode.value || undefined,
         modelId: selectedModel.value,
         message,
       }, route.path),
-      (event) => handleStreamEvent(event, assistantMessageId),
+      assistantMessageId,
+      streamController,
     )
+    syncStreamResult(result)
+    if (result.terminalEventName === 'round.failed') {
+      lastFailedMessage.value = message
+    } else {
+      lastFailedMessage.value = ''
+    }
+
     const finalSessionCode = currentSessionCode.value || pendingSessionCode.value
-    await loadConversationList()
-    if (finalSessionCode) {
-      await loadConversationDetail(finalSessionCode)
+    try {
+      await loadConversationList()
+    } catch {
+      ElMessage.warning('回复已完成，但会话列表刷新失败。')
+    }
+    if (finalSessionCode && result.terminalEventName === 'round.completed') {
+      await loadConversationDetail(finalSessionCode, true)
     }
   } catch (error) {
-    const errorMessage = error instanceof Error ? error.message : '对话发送失败'
+    if (isAbortError(error) && interactionState.value === 'cancelled') {
+      return
+    }
+    const errorMessage = normalizeChatError(error)
     upsertAssistantMessage(assistantMessageId, {
-      content: errorMessage,
+      content: preserveAssistantContent(assistantMessageId, errorMessage),
       status: 'FAILED',
     })
+    interactionState.value = 'failed'
     conversationError.value = errorMessage
+    lastFailedMessage.value = message
   } finally {
+    if (activeStreamController === streamController) {
+      activeStreamController = null
+    }
     isStreaming.value = false
+    activeAssistantMessageId.value = ''
+    stopRequested.value = false
   }
+}
+
+async function handlePrimaryAction() {
+  if (isStreaming.value) {
+    await handleStopAction()
+    return
+  }
+
+  const message = prompt.value.trim()
+  if (!message) {
+    return
+  }
+  if (!selectedModel.value) {
+    const errorMessage = modelAvailabilityMessage.value || '请先选择一个可用模型。'
+    conversationError.value = errorMessage
+    ElMessage.error(errorMessage)
+    return
+  }
+
+  prompt.value = ''
+  await submitChatMessage(message)
+}
+
+async function handleStopAction() {
+  if (!isStreaming.value || interactionState.value === 'stopping') {
+    return
+  }
+
+  stopRequested.value = true
+  interactionState.value = 'stopping'
+  conversationError.value = ''
+  if (!currentRunId.value) {
+    return
+  }
+
+  await requestStopCurrentRun()
+}
+
+async function requestStopCurrentRun() {
+  if (!currentRunId.value || stopRequestInFlight) {
+    return
+  }
+
+  stopRequestInFlight = true
+  try {
+    const accepted = await stopChatRun(currentRunId.value)
+    if (!accepted) {
+      throw new Error('停止请求未被接受，请稍后重试。')
+    }
+  } catch (error) {
+    stopRequested.value = false
+    interactionState.value = 'thinking'
+    conversationError.value = error instanceof Error ? error.message : '停止任务失败，请稍后重试。'
+  } finally {
+    stopRequestInFlight = false
+  }
+}
+
+function retryLastMessage() {
+  if (!lastFailedMessage.value || isStreaming.value) {
+    return
+  }
+  const message = lastFailedMessage.value
+  lastFailedMessage.value = ''
+  void submitChatMessage(message)
 }
 
 function handlePromptKeydown(event: KeyboardEvent) {
@@ -515,6 +897,9 @@ function handlePromptKeydown(event: KeyboardEvent) {
   }
 
   event.preventDefault()
+  if (isStreaming.value) {
+    return
+  }
   void handlePrimaryAction()
 }
 
@@ -585,6 +970,7 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('click', handleDocumentClick)
+  activeStreamController?.abort()
 })
 
 watch(prompt, () => {
@@ -602,8 +988,15 @@ watch(currentSessionCode, (sessionCode) => {
     currentSessionName.value = ''
     pendingSessionCode.value = ''
     conversationError.value = ''
+    interactionState.value = 'idle'
+    lastFailedMessage.value = ''
     return
   }
+  if (isStreaming.value && sessionCode === pendingSessionCode.value) {
+    return
+  }
+  interactionState.value = 'idle'
+  lastFailedMessage.value = ''
   void loadConversationDetail(sessionCode)
 }, { immediate: true })
 
@@ -624,6 +1017,7 @@ watch(route, () => {
           type="button"
           aria-label="返回聊天首页"
           title="返回聊天首页"
+          :disabled="isStreaming"
           @click="router.push('/')"
         >
           <img
@@ -640,6 +1034,7 @@ watch(route, () => {
           :key="item.key"
           :class="['chat-home-nav__item', { 'is-active': activeNav === item.key }]"
           type="button"
+          :disabled="isStreaming"
           @click="
             item.key === 'new-chat'
               ? router.push('/')
@@ -678,6 +1073,7 @@ watch(route, () => {
           <button
             :class="['chat-home-thread', { 'is-current': activeConversation === conversation.id }]"
             type="button"
+            :disabled="isStreaming"
             @click="router.push(`/c/${conversation.id}`)"
           >
             <div class="chat-home-thread__leading">
@@ -691,6 +1087,7 @@ watch(route, () => {
             class="chat-home-thread__more"
             type="button"
             aria-label="会话操作"
+            :disabled="isStreaming"
             @click.stop="toggleConversationMenu(conversation.id)"
           >
             <el-icon><MoreFilled /></el-icon>
@@ -814,7 +1211,7 @@ watch(route, () => {
             v-model="selectedModel"
             class="chat-home-model-switcher"
             :loading="isLoadingModels"
-            :disabled="isLoadingModels"
+            :disabled="isLoadingModels || isStreaming"
             :no-data-text="modelSelectEmptyText"
             placeholder="选择模型"
             filterable
@@ -920,6 +1317,14 @@ watch(route, () => {
             <div class="chat-home-welcome-model__avatar">oi</div>
             <div class="chat-home-welcome-model__name">{{ selectedModelLabel }}</div>
           </div>
+          <div v-if="modelAvailabilityMessage" class="chat-workspace-alert" role="alert">
+            <span>{{ modelAvailabilityMessage }}</span>
+            <button type="button" @click="loadEnabledModelList">重新加载模型</button>
+          </div>
+          <div v-if="interactionStatusText" class="chat-workspace-status" aria-live="polite">
+            <el-icon v-if="isInteractionBusy" class="is-loading"><Loading /></el-icon>
+            <span>{{ interactionStatusText }}</span>
+          </div>
           <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome">
             <textarea
               ref="welcomeTextarea"
@@ -937,8 +1342,15 @@ watch(route, () => {
               </div>
               <div class="chat-home-composer__actions">
                 <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
-                <button class="composer-send-button" type="button" :disabled="isStreaming" @click="handlePrimaryAction">
-                  <el-icon><Promotion /></el-icon>
+                <button
+                  :class="['composer-send-button', { 'is-stop': isStreaming }]"
+                  type="button"
+                  :disabled="isPrimaryActionDisabled"
+                  :aria-label="isStreaming ? '停止当前任务' : '发送消息'"
+                  :title="isStreaming ? '停止当前任务' : '发送消息'"
+                  @click="handlePrimaryAction"
+                >
+                  <el-icon><CloseBold v-if="isStreaming" /><Promotion v-else /></el-icon>
                 </button>
               </div>
             </div>
@@ -951,6 +1363,7 @@ watch(route, () => {
               :key="item.title"
               class="chat-home-welcome-suggestion"
               type="button"
+              :disabled="isStreaming"
               @click="applySuggestion(item.prompt)"
             >
               <strong>{{ item.title }}</strong>
@@ -989,14 +1402,26 @@ watch(route, () => {
               :key="card"
               class="chat-home-followup-line"
               type="button"
+              :disabled="isStreaming"
               @click="applySuggestion(card)"
             >
               {{ card }}
             </button>
           </div>
 
-          <div v-if="conversationError" class="chat-home-feedback">{{ conversationError }}</div>
+          <div v-if="modelAvailabilityMessage" class="chat-workspace-alert" role="alert">
+            <span>{{ modelAvailabilityMessage }}</span>
+            <button type="button" @click="loadEnabledModelList">重新加载模型</button>
+          </div>
+          <div v-if="conversationError" class="chat-home-feedback chat-workspace-alert" role="alert">
+            <span>{{ conversationError }}</span>
+            <button v-if="lastFailedMessage && !isStreaming" type="button" @click="retryLastMessage">重试本轮</button>
+          </div>
           <div v-else-if="isLoadingDetail" class="chat-home-feedback">会话加载中...</div>
+          <div v-if="interactionStatusText" class="chat-workspace-status" aria-live="polite">
+            <el-icon v-if="isInteractionBusy" class="is-loading"><Loading /></el-icon>
+            <span>{{ interactionStatusText }}</span>
+          </div>
 
           <div class="chat-home-message-list">
             <article
@@ -1047,8 +1472,15 @@ watch(route, () => {
             </div>
             <div class="chat-home-composer__actions">
               <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
-              <button class="composer-send-button" type="button" :disabled="isStreaming" @click="handlePrimaryAction">
-                <el-icon><Promotion /></el-icon>
+              <button
+                :class="['composer-send-button', { 'is-stop': isStreaming }]"
+                type="button"
+                :disabled="isPrimaryActionDisabled"
+                :aria-label="isStreaming ? '停止当前任务' : '发送消息'"
+                :title="isStreaming ? '停止当前任务' : '发送消息'"
+                @click="handlePrimaryAction"
+              >
+                <el-icon><CloseBold v-if="isStreaming" /><Promotion v-else /></el-icon>
               </button>
             </div>
           </div>
@@ -1074,4 +1506,50 @@ watch(route, () => {
 
 <style scoped lang="scss">
 @use '../../../styles/chat-home';
+
+.chat-workspace-alert,
+.chat-workspace-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 860px;
+  color: var(--chat-text-muted);
+  font-size: 13px;
+}
+
+.chat-workspace-alert {
+  color: var(--chat-danger, var(--app-danger));
+}
+
+.chat-workspace-alert button {
+  padding: 4px 9px;
+  border: 1px solid var(--chat-panel-border);
+  border-radius: 999px;
+  background: var(--chat-main-bg);
+  color: inherit;
+  cursor: pointer;
+  transition: border-color 0.2s ease, background 0.2s ease;
+}
+
+.chat-workspace-alert button:hover,
+.chat-workspace-alert button:focus-visible {
+  border-color: currentcolor;
+  background: var(--chat-soft-bg);
+  outline: none;
+}
+
+.chat-home-welcome-stage > .chat-workspace-alert,
+.chat-home-welcome-stage > .chat-workspace-status {
+  align-self: center;
+}
+
+.composer-send-button.is-stop {
+  background: var(--chat-danger);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-workspace-alert button {
+    transition: none;
+  }
+}
 </style>

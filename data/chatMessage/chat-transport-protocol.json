@@ -5,7 +5,15 @@
     "eventSchemaVersion": "chat-event.v2",
     "eventIdRule": "运行内主序号；一个内部事件投影为多个协议事件时使用 {sequence}.{subSequence}",
     "identifierOwnership": "sessionCode 为空时由后端创建；roundCode 可由前端提供，为空时由后端创建",
-    "compatibility": "SSE 与 WebSocket 使用同一事件包络；SSE id/event 与 data.eventId/data.eventType 保持一致"
+    "compatibility": "SSE 与 WebSocket 使用同一事件包络；SSE id/event 与 data.eventId/data.eventType 保持一致",
+    "terminalEvents": [
+      "round.completed",
+      "round.failed",
+      "round.cancelled",
+      "assistant.input_required"
+    ],
+    "successTerminalEvent": "round.completed",
+    "transportEndRule": "EOF、HTTP 200、读取超时和 WebSocket close 均不是业务终态；未收到 terminalEvents 时必须进入 RECONNECTING。"
   },
   "transport": {
     "supported": [
@@ -19,6 +27,12 @@
       "reconnectEndpoint": "/api/chat/stream/reconnect",
       "requestContentType": "application/json",
       "responseContentType": "text/event-stream",
+      "heartbeat": {
+        "frame": ": heartbeat\\n\\n",
+        "recommendedIntervalMs": 15000,
+        "hasEventId": false,
+        "advancesLastEventId": false
+      },
       "eventFrame": {
         "id": "eventId",
         "event": "eventType",
@@ -120,19 +134,19 @@
     },
     {
       "eventType": "round.completed",
-      "description": "本轮完成，返回最终 round 快照。前端用它校准前面事件产生的本地状态。"
+      "description": "本轮唯一成功终态，返回最终 round 快照。前端用它校准前面事件产生的本地状态。"
     },
     {
       "eventType": "assistant.input_required",
-      "description": "任务需要用户补充输入；WebSocket 可在后续版本中基于同一 run 继续交互。"
+      "description": "当前流的交互终态，任务进入 WAITING_INPUT；它不是成功或失败终态。当前实现通过新一轮补充输入，WebSocket 可在后续版本中基于同一 run 继续交互。"
     },
     {
       "eventType": "round.failed",
-      "description": "本轮执行失败，payload.round 包含失败状态和可展示消息。"
+      "description": "本轮失败终态，payload.error 使用安全错误结构，已生成内容和活动应保留。"
     },
     {
       "eventType": "round.cancelled",
-      "description": "本轮被用户或系统中断。中断操作是幂等的。"
+      "description": "本轮取消终态，由用户或系统中断；与失败分开展示，中断操作是幂等的。"
     }
   ],
   "queryContracts": {
@@ -142,9 +156,11 @@
       "request": {
         "type": "chat.reconnect",
         "runId": "run_01j2example",
-        "lastEventId": "12.2"
+        "lastEventId": "12.2",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2"
       },
-      "description": "按 runId 重新订阅；若 lastEventId 含子序号，将从同一主序号恢复且过滤已确认的子事件。"
+      "description": "优先按 runId 重新订阅；若 lastEventId 含子序号，将从同一主序号恢复且过滤已确认的子事件。运行缓存过期时，使用 sessionCode + roundCode 回放 chat-event.v2 持久化快照。"
     },
     "runStatus": {
       "method": "GET",
@@ -168,6 +184,95 @@
       "description": "按 codeRef 获取可独立存在的完整 render JSON。",
       "responseSchemaVersion": "render-artifact.v1"
     }
+  },
+  "recoveryPolicy": {
+    "deduplicationKey": [
+      "runId",
+      "eventId"
+    ],
+    "persistentReplayDeduplicationKey": [
+      "payload.replay.replayId",
+      "eventId"
+    ],
+    "persistentReplayFallback": "缺少 replayId 时按 sessionCode + roundCode + eventType + 业务对象 id 幂等覆盖快照。",
+    "eventIdComparison": "按 {sequence}.{subSequence} 数字分段比较，不能按字符串比较。",
+    "acknowledgeRule": "事件 JSON 解析并成功应用到本地状态后才能推进 lastEventId。",
+    "singleActiveSubscriptionPerRun": true,
+    "inactivityTimeoutMs": 30000,
+    "inactivityMeaning": "仅表示连接可能失活，不表示任务失败、取消或完成。",
+    "maxAutomaticRetries": 3,
+    "backoffMs": [
+      1000,
+      2000,
+      4000
+    ],
+    "jitter": true,
+    "retryableTransportConditions": [
+      "network_error",
+      "timeout",
+      "http_408",
+      "http_429",
+      "http_5xx"
+    ],
+    "beforeReconnect": "先查询 runStatus；活动任务使用 runId + lastEventId 重连，WAITING_INPUT 停止加载并等待输入，终态或缓存过期时请求持久化快照。",
+    "afterRetryExhausted": "保留已接收内容和活动，显示连接已中断，并提供重新连接和停止任务操作。"
+  },
+  "persistentReplay": {
+    "schemaVersion": "chat-event.v2",
+    "lookup": [
+      "sessionCode",
+      "roundCode"
+    ],
+    "trigger": "运行任务或有限事件缓存已过期。",
+    "minimumSnapshotEvents": [
+      "session.initialized",
+      "round.initialized",
+      "assistant.message.delta",
+      "one terminal event"
+    ],
+    "thinkingRecovery": "回放已持久化活动，或返回可查询 thinkingDetail 的引用。",
+    "messageApplyMode": "snapshot_replace",
+    "optionalReplayMetadata": {
+      "replayId": "replay_01j2example",
+      "mode": "PERSISTED_SNAPSHOT",
+      "source": "CONVERSATION_HISTORY",
+      "snapshot": true
+    },
+    "compatibility": "payload.replay 为可选字段，旧客户端可以忽略；回放 eventId 可重新编号，但同一回放流内必须单调递增；缺少 replayId 时按业务对象幂等覆盖。"
+  },
+  "errorContract": {
+    "payloadField": "payload.error",
+    "legacyField": "message",
+    "fields": {
+      "code": "稳定、可枚举的机器错误码，不使用异常类名。",
+      "userMessage": "可直接向普通用户展示的安全文案。",
+      "retryable": "服务端是否建议重试，客户端仍执行有限重试。",
+      "traceId": "排障关联标识，建议与 requestId 一致。",
+      "detail": "可选的裁剪后技术详情，仅面向开发或有权限的诊断界面。"
+    },
+    "forbiddenDetail": [
+      "api_key",
+      "authorization_header",
+      "raw_stack_trace",
+      "full_model_prompt",
+      "unredacted_tool_output"
+    ],
+    "fallbackUserMessage": "处理失败，请稍后重试。"
+  },
+  "activityFailurePolicy": {
+    "statuses": [
+      "pending",
+      "running",
+      "completed",
+      "failed",
+      "interrupted",
+      "waiting_input"
+    ],
+    "onRoundFailed": "明确失败的活动置为 failed；结果未知但被终止的活动置为 interrupted。",
+    "onRoundCancelled": "仍在 running 的活动置为 interrupted，并记录取消来源。",
+    "onInputRequired": "仍在 running 的活动置为 interrupted 或 waiting_input，不得标记为 completed。",
+    "persistence": "活动持久化默认 best-effort、异步或 outbox；持久化失败应告警并可标记 persistenceStatus=degraded，但不能隐式导致 round.failed。",
+    "security": "活动摘要和详情在持久化与发送前必须裁剪敏感输入和工具输出。"
   },
   "sampleEventStream": [
     {
@@ -896,6 +1001,22 @@
     {
       "event": "round.completed",
       "rule": "用完整 round 快照校准本地状态，并展示固定的喜欢、反馈按钮。"
+    },
+    {
+      "event": "assistant.input_required",
+      "rule": "进入 WAITING_INPUT，停止旋转加载态并展示补充输入提示；保留上下文，不得标记 completed 或 failed。"
+    },
+    {
+      "event": "round.failed",
+      "rule": "进入 FAILED，优先展示 payload.error.userMessage，保留部分回答和活动；按 retryable 提供有限重试。"
+    },
+    {
+      "event": "round.cancelled",
+      "rule": "进入 CANCELLED，将仍在运行的活动标记为 interrupted，与失败状态分开展示。"
+    },
+    {
+      "event": "transport.eof",
+      "rule": "这是客户端传输信号而非 chat-event.v2 业务事件；若未收到交互终态，进入 RECONNECTING 并执行 recoveryPolicy。"
     }
   ]
 }

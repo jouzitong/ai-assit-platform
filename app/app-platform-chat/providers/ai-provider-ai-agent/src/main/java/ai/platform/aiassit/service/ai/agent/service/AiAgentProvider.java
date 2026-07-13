@@ -98,6 +98,7 @@ public class AiAgentProvider implements AiChatService {
         if (observer == null) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_OBSERVER);
         }
+        AtomicBoolean receivedFailureActivity = new AtomicBoolean(false);
         try {
             AtomicBoolean receivedDelta = new AtomicBoolean(false);
             JsonNode responseNode = processExecutor.executeStream(properties, request,
@@ -105,6 +106,10 @@ public class AiAgentProvider implements AiChatService {
                         ChatChunk chunk = toStreamChunk(frame);
                         if (StringUtils.hasText(chunk.getDelta())) {
                             receivedDelta.set(true);
+                        }
+                        if ("ACTIVITY".equalsIgnoreCase(chunk.getProgressType())
+                                && "FAILED".equalsIgnoreCase(chunk.getStatus())) {
+                            receivedFailureActivity.set(true);
                         }
                         observer.onChunk(chunk);
                     });
@@ -120,8 +125,47 @@ public class AiAgentProvider implements AiChatService {
             }
             observer.onComplete();
         } catch (Exception ex) {
+            if (receivedFailureActivity.compareAndSet(false, true)) {
+                try {
+                    observer.onChunk(failureActivity(ex));
+                } catch (RuntimeException callbackError) {
+                    log.warn("ai agent failure activity callback failed", callbackError);
+                }
+            }
             observer.onError(ex);
         }
+    }
+
+    private ChatChunk failureActivity(Throwable error) {
+        ChatChunk chunk = new ChatChunk();
+        chunk.setEventType("progress");
+        chunk.setProgressType("ACTIVITY");
+        chunk.setSource("AI_AGENT");
+        chunk.setPhase("FAILED");
+        chunk.setStatus("FAILED");
+        chunk.setMessage(failureMessage(error));
+        chunk.getExt().put("activityCode", "ai-agent-execution");
+        chunk.getExt().put("activityType", "AI_AGENT_EXECUTION");
+        chunk.getExt().put("activityName", "AI Agent 执行");
+        chunk.getExt().put("outputSummary", chunk.getMessage());
+        return chunk;
+    }
+
+    private String failureMessage(Throwable error) {
+        String message = error == null ? null : error.getMessage();
+        if (StringUtils.hasText(message)) {
+            String normalized = message.toLowerCase();
+            if (normalized.contains("timeout")) {
+                return "AI Agent 执行超时";
+            }
+            if (normalized.contains("interrupt")) {
+                return "AI Agent 执行已中断";
+            }
+            if (normalized.contains("empty output")) {
+                return "AI Agent 未返回有效结果";
+            }
+        }
+        return "AI Agent 执行失败";
     }
 
     private ChatChunk toStreamChunk(JsonNode frame) {

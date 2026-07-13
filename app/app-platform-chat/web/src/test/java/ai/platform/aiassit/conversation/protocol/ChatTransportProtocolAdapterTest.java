@@ -95,6 +95,26 @@ class ChatTransportProtocolAdapterTest {
                 .contains("call-1", "TOOL_CALL", "render_json_validate_tool");
     }
 
+    @Test
+    void projectsFailureWithSafeErrorAndCompatibleRoundMessage() {
+        ConversationQueryStreamEvent event = event("error", "10");
+        event.setRoundCode("round-1");
+        event.setMessage("internal provider stack detail");
+        event.setExt(new LinkedHashMap<>(Map.of(
+                "errorCode", "PROVIDER_UNAVAILABLE",
+                "userMessage", "模型服务暂时不可用",
+                "retryable", true
+        )));
+
+        ChatEventEnvelope result = adapter.adapt(event).get(0);
+
+        assertThat(result.getEventType()).isEqualTo("round.failed");
+        assertThat(result.getPayload().get("round").toString())
+                .contains("internal provider stack detail");
+        assertThat(result.getPayload().get("error").toString())
+                .contains("PROVIDER_UNAVAILABLE", "模型服务暂时不可用", "retryable=true", "request-1");
+    }
+
     private ConversationQueryStreamEvent event(String type, String id) {
         ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
         event.setRunId("run-1");
