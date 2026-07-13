@@ -2,6 +2,7 @@ package ai.platform.aiassit.conversation.controller;
 
 import ai.platform.aiassit.conversation.dto.protocol.RenderArtifactResponse;
 import ai.platform.aiassit.conversation.dto.protocol.RoundThinkingResponse;
+import ai.platform.aiassit.conversation.protocol.ChatTransportProtocolAdapter;
 import ai.platform.aiassit.conversation.protocol.dto.ChatTransportRequest;
 import ai.platform.aiassit.conversation.runtime.ConversationRunManager;
 import ai.platform.aiassit.conversation.runtime.task.ConversationRunSnapshot;
@@ -33,17 +34,20 @@ public class ChatTransportProtocolController {
     private final ConversationRequestContextResolver contextResolver;
     private final ConversationProtocolQueryService queryService;
     private final ConversationRunManager runManager;
+    private final ChatTransportProtocolAdapter protocolAdapter;
 
     public ChatTransportProtocolController(ProtocolSseConversationTransport sseTransport,
                                            ConversationCommandFactory commandFactory,
                                            ConversationRequestContextResolver contextResolver,
                                            ConversationProtocolQueryService queryService,
-                                           ConversationRunManager runManager) {
+                                           ConversationRunManager runManager,
+                                           ChatTransportProtocolAdapter protocolAdapter) {
         this.sseTransport = sseTransport;
         this.commandFactory = commandFactory;
         this.contextResolver = contextResolver;
         this.queryService = queryService;
         this.runManager = runManager;
+        this.protocolAdapter = protocolAdapter;
     }
 
     @PostMapping(value = "/sessions/{sessionCode}/rounds/stream",
@@ -110,7 +114,14 @@ public class ChatTransportProtocolController {
         status.put("createdAt", run.createdAt());
         status.put("startedAt", run.startedAt());
         status.put("finishedAt", run.finishedAt());
-        status.put("error", run.error());
+        if (StringUtils.hasText(run.error())) {
+            Map<String, Object> errorInfo = protocolAdapter.failureError(
+                    run.error(), run.requestId(), "RUNTIME", Map.of());
+            status.put("error", errorInfo.get("detail"));
+            status.put("errorInfo", errorInfo);
+        } else {
+            status.put("error", null);
+        }
         return status;
     }
 }

@@ -96,23 +96,124 @@ class ChatTransportProtocolAdapterTest {
     }
 
     @Test
-    void projectsFailureWithSafeErrorAndCompatibleRoundMessage() {
+    void projectsFailureWithExplicitChineseMessageAndCompatibleRoundMessage() {
         ConversationQueryStreamEvent event = event("error", "10");
         event.setRoundCode("round-1");
         event.setMessage("internal provider stack detail");
         event.setExt(new LinkedHashMap<>(Map.of(
                 "errorCode", "PROVIDER_UNAVAILABLE",
                 "userMessage", "模型服务暂时不可用",
-                "retryable", true
+                "retryable", false,
+                "traceId", "trace-from-extension"
         )));
 
         ChatEventEnvelope result = adapter.adapt(event).get(0);
+        Map<String, Object> error = error(result);
 
         assertThat(result.getEventType()).isEqualTo("round.failed");
         assertThat(result.getPayload().get("round").toString())
                 .contains("internal provider stack detail");
-        assertThat(result.getPayload().get("error").toString())
-                .contains("PROVIDER_UNAVAILABLE", "模型服务暂时不可用", "retryable=true", "request-1");
+        assertThat(error)
+                .containsEntry("code", "PROVIDER_UNAVAILABLE")
+                .containsEntry("userMessage", "模型服务暂时不可用")
+                .containsEntry("retryable", false)
+                .containsEntry("traceId", "trace-from-extension")
+                .containsEntry("detail", "internal provider stack detail");
+    }
+
+    @Test
+    void mapsCredentialFailureAndRedactsSensitiveDetail() {
+        ConversationQueryStreamEvent event = event("error", "11");
+        event.setSource("AI_AGENT");
+        event.setMessage("invalid API key; Authorization: Bearer sk-liveSecret123 apiKey=plain-key secret:top-secret token=token-value");
+
+        Map<String, Object> error = error(adapter.adapt(event).get(0));
+
+        assertThat(error)
+                .containsEntry("code", "MODEL_CREDENTIAL_INVALID")
+                .containsEntry("userMessage", "模型服务凭证无效，请联系管理员检查配置")
+                .containsEntry("retryable", false)
+                .containsEntry("traceId", "request-1");
+        assertThat((String) error.get("detail"))
+                .contains("Authorization: ***", "apiKey=***", "secret:***", "token=***")
+                .doesNotContain("sk-liveSecret123", "plain-key", "top-secret", "token-value");
+    }
+
+    @Test
+    void mapsEnglishExtensionMessageToChineseUserMessage() {
+        ConversationQueryStreamEvent event = event("error", "11.1");
+        event.setMessage("provider request failed");
+        event.setExt(new LinkedHashMap<>(Map.of(
+                "userMessage", "Invalid API key supplied"
+        )));
+
+        Map<String, Object> error = error(adapter.adapt(event).get(0));
+
+        assertThat(error)
+                .containsEntry("code", "MODEL_CREDENTIAL_INVALID")
+                .containsEntry("userMessage", "模型服务凭证无效，请联系管理员检查配置")
+                .containsEntry("retryable", false)
+                .containsEntry("detail", "provider request failed");
+    }
+
+    @Test
+    void mapsModelConfigurationAndModelAvailabilityAsNotRetryable() {
+        ConversationQueryStreamEvent missingConfig = event("error", "12");
+        missingConfig.setMessage("required API key is missing");
+        ConversationQueryStreamEvent missingModel = event("error", "13");
+        missingModel.setMessage("model not found: retired-model");
+
+        assertThat(error(adapter.adapt(missingConfig).get(0)))
+                .containsEntry("code", "MODEL_CONFIG_INVALID")
+                .containsEntry("retryable", false);
+        assertThat(error(adapter.adapt(missingModel).get(0)))
+                .containsEntry("code", "MODEL_NOT_AVAILABLE")
+                .containsEntry("userMessage", "当前模型不可用，请联系管理员检查配置")
+                .containsEntry("retryable", false);
+    }
+
+    @Test
+    void mapsAgentTimeoutConnectionAndWorkflowFailuresAsRetryable() {
+        ConversationQueryStreamEvent agentTimeout = event("error", "14");
+        agentTimeout.setSource("AI_AGENT");
+        agentTimeout.setMessage("python process timeout");
+        ConversationQueryStreamEvent connection = event("error", "15");
+        connection.setMessage("connection reset by peer");
+        ConversationQueryStreamEvent workflow = event("error", "16");
+        workflow.setSource("CONVERSATION");
+        workflow.setMessage("workflow execution failed");
+
+        assertThat(error(adapter.adapt(agentTimeout).get(0)))
+                .containsEntry("code", "AI_AGENT_TIMEOUT")
+                .containsEntry("userMessage", "AI Agent 执行超时，请稍后重试")
+                .containsEntry("retryable", true);
+        assertThat(error(adapter.adapt(connection).get(0)))
+                .containsEntry("code", "MODEL_CONNECTION_FAILED")
+                .containsEntry("retryable", true);
+        assertThat(error(adapter.adapt(workflow).get(0)))
+                .containsEntry("code", "WORKFLOW_EXECUTION_FAILED")
+                .containsEntry("retryable", true);
+    }
+
+    @Test
+    void limitsSanitizedErrorDetailAndAlwaysOutputsStableFields() {
+        ConversationQueryStreamEvent event = event("error", "17");
+        event.setRequestId(null);
+        event.setMessage("Bearer sk-secretLong123 token=hidden " + "x".repeat(700));
+
+        Map<String, Object> error = error(adapter.adapt(event).get(0));
+
+        assertThat(error).containsKeys("code", "userMessage", "retryable", "traceId", "detail");
+        assertThat(error.get("traceId")).isEqualTo("");
+        assertThat((String) error.get("detail"))
+                .hasSize(500)
+                .endsWith("…")
+                .doesNotContain("sk-secretLong123", "token=hidden");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> error(ChatEventEnvelope envelope) {
+        return (Map<String, Object>) envelope.getPayload().get("error");
     }
 
     private ConversationQueryStreamEvent event(String type, String id) {

@@ -142,7 +142,7 @@
     },
     {
       "eventType": "round.failed",
-      "description": "本轮失败终态，payload.error 使用安全错误结构，已生成内容和活动应保留。"
+      "description": "本轮失败终态，payload.error 使用安全错误结构；已生成内容和活动应保留，错误卡展示在对应 round 底部而非页面级全局区域。"
     },
     {
       "eventType": "round.cancelled",
@@ -243,13 +243,25 @@
   "errorContract": {
     "payloadField": "payload.error",
     "legacyField": "message",
+    "displayScope": "round_footer",
     "fields": {
       "code": "稳定、可枚举的机器错误码，不使用异常类名。",
-      "userMessage": "可直接向普通用户展示的安全文案。",
+      "userMessage": "面向用户的中文友好主文案，说明本轮未完成及可采取的下一步，不直接使用后端原始报错。",
       "retryable": "服务端是否建议重试，客户端仍执行有限重试。",
       "traceId": "排障关联标识，建议与 requestId 一致。",
-      "detail": "可选的裁剪后技术详情，仅面向开发或有权限的诊断界面。"
+      "detail": "可选的后端脱敏、截断异常摘要，前端默认折叠展示，部署方可以按权限隐藏。"
     },
+    "errorCard": {
+      "position": "对应 sessionCode + roundCode 的 round 内容底部",
+      "primaryText": "payload.error.userMessage",
+      "diagnosticFields": [
+        "code",
+        "traceId"
+      ],
+      "detailPresentation": "collapsed",
+      "retryAction": "仅 retryable=true 时显示“重试本轮”；使用原用户输入创建新执行请求，模型参数按客户端当前选择或轮次上下文策略确定，不复用 FAILED 任务。"
+    },
+    "globalErrorScope": "仅会话列表、会话详情、模型列表或页面初始化等不归属于具体 round 的加载错误可以使用页面级全局提示。",
     "forbiddenDetail": [
       "api_key",
       "authorization_header",
@@ -1008,7 +1020,7 @@
     },
     {
       "event": "round.failed",
-      "rule": "进入 FAILED，优先展示 payload.error.userMessage，保留部分回答和活动；按 retryable 提供有限重试。"
+      "rule": "进入 FAILED，保留部分回答和活动；在对应 round 底部展示以中文 userMessage 为主文案的错误卡，默认折叠 detail，展示 code/traceId，并且仅 retryable=true 时提供“重试本轮”。不得提升为页面级全局异常。"
     },
     {
       "event": "round.cancelled",

@@ -11,9 +11,27 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Component
 public class ChatTransportProtocolAdapter {
+
+    private static final int MAX_ERROR_DETAIL_LENGTH = 500;
+    private static final int MAX_USER_MESSAGE_LENGTH = 200;
+    private static final Pattern AUTHORIZATION_PATTERN = Pattern.compile(
+            "(?i)(authorization\\s*[:=]\\s*)(?:bearer\\s+)?[^\\s,;]+"
+    );
+    private static final Pattern CREDENTIAL_ASSIGNMENT_PATTERN = Pattern.compile(
+            "(?i)([\\\"']?(?:api[-_ ]?key|secret|access[-_ ]?token|refresh[-_ ]?token|token|password)"
+                    + "[\\\"']?\\s*[:=]\\s*)[\\\"']?[^\\s,;\\\"'}]+[\\\"']?"
+    );
+    private static final Pattern BEARER_PATTERN = Pattern.compile(
+            "(?i)\\bbearer\\s+[a-z0-9._~+/=-]+"
+    );
+    private static final Pattern OPENAI_KEY_PATTERN = Pattern.compile(
+            "(?i)\\bsk-[a-z0-9_-]{4,}\\b"
+    );
+    private static final Pattern HAN_CHARACTER_PATTERN = Pattern.compile("\\p{IsHan}");
 
     public List<ChatEventEnvelope> adapt(ConversationQueryStreamEvent event) {
         if (event == null) {
@@ -253,14 +271,143 @@ public class ChatTransportProtocolAdapter {
     }
 
     private Map<String, Object> errorPayload(ConversationQueryStreamEvent event) {
+        return failureError(event.getMessage(), event.getRequestId(), event.getSource(), event.getExt());
+    }
+
+    /** Builds the stable, client-safe error contract used by failed rounds and run recovery. */
+    public Map<String, Object> failureError(String rawMessage,
+                                            String traceId,
+                                            String source,
+                                            Map<String, Object> extensions) {
         Map<String, Object> error = new LinkedHashMap<>();
-        Map<String, Object> ext = event.getExt() == null ? Map.of() : event.getExt();
-        error.put("code", defaultValue(firstText(ext.get("errorCode"), ext.get("code")), "CHAT_RUN_FAILED"));
-        error.put("userMessage", defaultValue(firstText(ext.get("userMessage")), "AI 处理失败，请稍后重试"));
-        Object retryable = ext.get("retryable");
-        error.put("retryable", retryable instanceof Boolean value ? value : Boolean.TRUE);
-        put(error, "traceId", event.getRequestId());
+        Map<String, Object> ext = extensions == null ? Map.of() : extensions;
+        Map<String, Object> nestedError = mapValue(ext.get("error"));
+        String detail = firstText(
+                nestedError.get("detail"), ext.get("detail"), ext.get("errorDetail"), rawMessage);
+        String explicitUserMessage = firstText(nestedError.get("userMessage"), ext.get("userMessage"));
+        String classificationMessage = String.join(" ",
+                defaultValue(detail, ""),
+                defaultValue(explicitUserMessage, ""));
+        ErrorClassification classification = classifyError(classificationMessage, source);
+        String explicitTraceId = firstText(nestedError.get("traceId"), ext.get("traceId"), traceId);
+
+        error.put("code", defaultValue(firstText(
+                nestedError.get("code"), ext.get("errorCode"), ext.get("code")), classification.code()));
+        String userMessage = hasChinese(explicitUserMessage)
+                ? explicitUserMessage
+                : classification.userMessage();
+        error.put("userMessage", limit(sanitize(userMessage), MAX_USER_MESSAGE_LENGTH));
+        error.put("retryable", explicitRetryable(nestedError, ext, classification.retryable()));
+        error.put("traceId", defaultValue(explicitTraceId, ""));
+        error.put("detail", limit(sanitize(defaultValue(detail, "")), MAX_ERROR_DETAIL_LENGTH));
         return error;
+    }
+
+    private ErrorClassification classifyError(String message, String source) {
+        String normalized = defaultValue(message, "").toLowerCase(Locale.ROOT);
+        boolean agent = "AI_AGENT".equalsIgnoreCase(source)
+                || containsAny(normalized, "ai agent", "python process", "agent provider");
+
+        if (containsAny(normalized,
+                "configuration missing", "config missing", "not configured", "configuration invalid",
+                "required api", "required model", "script path", "配置缺失", "配置无效", "未配置")) {
+            return new ErrorClassification(
+                    "MODEL_CONFIG_INVALID", "模型服务配置不完整，请联系管理员检查配置", false);
+        }
+        if (containsAny(normalized,
+                "api key", "apikey", "api_key", "credential", "unauthorized", "authentication failed",
+                "invalid token", "token invalid", "access denied", "401", "403", "凭证", "认证失败")) {
+            return new ErrorClassification(
+                    "MODEL_CREDENTIAL_INVALID", "模型服务凭证无效，请联系管理员检查配置", false);
+        }
+        if (containsAny(normalized,
+                "model not found", "model unavailable", "model is unavailable", "model disabled",
+                "unsupported model", "invalid model", "unknown model", "模型不存在", "模型不可用", "模型已停用")) {
+            return new ErrorClassification(
+                    "MODEL_NOT_AVAILABLE", "当前模型不可用，请联系管理员检查配置", false);
+        }
+        if (containsAny(normalized, "rate limit", "too many requests", "429", "限流")) {
+            return new ErrorClassification(
+                    "MODEL_RATE_LIMITED", "模型服务当前繁忙，请稍后重试", true);
+        }
+        if (containsAny(normalized, "timeout", "timed out", "超时")) {
+            return agent
+                    ? new ErrorClassification("AI_AGENT_TIMEOUT", "AI Agent 执行超时，请稍后重试", true)
+                    : new ErrorClassification("MODEL_TIMEOUT", "模型处理超时，请稍后重试", true);
+        }
+        if (containsAny(normalized,
+                "connection", "connection reset", "connection refused", "network", "service unavailable",
+                "temporarily unavailable", "bad gateway", "502", "503", "504", "连接失败", "网络异常")) {
+            return new ErrorClassification(
+                    "MODEL_CONNECTION_FAILED", "模型服务连接失败，请稍后重试", true);
+        }
+        if (agent) {
+            return new ErrorClassification(
+                    "AI_AGENT_EXECUTION_FAILED", "AI Agent 执行失败，请稍后重试", true);
+        }
+        if ("CONVERSATION".equalsIgnoreCase(source)
+                || containsAny(normalized, "workflow", "process failed", "流程")) {
+            return new ErrorClassification(
+                    "WORKFLOW_EXECUTION_FAILED", "AI 处理流程暂时失败，请稍后重试", true);
+        }
+        return new ErrorClassification("CHAT_RUN_FAILED", "AI 处理失败，请稍后重试", true);
+    }
+
+    private boolean explicitRetryable(Map<String, Object> nestedError,
+                                      Map<String, Object> ext,
+                                      boolean fallback) {
+        Object value = nestedError.containsKey("retryable")
+                ? nestedError.get("retryable")
+                : ext.get("retryable");
+        if (value instanceof Boolean bool) {
+            return bool;
+        }
+        if (value instanceof String text && StringUtils.hasText(text)) {
+            if ("true".equalsIgnoreCase(text.trim())) {
+                return true;
+            }
+            if ("false".equalsIgnoreCase(text.trim())) {
+                return false;
+            }
+        }
+        return fallback;
+    }
+
+    private String sanitize(String value) {
+        if (!StringUtils.hasText(value)) {
+            return "";
+        }
+        String sanitized = value.replaceAll("[\\r\\n\\t]+", " ").trim();
+        sanitized = AUTHORIZATION_PATTERN.matcher(sanitized).replaceAll("$1***");
+        sanitized = CREDENTIAL_ASSIGNMENT_PATTERN.matcher(sanitized).replaceAll("$1***");
+        sanitized = BEARER_PATTERN.matcher(sanitized).replaceAll("Bearer ***");
+        sanitized = OPENAI_KEY_PATTERN.matcher(sanitized).replaceAll("sk-***");
+        return sanitized;
+    }
+
+    private String limit(String value, int maxLength) {
+        if (value == null || value.length() <= maxLength) {
+            return value;
+        }
+        return value.substring(0, maxLength - 1) + "…";
+    }
+
+    private boolean hasChinese(String value) {
+        return StringUtils.hasText(value) && HAN_CHARACTER_PATTERN.matcher(value).find();
+    }
+
+    private boolean containsAny(String value, String... candidates) {
+        for (String candidate : candidates) {
+            if (value.contains(candidate)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mapValue(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
     }
 
     private Map<String, Object> inputRequiredPayload(ConversationQueryStreamEvent event) {
@@ -353,5 +500,8 @@ public class ChatTransportProtocolAdapter {
     }
 
     private record EventProjection(String eventType, Map<String, Object> payload) {
+    }
+
+    private record ErrorClassification(String code, String userMessage, boolean retryable) {
     }
 }

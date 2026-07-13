@@ -173,6 +173,14 @@ export interface ChatTransportStreamOptions {
   inactivityTimeoutMs?: number
 }
 
+export interface ChatUiError {
+  code?: string
+  userMessage: string
+  detail?: string
+  retryable?: boolean
+  traceId?: string
+}
+
 export interface ChatRunStatus {
   runId?: string
   requestId?: string
@@ -184,6 +192,7 @@ export interface ChatRunStatus {
   startedAt?: string
   finishedAt?: string
   error?: string
+  errorInfo?: Partial<ChatUiError>
 }
 
 export interface ChatRoundThinkingDetail {
@@ -203,4 +212,5 @@ export interface ChatUiMessage {
   content: string
   roundCode?: string
   status?: string
+  error?: ChatUiError
 }

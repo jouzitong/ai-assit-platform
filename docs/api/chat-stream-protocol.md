@@ -629,18 +629,26 @@ phase = COMPLETED
 安全错误结构：
 
 - `code`：稳定、可枚举的机器错误码，前端可以据此选择恢复动作，不应使用异常类名。
-- `userMessage`：可以直接向普通用户展示的安全文案；缺失时前端使用统一兜底文案。
+- `userMessage`：面向用户的中文友好主文案，说明本轮未完成以及用户可以采取的下一步；不能直接使用异常类名、英文堆栈或后端原始报错。缺失时前端使用统一中文兜底文案。
 - `retryable`：是否建议重试。它只表达服务端判断，前端仍须遵守有限重试规则。
 - `traceId`：排障关联标识，建议与事件 `requestId` 保持一致，可提供复制入口。
-- `detail`：可选的裁剪后技术详情，只在开发或有权限的诊断界面展示。不得包含堆栈、密钥、认证头、完整模型提示词或敏感工具结果。
+- `detail`：可选的后端脱敏、截断异常摘要，前端默认折叠展示，部署方也可以按权限隐藏。不得包含完整堆栈、密钥、认证头、完整模型提示词或敏感工具结果；服务端应限制长度，避免错误事件本身过大。
 
 `chat-event.v2` 的 `round.failed` 应在 `payload.error` 携带同一结构，并可在 `payload.round` 返回失败快照。兼容实现可以继续提供 `message`，但前端优先使用 `payload.error.userMessage`，不能直接展示原始异常字符串。
 
 前端处理规则：
 
 - 停止当前轮次加载态。
-- 展示 `message`。
+- 在 `sessionCode + roundCode` 对应轮次内容底部展示错误卡，不得将 `round.failed` 提升为页面级全局异常。
+- 错误卡以 `userMessage` 为主文案，并展示或提供复制 `code`、`traceId` 的入口；`detail` 放在默认折叠的“技术详情”中。
+- 只有 `retryable=true` 时显示“重试本轮”，重试必须使用对应轮次的原用户输入创建新的执行请求，模型参数按客户端当前选择或轮次上下文策略确定，不能继续追加到已经 `FAILED` 的运行任务。
 - 保留已收到的 `progress` 和 `answer_delta`，但不得标记整轮成功。
+
+错误展示作用域：
+
+- `round.failed` 属于轮次内错误；模型生成、工具、Python 活动或 Render 校验失败一旦导致该终态，错误卡固定展示在对应 round 底部。未导致轮次失败的活动异常仍按活动协议展示。历史回放后，轮次错误仍应出现在原 round，不能漂移到当前页面顶部。
+- 会话列表、会话详情、模型列表或页面初始化等独立资源加载失败，不归属于某个 round，可以使用页面级全局提示，并提供重新加载操作。
+- 即使轮次错误与页面级加载错误同时存在，也必须分别维护；关闭全局提示不能移除 round 底部错误卡。
 
 ### 6.7 `complete`
 
@@ -754,7 +762,7 @@ progress       更新计划、节点状态、节点内活动
 answer_delta   追加输出内容
 answer         覆盖或确认当前完整回答
 clarification  停止当前轮，展示补充确认问题
-error          标记失败，展示 message
+error          标记对应 round 失败，在该 round 底部展示错误卡
 complete       标记整轮完成，刷新会话详情
 run.accepted   保存 runId，任务进入已接收状态
 run.started    任务进入执行状态
@@ -769,7 +777,7 @@ progress + progressType=NODE      -> 更新节点生命周期状态
 progress + progressType=ACTIVITY  -> 更新节点内活动明细
 answer + source=SIMPLE_CHAT  -> 文本回答
 answer + source=RENDER       -> Render JSON 回答
-error  + source=RENDER       -> Render JSON 生成失败
+error  + source=RENDER       -> 当前 round 底部展示 Render JSON 生成失败卡
 ```
 
 当前仓库前端的 `/test/chat` 已处理 `run.*`、`thinking.*`、`assistant.message.delta`、`ACTIVITY`、完成和失败事件，并在发出请求后立即创建“正在连接 AI / 思考中”占位。正式聊天页已使用 `modelId` 和基础流式回答事件，但思考抽屉仍以 `/test/chat` 的实现为交互参考逐步收敛。

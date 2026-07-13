@@ -32,6 +32,7 @@ import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
 import { clearSession, getStoredUser } from '../../../utils/session'
+import ChatMessageErrorCard from '../components/ChatMessageErrorCard.vue'
 import { renderMarkdown } from '../utils/markdown'
 import {
   fetchConversationDetail,
@@ -53,6 +54,7 @@ import type {
   ChatSessionItem,
   ChatTransportEvent,
   ChatTransportStreamResult,
+  ChatUiError,
   ChatUiMessage,
 } from '../types'
 
@@ -106,7 +108,6 @@ const ASSISTANT_PLACEHOLDERS = new Set(['正在连接 AI...', '正在思考...',
 const interactionState = ref<ChatInteractionState>('idle')
 const reconnectAttempt = ref(0)
 const activeAssistantMessageId = ref('')
-const lastFailedMessage = ref('')
 const stopRequested = ref(false)
 let activeStreamController: AbortController | null = null
 let activeSeenEventIds = new Set<string>()
@@ -253,9 +254,79 @@ function normalizeRole(role?: string) {
   return role.toLowerCase() === 'user' ? 'user' : 'assistant'
 }
 
+function asRecord(value: unknown): Record<string, unknown> | undefined {
+  return value && typeof value === 'object' && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : undefined
+}
+
+function textValue(value: unknown) {
+  return typeof value === 'string' && value.trim() ? value.trim() : undefined
+}
+
+function sanitizeErrorDetail(value: unknown) {
+  const detail = textValue(value)
+  if (!detail) {
+    return undefined
+  }
+  const sanitized = detail
+    .replace(/\bbearer\s+[a-z0-9._~+/=-]+/gi, 'Bearer [已隐藏]')
+    .replace(/\bsk-[a-z0-9_-]+\b/gi, '[已隐藏]')
+    .replace(
+      /(["']?(?:authorization|api[ _-]?key|secret|password|access[_-]?token|refresh[_-]?token|token)["']?\s*[:=]\s*["']?)([^"'\s,;}]+)/gi,
+      '$1[已隐藏]',
+    )
+  return sanitized.length > 500 ? `${sanitized.slice(0, 499)}…` : sanitized
+}
+
+function parseExtJson(value?: string | null) {
+  if (!value?.trim()) {
+    return undefined
+  }
+  try {
+    return asRecord(JSON.parse(value))
+  } catch {
+    return undefined
+  }
+}
+
+function normalizeStructuredError(
+  value: unknown,
+  fallbackDetail?: string,
+  fallbackCode = 'CHAT_RUN_FAILED',
+): ChatUiError {
+  const record = asRecord(value)
+  const nested = asRecord(record?.error)
+  const source = nested || record
+  return {
+    code: textValue(source?.code) || fallbackCode,
+    userMessage: textValue(source?.userMessage) || 'AI 处理失败，请稍后重试。',
+    detail: sanitizeErrorDetail(source?.detail)
+      || sanitizeErrorDetail(source?.reason)
+      || sanitizeErrorDetail(source?.errorMessage)
+      || sanitizeErrorDetail(fallbackDetail),
+    retryable: typeof source?.retryable === 'boolean' ? source.retryable : true,
+    traceId: textValue(source?.traceId),
+  }
+}
+
+function historicalRoundError(round: ChatConversationRound): ChatUiError {
+  const failedAssistant = [...(round.messages || [])].reverse().find((message) =>
+    normalizeRole(message.role) === 'assistant' && message.status?.toUpperCase() === 'FAILED',
+  )
+  const ext = parseExtJson(failedAssistant?.extJson)
+  const messageDetail = failedAssistant?.messageType?.toUpperCase().includes('ERROR')
+    ? failedAssistant.content
+    : undefined
+  return normalizeStructuredError(
+    ext,
+    textValue(ext?.reason) || textValue(ext?.message) || messageDetail,
+  )
+}
+
 function flattenRoundsToMessages(rounds: ChatConversationRound[]) {
-  return rounds.flatMap((round) =>
-    (round.messages || [])
+  return rounds.flatMap((round) => {
+    const messages: ChatUiMessage[] = (round.messages || [])
       .filter((message) => typeof message.content === 'string' && message.content.trim())
       .map((message) => ({
         id: message.messageCode || `${round.round?.roundCode || 'round'}-${message.sortNo || 0}`,
@@ -263,8 +334,31 @@ function flattenRoundsToMessages(rounds: ChatConversationRound[]) {
         content: message.content,
         roundCode: message.roundCode,
         status: message.status || round.round?.status || undefined,
-      })),
-  )
+      }))
+    const failed = round.round?.status?.toUpperCase() === 'FAILED'
+      || (round.messages || []).some((message) => message.status?.toUpperCase() === 'FAILED')
+    if (!failed) {
+      return messages
+    }
+
+    const error = historicalRoundError(round)
+    const assistant = [...messages].reverse().find((message) => message.role === 'assistant')
+    if (assistant) {
+      assistant.status = 'FAILED'
+      assistant.error = error
+      return messages
+    }
+
+    messages.push({
+      id: `${round.round?.roundCode || 'round'}-assistant-error`,
+      role: 'assistant',
+      content: '',
+      roundCode: round.round?.roundCode,
+      status: 'FAILED',
+      error,
+    })
+    return messages
+  })
 }
 
 function upsertAssistantMessage(messageId: string, payload: Partial<ChatUiMessage>) {
@@ -281,6 +375,9 @@ function upsertAssistantMessage(messageId: string, payload: Partial<ChatUiMessag
   }
   if (payload.status !== undefined) {
     target.status = payload.status
+  }
+  if (Object.prototype.hasOwnProperty.call(payload, 'error')) {
+    target.error = payload.error
   }
 }
 
@@ -325,11 +422,21 @@ function waitForReconnect(delay: number, signal: AbortSignal) {
   })
 }
 
-function normalizeChatError(error: unknown) {
+function normalizeStreamError(error: unknown): ChatUiError {
   if (error instanceof ChatStreamInterruptedError || error instanceof TypeError) {
-    return '聊天连接未能恢复，请检查网络后重试。已接收的回复内容会保留。'
+    return {
+      code: 'CHAT_STREAM_INTERRUPTED',
+      userMessage: '聊天连接未能恢复，请检查网络后重试。已接收的回复内容会保留。',
+      detail: error instanceof Error ? sanitizeErrorDetail(error.message) : undefined,
+      retryable: true,
+    }
   }
-  return error instanceof Error && error.message.trim() ? error.message : '对话发送失败，请稍后重试。'
+  return {
+    code: 'CHAT_REQUEST_FAILED',
+    userMessage: '本轮处理失败，请稍后重试。',
+    detail: error instanceof Error ? sanitizeErrorDetail(error.message) : undefined,
+    retryable: true,
+  }
 }
 
 async function loadConversationList() {
@@ -579,6 +686,7 @@ function handleStreamEvent(
       content: content || preserveAssistantContent(assistantMessageId, '回复已完成，正在同步内容...'),
       roundCode: data.roundCode,
       status: 'COMPLETED',
+      error: undefined,
     })
     interactionState.value = 'completed'
     stopRequested.value = false
@@ -600,23 +708,40 @@ function handleStreamEvent(
     return
   }
 
-  if (eventName === 'round.failed' || eventName === 'round.cancelled') {
-    const message = (payload.error as { userMessage?: string } | undefined)?.userMessage
-      || (payload.round as { message?: string } | undefined)?.message
-    const cancelled = eventName === 'round.cancelled'
-    const fallback = cancelled ? '对话已取消。' : '对话执行失败，请稍后重试。'
+  if (eventName === 'round.failed') {
+    const error = normalizeStructuredError(
+      payload.error,
+      (payload.round as { message?: string } | undefined)?.message,
+    )
     upsertAssistantMessage(assistantMessageId, {
-      content: preserveAssistantContent(assistantMessageId, message || fallback),
+      content: preserveAssistantContent(assistantMessageId, ''),
       roundCode: data.roundCode,
-      status: cancelled ? 'CANCELLED' : 'FAILED',
+      status: 'FAILED',
+      error,
     })
-    interactionState.value = cancelled ? 'cancelled' : 'failed'
+    interactionState.value = 'failed'
     stopRequested.value = false
-    conversationError.value = cancelled ? '' : (message || fallback)
+    return
+  }
+
+  if (eventName === 'round.cancelled') {
+    upsertAssistantMessage(assistantMessageId, {
+      content: preserveAssistantContent(assistantMessageId, '对话已取消。'),
+      roundCode: data.roundCode,
+      status: 'CANCELLED',
+      error: undefined,
+    })
+    interactionState.value = 'cancelled'
+    stopRequested.value = false
   }
 }
 
-function applyTerminalRunStatus(status: string | undefined, assistantMessageId: string, error?: string) {
+function applyTerminalRunStatus(
+  status: string | undefined,
+  assistantMessageId: string,
+  errorInfo?: unknown,
+  errorDetail?: string,
+) {
   const normalizedStatus = status?.toLowerCase()
   if (normalizedStatus === 'completed') {
     interactionState.value = 'completed'
@@ -624,17 +749,17 @@ function applyTerminalRunStatus(status: string | undefined, assistantMessageId: 
     upsertAssistantMessage(assistantMessageId, {
       content: preserveAssistantContent(assistantMessageId, '回复已完成，正在同步内容...'),
       status: 'COMPLETED',
+      error: undefined,
     })
     return true
   }
   if (normalizedStatus === 'failed') {
-    const message = error || '对话执行失败，请稍后重试。'
     interactionState.value = 'failed'
     stopRequested.value = false
-    conversationError.value = message
     upsertAssistantMessage(assistantMessageId, {
-      content: preserveAssistantContent(assistantMessageId, message),
+      content: preserveAssistantContent(assistantMessageId, ''),
       status: 'FAILED',
+      error: normalizeStructuredError(errorInfo, errorDetail),
     })
     return true
   }
@@ -699,7 +824,7 @@ async function streamWithRecovery(
         currentRunId.value = run.runId || currentRunId.value
         pendingSessionCode.value = run.sessionCode || pendingSessionCode.value
         currentRoundCode.value = run.roundCode || currentRoundCode.value
-        if (applyTerminalRunStatus(run.status, assistantMessageId, run.error)) {
+        if (applyTerminalRunStatus(run.status, assistantMessageId, run.errorInfo, run.error)) {
           return {
             terminalEventReceived: true,
             terminalEventName: run.status === 'cancelled'
@@ -755,7 +880,6 @@ async function submitChatMessage(message: string) {
   currentRunId.value = ''
   lastEventId.value = ''
   reconnectAttempt.value = 0
-  lastFailedMessage.value = ''
   activeSeenEventIds = new Set<string>()
   stopRequested.value = false
   const streamController = new AbortController()
@@ -789,11 +913,6 @@ async function submitChatMessage(message: string) {
       streamController,
     )
     syncStreamResult(result)
-    if (result.terminalEventName === 'round.failed') {
-      lastFailedMessage.value = message
-    } else {
-      lastFailedMessage.value = ''
-    }
 
     const finalSessionCode = currentSessionCode.value || pendingSessionCode.value
     try {
@@ -808,14 +927,13 @@ async function submitChatMessage(message: string) {
     if (isAbortError(error) && interactionState.value === 'cancelled') {
       return
     }
-    const errorMessage = normalizeChatError(error)
+    const messageError = normalizeStreamError(error)
     upsertAssistantMessage(assistantMessageId, {
-      content: preserveAssistantContent(assistantMessageId, errorMessage),
+      content: preserveAssistantContent(assistantMessageId, ''),
       status: 'FAILED',
+      error: messageError,
     })
     interactionState.value = 'failed'
-    conversationError.value = errorMessage
-    lastFailedMessage.value = message
   } finally {
     if (activeStreamController === streamController) {
       activeStreamController = null
@@ -876,19 +994,41 @@ async function requestStopCurrentRun() {
   } catch (error) {
     stopRequested.value = false
     interactionState.value = 'thinking'
-    conversationError.value = error instanceof Error ? error.message : '停止任务失败，请稍后重试。'
+    ElMessage.error(error instanceof Error ? error.message : '停止任务失败，请稍后重试。')
   } finally {
     stopRequestInFlight = false
   }
 }
 
-function retryLastMessage() {
-  if (!lastFailedMessage.value || isStreaming.value) {
+function retrySourceMessage(message: ChatUiMessage) {
+  const messageIndex = chatMessages.value.findIndex((item) => item.id === message.id)
+  if (messageIndex < 0) {
+    return undefined
+  }
+  for (let index = messageIndex - 1; index >= 0; index -= 1) {
+    const candidate = chatMessages.value[index]
+    const belongsToRound = !message.roundCode
+      || !candidate?.roundCode
+      || candidate.roundCode === message.roundCode
+    if (candidate?.role === 'user' && candidate.content.trim() && belongsToRound) {
+      return candidate.content
+    }
+  }
+  return undefined
+}
+
+function canRetryMessage(message: ChatUiMessage) {
+  return message.error?.retryable !== false && Boolean(retrySourceMessage(message))
+}
+
+function retryMessage(message: ChatUiMessage) {
+  if (isStreaming.value || !canRetryMessage(message)) {
     return
   }
-  const message = lastFailedMessage.value
-  lastFailedMessage.value = ''
-  void submitChatMessage(message)
+  const sourceMessage = retrySourceMessage(message)
+  if (sourceMessage) {
+    void submitChatMessage(sourceMessage)
+  }
 }
 
 function handlePromptKeydown(event: KeyboardEvent) {
@@ -989,14 +1129,12 @@ watch(currentSessionCode, (sessionCode) => {
     pendingSessionCode.value = ''
     conversationError.value = ''
     interactionState.value = 'idle'
-    lastFailedMessage.value = ''
     return
   }
   if (isStreaming.value && sessionCode === pendingSessionCode.value) {
     return
   }
   interactionState.value = 'idle'
-  lastFailedMessage.value = ''
   void loadConversationDetail(sessionCode)
 }, { immediate: true })
 
@@ -1415,7 +1553,6 @@ watch(route, () => {
           </div>
           <div v-if="conversationError" class="chat-home-feedback chat-workspace-alert" role="alert">
             <span>{{ conversationError }}</span>
-            <button v-if="lastFailedMessage && !isStreaming" type="button" @click="retryLastMessage">重试本轮</button>
           </div>
           <div v-else-if="isLoadingDetail" class="chat-home-feedback">会话加载中...</div>
           <div v-if="interactionStatusText" class="chat-workspace-status" aria-live="polite">
@@ -1439,6 +1576,13 @@ watch(route, () => {
                       class="chat-home-message__assistant-text"
                       v-html="renderMarkdown(message.content)"
                     ></div>
+                    <ChatMessageErrorCard
+                      v-if="message.error"
+                      :error="message.error"
+                      :retry-available="canRetryMessage(message)"
+                      :retry-disabled="isStreaming"
+                      @retry="retryMessage(message)"
+                    />
                   </div>
                 </div>
               </template>
