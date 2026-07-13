@@ -244,6 +244,10 @@ onMounted(() => {
   overflow: hidden;
 }
 
+.system-settings-shell--collapsed {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .system-settings-shell__toggle {
   position: absolute;
   top: 28px;
@@ -282,10 +286,6 @@ onMounted(() => {
   overflow-y: auto;
 }
 
-.system-settings-shell--collapsed .system-settings-content {
-  padding-left: 52px;
-}
-
 @media (max-width: 960px) {
   .system-settings-shell {
     grid-template-columns: 1fr;
@@ -300,10 +300,6 @@ onMounted(() => {
 
   .system-settings-content {
     overflow-y: visible;
-  }
-
-  .system-settings-shell--collapsed .system-settings-content {
-    padding: 64px 10px 10px;
   }
 }
 </style>
