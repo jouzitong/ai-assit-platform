@@ -355,6 +355,12 @@ async function loadEnabledModelList() {
   }
 }
 
+function handleModelDropdownVisible(visible: boolean) {
+  if (visible && !modelOptions.value.length && !isLoadingModels.value) {
+    void loadEnabledModelList()
+  }
+}
+
 async function loadConversationDetail(sessionCode: string) {
   if (!sessionCode) {
     chatMessages.value = []
@@ -808,12 +814,13 @@ watch(route, () => {
             v-model="selectedModel"
             class="chat-home-model-switcher"
             :loading="isLoadingModels"
-            :disabled="isLoadingModels || !modelOptions.length"
+            :disabled="isLoadingModels"
             :no-data-text="modelSelectEmptyText"
             placeholder="选择模型"
             filterable
             fit-input-width
             aria-label="选择对话模型"
+            @visible-change="handleModelDropdownVisible"
           >
             <el-option
               v-for="model in modelOptions"

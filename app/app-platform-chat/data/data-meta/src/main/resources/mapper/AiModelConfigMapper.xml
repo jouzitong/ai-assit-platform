@@ -27,7 +27,7 @@
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.maxOutputTokens')) AS SIGNED) AS maxOutputTokens,
             CAST(JSON_UNQUOTE(JSON_EXTRACT(m.ext_json, '$.priority')) AS SIGNED) AS priority
         FROM ai_model_config m
-        LEFT JOIN ai_client_config c ON c.id = m.client_id AND c.deleted = 0
+        LEFT JOIN ai_client_config c ON c.id = m.client_id
         WHERE m.enabled = TRUE
           AND (m.client_id IS NULL OR c.enabled = TRUE)
         ORDER BY
@@ -45,9 +45,8 @@
                COALESCE(c.api_key, m.api_key) AS api_key,
                m.ext_json
         FROM ai_model_config m
-        LEFT JOIN ai_client_config c ON c.id = m.client_id AND c.deleted = 0
+        LEFT JOIN ai_client_config c ON c.id = m.client_id
         WHERE m.model_code = #{modelCode}
-          AND m.deleted = 0
         LIMIT 1
     </select>
 </mapper>

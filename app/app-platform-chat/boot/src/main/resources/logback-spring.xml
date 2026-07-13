@@ -128,17 +128,14 @@
     </logger>
 
     <logger name="org.mybatis" level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="com.baomidou.mybatisplus" level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
     <logger name="java.sql" level="DEBUG">
-        <appender-ref ref="CONSOLE"/>
         <appender-ref ref="SQL_FILE"/>
     </logger>
 
