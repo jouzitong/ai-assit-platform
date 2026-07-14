@@ -2,7 +2,7 @@
 
 > 状态：代码实施完成，待业务数据库联调验收
 > 日期：2026-07-13
-> 对应设计：[cross-source-virtual-data-model-design.md](cross-source-virtual-data-model-design.md)
+> 对应设计：[cross-source-virtual-data-model-design.md](../designs/cross-source-virtual-data-model-design.md)
 
 ## 1. 已交付范围
 

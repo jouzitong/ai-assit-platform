@@ -1389,3 +1389,25 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 ~~~
 
 物理表查询能力仍保留在 DB Engine 内部，但不再直接暴露给 DbQueryApi 调用方。这样 DbQueryApi、VirtualDataApi、前端 Runtime 和未来其他服务最终共享同一个虚拟数据治理与执行内核。
+
+## 25. 实施状态（2026-07-14）
+
+本轮已完成第一条可运行主链：
+
+- 新增 commons 虚拟化 SPI，虚拟核心已移除对 DB Engine、Chat 和 AI 应用模块的反向依赖。
+- DB Engine 新增 data-virtualization-adapter，承载全部虚拟数据 Controller、物理目录/查询/写入适配、知识库适配和文本生成适配。
+- DbQueryApi 六个 URL 与 DTO 保持不变，Controller 已切换到 DbQueryCompatibilityFacade；旧动态 SQL 实现退出 Spring Bean 执行路径。
+- LegacyRequestTranslator 已覆盖 GET、LIST、COUNT、AGGREGATE、TREE、PIVOT，并完成过滤 AST、虚拟主键、关系迁移校验、分组/指标别名和 HAVING 翻译。
+- query.list 已启用独立精确 count 分支、稳定主键排序和预算完整性校验；无法完整扫描时明确失败。
+- relation.filter 已进入远端关系分支并保持 LEFT JOIN ON 作用域；关系字段 WHERE 仍在 Join 后执行；空关系投影不会读取或返回远端全部字段。
+- DbQuery v1 关系结果会校验主实体虚拟主键，检测到 1:N 复制时明确拒绝。
+- 树和透视在虚拟结果之上组装，并对未完整物化、重复节点、循环、深度及不支持选项明确失败。
+- 物理 SQL 只在应用适配器内由结构化 SPI 计划受控生成，业务值全部参数绑定，更新和删除禁止无条件执行。
+
+后续阶段仍需完成：
+
+- VirtualDataPolicyPort、数据权限和行级策略进入逻辑计划、数据分支及 count 分支。
+- 将当前“预算内完整扫描后全局处理”优化为排序/分页下推、多分片 k-way merge 和 relation-aware count 计划。
+- 管理 Controller 当前虽已移至 app，但仍直接调用 commons core/data 用例；后续提升为 API Admin Gateway 后再完成严格的 Controller 仅依赖 API 边界。
+- 增加实体级 LEGACY/SHADOW/VIRTUAL 灰度、请求采样、影子比对和目录迁移工具。
+- 补齐真实 MySQL、多数据源、跨源关系、并发写入一致性和权限场景的集成验收。
