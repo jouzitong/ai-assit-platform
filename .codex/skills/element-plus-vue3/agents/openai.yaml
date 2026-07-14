@@ -1,0 +1,4 @@
+interface:
+  display_name: "Element Plus Vue 3"
+  short_description: "按本项目规范开发和维护 Element Plus 页面"
+  default_prompt: "Use $element-plus-vue3 to implement an Element Plus UI change in ai-conversation-ui while following the repository frontend conventions."
