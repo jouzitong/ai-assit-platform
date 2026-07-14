@@ -206,7 +206,7 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 5. 如需数据解析，在 `resolver/` 中补充 datasource 或 binding 到 renderer data 的转换。
 6. 在 `component-manifest.ts` 补充组件资产元信息、参数清单和事件清单。
 7. 增加测试页或示例配置，验证 schema、props、events 是否能独立工作。
-8. 如果该 renderer 会被页面路由使用，再由具体页面模块按页面结构规范接入。
+8. 如果该 renderer 会被页面路由使用，再由具体页面模块按当前路由和页面实现约定接入。
 
 新增 Layout 时：
 

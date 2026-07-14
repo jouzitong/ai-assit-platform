@@ -13,7 +13,6 @@ Use the bundled Element Plus references as supporting material. Treat the curren
 2. Target `ai-conversation-ui/`, the active Vue frontend. Do not move work to historical frontend directories unless the user explicitly asks.
 3. Read `docs/dev-spec/README.md`, then load only the relevant frontend specifications:
    - routes: `docs/dev-spec/detail/frontend/router.md`
-   - page modules: `docs/dev-spec/detail/frontend/page.md`
    - styles: `docs/dev-spec/detail/frontend/style.md`
    - themes and Element Plus variables: `docs/dev-spec/detail/frontend/theme.md`
    - reusable components: `docs/dev-spec/detail/frontend/component.md`

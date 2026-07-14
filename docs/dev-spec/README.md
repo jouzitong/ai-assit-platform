@@ -8,8 +8,6 @@
 
 - [路由规范](./detail/frontend/router.md)
   - 适用于页面入口、菜单挂载、父子路由关系、路由目录组织相关任务。
-- [页面结构规范](./detail/frontend/page.md)
-  - 适用于页面目录拆分、列表页/详情页结构、页面内模块分层相关任务。
 - [样式规范](./detail/frontend/style.md)
   - 适用于样式文件组织、局部样式边界、命名方式、页面样式落点相关任务。
 - [主题规范](./detail/frontend/theme.md)

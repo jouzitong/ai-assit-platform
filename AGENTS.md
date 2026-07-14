@@ -65,7 +65,6 @@ Do not commit `.codegraph/`.
 - 涉及开发规范或实现方式选择的任务，先读取根入口，根据任务涉及的专题读取对应细则；跨多个专题时，应一并读取相关文档，不要只凭索引摘要设计或编码。
 - 前端任务按需读取：
   - `docs/dev-spec/detail/frontend/router.md`
-  - `docs/dev-spec/detail/frontend/page.md`
   - `docs/dev-spec/detail/frontend/style.md`
   - `docs/dev-spec/detail/frontend/theme.md`
   - `docs/dev-spec/detail/frontend/component.md`
