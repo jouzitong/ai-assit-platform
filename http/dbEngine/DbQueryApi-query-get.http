@@ -1,21 +1,28 @@
-@host = http://localhost:9764
 @apiPrefix = /dbEngine
-@contentType = application/json;charset=UTF-8
-@acceptJson = application/json
-@token = replace-with-your-token
-@orderModel = ods_trade_order_sales_order
 @orderId = 50001
 
 ### 基础 query.get：按虚拟主键查询订单
 # 不声明 ext.fields / ext.relations，让服务按已发布目录返回主实体字段。
 # 适合先确认当前 ods_trade_order_sales_order 的真实字段与是否存在 id=50001 的测试数据。
 POST {{host}}{{apiPrefix}}/api/v1/query.get
-Content-Type: {{contentType}}
-Accept: {{acceptJson}}
+Content-Type: application/json;charset=UTF-8
+Accept: application/json
 Authorization: Bearer {{token}}
 
 {
   "title": "manual: get test order",
-  "model": "{{orderModel}}",
-  "id": {{orderId}}
+  "model": "ods_trade_order_sales_order",
+  "id": 50001,
+  "ext": {
+    "relations": [
+      {
+        "key": "account",
+        "model": "ods_trade_user_account",
+        "type": "left  join",
+        "on": {
+          "main.account_id": "account.id"
+        }
+      }
+    ]
+  }
 }

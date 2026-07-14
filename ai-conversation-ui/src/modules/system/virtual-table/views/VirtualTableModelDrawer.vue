@@ -2,7 +2,7 @@
 import { Check, Delete, EditPen, MagicStick, Plus, RefreshRight, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, reactive, ref, watch } from 'vue'
-import type { DbTableFieldMetaItem } from '../../api/dataSources'
+import type { DbDataSourceItem, DbTableFieldMetaItem, DbTableMetaItem } from '../../api/dataSources'
 import type {
   FieldTransformPortItem,
   FieldTransformPortPayload,
@@ -26,6 +26,9 @@ const props = defineProps<{
   entity: VirtualEntityItem | null
   workspace: VirtualTableWorkspace
   transformers: TransformerDescriptor[]
+  dataSources: DbDataSourceItem[]
+  physicalTables: DbTableMetaItem[]
+  physicalTableLoading?: boolean
   loading?: boolean
   descriptionGenerating?: boolean
 }>()
@@ -33,6 +36,7 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   refresh: []
+  loadPhysicalTables: [sourceKey: string]
   saveEntity: [id: VirtualDataId, payload: VirtualEntityPayload]
   saveField: [id: VirtualDataId | null, payload: VirtualFieldPayload]
   deleteField: [id: VirtualDataId]
@@ -122,6 +126,32 @@ const transformerOptions = computed(() => props.transformers.map(item => ({
   capabilities: item.capabilities,
 })))
 const selectedBinding = computed(() => props.workspace.bindings.find(binding => String(binding.id) === String(ruleForm.bindingId)))
+const databaseSourceOptions = computed(() => {
+  const options = props.dataSources.filter((source) => {
+    if (source.enabled === false || !source.sourceKey) return false
+    const configType = 'configType' in (source.config || {}) ? String(source.config?.configType || '').toUpperCase() : ''
+    if (configType) return configType === 'DATABASE'
+    return Number(source.sourceType) === 1 || String(source.sourceType || '').toUpperCase() === 'DATABASE'
+  })
+  if (bindingForm.sourceKey && !options.some(source => source.sourceKey === bindingForm.sourceKey)) {
+    return [{ id: 'current-binding-source', sourceKey: bindingForm.sourceKey, sourceName: bindingForm.sourceKey }, ...options]
+  }
+  return options
+})
+const bindingTableOptions = computed<DbTableMetaItem[]>(() => {
+  const options = props.physicalTables.filter(table => (
+    String(table.sourceKey || '') === String(bindingForm.sourceKey || '') && Boolean(table.tableName)
+  ))
+  if (bindingForm.physicalTableMetaId && !options.some(table => String(table.id) === String(bindingForm.physicalTableMetaId))) {
+    options.unshift({
+      id: bindingForm.physicalTableMetaId,
+      sourceKey: bindingForm.sourceKey,
+      tableName: bindingForm.physicalTableName,
+      enabled: true,
+    })
+  }
+  return options
+})
 const availablePhysicalFields = computed(() => props.workspace.physicalFields.filter((field) => {
   if (!selectedBinding.value) return true
   return field.sourceKey === selectedBinding.value.sourceKey && field.tableName === selectedBinding.value.physicalTableName
@@ -219,7 +249,22 @@ function openBindingEditor(binding?: VirtualBindingItem) {
     remark: binding?.remark || '',
   })
   routingConfigText.value = prettyJson(binding?.routingConfig, { version: 1, strategy: 0, shardFields: [] })
+  if (bindingForm.sourceKey) emit('loadPhysicalTables', bindingForm.sourceKey)
   bindingDialogVisible.value = true
+}
+
+function handleBindingSourceChange(sourceKey: string) {
+  bindingForm.sourceKey = sourceKey || ''
+  bindingForm.physicalTableMetaId = ''
+  bindingForm.physicalTableName = ''
+  emit('loadPhysicalTables', bindingForm.sourceKey)
+}
+
+function syncBindingTable(tableId: VirtualDataId) {
+  const table = bindingTableOptions.value.find(item => String(item.id) === String(tableId))
+  if (!table) return
+  bindingForm.physicalTableMetaId = table.id
+  bindingForm.physicalTableName = table.tableName || ''
 }
 
 function submitBinding() {
@@ -256,18 +301,24 @@ function openRuleEditor(rule?: FieldTransformRuleItem) {
   readConfigText.value = prettyJson(rule?.readConfig, { configVersion: 1 })
   writeConfigText.value = prettyJson(rule?.writeConfig, { configVersion: 1 })
   existingRulePorts.value = rule ? props.workspace.ports.filter(port => String(port.ruleId) === String(rule.id)) : []
-  portRows.value = existingRulePorts.value.map(port => ({
-    id: port.id,
-    ruleId: port.ruleId || '',
-    fieldSide: port.fieldSide ?? 1,
-    portCode: port.portCode || '',
-    virtualFieldId: port.virtualFieldId,
-    physicalFieldMetaId: port.physicalFieldMetaId,
-    physicalColumnName: port.physicalColumnName,
-    ordinalPosition: port.ordinalPosition || 0,
-    requiredOnWrite: port.requiredOnWrite === true,
-    remark: port.remark || '',
-  }))
+  const loadedPorts: PortEditorRow[] = []
+  existingRulePorts.value.forEach((port) => {
+    const fieldSide = port.fieldSide ?? 1
+    const row: PortEditorRow = {
+      id: port.id,
+      ruleId: port.ruleId || '',
+      fieldSide,
+      portCode: port.portCode?.trim() || nextPortCode(fieldSide, loadedPorts),
+      virtualFieldId: port.virtualFieldId,
+      physicalFieldMetaId: port.physicalFieldMetaId,
+      physicalColumnName: port.physicalColumnName,
+      ordinalPosition: port.ordinalPosition || 0,
+      requiredOnWrite: port.requiredOnWrite === true,
+      remark: port.remark || '',
+    }
+    loadedPorts.push(row)
+  })
+  portRows.value = loadedPorts
   if (!portRows.value.length) {
     addPort(0)
     addPort(1)
@@ -275,11 +326,23 @@ function openRuleEditor(rule?: FieldTransformRuleItem) {
   ruleDialogVisible.value = true
 }
 
+function nextPortCode(side: FieldSide, rows: PortEditorRow[] = portRows.value) {
+  const prefix = side === 0 ? 'physical' : 'virtual'
+  const usedCodes = new Set(rows
+    .filter(item => item.fieldSide === side)
+    .map(item => item.portCode.trim())
+    .filter(Boolean))
+  let candidate = prefix
+  let index = 1
+  while (usedCodes.has(candidate)) candidate = `${prefix}${index++}`
+  return candidate
+}
+
 function addPort(side: FieldSide) {
   portRows.value.push({
     ruleId: editingRuleId.value || '',
     fieldSide: side,
-    portCode: side === 0 ? `physical${portRows.value.filter(item => item.fieldSide === side).length || ''}` : `virtual${portRows.value.filter(item => item.fieldSide === side).length || ''}`,
+    portCode: nextPortCode(side),
     ordinalPosition: portRows.value.filter(item => item.fieldSide === side).length,
     requiredOnWrite: false,
     remark: '',
@@ -458,7 +521,7 @@ watch(() => props.modelValue, (visible) => {
     </el-dialog>
 
     <el-dialog v-model="bindingDialogVisible" :title="editingBindingId === null ? '新增物理绑定' : '编辑物理绑定'" width="760px" append-to-body>
-      <el-form label-position="top"><div class="virtual-editor-grid virtual-editor-grid--3"><el-form-item label="绑定编码"><el-input v-model="bindingForm.bindingCode" /></el-form-item><el-form-item label="绑定组"><el-input v-model="bindingForm.bindingGroup" /></el-form-item><el-form-item label="角色"><el-select v-model="bindingForm.bindingRole"><el-option label="主表" :value="0" /><el-option label="副本" :value="1" /></el-select></el-form-item><el-form-item label="数据源 Key"><el-input v-model="bindingForm.sourceKey" /></el-form-item><el-form-item label="物理表"><el-input v-model="bindingForm.physicalTableName" /></el-form-item><el-form-item label="物理表元数据 ID"><el-input v-model="bindingForm.physicalTableMetaId" /></el-form-item><el-form-item label="读权重"><el-input-number v-model="bindingForm.readWeight" :min="0" /></el-form-item><el-form-item label="写优先级"><el-input-number v-model="bindingForm.writePriority" :min="0" /></el-form-item></div><div class="virtual-editor-switches"><el-checkbox v-model="bindingForm.readable">允许读取</el-checkbox><el-checkbox v-model="bindingForm.writable">允许写入</el-checkbox><el-checkbox v-model="bindingForm.enabled">启用绑定</el-checkbox></div><el-form-item label="路由配置（JSON 对象）"><el-input v-model="routingConfigText" type="textarea" :rows="7" /></el-form-item><el-form-item label="备注"><el-input v-model="bindingForm.remark" /></el-form-item></el-form>
+      <el-form label-position="top"><div class="virtual-editor-grid virtual-editor-grid--3"><el-form-item label="绑定编码"><el-input v-model="bindingForm.bindingCode" /></el-form-item><el-form-item label="绑定组"><el-input v-model="bindingForm.bindingGroup" /></el-form-item><el-form-item label="角色"><el-select v-model="bindingForm.bindingRole"><el-option label="主表" :value="0" /><el-option label="副本" :value="1" /></el-select></el-form-item><el-form-item label="数据源"><el-select v-model="bindingForm.sourceKey" filterable placeholder="请选择数据库数据源" @change="handleBindingSourceChange"><el-option v-for="source in databaseSourceOptions" :key="source.sourceKey || source.id" :label="`${source.sourceName || source.sourceKey} · ${source.sourceKey}`" :value="source.sourceKey" /></el-select></el-form-item><el-form-item label="物理表（元数据）"><el-select v-model="bindingForm.physicalTableMetaId" filterable :loading="physicalTableLoading" :disabled="!bindingForm.sourceKey" placeholder="请选择物理表" @change="syncBindingTable"><el-option v-for="table in bindingTableOptions" :key="table.id" :label="`${table.tableName} · 元数据 ID ${table.id}${table.tableComment ? ` · ${table.tableComment}` : ''}`" :value="table.id" /></el-select></el-form-item><el-form-item label="读权重"><el-input-number v-model="bindingForm.readWeight" :min="0" /></el-form-item><el-form-item label="写优先级"><el-input-number v-model="bindingForm.writePriority" :min="0" /></el-form-item></div><div class="virtual-editor-switches"><el-checkbox v-model="bindingForm.readable">允许读取</el-checkbox><el-checkbox v-model="bindingForm.writable">允许写入</el-checkbox><el-checkbox v-model="bindingForm.enabled">启用绑定</el-checkbox></div><el-form-item label="路由配置（JSON 对象）"><el-input v-model="routingConfigText" type="textarea" :rows="7" /></el-form-item><el-form-item label="备注"><el-input v-model="bindingForm.remark" /></el-form-item></el-form>
       <template #footer><el-button @click="bindingDialogVisible = false">取消</el-button><el-button type="primary" @click="submitBinding">保存绑定</el-button></template>
     </el-dialog>
 
@@ -466,7 +529,7 @@ watch(() => props.modelValue, (visible) => {
       <el-form label-position="top" class="transform-rule-editor">
         <div class="virtual-editor-grid virtual-editor-grid--3"><el-form-item label="物理绑定"><el-select v-model="ruleForm.bindingId" filterable><el-option v-for="binding in workspace.bindings" :key="binding.id" :label="bindingLabel(binding.id)" :value="binding.id" /></el-select></el-form-item><el-form-item label="规则编码"><el-input v-model="ruleForm.ruleCode" /></el-form-item><el-form-item label="规则名称"><el-input v-model="ruleForm.ruleName" /></el-form-item><el-form-item label="转换方向"><el-select v-model="ruleForm.transformMode"><el-option v-for="option in transformModeOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item><el-form-item label="读转换器"><el-select v-model="ruleForm.readTransformerCode" filterable :disabled="ruleForm.transformMode === 1"><el-option v-for="option in transformerOptions.filter(item => item.capabilities?.readable !== false)" :key="`r-${option.code}-${option.version}`" :label="option.label" :value="option.code" /></el-select></el-form-item><el-form-item label="写转换器"><el-select v-model="ruleForm.writeTransformerCode" filterable :disabled="ruleForm.transformMode === 0"><el-option v-for="option in transformerOptions.filter(item => item.capabilities?.writable !== false)" :key="`w-${option.code}-${option.version}`" :label="option.label" :value="option.code" /></el-select></el-form-item></div>
         <div class="transform-rule-editor__configs"><el-form-item label="读配置（JSON 对象）"><el-input v-model="readConfigText" type="textarea" :rows="7" /></el-form-item><el-form-item label="写配置（JSON 对象）"><el-input v-model="writeConfigText" type="textarea" :rows="7" /></el-form-item></div>
-        <section class="transform-rule-editor__ports"><header><div><strong>字段端口映射</strong><p>端口顺序会传给转换器；物理端口和虚拟端口都可以配置多个。</p></div><div><el-button :icon="Plus" @click="addPort(0)">物理端口</el-button><el-button :icon="Plus" @click="addPort(1)">虚拟端口</el-button></div></header><div v-for="(port, index) in portRows" :key="port.id || `${port.fieldSide}-${index}`" class="transform-rule-editor__port"><el-tag :type="port.fieldSide === 0 ? 'warning' : 'success'">{{ port.fieldSide === 0 ? '物理' : '虚拟' }}</el-tag><el-input v-model="port.portCode" placeholder="端口编码" /><el-select v-if="port.fieldSide === 0" v-model="port.physicalFieldMetaId" filterable placeholder="选择物理字段" @change="syncPhysicalPort(port)"><el-option v-for="field in availablePhysicalFields" :key="field.id" :label="`${field.columnName} · ${field.dataType}`" :value="field.id" /></el-select><el-select v-else v-model="port.virtualFieldId" filterable placeholder="选择虚拟字段"><el-option v-for="field in sortedFields" :key="field.id" :label="`${field.fieldName} · ${field.fieldCode}`" :value="field.id" /></el-select><el-input-number v-model="port.ordinalPosition" :min="0" aria-label="端口顺序" /><el-checkbox v-model="port.requiredOnWrite">写入必填</el-checkbox><el-button text type="danger" :icon="Delete" aria-label="删除端口" @click="portRows.splice(index, 1)" /></div></section>
+        <section class="transform-rule-editor__ports"><header><div><strong>字段端口映射</strong><p>端口顺序会传给转换器；物理端口和虚拟端口都可以配置多个。</p></div><div><el-button :icon="Plus" @click="addPort(0)">物理端口</el-button><el-button :icon="Plus" @click="addPort(1)">虚拟端口</el-button></div></header><div v-for="(port, index) in portRows" :key="port.id || `${port.fieldSide}-${index}`" class="transform-rule-editor__port"><el-tag :type="port.fieldSide === 0 ? 'warning' : 'success'">{{ port.fieldSide === 0 ? '物理' : '虚拟' }}</el-tag><el-select v-if="port.fieldSide === 0" v-model="port.physicalFieldMetaId" filterable placeholder="选择物理字段" @change="syncPhysicalPort(port)"><el-option v-for="field in availablePhysicalFields" :key="field.id" :label="`${field.columnName} · ${field.dataType}`" :value="field.id" /></el-select><el-select v-else v-model="port.virtualFieldId" filterable placeholder="选择虚拟字段"><el-option v-for="field in sortedFields" :key="field.id" :label="`${field.fieldName} · ${field.fieldCode}`" :value="field.id" /></el-select><el-input-number v-model="port.ordinalPosition" :min="0" aria-label="端口顺序" /><el-checkbox v-model="port.requiredOnWrite">写入必填</el-checkbox><el-button text type="danger" :icon="Delete" aria-label="删除端口" @click="portRows.splice(index, 1)" /></div></section>
         <div class="virtual-editor-switches"><el-checkbox v-model="ruleForm.enabled">启用规则</el-checkbox></div><el-form-item label="备注"><el-input v-model="ruleForm.remark" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="ruleDialogVisible = false">取消</el-button><el-button type="primary" @click="submitRule">保存规则与端口</el-button></template>
@@ -631,10 +694,26 @@ watch(() => props.modelValue, (visible) => {
 
 .transform-rule-editor__port {
   display: grid;
-  grid-template-columns: 70px 130px minmax(220px, 1fr) 110px 100px 38px;
+  grid-template-columns: 70px minmax(180px, 1fr) 110px max-content 38px;
   gap: var(--app-space-2);
   align-items: center;
   margin-top: var(--app-space-2);
+}
+
+.transform-rule-editor__port > * {
+  min-width: 0;
+}
+
+.transform-rule-editor__port :deep(.el-input),
+.transform-rule-editor__port :deep(.el-select),
+.transform-rule-editor__port :deep(.el-input-number) {
+  width: 100%;
+  min-width: 0;
+}
+
+.transform-rule-editor__port :deep(.el-checkbox) {
+  min-width: 0;
+  white-space: nowrap;
 }
 
 @media (max-width: 980px) {
