@@ -9,12 +9,10 @@ import { searchDbDataSources, type DbDataSourceItem, type DbTableMetaItem } from
 import {
   createVirtualBinding,
   createVirtualField,
-  createVirtualRelation,
   deleteFieldTransformPort,
   deleteFieldTransformRule,
   deleteVirtualBinding,
   deleteVirtualField,
-  deleteVirtualRelation,
   listFieldTransformers,
   checkVirtualUnpublish,
   getVirtualKnowledgeStatus,
@@ -22,11 +20,12 @@ import {
   previewVirtualKnowledge,
   publishVirtualCatalogBatch,
   syncVirtualKnowledge,
+  saveVirtualRelationsBatch,
+  suggestVirtualRelations,
   unpublishVirtualCatalog,
   updateVirtualBinding,
   updateVirtualEntity,
   updateVirtualField,
-  updateVirtualRelation,
   validateFieldTransformRule,
   validateVirtualCatalog,
   type CatalogStatus,
@@ -40,7 +39,8 @@ import {
   type VirtualEntityPayload,
   type VirtualFieldPayload,
   type VirtualKnowledgeStatusItem,
-  type VirtualRelationPayload,
+  type VirtualRelationBatchSavePayload,
+  type VirtualRelationSuggestion,
 } from '../api/virtualData'
 import type { RelationLineStyle, VirtualEntitySummary } from './data/types'
 import type { RelationLayoutMode } from './service/relationLayout'
@@ -156,6 +156,8 @@ const knowledgeSyncVisible = ref(false)
 const knowledgeSyncSubmitting = ref(false)
 const knowledgeSyncEntityIds = ref<VirtualDataId[]>([])
 const descriptionGenerating = ref(false)
+const relationBatchActive = ref(false)
+const relationBatchDirty = ref(false)
 
 const knowledgeBaseOptions = computed(() => knowledgeBases.value
   .filter(item => item.enabled !== false && item.kbCode)
@@ -215,8 +217,20 @@ function syncRouteState(mode: 'push' | 'replace' = 'replace') {
   void router[mode](target)
 }
 
-function switchView(view: ActiveView) {
+async function switchView(view: ActiveView) {
   if (activeView.value === view) return
+  if (activeView.value === 'relations' && relationBatchActive.value && relationBatchDirty.value) {
+    try {
+      await ElMessageBox.confirm('关系画布还有未保存的批量变更，切换页面将放弃这些变更。', '离开关系画布', {
+        type: 'warning',
+        confirmButtonText: '放弃并离开',
+        cancelButtonText: '继续编辑',
+      })
+    }
+    catch {
+      return
+    }
+  }
   activeView.value = view
   syncRouteState('push')
 }
@@ -600,16 +614,32 @@ async function openKnowledgePreview(id: VirtualDataId) {
   }
 }
 
-function saveRelation(id: VirtualDataId | null, payload: VirtualRelationPayload) {
-  return runMutation(
-    () => id === null ? createVirtualRelation(payload) : updateVirtualRelation(id, payload),
-    id === null ? '字段关联已创建' : '字段关联已保存',
-    false,
-  )
+async function saveRelationBatch(payload: VirtualRelationBatchSavePayload, done: (success: boolean) => void) {
+  try {
+    const result = await saveVirtualRelationsBatch(payload)
+    ElMessage.success(`关系变更已保存：新增 ${Number(result?.createdCount || 0)}，更新 ${Number(result?.updatedCount || 0)}，删除 ${Number(result?.deletedCount || 0)}`)
+    await refreshOverview()
+    done(true)
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '关系批量保存失败')
+    done(false)
+  }
 }
 
-function removeRelation(id: VirtualDataId) {
-  return runMutation(() => deleteVirtualRelation(id), '字段关联已删除', false)
+async function generateRelationSuggestions(entityIds: VirtualDataId[], done: (suggestions: VirtualRelationSuggestion[] | null) => void) {
+  try {
+    done(await suggestVirtualRelations(entityIds))
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : 'AI 关系分析失败')
+    done(null)
+  }
+}
+
+function updateRelationBatchState(active: boolean, dirty: boolean) {
+  relationBatchActive.value = active
+  relationBatchDirty.value = dirty
 }
 
 watch(() => route.query, applyRouteState, { deep: true })
@@ -628,19 +658,37 @@ onMounted(() => {
 <template>
   <section class="virtual-table-page">
     <header class="virtual-table-page__header">
-      <div class="virtual-table-page__title">
-        <span>DATA VIRTUALIZATION</span>
-        <h1>虚拟表管理</h1>
-        <p>在物理数据库之上维护统一实体、字段语义、跨源映射与动态关联。</p>
+      <div class="virtual-table-page__header-primary">
+        <div class="virtual-table-page__title">
+          <h1>虚拟表管理</h1>
+        </div>
+        <div id="virtual-table-header-actions" class="virtual-table-page__header-actions" />
       </div>
-      <nav class="virtual-table-page__switch" aria-label="虚拟表工作区">
-        <button :class="{ 'is-active': activeView === 'catalog' }" type="button" @click="switchView('catalog')">
-          <el-icon><Grid /></el-icon><span>虚拟表目录</span>
-        </button>
-        <button :class="{ 'is-active': activeView === 'relations' }" type="button" @click="switchView('relations')">
-          <el-icon><Share /></el-icon><span>关系画布</span>
-        </button>
-      </nav>
+      <div class="virtual-table-page__header-secondary">
+        <div id="virtual-table-header-filters" class="virtual-table-page__header-filters" />
+        <nav class="virtual-table-page__switch" aria-label="虚拟表工作区">
+          <button
+            :class="{ 'is-active': activeView === 'catalog' }"
+            type="button"
+            title="虚拟表目录"
+            aria-label="虚拟表目录"
+            :aria-pressed="activeView === 'catalog'"
+            @click="switchView('catalog')"
+          >
+            <el-icon><Grid /></el-icon>
+          </button>
+          <button
+            :class="{ 'is-active': activeView === 'relations' }"
+            type="button"
+            title="关系画布"
+            aria-label="关系画布"
+            :aria-pressed="activeView === 'relations'"
+            @click="switchView('relations')"
+          >
+            <el-icon><Share /></el-icon>
+          </button>
+        </nav>
+      </div>
     </header>
 
     <main class="virtual-table-page__content">
@@ -666,7 +714,6 @@ onMounted(() => {
         @batch-unpublish="unpublishEntities"
         @sync-knowledge="prepareKnowledgeSync"
         @preview-knowledge="openKnowledgePreview"
-        @open-canvas="switchView('relations')"
       />
       <VirtualRelationCanvas
         v-else
@@ -681,8 +728,9 @@ onMounted(() => {
         :relations="overview.relations"
         :loading="loading"
         @refresh="refreshOverview"
-        @save-relation="saveRelation"
-        @delete-relation="removeRelation"
+        @save-batch="saveRelationBatch"
+        @suggest-relations="generateRelationSuggestions"
+        @batch-state-change="updateRelationBatchState"
       />
     </main>
 
@@ -767,37 +815,45 @@ onMounted(() => {
 }
 
 .virtual-table-page__header {
+  display: grid;
+  border-bottom: 1px solid var(--app-border);
+  background: var(--app-surface-solid);
+}
+
+.virtual-table-page__header-primary,
+.virtual-table-page__header-secondary {
   display: flex;
-  gap: var(--app-space-5);
+  gap: var(--app-space-4);
   align-items: center;
   justify-content: space-between;
-  padding: var(--app-space-4) var(--app-space-5);
-  border-bottom: 1px solid var(--app-border);
-  background: var(--app-surface-gradient);
 }
 
-.virtual-table-page__title span {
-  color: var(--app-accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 0.14em;
+.virtual-table-page__header-primary {
+  min-height: 58px;
+  padding: var(--app-space-3) var(--app-space-4);
 }
 
-.virtual-table-page__title h1,
-.virtual-table-page__title p {
-  margin: 0;
+.virtual-table-page__header-secondary {
+  min-height: 52px;
+  padding: 9px var(--app-space-4);
+  border-top: 1px solid var(--app-border);
+}
+
+.virtual-table-page__header-actions {
+  min-width: 0;
+  margin-left: auto;
+}
+
+.virtual-table-page__header-filters {
+  flex: 1;
+  min-width: 0;
 }
 
 .virtual-table-page__title h1 {
-  margin-top: 2px;
+  margin: 0;
   color: var(--app-title);
-  font-size: 21px;
-}
-
-.virtual-table-page__title p {
-  margin-top: 3px;
-  color: var(--app-text-muted);
-  font-size: var(--app-font-size-caption);
+  font-size: 20px;
+  line-height: 1.3;
 }
 
 .virtual-table-page__switch {
@@ -810,10 +866,11 @@ onMounted(() => {
 
 .virtual-table-page__switch button {
   display: inline-flex;
-  gap: 7px;
   align-items: center;
+  justify-content: center;
+  width: 34px;
   min-height: 34px;
-  padding: 0 var(--app-space-4);
+  padding: 0;
   border: 0;
   border-radius: 7px;
   background: transparent;
@@ -869,6 +926,20 @@ onMounted(() => {
   }
 
   .virtual-table-page__header {
+    overflow: visible;
+  }
+
+  .virtual-table-page__header-primary {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .virtual-table-page__header-actions {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .virtual-table-page__header-secondary {
     align-items: stretch;
     flex-direction: column;
   }

@@ -10,6 +10,7 @@ export type LogicalType = 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8
 export type BindingRole = 0 | 1
 export type TransformMode = 0 | 1 | 2
 export type FieldSide = 0 | 1
+export type RelationResultMode = 0 | 1
 
 export interface SearchResult<T> {
   list?: T[]
@@ -168,6 +169,7 @@ export interface VirtualRelationItem {
   id: VirtualDataId
   relationCode?: string
   relationName?: string
+  resultMode?: RelationResultMode
   sourceEntityId?: VirtualDataId
   sourceFieldId?: VirtualDataId
   targetEntityId?: VirtualDataId
@@ -179,12 +181,31 @@ export interface VirtualRelationItem {
 export interface VirtualRelationPayload {
   relationCode: string
   relationName: string
+  resultMode: RelationResultMode
   sourceEntityId: VirtualDataId
   sourceFieldId: VirtualDataId
   targetEntityId: VirtualDataId
   targetFieldId: VirtualDataId
   enabled: boolean
   remark?: string
+}
+
+export interface VirtualRelationBatchSavePayload {
+  creates: VirtualRelationPayload[]
+  updates: Array<VirtualRelationPayload & { id: VirtualDataId }>
+  deletes: VirtualDataId[]
+}
+
+export interface VirtualRelationBatchSaveResult {
+  createdCount?: number
+  updatedCount?: number
+  deletedCount?: number
+}
+
+export interface VirtualRelationSuggestion {
+  relation: VirtualRelationPayload
+  reason?: string
+  confidence?: number
 }
 
 export interface CatalogSnapshot {
@@ -365,6 +386,20 @@ export function updateVirtualRelation(id: VirtualDataId, payload: VirtualRelatio
 
 export function deleteVirtualRelation(id: VirtualDataId) {
   return remove('relations', id)
+}
+
+export function saveVirtualRelationsBatch(payload: VirtualRelationBatchSavePayload) {
+  return request<VirtualRelationBatchSaveResult>(`${VIRTUAL_DATA_API_PREFIX}/relations/batch-save`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function suggestVirtualRelations(entityIds: VirtualDataId[]) {
+  return request<VirtualRelationSuggestion[]>(`${VIRTUAL_DATA_API_PREFIX}/relations/ai-suggest`, {
+    method: 'POST',
+    body: JSON.stringify({ entityIds }),
+  })
 }
 
 export function createVirtualEntityFromPhysicalTable(payload: { physicalTableMetaId: VirtualDataId; entityCode?: string; entityName?: string }) {

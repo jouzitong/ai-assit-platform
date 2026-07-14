@@ -108,6 +108,12 @@
   --system-primary-button-bg: #2563eb;
   --system-primary-button-text: #ffffff;
   --system-danger: #dc2626;
+  --system-success: #15803d;
+  --system-success-bg: rgba(21, 128, 61, 0.1);
+  --system-success-border: rgba(21, 128, 61, 0.28);
+  --system-warning: #b45309;
+  --system-warning-bg: rgba(180, 83, 9, 0.1);
+  --system-warning-border: rgba(180, 83, 9, 0.28);
   --system-table-header-bg: #f3f4f6;
   --system-table-header-text: #4b5563;
 
@@ -130,6 +136,12 @@
   --app-accent-border: var(--system-accent-border);
   --app-accent-shadow: var(--system-accent-shadow);
   --app-danger: var(--system-danger);
+  --app-success: var(--system-success);
+  --app-success-bg: var(--system-success-bg);
+  --app-success-border: var(--system-success-border);
+  --app-warning: var(--system-warning);
+  --app-warning-bg: var(--system-warning-bg);
+  --app-warning-border: var(--system-warning-border);
   --app-shadow-sm: 0 8px 22px rgba(15, 23, 42, 0.08);
   --app-shadow-md: var(--system-shadow);
   --app-inset-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.3);
@@ -270,6 +282,12 @@
   --system-primary-button-bg: #e2e8f0;
   --system-primary-button-text: #0f172a;
   --system-danger: #f87171;
+  --system-success: #6ee7b7;
+  --system-success-bg: rgba(52, 211, 153, 0.14);
+  --system-success-border: rgba(110, 231, 183, 0.3);
+  --system-warning: #fbbf24;
+  --system-warning-bg: rgba(251, 191, 36, 0.14);
+  --system-warning-border: rgba(251, 191, 36, 0.3);
   --system-table-header-bg: rgba(19, 30, 49, 0.68);
   --system-table-header-text: #f8fafc;
 

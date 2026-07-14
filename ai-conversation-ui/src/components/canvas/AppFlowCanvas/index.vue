@@ -41,6 +41,7 @@ const props = withDefaults(defineProps<{
   backgroundPatternColor?: string
   backgroundGap?: number
   showControls?: boolean
+  controlsShowFitView?: boolean
 }>(), {
   nodeTypes: () => ({}),
   canvasExtent: () => [[0, 0], [1600, 900]],
@@ -64,6 +65,7 @@ const props = withDefaults(defineProps<{
   backgroundPatternColor: 'rgba(148, 163, 184, 0.22)',
   backgroundGap: 24,
   showControls: false,
+  controlsShowFitView: true,
 })
 
 const nodes = defineModel<Node[]>('nodes', { default: () => [] })
@@ -136,7 +138,9 @@ defineExpose({ getNodeDimensions, getCanvasSize })
 
       <slot />
 
-      <Controls v-if="showControls" />
+      <Controls v-if="showControls" :show-fit-view="controlsShowFitView">
+        <slot name="controls" />
+      </Controls>
       <Background :pattern-color="backgroundPatternColor" :gap="backgroundGap" />
     </VueFlow>
   </div>

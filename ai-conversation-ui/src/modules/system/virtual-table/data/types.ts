@@ -6,6 +6,7 @@ import type {
 } from '../../api/virtualData'
 
 export type RelationLineStyle = 'curve' | 'polyline' | 'straight'
+export type RelationDraftStatus = 'unchanged' | 'added' | 'updated' | 'deleted'
 
 export interface VirtualEntitySummary extends VirtualEntityItem {
   sources: string[]
@@ -19,6 +20,7 @@ export interface VirtualTableNodeData {
   fields: VirtualFieldItem[]
   bindings: VirtualBindingItem[]
   sourceLabels: string[]
+  batchMode: boolean
 }
 
 export interface RelationEditorContext {

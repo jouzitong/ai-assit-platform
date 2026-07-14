@@ -35,7 +35,7 @@ defineProps<{
           class="virtual-table-node__handle virtual-table-node__handle--target"
           type="target"
           :position="Position.Left"
-          :connectable="true"
+          :connectable="data.batchMode"
           :connectable-start="false"
           :connectable-end="true"
           :aria-label="`关联到字段 ${field.fieldName || field.fieldCode}`"
@@ -52,7 +52,7 @@ defineProps<{
           class="virtual-table-node__handle virtual-table-node__handle--source"
           type="source"
           :position="Position.Right"
-          :connectable="true"
+          :connectable="data.batchMode"
           :connectable-start="true"
           :connectable-end="false"
           :aria-label="`从字段 ${field.fieldName || field.fieldCode} 建立关联`"
@@ -213,6 +213,11 @@ defineProps<{
   box-shadow: 0 0 0 2px var(--app-accent-bg);
   cursor: crosshair;
   transition: box-shadow 180ms ease;
+}
+
+.virtual-table-node__handle:not(.connectable) {
+  opacity: 0.34;
+  cursor: default;
 }
 
 .virtual-table-node__field:hover .virtual-table-node__handle {

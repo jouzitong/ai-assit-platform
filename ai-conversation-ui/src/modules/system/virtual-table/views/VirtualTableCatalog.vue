@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Check, EditPen, Link, Plus, Reading, RefreshRight, Search, UploadFilled } from '@element-plus/icons-vue'
+import { Check, EditPen, Plus, Reading, RefreshRight, Search, UploadFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { AppPagination } from '../../../../components'
@@ -25,7 +25,6 @@ const emit = defineEmits<{
   batchUnpublish: [ids: VirtualDataId[]]
   syncKnowledge: [ids: VirtualDataId[]]
   previewKnowledge: [id: VirtualDataId]
-  openCanvas: []
 }>()
 
 const keyword = defineModel<string>('keyword', { default: '' })
@@ -137,44 +136,33 @@ watch(() => props.rows, (rows) => {
   const validIds = new Set(rows.map(row => String(row.id)))
   selectedIdKeys.value = new Set([...selectedIdKeys.value].filter(id => validIds.has(id)))
 }, { deep: true })
-
-const stats = computed(() => ({
-  total: props.rows.length,
-  published: props.rows.filter(row => row.status === 1).length,
-  sources: new Set(props.rows.flatMap(row => row.sources)).size,
-  relations: Math.floor(props.rows.reduce((sum, row) => sum + row.relationCount, 0) / 2),
-}))
 </script>
 
 <template>
-  <section class="virtual-catalog">
-    <div class="virtual-catalog__stats" aria-label="虚拟表统计">
-      <article><span>虚拟表</span><strong>{{ stats.total }}</strong><small>统一业务实体</small></article>
-      <article><span>已发布</span><strong>{{ stats.published }}</strong><small>可参与执行计划</small></article>
-      <article><span>接入数据源</span><strong>{{ stats.sources }}</strong><small>物理映射来源</small></article>
-      <article><span>字段关联</span><strong>{{ stats.relations }}</strong><small>跨表逻辑关系</small></article>
+  <Teleport defer to="#virtual-table-header-actions">
+    <div class="virtual-catalog__actions">
+      <span>显示 {{ filteredRows.length }} 张表</span>
+      <el-button :icon="RefreshRight" :loading="loading" @click="emit('refresh')">刷新</el-button>
+      <el-button type="primary" :icon="Plus" @click="emit('initialize')">从数据源初始化</el-button>
     </div>
+  </Teleport>
 
+  <Teleport defer to="#virtual-table-header-filters">
+    <div class="virtual-catalog__filters">
+      <el-input :model-value="keyword" clearable placeholder="搜索名称、编码或物理表" aria-label="搜索虚拟表" @update:model-value="handleKeywordChange">
+        <template #prefix><el-icon><Search /></el-icon></template>
+      </el-input>
+      <el-select :model-value="sourceKey" clearable placeholder="全部数据源" aria-label="按数据源筛选" @update:model-value="handleSourceChange">
+        <el-option v-for="source in sourceOptions" :key="source" :label="source" :value="source" />
+      </el-select>
+      <el-select :model-value="status" clearable placeholder="全部状态" aria-label="按发布状态筛选" @update:model-value="handleStatusChange">
+        <el-option v-for="option in catalogStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
+      </el-select>
+    </div>
+  </Teleport>
+
+  <section class="virtual-catalog">
     <section class="virtual-catalog__panel">
-      <header class="virtual-catalog__toolbar">
-        <div class="virtual-catalog__filters">
-          <el-input :model-value="keyword" clearable placeholder="搜索名称、编码或物理表" aria-label="搜索虚拟表" @update:model-value="handleKeywordChange">
-            <template #prefix><el-icon><Search /></el-icon></template>
-          </el-input>
-          <el-select :model-value="sourceKey" clearable placeholder="全部数据源" aria-label="按数据源筛选" @update:model-value="handleSourceChange">
-            <el-option v-for="source in sourceOptions" :key="source" :label="source" :value="source" />
-          </el-select>
-          <el-select :model-value="status" clearable placeholder="全部状态" aria-label="按发布状态筛选" @update:model-value="handleStatusChange">
-            <el-option v-for="option in catalogStatusOptions" :key="option.value" :label="option.label" :value="option.value" />
-          </el-select>
-        </div>
-        <div class="virtual-catalog__actions">
-          <el-button :icon="Link" @click="emit('openCanvas')">关系画布</el-button>
-          <el-button :icon="RefreshRight" :loading="loading" @click="emit('refresh')">刷新</el-button>
-          <el-button type="primary" :icon="Plus" @click="emit('initialize')">从数据源初始化</el-button>
-        </div>
-      </header>
-
       <div class="virtual-catalog__bulkbar">
         <div class="virtual-catalog__bulk-actions">
           <span>已选择 <strong>{{ selectedIds.length }}</strong> 张虚拟表</span>
@@ -271,65 +259,17 @@ const stats = computed(() => ({
 <style scoped>
 .virtual-catalog {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: var(--app-space-4);
+  grid-template-rows: minmax(0, 1fr);
   min-height: 0;
   height: 100%;
-  padding: var(--app-space-4);
-}
-
-.virtual-catalog__stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: var(--app-space-3);
-}
-
-.virtual-catalog__stats article {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  gap: 2px var(--app-space-3);
-  padding: var(--app-space-4);
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
-  background: var(--app-surface-gradient);
-  box-shadow: var(--app-shadow-sm);
-}
-
-.virtual-catalog__stats span,
-.virtual-catalog__stats small {
-  color: var(--app-text-muted);
-}
-
-.virtual-catalog__stats strong {
-  grid-row: 1 / span 2;
-  grid-column: 2;
-  align-self: center;
-  color: var(--app-title);
-  font-size: 26px;
-}
-
-.virtual-catalog__stats small {
-  font-size: var(--app-font-size-caption);
 }
 
 .virtual-catalog__panel {
   display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr) auto;
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-height: 0;
   overflow: hidden;
-  border: 1px solid var(--app-border);
-  border-radius: 12px;
   background: var(--app-surface-solid);
-  box-shadow: var(--app-shadow-sm);
-}
-
-.virtual-catalog__toolbar {
-  display: flex;
-  gap: var(--app-space-4);
-  align-items: center;
-  justify-content: space-between;
-  padding: var(--app-space-3) var(--app-space-4);
-  border-bottom: 1px solid var(--app-border);
 }
 
 .virtual-catalog__filters,
@@ -362,6 +302,11 @@ const stats = computed(() => ({
 
 .virtual-catalog__bulk-actions strong {
   color: var(--app-accent);
+}
+
+.virtual-catalog__actions > span {
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
 }
 
 .virtual-catalog__filters :deep(.el-input) {
@@ -446,17 +391,11 @@ const stats = computed(() => ({
 }
 
 @media (max-width: 1120px) {
-  .virtual-catalog__toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
+  .virtual-catalog__filters,
+  .virtual-catalog__actions { flex-wrap: wrap; }
 }
 
 @media (max-width: 760px) {
-  .virtual-catalog__stats {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .virtual-catalog__filters,
   .virtual-catalog__actions,
   .virtual-catalog__bulkbar {

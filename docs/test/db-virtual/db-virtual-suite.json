@@ -3,7 +3,7 @@
   "name": "db-virtual-three-source-relation-suite",
   "description": "三 MySQL 数据源的虚拟实体、关系定义与 DbQueryApi 验收用例。关系返回形态只由虚拟目录 resultMode 声明。",
   "api": {
-    "baseUrlExample": "http://localhost:8080/dbEngine",
+    "baseUrlExample": "http://localhost:9764/dbEngine",
     "successCode": 0,
     "responseDataPath": "data"
   },
@@ -31,9 +31,9 @@
     "bootstrapSql": "sql/00-create-databases.sql",
     "entities": [
       {
-        "entityCode": "vt_user",
+        "entityCode": "ods_trade_account_user_profile",
         "entityName": "测试用户",
-        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_profile", "bindingCode": "vt_user_primary" },
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_profile", "bindingCode": "ods_trade_account_user_profile_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "user_name", "logicalType": "STRING", "nullable": false },
@@ -44,9 +44,9 @@
         ]
       },
       {
-        "entityCode": "vt_user_address",
+        "entityCode": "ods_trade_account_user_address",
         "entityName": "测试用户地址",
-        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_address", "bindingCode": "vt_user_address_primary" },
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_address", "bindingCode": "ods_trade_account_user_address_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "user_id", "logicalType": "LONG", "nullable": false },
@@ -57,9 +57,9 @@
         ]
       },
       {
-        "entityCode": "vt_role",
+        "entityCode": "ods_trade_account_app_role",
         "entityName": "测试角色",
-        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "app_role", "bindingCode": "vt_role_primary" },
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "app_role", "bindingCode": "ods_trade_account_app_role_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "role_code", "logicalType": "STRING", "nullable": false },
@@ -67,9 +67,9 @@
         ]
       },
       {
-        "entityCode": "vt_user_role",
+        "entityCode": "ods_trade_account_user_role",
         "entityName": "测试用户角色桥接",
-        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_role", "bindingCode": "vt_user_role_primary" },
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_role", "bindingCode": "ods_trade_account_user_role_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "user_id", "logicalType": "LONG", "nullable": false },
@@ -78,9 +78,9 @@
         ]
       },
       {
-        "entityCode": "vt_order",
+        "entityCode": "ods_trade_order_sales_order",
         "entityName": "测试订单",
-        "binding": { "sourceKey": "dbv_mysql_order", "physicalTable": "sales_order", "bindingCode": "vt_order_primary" },
+        "binding": { "sourceKey": "dbv_mysql_order", "physicalTable": "sales_order", "bindingCode": "ods_trade_order_sales_order_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "order_no", "logicalType": "STRING", "nullable": false },
@@ -92,9 +92,9 @@
         ]
       },
       {
-        "entityCode": "vt_order_item",
+        "entityCode": "ods_trade_order_sales_order_item",
         "entityName": "测试订单明细",
-        "binding": { "sourceKey": "dbv_mysql_order", "physicalTable": "sales_order_item", "bindingCode": "vt_order_item_primary" },
+        "binding": { "sourceKey": "dbv_mysql_order", "physicalTable": "sales_order_item", "bindingCode": "ods_trade_order_sales_order_item_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "order_id", "logicalType": "LONG", "nullable": false },
@@ -105,9 +105,9 @@
         ]
       },
       {
-        "entityCode": "vt_account",
+        "entityCode": "ods_trade_user_account",
         "entityName": "测试账户",
-        "binding": { "sourceKey": "dbv_mysql_account", "physicalTable": "account", "bindingCode": "vt_account_primary" },
+        "binding": { "sourceKey": "dbv_mysql_account", "physicalTable": "account", "bindingCode": "ods_trade_user_account_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "account_no", "logicalType": "STRING", "nullable": false },
@@ -119,9 +119,9 @@
         ]
       },
       {
-        "entityCode": "vt_account_transaction",
+        "entityCode": "ods_trade_user_account_transaction",
         "entityName": "测试账户流水",
-        "binding": { "sourceKey": "dbv_mysql_account", "physicalTable": "account_transaction", "bindingCode": "vt_account_transaction_primary" },
+        "binding": { "sourceKey": "dbv_mysql_account", "physicalTable": "account_transaction", "bindingCode": "ods_trade_user_account_transaction_primary" },
         "fields": [
           { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
           { "code": "account_id", "logicalType": "LONG", "nullable": false },
@@ -134,98 +134,98 @@
     ],
     "relations": [
       {
-        "sourceEntityCode": "vt_user",
+        "sourceEntityCode": "ods_trade_account_user_profile",
         "relationCode": "account",
         "relationName": "账户",
-        "targetEntityCode": "vt_account",
+        "targetEntityCode": "ods_trade_user_account",
         "resultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "测试 1:1 呈现；物理库使用 account.user_id 唯一约束，虚拟层仅声明 OBJECT。"
       },
       {
-        "sourceEntityCode": "vt_user",
+        "sourceEntityCode": "ods_trade_account_user_profile",
         "relationCode": "addresses",
         "relationName": "地址集合",
-        "targetEntityCode": "vt_user_address",
+        "targetEntityCode": "ods_trade_account_user_address",
         "resultMode": "COLLECTION",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "测试 1:N 集合返回。"
       },
       {
-        "sourceEntityCode": "vt_user",
+        "sourceEntityCode": "ods_trade_account_user_profile",
         "relationCode": "orders",
         "relationName": "订单集合",
-        "targetEntityCode": "vt_order",
+        "targetEntityCode": "ods_trade_order_sales_order",
         "resultMode": "COLLECTION",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "测试跨数据源 1:N 集合返回。"
       },
       {
-        "sourceEntityCode": "vt_user",
+        "sourceEntityCode": "ods_trade_account_user_profile",
         "relationCode": "role_links",
         "relationName": "用户角色桥接集合",
-        "targetEntityCode": "vt_user_role",
+        "targetEntityCode": "ods_trade_account_user_role",
         "resultMode": "COLLECTION",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "N:N 的第一跳；v1 不将它自动穿透为 user.roles。"
       },
       {
-        "sourceEntityCode": "vt_order",
+        "sourceEntityCode": "ods_trade_order_sales_order",
         "relationCode": "user",
         "relationName": "下单用户",
-        "targetEntityCode": "vt_user",
+        "targetEntityCode": "ods_trade_account_user_profile",
         "resultMode": "OBJECT",
         "mappings": [ { "sourceField": "user_id", "targetField": "id" } ],
         "description": "测试跨数据源 M:1 对象返回。"
       },
       {
-        "sourceEntityCode": "vt_order",
+        "sourceEntityCode": "ods_trade_order_sales_order",
         "relationCode": "account",
         "relationName": "支付账户",
-        "targetEntityCode": "vt_account",
+        "targetEntityCode": "ods_trade_user_account",
         "resultMode": "OBJECT",
         "mappings": [ { "sourceField": "account_id", "targetField": "id" } ],
         "description": "测试跨数据源 M:1 对象返回。"
       },
       {
-        "sourceEntityCode": "vt_order",
+        "sourceEntityCode": "ods_trade_order_sales_order",
         "relationCode": "items",
         "relationName": "订单明细",
-        "targetEntityCode": "vt_order_item",
+        "targetEntityCode": "ods_trade_order_sales_order_item",
         "resultMode": "COLLECTION",
         "mappings": [ { "sourceField": "id", "targetField": "order_id" } ],
         "description": "测试主记录不复制的 1:N 集合返回。"
       },
       {
-        "sourceEntityCode": "vt_user_role",
+        "sourceEntityCode": "ods_trade_account_user_role",
         "relationCode": "user",
         "relationName": "关联用户",
-        "targetEntityCode": "vt_user",
+        "targetEntityCode": "ods_trade_account_user_profile",
         "resultMode": "OBJECT",
         "mappings": [ { "sourceField": "user_id", "targetField": "id" } ]
       },
       {
-        "sourceEntityCode": "vt_user_role",
+        "sourceEntityCode": "ods_trade_account_user_role",
         "relationCode": "role",
         "relationName": "关联角色",
-        "targetEntityCode": "vt_role",
+        "targetEntityCode": "ods_trade_account_app_role",
         "resultMode": "OBJECT",
         "mappings": [ { "sourceField": "role_id", "targetField": "id" } ],
         "description": "N:N 的第二跳由桥接实体直接查询验证。"
       },
       {
-        "sourceEntityCode": "vt_account",
+        "sourceEntityCode": "ods_trade_user_account",
         "relationCode": "user",
         "relationName": "账户用户",
-        "targetEntityCode": "vt_user",
+        "targetEntityCode": "ods_trade_account_user_profile",
         "resultMode": "OBJECT",
         "mappings": [ { "sourceField": "user_id", "targetField": "id" } ]
       },
       {
-        "sourceEntityCode": "vt_account",
+        "sourceEntityCode": "ods_trade_user_account",
         "relationCode": "transactions",
         "relationName": "账户流水",
-        "targetEntityCode": "vt_account_transaction",
+        "targetEntityCode": "ods_trade_user_account_transaction",
         "resultMode": "COLLECTION",
         "mappings": [ { "sourceField": "id", "targetField": "account_id" } ]
       }
@@ -245,7 +245,7 @@
         "path": "/api/v1/query.list",
         "body": {
           "title": "db-virtual: order object and collection",
-          "model": "vt_order",
+          "model": "ods_trade_order_sales_order",
           "filter_dict": { "order_no": "SO-202607-001" },
           "page": 1,
           "page_size": 10,
@@ -274,7 +274,7 @@
         "path": "/api/v1/query.list",
         "body": {
           "title": "db-virtual: user parallel relations",
-          "model": "vt_user",
+          "model": "ods_trade_account_user_profile",
           "filter_dict": { "id": 10001 },
           "page": 1,
           "page_size": 10,
@@ -301,7 +301,7 @@
         "path": "/api/v1/query.get",
         "body": {
           "title": "db-virtual: get order",
-          "model": "vt_order",
+          "model": "ods_trade_order_sales_order",
           "id": 50001,
           "ext": {
             "fields": ["id", "order_no", "user.user_name", "account.account_no", "items.sku", "items.quantity"],
@@ -323,7 +323,7 @@
         "path": "/api/v1/query.get",
         "body": {
           "title": "db-virtual: get account",
-          "model": "vt_account",
+          "model": "ods_trade_user_account",
           "id": 90001,
           "ext": {
             "fields": ["id", "account_no", "balance", "user.user_name", "transactions.txn_no", "transactions.txn_type", "transactions.amount"],
@@ -340,12 +340,12 @@
     },
     {
       "id": "list-user-role-bridge",
-      "description": "以 vt_user_role 作为桥接实体查询，验证 N:N 数据的两端对象；不假设 user.roles 可多跳自动展开。",
+      "description": "以 ods_trade_account_user_role 作为桥接实体查询，验证 N:N 数据的两端对象；不假设 user.roles 可多跳自动展开。",
       "request": {
         "path": "/api/v1/query.list",
         "body": {
           "title": "db-virtual: user role bridge",
-          "model": "vt_user_role",
+          "model": "ods_trade_account_user_role",
           "filter_dict": { "user_id": 10001 },
           "page": 1,
           "page_size": 10,
@@ -371,7 +371,7 @@
         "path": "/api/v1/query.list",
         "body": {
           "title": "db-virtual: empty relations",
-          "model": "vt_user",
+          "model": "ods_trade_account_user_profile",
           "filter_dict": { "id": 10003 },
           "page": 1,
           "page_size": 10,
@@ -395,7 +395,7 @@
         "path": "/api/v1/query.count",
         "body": {
           "title": "db-virtual: count paid orders",
-          "model": "vt_order",
+          "model": "ods_trade_order_sales_order",
           "filter_dict": { "order_status": "PAID" },
           "page": 1,
           "page_size": 10
@@ -414,7 +414,7 @@
         "path": "/api/v1/query.aggregate",
         "body": {
           "title": "db-virtual: aggregate orders",
-          "model": "vt_order",
+          "model": "ods_trade_order_sales_order",
           "dimensions": [{ "field": "order_status", "alias": "status" }],
           "metrics": [{ "func": "count", "alias": "order_count" }, { "field": "total_amount", "func": "sum", "alias": "amount_sum" }],
           "sorts": [{ "field": "status", "order": "asc" }],
