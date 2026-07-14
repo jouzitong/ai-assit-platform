@@ -7,16 +7,15 @@ import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualRelationEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
-import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentBatchRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentDeleteResponse;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListItemDTO;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
-import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
-import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentCommand;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentDeleteCommand;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentDeleteResult;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentPage;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentPort;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentQuery;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentRef;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentUpsertResult;
 import lombok.extern.slf4j.Slf4j;
-import org.athena.framework.web.vo.R;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -39,16 +38,16 @@ public class VirtualKnowledgeService {
 
     private final VirtualCatalogDataRepository repository;
     private final VirtualCatalogService catalogService;
-    private final AiKnowledgeApi aiKnowledgeApi;
+    private final KnowledgeDocumentPort knowledgeDocumentPort;
 
     public VirtualKnowledgeService(
             VirtualCatalogDataRepository repository,
             VirtualCatalogService catalogService,
-            AiKnowledgeApi aiKnowledgeApi
+            KnowledgeDocumentPort knowledgeDocumentPort
     ) {
         this.repository = repository;
         this.catalogService = catalogService;
-        this.aiKnowledgeApi = aiKnowledgeApi;
+        this.knowledgeDocumentPort = knowledgeDocumentPort;
     }
 
     public VirtualKnowledgePreviewResponse preview(Long entityId) {
@@ -71,12 +70,12 @@ public class VirtualKnowledgeService {
         Map<String, Long> entityIdByDocumentCode = new LinkedHashMap<>();
         ids.forEach(id -> entityIdByDocumentCode.put(documentCode(id), id));
 
-        List<AiKbDocumentListItemDTO> documents = findDocuments(entityIdByDocumentCode.keySet());
+        List<KnowledgeDocumentRef> documents = findDocuments(entityIdByDocumentCode.keySet());
         Map<Long, Set<String>> kbCodesByEntityId = new LinkedHashMap<>();
         documents.forEach(document -> {
-            Long entityId = entityIdByDocumentCode.get(document.getDocumentCode());
-            if (entityId != null && StringUtils.hasText(document.getKbCode())) {
-                kbCodesByEntityId.computeIfAbsent(entityId, ignored -> new LinkedHashSet<>()).add(document.getKbCode());
+            Long entityId = entityIdByDocumentCode.get(document.documentCode());
+            if (entityId != null && StringUtils.hasText(document.knowledgeBaseCode())) {
+                kbCodesByEntityId.computeIfAbsent(entityId, ignored -> new LinkedHashSet<>()).add(document.knowledgeBaseCode());
             }
         });
         return ids.stream()
@@ -99,10 +98,10 @@ public class VirtualKnowledgeService {
         int unchanged = 0;
         for (Long entityId : entityIds) {
             VirtualEntityEntity entity = requirePublishedEntity(entityId);
-            AiKbDocumentUpsertResponse result = upsert(kbCode, entity, preview(entityId).content());
-            if (Boolean.TRUE.equals(result.getCreated())) {
+            KnowledgeDocumentUpsertResult result = upsert(kbCode, entity, preview(entityId).content());
+            if (result.created()) {
                 created++;
-            } else if (Boolean.TRUE.equals(result.getUpdated())) {
+            } else if (result.updated()) {
                 updated++;
             } else {
                 unchanged++;
@@ -132,61 +131,55 @@ public class VirtualKnowledgeService {
         return new VirtualUnpublishResponse(unpublished, deletedDocuments);
     }
 
-    private AiKbDocumentUpsertResponse upsert(String kbCode, VirtualEntityEntity entity, String content) {
-        AiKbDocumentUpsertRequest request = new AiKbDocumentUpsertRequest();
-        request.setKbId(kbCode);
-        request.setDocumentId(documentCode(entity.getId()));
-        request.setDocumentName(documentName(entity));
-        request.setDocumentType(AiKbDocumentType.DB_TABLE);
-        request.setBizType(AiKbBizType.DB_DATA_SOURCE);
-        request.setContent(content);
-        request.setCanUpdate(Boolean.TRUE);
-
+    private KnowledgeDocumentUpsertResult upsert(String kbCode, VirtualEntityEntity entity, String content) {
         Map<String, Object> ext = new LinkedHashMap<>();
         ext.put("sourceSystem", SOURCE_SYSTEM);
         ext.put("virtualEntityId", entity.getId());
         ext.put("virtualTableKey", entity.getEntityCode());
         ext.put("virtualTableName", entity.getEntityName());
         ext.put("catalogVersion", entity.getCatalogVersion());
-        request.setExt(ext);
-
-        R<AiKbDocumentUpsertResponse> response = aiKnowledgeApi.upsertDocument(request);
-        if (response == null || response.getCode() != 0 || response.getData() == null) {
-            log.error("virtual knowledge upsert failed, kbCode={}, entityId={}, responseCode={}",
-                    kbCode, entity.getId(), response == null ? null : response.getCode());
+        KnowledgeDocumentCommand command = new KnowledgeDocumentCommand(
+                kbCode,
+                documentCode(entity.getId()),
+                documentName(entity),
+                content,
+                true,
+                ext
+        );
+        KnowledgeDocumentUpsertResult result = knowledgeDocumentPort.upsert(command);
+        if (result == null) {
+            log.error("virtual knowledge upsert failed, kbCode={}, entityId={}", kbCode, entity.getId());
             throw new VirtualDataException("KNOWLEDGE_SYNC_FAILED", "虚拟表知识文档同步失败: " + entity.getEntityCode());
         }
-        return response.getData();
+        return result;
     }
 
-    private List<AiKbDocumentListItemDTO> findDocuments(Iterable<String> documentCodes) {
-        AiKbDocumentBatchRequest request = new AiKbDocumentBatchRequest();
-        documentCodes.forEach(request.getDocumentCodes()::add);
-        if (request.getDocumentCodes().isEmpty()) {
+    private List<KnowledgeDocumentRef> findDocuments(Iterable<String> documentCodes) {
+        List<String> codes = new ArrayList<>();
+        documentCodes.forEach(codes::add);
+        if (codes.isEmpty()) {
             return List.of();
         }
-        R<List<AiKbDocumentListItemDTO>> response = aiKnowledgeApi.listDocuments(request);
-        if (response == null || response.getCode() != 0 || response.getData() == null) {
+        KnowledgeDocumentPage page = knowledgeDocumentPort.list(new KnowledgeDocumentQuery(codes));
+        if (page == null) {
             throw new VirtualDataException("KNOWLEDGE_STATUS_FAILED", "知识库同步状态查询失败");
         }
-        return response.getData();
+        return page.documents();
     }
 
     private int deleteDocuments(List<String> documentCodes) {
         if (findDocuments(documentCodes).isEmpty()) {
             return 0;
         }
-        AiKbDocumentBatchRequest request = new AiKbDocumentBatchRequest();
-        request.setDocumentCodes(documentCodes);
-        R<AiKbDocumentDeleteResponse> response = aiKnowledgeApi.deleteDocuments(request);
-        if (response == null || response.getCode() != 0 || response.getData() == null) {
+        KnowledgeDocumentDeleteResult result = knowledgeDocumentPort.delete(new KnowledgeDocumentDeleteCommand(documentCodes));
+        if (result == null) {
             throw new VirtualDataException("KNOWLEDGE_DELETE_FAILED", "取消发布前删除知识文档失败");
         }
-        if (!response.getData().getSkippedDocumentCodes().isEmpty()) {
+        if (!result.skippedDocumentCodes().isEmpty()) {
             throw new VirtualDataException("KNOWLEDGE_DELETE_INCOMPLETE",
-                    "部分知识文档未能删除: " + String.join(", ", response.getData().getSkippedDocumentCodes()));
+                    "部分知识文档未能删除: " + String.join(", ", result.skippedDocumentCodes()));
         }
-        return response.getData().getDeletedCount();
+        return result.deletedCount();
     }
 
     private String buildMarkdown(

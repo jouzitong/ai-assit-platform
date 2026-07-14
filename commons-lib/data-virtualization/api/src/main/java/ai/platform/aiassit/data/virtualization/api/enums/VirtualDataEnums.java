@@ -78,6 +78,19 @@ public final class VirtualDataEnums {
         QueryType(int code, String name) { this.code = code; this.name = name; }
     }
 
+    /**
+     * 虚拟关系在源实体记录中的返回形态。
+     *
+     * <p>它不描述物理表之间的基数，只声明当前虚拟目录应把关联结果呈现为单个对象还是对象集合。</p>
+     */
+    @Getter
+    public enum RelationResultMode implements IEnum {
+        OBJECT(0, "对象"), COLLECTION(1, "集合");
+        @JsonValue private final int code;
+        private final String name;
+        RelationResultMode(int code, String name) { this.code = code; this.name = name; }
+    }
+
     @Getter
     public enum FilterType implements IEnum {
         AND(0, "并且"), OR(1, "或者"), NOT(2, "非"), PREDICATE(3, "谓词");
@@ -90,7 +103,8 @@ public final class VirtualDataEnums {
     public enum FilterOperator implements IEnum {
         EQ(0, "等于"), NE(1, "不等于"), GT(2, "大于"), GTE(3, "大于等于"),
         LT(4, "小于"), LTE(5, "小于等于"), IN(6, "包含于"), NOT_IN(7, "不包含于"),
-        IS_NULL(8, "为空"), IS_NOT_NULL(9, "非空"), LIKE(10, "模糊匹配");
+        IS_NULL(8, "为空"), IS_NOT_NULL(9, "非空"), LIKE(10, "模糊匹配"),
+        STARTS_WITH(11, "前缀匹配"), ENDS_WITH(12, "后缀匹配");
         @JsonValue private final int code;
         private final String name;
         FilterOperator(int code, String name) { this.code = code; this.name = name; }

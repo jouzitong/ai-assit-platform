@@ -27,13 +27,14 @@ public class PhysicalExecutionEngine {
     public ExecutionRows execute(PhysicalExecutionPlan plan) {
         long started = System.currentTimeMillis();
         List<ExecutionOrchestrator.TaskOutput> outputs = orchestrator.execute(plan);
+        outputs.forEach(output -> requireComplete(output, plan.logicalPlan().maxScanRows()));
         if (outputs.stream().allMatch(output -> output.task().countOnly())) {
-            long total = outputs.stream().mapToLong(output -> count(output.result().getRows())).sum();
+            long total = outputs.stream().mapToLong(output -> count(output.result().rows())).sum();
             return new ExecutionRows(new ArrayList<>(), total, outputs.size(), System.currentTimeMillis() - started);
         }
         List<Map<String, Object>> rows = new ArrayList<>();
         for (ExecutionOrchestrator.TaskOutput output : outputs) {
-            List<Map<String, Object>> physicalRows = output.result().getRows() == null ? List.of() : output.result().getRows();
+            List<Map<String, Object>> physicalRows = output.result().rows();
             if (physicalRows.size() > plan.logicalPlan().maxScanRows()) {
                 throw new VirtualDataException("PLAN_BUDGET_EXCEEDED", "物理扫描达到 maxScanRows，拒绝返回可能不完整的结果");
             }
@@ -56,6 +57,17 @@ public class PhysicalExecutionEngine {
         Object value = row.entrySet().stream().filter(entry -> entry.getKey().equalsIgnoreCase("__count"))
                 .map(Map.Entry::getValue).findFirst().orElse(0);
         return value instanceof Number number ? number.longValue() : Long.parseLong(String.valueOf(value));
+    }
+
+    private void requireComplete(ExecutionOrchestrator.TaskOutput output, int maxScanRows) {
+        if (output.result().truncated() || !output.result().exhausted()) {
+            throw new VirtualDataException("PLAN_BUDGET_EXCEEDED",
+                    "物理任务未完整读取候选域: " + output.task().taskId());
+        }
+        if (output.result().scannedRows() > maxScanRows) {
+            throw new VirtualDataException("PLAN_BUDGET_EXCEEDED",
+                    "物理扫描超过 maxScanRows 预算: " + output.task().taskId());
+        }
     }
 
     public record ExecutionRows(List<Map<String, Object>> rows, long total, int physicalTaskCount, long executionMs) {

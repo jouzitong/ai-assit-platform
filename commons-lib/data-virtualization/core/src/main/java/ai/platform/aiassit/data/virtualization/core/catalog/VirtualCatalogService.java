@@ -1,16 +1,22 @@
 package ai.platform.aiassit.data.virtualization.core.catalog;
 
+import ai.platform.aiassit.data.virtualization.api.VirtualCatalogGateway;
+import ai.platform.aiassit.data.virtualization.api.dto.VirtualCatalogDescriptor;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.CatalogStatus;
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
+import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 @Service
-public class VirtualCatalogService {
+public class VirtualCatalogService implements VirtualCatalogGateway {
     private final CatalogAssembler assembler;
     private final VirtualCatalogDataRepository repository;
     private final Map<String, CatalogSnapshot> cache = new ConcurrentHashMap<>();
@@ -35,6 +41,69 @@ public class VirtualCatalogService {
         }
         String key = entity.getEntityCode() + ":" + currentVersion;
         return cache.computeIfAbsent(key, ignored -> assembler.byEntityCode(entityCode));
+    }
+
+    @Override
+    public VirtualCatalogDescriptor describePublished(String entityCode, Long requestedVersion) {
+        CatalogSnapshot snapshot = requirePublished(entityCode, requestedVersion);
+        List<VirtualCatalogDescriptor.Relation> relations = snapshot.relations().stream()
+                .filter(CatalogSnapshot.Relation::enabled)
+                .filter(relation -> snapshot.entityId().equals(relation.sourceEntityId()))
+                .collect(Collectors.groupingBy(
+                        CatalogSnapshot.Relation::relationCode,
+                        LinkedHashMap::new,
+                        Collectors.toList()
+                ))
+                .entrySet().stream()
+                .map(entry -> describeRelation(snapshot, entry.getKey(), entry.getValue()))
+                .toList();
+        return new VirtualCatalogDescriptor(
+                snapshot.entityCode(),
+                snapshot.catalogVersion(),
+                snapshot.fieldsByCode().values().stream()
+                        .map(field -> new VirtualCatalogDescriptor.Field(field.code(), field.primaryKey(), field.enabled()))
+                        .toList(),
+                relations.stream().map(VirtualCatalogDescriptor.Relation::code).toList(),
+                relations
+        );
+    }
+
+    private VirtualCatalogDescriptor.Relation describeRelation(
+            CatalogSnapshot snapshot,
+            String relationCode,
+            List<CatalogSnapshot.Relation> mappings
+    ) {
+        if (mappings.isEmpty()) {
+            throw new VirtualDataException("CATALOG_RELATION_INVALID", "虚拟关系没有字段映射: " + relationCode);
+        }
+        CatalogSnapshot.Relation first = mappings.get(0);
+        for (CatalogSnapshot.Relation mapping : mappings) {
+            if (mapping.resultMode() != first.resultMode()) {
+                throw new VirtualDataException("CATALOG_RELATION_INVALID",
+                        "同一虚拟关系的结果形态不一致: " + relationCode);
+            }
+        }
+        boolean forward = first.sourceEntityId().equals(snapshot.entityId());
+        Long targetEntityId = forward ? first.targetEntityId() : first.sourceEntityId();
+        VirtualEntityEntity target = repository.entityById(targetEntityId);
+        if (target == null) {
+            throw new VirtualDataException("CATALOG_RELATION_TARGET_NOT_FOUND", "虚拟关系目标实体不存在: " + relationCode);
+        }
+        Map<String, String> fieldMappings = new LinkedHashMap<>();
+        for (CatalogSnapshot.Relation mapping : mappings) {
+            boolean mappingForward = mapping.sourceEntityId().equals(snapshot.entityId());
+            Long localFieldId = mappingForward ? mapping.sourceFieldId() : mapping.targetFieldId();
+            Long remoteFieldId = mappingForward ? mapping.targetFieldId() : mapping.sourceFieldId();
+            VirtualFieldEntity localField = repository.fieldById(localFieldId);
+            VirtualFieldEntity remoteField = repository.fieldById(remoteFieldId);
+            if (localField == null || remoteField == null) {
+                throw new VirtualDataException("CATALOG_RELATION_FIELD_NOT_FOUND", "虚拟关系字段不存在: " + relationCode);
+            }
+            fieldMappings.put(localField.getFieldCode(), remoteField.getFieldCode());
+        }
+        return new VirtualCatalogDescriptor.Relation(
+                relationCode, target.getEntityCode(), fieldMappings, first.resultMode()
+        );
     }
 
     public CatalogSnapshot requirePublished(Long entityId) {

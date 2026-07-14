@@ -1,5 +1,6 @@
 package ai.platform.aiassit.data.virtualization.core.execution;
 
+import ai.platform.aiassit.data.virtualization.api.VirtualCommandGateway;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualCommandRequest;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualCommandResponse;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.CommandType;
@@ -7,14 +8,17 @@ import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.Transa
 import ai.platform.aiassit.data.virtualization.core.catalog.CatalogSnapshot;
 import ai.platform.aiassit.data.virtualization.core.catalog.VirtualCatalogService;
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
+import ai.platform.aiassit.data.virtualization.core.plan.PhysicalFilterMapper;
 import ai.platform.aiassit.data.virtualization.core.routing.BindingRouter;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformer;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformerRegistry;
 import ai.platform.aiassit.data.virtualization.core.transform.TransformOutputMapper;
-import ai.platform.aiassit.db.engine.core.service.DbAccessService;
-import ai.platform.aiassit.db.engine.executor.spi.enums.DbAccessDbType;
-import ai.platform.aiassit.db.engine.executor.spi.request.ExecuteRequest;
-import ai.platform.aiassit.db.engine.executor.spi.result.ExecuteResult;
+import ai.platform.aiassit.data.virtualization.spi.command.PhysicalCommand;
+import ai.platform.aiassit.data.virtualization.spi.command.PhysicalCommandPort;
+import ai.platform.aiassit.data.virtualization.spi.command.PhysicalCommandResult;
+import ai.platform.aiassit.data.virtualization.spi.command.PhysicalCommandSpec;
+import ai.platform.aiassit.data.virtualization.spi.command.PhysicalCommandType;
+import ai.platform.aiassit.data.virtualization.spi.model.PhysicalFilter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -29,28 +33,29 @@ import java.util.concurrent.ConcurrentHashMap;
 
 @Service
 @Slf4j
-public class VirtualDataCommandService {
+public class VirtualDataCommandService implements VirtualCommandGateway {
     private final VirtualCatalogService catalogService;
     private final BindingRouter bindingRouter;
     private final FieldTransformerRegistry transformerRegistry;
-    private final PhysicalCommandSqlRenderer sqlRenderer;
-    private final DbAccessService dbAccessService;
+    private final PhysicalFilterMapper filterMapper;
+    private final PhysicalCommandPort commandPort;
     private final Map<String, VirtualCommandResponse> idempotencyCache = new ConcurrentHashMap<>();
 
     public VirtualDataCommandService(
             VirtualCatalogService catalogService,
             BindingRouter bindingRouter,
             FieldTransformerRegistry transformerRegistry,
-            PhysicalCommandSqlRenderer sqlRenderer,
-            DbAccessService dbAccessService
+            PhysicalFilterMapper filterMapper,
+            PhysicalCommandPort commandPort
     ) {
         this.catalogService = catalogService;
         this.bindingRouter = bindingRouter;
         this.transformerRegistry = transformerRegistry;
-        this.sqlRenderer = sqlRenderer;
-        this.dbAccessService = dbAccessService;
+        this.filterMapper = filterMapper;
+        this.commandPort = commandPort;
     }
 
+    @Override
     public VirtualCommandResponse command(VirtualCommandRequest request) {
         validate(request);
         String idempotencyKey = request.getIdempotencyKey() == null ? null : request.getEntityCode() + ":" + request.getIdempotencyKey();
@@ -60,19 +65,25 @@ public class VirtualDataCommandService {
 
     private VirtualCommandResponse executeCommand(VirtualCommandRequest request) {
         CatalogSnapshot snapshot = catalogService.requirePublished(request.getEntityCode(), request.getCatalogVersion());
+        String requestId = UUID.randomUUID().toString();
         String planId = UUID.randomUUID().toString();
-        List<CommandTask> tasks = plan(snapshot, request, planId);
+        List<CommandTask> tasks = plan(snapshot, request, requestId, planId);
         if (tasks.size() > 1 && request.getTransactionMode() != TransactionMode.BEST_EFFORT) {
             throw new VirtualDataException("DISTRIBUTED_ATOMIC_WRITE_UNSUPPORTED", "跨绑定写入仅支持 BEST_EFFORT");
         }
-        VirtualCommandResponse response = execute(tasks, request, planId);
+        VirtualCommandResponse response = execute(tasks, request, requestId, planId);
         log.info("virtual data command completed: planId={}, entityCode={}, commandType={}, tasks={}, affectedRows={}, partialSuccess={}",
                 planId, request.getEntityCode(), request.getCommandType(), response.getTasks().size(),
                 response.getAffectedRows(), response.getPartialSuccess());
         return response;
     }
 
-    private List<CommandTask> plan(CatalogSnapshot snapshot, VirtualCommandRequest request, String planId) {
+    private List<CommandTask> plan(
+            CatalogSnapshot snapshot,
+            VirtualCommandRequest request,
+            String requestId,
+            String planId
+    ) {
         if (request.getCommandType() == CommandType.INSERT) {
             Map<Long, List<Map<String, Object>>> recordsByBinding = new LinkedHashMap<>();
             Map<Long, CatalogSnapshot.Binding> bindings = new LinkedHashMap<>();
@@ -84,24 +95,46 @@ public class VirtualDataCommandService {
             List<CommandTask> tasks = new ArrayList<>();
             for (Map.Entry<Long, List<Map<String, Object>>> entry : recordsByBinding.entrySet()) {
                 CatalogSnapshot.Binding binding = bindings.get(entry.getKey());
-                DbAccessDbType dbType = dbAccessService.getDbType(binding.sourceKey());
-                PhysicalCommandSqlRenderer.CommandSql sql = sqlRenderer.insert(binding.physicalTableName(), entry.getValue(), dbType);
-                tasks.add(new CommandTask(planId + "-" + (tasks.size() + 1), binding, sql));
+                validateInsertRows(entry.getValue());
+                String taskId = planId + "-" + (tasks.size() + 1);
+                PhysicalCommandSpec spec = new PhysicalCommandSpec(
+                        PhysicalCommandType.INSERT,
+                        binding.physicalTableName(),
+                        entry.getValue(),
+                        Map.of(),
+                        null
+                );
+                tasks.add(new CommandTask(taskId, binding,
+                        new PhysicalCommand(requestId, planId, taskId, binding.sourceKey(), spec)));
             }
             return tasks;
         }
 
         Map<String, Object> record = request.firstRecord();
         CatalogSnapshot.Binding binding = bindingRouter.routeWrite(snapshot, record, request.getFilter());
-        DbAccessDbType dbType = dbAccessService.getDbType(binding.sourceKey());
-        Map<String, String> filterFields = identityFilterFields(snapshot, binding);
-        PhysicalCommandSqlRenderer.CommandSql sql;
-        if (request.getCommandType() == CommandType.UPDATE) {
-            sql = sqlRenderer.update(binding.physicalTableName(), transformWrite(snapshot, binding, record, false), request.getFilter(), filterFields, dbType);
-        } else {
-            sql = sqlRenderer.delete(binding.physicalTableName(), request.getFilter(), filterFields, dbType);
+        if (request.getFilter() == null) {
+            throw new VirtualDataException("FIELD_TRANSFORM_INVALID",
+                    request.getCommandType() + " 必须提供过滤条件");
         }
-        return List.of(new CommandTask(planId + "-1", binding, sql));
+        Map<String, String> filterFields = identityFilterFields(snapshot, binding);
+        PhysicalFilter physicalFilter = filterMapper.map(request.getFilter(), filterFields);
+        Map<String, Object> assignments = Map.of();
+        if (request.getCommandType() == CommandType.UPDATE) {
+            assignments = transformWrite(snapshot, binding, record, false);
+            if (assignments.isEmpty()) {
+                throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "UPDATE 没有可写物理字段");
+            }
+        }
+        String taskId = planId + "-1";
+        PhysicalCommandSpec spec = new PhysicalCommandSpec(
+                PhysicalCommandType.valueOf(request.getCommandType().name()),
+                binding.physicalTableName(),
+                List.of(),
+                assignments,
+                physicalFilter
+        );
+        return List.of(new CommandTask(taskId, binding,
+                new PhysicalCommand(requestId, planId, taskId, binding.sourceKey(), spec)));
     }
 
     private Map<String, Object> transformWrite(
@@ -168,9 +201,14 @@ public class VirtualDataCommandService {
         return fields;
     }
 
-    private VirtualCommandResponse execute(List<CommandTask> tasks, VirtualCommandRequest request, String planId) {
+    private VirtualCommandResponse execute(
+            List<CommandTask> tasks,
+            VirtualCommandRequest request,
+            String requestId,
+            String planId
+    ) {
         VirtualCommandResponse response = new VirtualCommandResponse();
-        response.setRequestId(UUID.randomUUID().toString());
+        response.setRequestId(requestId);
         response.setPlanId(planId);
         response.setTransactionMode(request.getTransactionMode().name());
         int affected = 0;
@@ -182,11 +220,10 @@ public class VirtualDataCommandService {
             item.setTaskId(task.taskId());
             item.setBindingCode(task.binding().code());
             try {
-                ExecuteResult result = dbAccessService.execute(task.binding().sourceKey(), ExecuteRequest.builder()
-                        .sql(task.sql().sql()).parameters(task.sql().parameters()).build());
+                PhysicalCommandResult result = commandPort.execute(task.command());
                 item.setSuccess(true);
-                item.setAffectedRows(result.getAffectedRows());
-                affected += result.getAffectedRows() == null ? 0 : result.getAffectedRows();
+                item.setAffectedRows(result.affectedRows());
+                affected += result.affectedRows();
                 succeededTasks++;
             } catch (RuntimeException ex) {
                 failed = true;
@@ -229,6 +266,16 @@ public class VirtualDataCommandService {
         }
     }
 
-    private record CommandTask(String taskId, CatalogSnapshot.Binding binding, PhysicalCommandSqlRenderer.CommandSql sql) {
+    private void validateInsertRows(List<Map<String, Object>> rows) {
+        if (rows == null || rows.isEmpty() || rows.get(0).isEmpty()) {
+            throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "INSERT 没有可写物理字段");
+        }
+        Set<String> columns = rows.get(0).keySet();
+        if (rows.stream().anyMatch(row -> !row.keySet().equals(columns))) {
+            throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "同一批 INSERT 的字段集合必须一致");
+        }
+    }
+
+    private record CommandTask(String taskId, CatalogSnapshot.Binding binding, PhysicalCommand command) {
     }
 }

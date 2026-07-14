@@ -3,14 +3,16 @@ package ai.platform.aiassit.data.virtualization.core.plan;
 import ai.platform.aiassit.data.virtualization.core.catalog.CatalogSnapshot;
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
 import ai.platform.aiassit.data.virtualization.core.routing.BindingRouter;
-import ai.platform.aiassit.db.engine.core.service.DbAccessService;
-import ai.platform.aiassit.db.engine.executor.spi.enums.DbAccessDbType;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
+import ai.platform.aiassit.data.virtualization.spi.model.PhysicalFilter;
+import ai.platform.aiassit.data.virtualization.spi.query.PhysicalProjection;
+import ai.platform.aiassit.data.virtualization.spi.query.PhysicalQueryCommand;
+import ai.platform.aiassit.data.virtualization.spi.query.PhysicalQuerySpec;
 import org.springframework.stereotype.Component;
 
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,16 +21,15 @@ import java.util.UUID;
 @Component
 public class PhysicalPlanGenerator {
     private final BindingRouter bindingRouter;
-    private final PhysicalSqlRenderer sqlRenderer;
-    private final DbAccessService dbAccessService;
+    private final PhysicalFilterMapper filterMapper;
 
-    public PhysicalPlanGenerator(BindingRouter bindingRouter, PhysicalSqlRenderer sqlRenderer, DbAccessService dbAccessService) {
+    public PhysicalPlanGenerator(BindingRouter bindingRouter, PhysicalFilterMapper filterMapper) {
         this.bindingRouter = bindingRouter;
-        this.sqlRenderer = sqlRenderer;
-        this.dbAccessService = dbAccessService;
+        this.filterMapper = filterMapper;
     }
 
     public PhysicalExecutionPlan generate(CatalogSnapshot snapshot, VirtualLogicalPlan logicalPlan) {
+        String requestId = UUID.randomUUID().toString();
         String planId = UUID.randomUUID().toString();
         List<PhysicalExecutionPlan.PhysicalTask> tasks = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
@@ -37,17 +38,28 @@ public class PhysicalPlanGenerator {
             CatalogSnapshot.Binding binding = decision.binding();
             List<CatalogSnapshot.TransformRule> rules = resolveRules(snapshot, binding, logicalPlan.requiredFields());
             Map<Long, String> aliases = aliases(rules);
-            DbAccessDbType dbType = dbAccessService.getDbType(binding.sourceKey());
-            PhysicalSqlRenderer.Rendered rendered = sqlRenderer.render(snapshot, binding, dbType, logicalPlan, rules, aliases);
-            if (!rendered.filterPushed() && logicalPlan.filter() != null) {
+            Map<String, String> pushdownFields = pushdownFields(snapshot, rules);
+            boolean filterPushed = filterMapper.canMap(logicalPlan.filter(), pushdownFields);
+            boolean countOnly = logicalPlan.queryType() == QueryType.COUNT && filterPushed;
+            if (!filterPushed && logicalPlan.filter() != null) {
                 if (!logicalPlan.allowLocalTransform()) {
                     throw new VirtualDataException("FIELD_TRANSFORM_PUSHDOWN_UNSUPPORTED", "过滤条件无法安全下推且请求禁止本地计算");
                 }
                 warnings.add(binding.code() + " 的过滤条件将在应用层执行，受 maxScanRows 预算约束");
             }
+            List<PhysicalProjection> projections = projections(rules, aliases);
+            if (!countOnly && projections.isEmpty()) {
+                throw new VirtualDataException("FIELD_NOT_MAPPED", "物理查询没有可投影字段");
+            }
+            int limit = countOnly ? 1 : fetchLimit(logicalPlan.maxScanRows());
+            PhysicalFilter physicalFilter = filterPushed ? filterMapper.map(logicalPlan.filter(), pushdownFields) : null;
+            String taskId = planId + "-" + (++sequence);
+            PhysicalQuerySpec querySpec = new PhysicalQuerySpec(
+                    binding.physicalTableName(), projections, physicalFilter, countOnly, limit);
+            PhysicalQueryCommand command = new PhysicalQueryCommand(
+                    requestId, planId, taskId, binding.sourceKey(), querySpec, limit, logicalPlan.timeoutMs());
             tasks.add(new PhysicalExecutionPlan.PhysicalTask(
-                    planId + "-" + (++sequence), binding, dbType.name(), rendered.sql(), rendered.parameters(),
-                    rendered.countOnly() ? 1 : fetchLimit(logicalPlan.maxScanRows()), rendered.filterPushed(), rendered.countOnly(),
+                    taskId, binding, command, filterPushed, countOnly,
                     decision.reason(), rules, aliases
             ));
         }
@@ -75,6 +87,34 @@ public class PhysicalPlanGenerator {
         Map<Long, String> aliases = new LinkedHashMap<>();
         rules.forEach(rule -> rule.physicalPorts().forEach(port -> aliases.putIfAbsent(port.physicalFieldMetaId(), "__p" + port.physicalFieldMetaId())));
         return aliases;
+    }
+
+    private List<PhysicalProjection> projections(
+            List<CatalogSnapshot.TransformRule> rules,
+            Map<Long, String> aliases
+    ) {
+        Map<Long, CatalogSnapshot.Port> ports = new LinkedHashMap<>();
+        rules.forEach(rule -> rule.physicalPorts().forEach(port -> ports.putIfAbsent(port.physicalFieldMetaId(), port)));
+        return ports.entrySet().stream()
+                .map(entry -> new PhysicalProjection(entry.getValue().physicalColumnName(), aliases.get(entry.getKey())))
+                .toList();
+    }
+
+    private Map<String, String> pushdownFields(
+            CatalogSnapshot snapshot,
+            List<CatalogSnapshot.TransformRule> rules
+    ) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (CatalogSnapshot.TransformRule rule : rules) {
+            if (!"identity".equals(rule.readTransformerCode())
+                    || rule.physicalPorts().size() != 1
+                    || rule.virtualPorts().size() != 1) {
+                continue;
+            }
+            CatalogSnapshot.VirtualField field = snapshot.fieldsById().get(rule.virtualPorts().get(0).virtualFieldId());
+            if (field != null) result.put(field.code(), rule.physicalPorts().get(0).physicalColumnName());
+        }
+        return result;
     }
 
     private int fetchLimit(int maxRows) {

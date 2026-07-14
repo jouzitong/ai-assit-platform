@@ -2,6 +2,7 @@ package ai.platform.aiassit.data.virtualization.core.catalog;
 
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.BindingRole;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FieldSide;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RoutingStrategy;
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformer;
@@ -10,10 +11,9 @@ import ai.platform.aiassit.data.virtualization.core.transform.TransformDefinitio
 import ai.platform.aiassit.data.virtualization.data.entity.FieldTransformPortEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
-import ai.platform.aiassit.db.engine.meta.entity.DbTableFieldMetaEntity;
-import ai.platform.aiassit.db.engine.meta.entity.DbTableMetaEntity;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableFieldMetaMapper;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableMetaMapper;
+import ai.platform.aiassit.data.virtualization.spi.catalog.PhysicalCatalogPort;
+import ai.platform.aiassit.data.virtualization.spi.catalog.PhysicalFieldDefinition;
+import ai.platform.aiassit.data.virtualization.spi.catalog.PhysicalTableDefinition;
 import org.springframework.stereotype.Component;
 
 import java.util.HashMap;
@@ -27,19 +27,16 @@ import java.util.regex.Pattern;
 public class CatalogValidator {
     private static final Pattern VIRTUAL_CODE = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,63}");
     private final FieldTransformerRegistry transformerRegistry;
-    private final DbTableMetaMapper tableMetaMapper;
-    private final DbTableFieldMetaMapper fieldMetaMapper;
+    private final PhysicalCatalogPort physicalCatalogPort;
     private final VirtualCatalogDataRepository repository;
 
     public CatalogValidator(
             FieldTransformerRegistry transformerRegistry,
-            DbTableMetaMapper tableMetaMapper,
-            DbTableFieldMetaMapper fieldMetaMapper,
+            PhysicalCatalogPort physicalCatalogPort,
             VirtualCatalogDataRepository repository
     ) {
         this.transformerRegistry = transformerRegistry;
-        this.tableMetaMapper = tableMetaMapper;
-        this.fieldMetaMapper = fieldMetaMapper;
+        this.physicalCatalogPort = physicalCatalogPort;
         this.repository = repository;
     }
 
@@ -119,10 +116,10 @@ public class CatalogValidator {
     }
 
     private void validatePhysicalBinding(CatalogSnapshot.Binding binding) {
-        DbTableMetaEntity table = tableMetaMapper.selectById(binding.physicalTableMetaId());
-        require(table != null && Boolean.TRUE.equals(table.getEnabled()), "绑定引用的物理表不存在或未启用: " + binding.code());
-        require(binding.sourceKey().equals(table.getSourceKey()), "绑定 sourceKey 与物理目录不一致: " + binding.code());
-        require(binding.physicalTableName().equals(table.getTableName()), "绑定表名快照与物理目录不一致: " + binding.code());
+        PhysicalTableDefinition table = physicalCatalogPort.findTable(binding.physicalTableMetaId()).orElse(null);
+        require(table != null && table.enabled(), "绑定引用的物理表不存在或未启用: " + binding.code());
+        require(binding.sourceKey().equals(table.sourceKey()), "绑定 sourceKey 与物理目录不一致: " + binding.code());
+        require(binding.physicalTableName().equals(table.tableName()), "绑定表名快照与物理目录不一致: " + binding.code());
     }
 
     private void validateRules(CatalogSnapshot snapshot, CatalogSnapshot.Binding binding) {
@@ -173,12 +170,12 @@ public class CatalogValidator {
                     "物理端口字段引用不合法: " + rule.code() + "." + port.code());
             require(validCode(port.code()), "规则端口编码不合法: " + rule.code() + "." + port.code());
             require(keys.add("P:" + port.code()), "规则端口编码重复: " + port.code());
-            DbTableFieldMetaEntity physicalField = fieldMetaMapper.selectById(port.physicalFieldMetaId());
-            require(physicalField != null && Boolean.TRUE.equals(physicalField.getEnabled()), "物理字段不存在或未启用: " + port.physicalFieldMetaId());
-            require(binding.sourceKey().equals(physicalField.getSourceKey())
-                            && binding.physicalTableName().equals(physicalField.getTableName()),
+            PhysicalFieldDefinition physicalField = physicalCatalogPort.findField(port.physicalFieldMetaId()).orElse(null);
+            require(physicalField != null && physicalField.enabled(), "物理字段不存在或未启用: " + port.physicalFieldMetaId());
+            require(binding.sourceKey().equals(physicalField.sourceKey())
+                            && binding.physicalTableName().equals(physicalField.tableName()),
                     "物理端口不属于当前绑定: " + rule.code() + "." + port.code());
-            require(port.physicalColumnName().equals(physicalField.getColumnName()), "物理字段名快照已漂移: " + port.physicalColumnName());
+            require(port.physicalColumnName().equals(physicalField.columnName()), "物理字段名快照已漂移: " + port.physicalColumnName());
         }
         for (CatalogSnapshot.Port port : rule.virtualPorts()) {
             require(port.side() == FieldSide.VIRTUAL && port.virtualFieldId() != null && port.physicalFieldMetaId() == null,
@@ -192,19 +189,26 @@ public class CatalogValidator {
 
     private void validateRelations(CatalogSnapshot snapshot) {
         Map<String, String> endpointsByCode = new HashMap<>();
-        snapshot.relations().stream().filter(CatalogSnapshot.Relation::enabled).forEach(relation -> {
+        Map<String, RelationResultMode> resultModesByCode = new HashMap<>();
+        snapshot.relations().stream()
+                .filter(CatalogSnapshot.Relation::enabled)
+                .filter(relation -> snapshot.entityId().equals(relation.sourceEntityId()))
+                .forEach(relation -> {
             require(validCode(relation.relationCode()), "虚拟关系编码不合法: " + relation.relationCode());
             String endpoints = relation.sourceEntityId() + ":" + relation.targetEntityId();
             String existingEndpoints = endpointsByCode.putIfAbsent(relation.relationCode(), endpoints);
             require(existingEndpoints == null || endpoints.equals(existingEndpoints),
                     "同一 relationCode 的源目标实体不一致: " + relation.relationCode());
+            RelationResultMode existingMode = resultModesByCode.putIfAbsent(relation.relationCode(), relation.resultMode());
+            require(existingMode == null || existingMode == relation.resultMode(),
+                    "同一 relationCode 的结果形态不一致: " + relation.relationCode());
             VirtualFieldEntity source = repository.fieldById(relation.sourceFieldId());
             VirtualFieldEntity target = repository.fieldById(relation.targetFieldId());
             require(source != null && target != null, "虚拟关系引用字段不存在: " + relation.relationCode());
             require(source.getEntityId().equals(relation.sourceEntityId()) && target.getEntityId().equals(relation.targetEntityId()),
                     "虚拟关系字段与实体不匹配: " + relation.relationCode());
             require(source.getLogicalType() == target.getLogicalType(), "虚拟关系字段类型不兼容: " + relation.relationCode());
-        });
+                });
     }
 
     private TransformDefinition definition(CatalogSnapshot.TransformRule rule, Map<String, Object> config) {

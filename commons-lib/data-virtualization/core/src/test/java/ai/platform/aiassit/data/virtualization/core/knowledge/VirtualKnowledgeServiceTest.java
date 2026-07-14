@@ -7,13 +7,13 @@ import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualRelationEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
-import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentBatchRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentDeleteResponse;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentListItemDTO;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
-import org.athena.framework.web.vo.R;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentCommand;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentDeleteCommand;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentDeleteResult;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentPage;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentPort;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentRef;
+import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentUpsertResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,14 +38,14 @@ class VirtualKnowledgeServiceTest {
     @Mock
     private VirtualCatalogService catalogService;
     @Mock
-    private AiKnowledgeApi aiKnowledgeApi;
+    private KnowledgeDocumentPort knowledgeDocumentPort;
 
     private VirtualKnowledgeService service;
     private VirtualEntityEntity order;
 
     @BeforeEach
     void setUp() {
-        service = new VirtualKnowledgeService(repository, catalogService, aiKnowledgeApi);
+        service = new VirtualKnowledgeService(repository, catalogService, knowledgeDocumentPort);
         order = entity(1L, "order", "订单", "订单主数据");
         order.setStatus(CatalogStatus.PUBLISHED);
         order.setEnabled(true);
@@ -94,37 +94,31 @@ class VirtualKnowledgeServiceTest {
     void syncUsesUpdateEnabledUpsertWithStableDocumentCode() {
         when(repository.fields(1L)).thenReturn(List.of());
         when(repository.relations(1L)).thenReturn(List.of());
-        AiKbDocumentUpsertResponse upsert = new AiKbDocumentUpsertResponse();
-        upsert.setCreated(true);
-        when(aiKnowledgeApi.upsertDocument(any())).thenReturn(R.ok(upsert));
+        when(knowledgeDocumentPort.upsert(any())).thenReturn(new KnowledgeDocumentUpsertResult(true, false));
 
         VirtualKnowledgeSyncRequest request = new VirtualKnowledgeSyncRequest();
         request.setKbCode("analytics-kb");
         request.setEntityIds(List.of(1L));
         VirtualKnowledgeSyncResponse response = service.sync(request);
 
-        ArgumentCaptor<AiKbDocumentUpsertRequest> captor = ArgumentCaptor.forClass(AiKbDocumentUpsertRequest.class);
-        verify(aiKnowledgeApi).upsertDocument(captor.capture());
-        assertEquals("virtual-table/1", captor.getValue().getDocumentId());
-        assertTrue(captor.getValue().getCanUpdate());
+        ArgumentCaptor<KnowledgeDocumentCommand> captor = ArgumentCaptor.forClass(KnowledgeDocumentCommand.class);
+        verify(knowledgeDocumentPort).upsert(captor.capture());
+        assertEquals("virtual-table/1", captor.getValue().documentCode());
+        assertTrue(captor.getValue().updateAllowed());
         assertEquals(1, response.createdCount());
     }
 
     @Test
     void unpublishDeletesKnowledgeDocumentsBeforeReturningEntityToDraft() {
-        AiKbDocumentListItemDTO document = new AiKbDocumentListItemDTO();
-        document.setKbCode("analytics-kb");
-        document.setDocumentCode("virtual-table/1");
-        when(aiKnowledgeApi.listDocuments(any())).thenReturn(R.ok(List.of(document)));
-        AiKbDocumentDeleteResponse deleted = new AiKbDocumentDeleteResponse();
-        deleted.setDeletedCount(1);
-        when(aiKnowledgeApi.deleteDocuments(any())).thenReturn(R.ok(deleted));
+        KnowledgeDocumentRef document = new KnowledgeDocumentRef("virtual-table/1", "analytics-kb");
+        when(knowledgeDocumentPort.list(any())).thenReturn(new KnowledgeDocumentPage(List.of(document)));
+        when(knowledgeDocumentPort.delete(any())).thenReturn(new KnowledgeDocumentDeleteResult(1, List.of()));
 
         VirtualUnpublishResponse response = service.unpublish(List.of(1L));
 
-        ArgumentCaptor<AiKbDocumentBatchRequest> deleteCaptor = ArgumentCaptor.forClass(AiKbDocumentBatchRequest.class);
-        verify(aiKnowledgeApi).deleteDocuments(deleteCaptor.capture());
-        assertEquals(List.of("virtual-table/1"), deleteCaptor.getValue().getDocumentCodes());
+        ArgumentCaptor<KnowledgeDocumentDeleteCommand> deleteCaptor = ArgumentCaptor.forClass(KnowledgeDocumentDeleteCommand.class);
+        verify(knowledgeDocumentPort).delete(deleteCaptor.capture());
+        assertEquals(List.of("virtual-table/1"), deleteCaptor.getValue().documentCodes());
         assertEquals(CatalogStatus.DRAFT, order.getStatus());
         verify(repository).updateEntity(order);
         verify(catalogService).evict("order");

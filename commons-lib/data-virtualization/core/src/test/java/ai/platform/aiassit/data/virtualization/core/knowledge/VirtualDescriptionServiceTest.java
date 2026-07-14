@@ -5,10 +5,9 @@ import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualRelationEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
-import ai.platform.aiassit.service.ai.api.AiTextGenerationApi;
-import ai.platform.aiassit.service.ai.api.dto.AiTextGenerationRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiTextGenerationResponse;
-import org.athena.framework.web.vo.R;
+import ai.platform.aiassit.data.virtualization.spi.text.TextGenerationCommand;
+import ai.platform.aiassit.data.virtualization.spi.text.TextGenerationPort;
+import ai.platform.aiassit.data.virtualization.spi.text.TextGenerationResult;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +27,7 @@ import static org.mockito.Mockito.when;
 class VirtualDescriptionServiceTest {
 
     @Mock private VirtualCatalogDataRepository repository;
-    @Mock private AiTextGenerationApi textGenerationApi;
+    @Mock private TextGenerationPort textGenerationPort;
 
     @Test
     void generatesSearchOrientedDescriptionFromVirtualMetadataOnly() {
@@ -52,21 +51,21 @@ class VirtualDescriptionServiceTest {
         when(repository.relations(1L)).thenReturn(List.of(relation));
         when(repository.fieldById(12L)).thenReturn(departmentId);
         when(repository.fieldById(21L)).thenReturn(remoteDepartmentId);
-        when(textGenerationApi.generate(any())).thenReturn(R.ok(new AiTextGenerationResponse(
-                "**业务语义**：员工合同主题数据。\n\n**检索线索**：\n- 员工\n- 部门", "test-model", "req-1")));
+        when(textGenerationPort.generate(any())).thenReturn(new TextGenerationResult(
+                "**业务语义**：员工合同主题数据。\n\n**检索线索**：\n- 员工\n- 部门"));
 
         VirtualDescriptionGenerateRequest input = new VirtualDescriptionGenerateRequest();
         input.setEntityId(1L);
-        VirtualDescriptionGenerateResponse result = new VirtualDescriptionService(repository, textGenerationApi).generate(input);
+        VirtualDescriptionGenerateResponse result = new VirtualDescriptionService(repository, textGenerationPort).generate(input);
 
         assertThat(result.description()).contains("**业务语义**", "\n- 员工", "部门");
-        ArgumentCaptor<AiTextGenerationRequest> requestCaptor = ArgumentCaptor.forClass(AiTextGenerationRequest.class);
-        verify(textGenerationApi).generate(requestCaptor.capture());
-        assertThat(requestCaptor.getValue().getUserPrompt())
+        ArgumentCaptor<TextGenerationCommand> requestCaptor = ArgumentCaptor.forClass(TextGenerationCommand.class);
+        verify(textGenerationPort).generate(requestCaptor.capture());
+        assertThat(requestCaptor.getValue().userPrompt())
                 .contains("employee_contract", "employeeId", "contract_department", "department")
                 .doesNotContain("虚拟表", "虚拟字段", "虚拟实体")
                 .doesNotContain("physical_employee_contract", "sourceKey", "绑定编码");
-        assertThat(requestCaptor.getValue().getSystemPrompt())
+        assertThat(requestCaptor.getValue().systemPrompt())
                 .contains("知识库", "语义", "Markdown", "不得编造", "不提及物理表")
                 .doesNotContain("虚拟表", "虚拟字段", "虚拟实体", "虚拟对象");
         verify(repository, never()).bindings(anyLong());

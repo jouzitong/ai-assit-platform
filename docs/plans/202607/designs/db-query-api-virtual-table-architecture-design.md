@@ -563,6 +563,25 @@ LegacyRequestTranslator 需要提供独立的 LegacyFilterAstParser：
 - query.list
 - query.tree 的 node.data
 
+关系在虚拟目录中还必须声明 `relation_result_mode`，而不是从物理表强行推断 1:1、1:N 或 N:N：
+
+- `OBJECT`：关联字段恢复为对象；无匹配时为 `null`。
+- `COLLECTION`：关联字段恢复为数组；无匹配时为 `[]`。数组中的每个元素只包含 `ext.fields` 显式声明的子字段。
+
+例如内部结果为：
+
+~~~json
+{
+  "orderId": 1001,
+  "items": [
+    {"sku": "A", "quantity": 2},
+    {"sku": "B", "quantity": 3}
+  ]
+}
+~~~
+
+兼容层返回同样的 `items` 数组。集合关系不复制主记录，因此 `query.list` 的分页和 total 始终以主虚拟实体为准。
+
 聚合和透视结果继续保持扁平。
 
 投影必须显式：声明 relationCode 只表示本次查询允许使用该关系，不代表自动投影远端全部字段。为保持旧行为：
@@ -770,11 +789,11 @@ Planner 不能继续只按 identity 规则硬编码判断。FieldTransformer 的
 
 query.list 的 total 定义为“应用全部请求过滤和已声明关系条件后，分页前的主虚拟实体记录数”。
 
-关系基数处理：
+关系结果形态处理：
 
-- 1:1 和 M:1：一条主记录最多对应一个关系对象，total 为主记录数。
-- 1:N：可能复制主行，旧嵌套对象语义不明确；第一阶段拒绝用于 DbQuery 明细查询。
-- 如果未来支持集合关系，响应和 total 语义必须进入新协议。
+- `OBJECT`：一条主记录最多对应一个关联对象，total 为主记录数；若实际匹配多条则失败，防止静默丢数据。
+- `COLLECTION`：多条关联记录按主记录 Join key 归组为数组，不复制主行，total 仍为主记录数。
+- 物理表是否存在唯一约束、外键或中间表不改变以上语义；这些都由发布的虚拟关系定义决定。
 
 总数计划按可下推程度分两种：
 
@@ -802,12 +821,10 @@ dataBranch 与 countBranch 必须共享同一目录快照、权限决策、行�
 
 ### 11.1 关系模型补充
 
-vd_relation 需要增加或通过关系头模型表达：
+vd_relation 需要表达虚拟关系语义：
 
-- joinType。
-- cardinality。
 - source/target 方向。
-- 是否允许明细展开。
+- relationResultMode（`OBJECT` / `COLLECTION`）。
 - 远端关系过滤。
 - 最大键数与最大结果数。
 - 固定关系过滤和允许的请求级过滤字段。
@@ -815,8 +832,10 @@ vd_relation 需要增加或通过关系头模型表达：
 DbQuery 兼容入口第一阶段只开放：
 
 - LEFT 或 INNER。
-- 1:1、M:1。
+- `OBJECT` 与 `COLLECTION` 两种已发布关系结果形态。
 - 已发布的等值字段关系。
+
+`relationResultMode` 不是物理实体基数。它只说明“从 source 虚拟实体查询时如何返回这个 relationCode”。需要反向关系时，在反向虚拟实体上再发布一条关系；N:N 则以中间虚拟实体承载关系路径，而不能把任意物理多表 Join 隐式塞进一个 relationCode。
 
 VirtualQueryRequest 需要增加 relationFilters。它与普通 filter 的区别是作用域：relationFilters 约束关系对象并保持 JOIN ON 语义；普通 filter 引用 relationCode.fieldCode 时属于结果 WHERE 语义，可能改变主实体集合。Planner 必须保留这一区别，尤其不能把 LEFT Join 的 ON 条件错误移动到 WHERE。
 
@@ -1349,7 +1368,7 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 | 旧 relation 是任意物理 Join | 迁移为已发布 relationCode；filter 翻译为关系域 AST，其他字段只校验，无法映射则失败 |
 | 多分片分页不稳定 | 强制稳定排序和主键 tie-breaker |
 | total 因本地变换或 Join 不准确 | 双计划、精确性判定、超预算失败 |
-| 1:N 关系复制主行 | DbQuery v1 首期只支持 1:1/M:1 |
+| 集合关系复制主行 | COLLECTION 关系按主实体 Join key 分组为数组，禁止扁平展开 |
 | commons 反向依赖 db/chat/AI app | 物理、知识库、文本生成 SPI 与 app adapter 依赖倒置 |
 | 发布配置在相同版本下漂移 | 不可变快照、checksum、跨实例失效 |
 | 灰度时双跑增加数据库压力 | 按实体和采样率控制 SHADOW |
@@ -1365,7 +1384,7 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 - 新调用优先 VirtualDataApi。
 - relation 使用预发布 relationCode。
 - query.list total 必须精确。
-- 明细关系首期只支持 1:1/M:1。
+- 明细关系由虚拟目录声明为 OBJECT 或 COLLECTION，不从物理表推断基数。
 - 目录缺失不回退物理表。
 - tree 和 pivot 使用虚拟查询后的受控后处理。
 - commons 定义 SPI，app 提供适配器和 Controller。
@@ -1400,7 +1419,7 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 - LegacyRequestTranslator 已覆盖 GET、LIST、COUNT、AGGREGATE、TREE、PIVOT，并完成过滤 AST、虚拟主键、关系迁移校验、分组/指标别名和 HAVING 翻译。
 - query.list 已启用独立精确 count 分支、稳定主键排序和预算完整性校验；无法完整扫描时明确失败。
 - relation.filter 已进入远端关系分支并保持 LEFT JOIN ON 作用域；关系字段 WHERE 仍在 Join 后执行；空关系投影不会读取或返回远端全部字段。
-- DbQuery v1 关系结果会校验主实体虚拟主键，检测到 1:N 复制时明确拒绝。
+- DbQuery v1 关系结果已支持由虚拟目录声明的 COLLECTION：远端结果按主实体 Join key 归组为数组，不复制主记录；OBJECT 关系仍会校验主实体虚拟主键并拒绝多值匹配。
 - 树和透视在虚拟结果之上组装，并对未完整物化、重复节点、循环、深度及不支持选项明确失败。
 - 物理 SQL 只在应用适配器内由结构化 SPI 计划受控生成，业务值全部参数绑定，更新和删除禁止无条件执行。
 
@@ -1408,6 +1427,7 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 
 - VirtualDataPolicyPort、数据权限和行级策略进入逻辑计划、数据分支及 count 分支。
 - 将当前“预算内完整扫描后全局处理”优化为排序/分页下推、多分片 k-way merge 和 relation-aware count 计划。
+- 增加基于中间虚拟实体的关系路径声明，使 N:N 可以直接投影为目标对象集合，而不是要求调用方单独查询中间实体。
 - 管理 Controller 当前虽已移至 app，但仍直接调用 commons core/data 用例；后续提升为 API Admin Gateway 后再完成严格的 Controller 仅依赖 API 边界。
 - 增加实体级 LEGACY/SHADOW/VIRTUAL 灰度、请求采样、影子比对和目录迁移工具。
 - 补齐真实 MySQL、多数据源、跨源关系、并发写入一致性和权限场景的集成验收。

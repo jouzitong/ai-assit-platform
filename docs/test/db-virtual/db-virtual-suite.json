@@ -1,0 +1,433 @@
+{
+  "schemaVersion": "1.0",
+  "name": "db-virtual-three-source-relation-suite",
+  "description": "三 MySQL 数据源的虚拟实体、关系定义与 DbQueryApi 验收用例。关系返回形态只由虚拟目录 resultMode 声明。",
+  "api": {
+    "baseUrlExample": "http://localhost:8080/dbEngine",
+    "successCode": 0,
+    "responseDataPath": "data"
+  },
+  "dataSources": [
+    {
+      "sourceKey": "dbv_mysql_user",
+      "database": "db_virtual_user",
+      "purpose": "用户、地址、角色与用户角色桥接数据",
+      "bootstrapSql": "sql/10-user-info.sql"
+    },
+    {
+      "sourceKey": "dbv_mysql_order",
+      "database": "db_virtual_order",
+      "purpose": "订单与订单明细数据",
+      "bootstrapSql": "sql/20-order.sql"
+    },
+    {
+      "sourceKey": "dbv_mysql_account",
+      "database": "db_virtual_account",
+      "purpose": "账户与账户流水数据",
+      "bootstrapSql": "sql/30-account.sql"
+    }
+  ],
+  "virtualCatalog": {
+    "bootstrapSql": "sql/00-create-databases.sql",
+    "entities": [
+      {
+        "entityCode": "vt_user",
+        "entityName": "测试用户",
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_profile", "bindingCode": "vt_user_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "user_name", "logicalType": "STRING", "nullable": false },
+          { "code": "mobile", "logicalType": "STRING", "nullable": false },
+          { "code": "user_level", "logicalType": "STRING", "nullable": false },
+          { "code": "user_status", "logicalType": "STRING", "nullable": false },
+          { "code": "created_at", "logicalType": "TIMESTAMP", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_user_address",
+        "entityName": "测试用户地址",
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_address", "bindingCode": "vt_user_address_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "user_id", "logicalType": "LONG", "nullable": false },
+          { "code": "address_type", "logicalType": "STRING", "nullable": false },
+          { "code": "city", "logicalType": "STRING", "nullable": false },
+          { "code": "detail_address", "logicalType": "STRING", "nullable": false },
+          { "code": "is_default", "logicalType": "BOOLEAN", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_role",
+        "entityName": "测试角色",
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "app_role", "bindingCode": "vt_role_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "role_code", "logicalType": "STRING", "nullable": false },
+          { "code": "role_name", "logicalType": "STRING", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_user_role",
+        "entityName": "测试用户角色桥接",
+        "binding": { "sourceKey": "dbv_mysql_user", "physicalTable": "user_role", "bindingCode": "vt_user_role_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "user_id", "logicalType": "LONG", "nullable": false },
+          { "code": "role_id", "logicalType": "LONG", "nullable": false },
+          { "code": "granted_at", "logicalType": "TIMESTAMP", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_order",
+        "entityName": "测试订单",
+        "binding": { "sourceKey": "dbv_mysql_order", "physicalTable": "sales_order", "bindingCode": "vt_order_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "order_no", "logicalType": "STRING", "nullable": false },
+          { "code": "user_id", "logicalType": "LONG", "nullable": false },
+          { "code": "account_id", "logicalType": "LONG", "nullable": false },
+          { "code": "order_status", "logicalType": "STRING", "nullable": false },
+          { "code": "total_amount", "logicalType": "DECIMAL", "nullable": false },
+          { "code": "created_at", "logicalType": "TIMESTAMP", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_order_item",
+        "entityName": "测试订单明细",
+        "binding": { "sourceKey": "dbv_mysql_order", "physicalTable": "sales_order_item", "bindingCode": "vt_order_item_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "order_id", "logicalType": "LONG", "nullable": false },
+          { "code": "sku", "logicalType": "STRING", "nullable": false },
+          { "code": "product_name", "logicalType": "STRING", "nullable": false },
+          { "code": "quantity", "logicalType": "INTEGER", "nullable": false },
+          { "code": "unit_price", "logicalType": "DECIMAL", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_account",
+        "entityName": "测试账户",
+        "binding": { "sourceKey": "dbv_mysql_account", "physicalTable": "account", "bindingCode": "vt_account_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "account_no", "logicalType": "STRING", "nullable": false },
+          { "code": "user_id", "logicalType": "LONG", "nullable": false },
+          { "code": "account_type", "logicalType": "STRING", "nullable": false },
+          { "code": "balance", "logicalType": "DECIMAL", "nullable": false },
+          { "code": "currency", "logicalType": "STRING", "nullable": false },
+          { "code": "account_status", "logicalType": "STRING", "nullable": false }
+        ]
+      },
+      {
+        "entityCode": "vt_account_transaction",
+        "entityName": "测试账户流水",
+        "binding": { "sourceKey": "dbv_mysql_account", "physicalTable": "account_transaction", "bindingCode": "vt_account_transaction_primary" },
+        "fields": [
+          { "code": "id", "logicalType": "LONG", "primaryKey": true, "nullable": false },
+          { "code": "account_id", "logicalType": "LONG", "nullable": false },
+          { "code": "txn_no", "logicalType": "STRING", "nullable": false },
+          { "code": "txn_type", "logicalType": "STRING", "nullable": false },
+          { "code": "amount", "logicalType": "DECIMAL", "nullable": false },
+          { "code": "txn_at", "logicalType": "TIMESTAMP", "nullable": false }
+        ]
+      }
+    ],
+    "relations": [
+      {
+        "sourceEntityCode": "vt_user",
+        "relationCode": "account",
+        "relationName": "账户",
+        "targetEntityCode": "vt_account",
+        "resultMode": "OBJECT",
+        "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
+        "description": "测试 1:1 呈现；物理库使用 account.user_id 唯一约束，虚拟层仅声明 OBJECT。"
+      },
+      {
+        "sourceEntityCode": "vt_user",
+        "relationCode": "addresses",
+        "relationName": "地址集合",
+        "targetEntityCode": "vt_user_address",
+        "resultMode": "COLLECTION",
+        "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
+        "description": "测试 1:N 集合返回。"
+      },
+      {
+        "sourceEntityCode": "vt_user",
+        "relationCode": "orders",
+        "relationName": "订单集合",
+        "targetEntityCode": "vt_order",
+        "resultMode": "COLLECTION",
+        "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
+        "description": "测试跨数据源 1:N 集合返回。"
+      },
+      {
+        "sourceEntityCode": "vt_user",
+        "relationCode": "role_links",
+        "relationName": "用户角色桥接集合",
+        "targetEntityCode": "vt_user_role",
+        "resultMode": "COLLECTION",
+        "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
+        "description": "N:N 的第一跳；v1 不将它自动穿透为 user.roles。"
+      },
+      {
+        "sourceEntityCode": "vt_order",
+        "relationCode": "user",
+        "relationName": "下单用户",
+        "targetEntityCode": "vt_user",
+        "resultMode": "OBJECT",
+        "mappings": [ { "sourceField": "user_id", "targetField": "id" } ],
+        "description": "测试跨数据源 M:1 对象返回。"
+      },
+      {
+        "sourceEntityCode": "vt_order",
+        "relationCode": "account",
+        "relationName": "支付账户",
+        "targetEntityCode": "vt_account",
+        "resultMode": "OBJECT",
+        "mappings": [ { "sourceField": "account_id", "targetField": "id" } ],
+        "description": "测试跨数据源 M:1 对象返回。"
+      },
+      {
+        "sourceEntityCode": "vt_order",
+        "relationCode": "items",
+        "relationName": "订单明细",
+        "targetEntityCode": "vt_order_item",
+        "resultMode": "COLLECTION",
+        "mappings": [ { "sourceField": "id", "targetField": "order_id" } ],
+        "description": "测试主记录不复制的 1:N 集合返回。"
+      },
+      {
+        "sourceEntityCode": "vt_user_role",
+        "relationCode": "user",
+        "relationName": "关联用户",
+        "targetEntityCode": "vt_user",
+        "resultMode": "OBJECT",
+        "mappings": [ { "sourceField": "user_id", "targetField": "id" } ]
+      },
+      {
+        "sourceEntityCode": "vt_user_role",
+        "relationCode": "role",
+        "relationName": "关联角色",
+        "targetEntityCode": "vt_role",
+        "resultMode": "OBJECT",
+        "mappings": [ { "sourceField": "role_id", "targetField": "id" } ],
+        "description": "N:N 的第二跳由桥接实体直接查询验证。"
+      },
+      {
+        "sourceEntityCode": "vt_account",
+        "relationCode": "user",
+        "relationName": "账户用户",
+        "targetEntityCode": "vt_user",
+        "resultMode": "OBJECT",
+        "mappings": [ { "sourceField": "user_id", "targetField": "id" } ]
+      },
+      {
+        "sourceEntityCode": "vt_account",
+        "relationCode": "transactions",
+        "relationName": "账户流水",
+        "targetEntityCode": "vt_account_transaction",
+        "resultMode": "COLLECTION",
+        "mappings": [ { "sourceField": "id", "targetField": "account_id" } ]
+      }
+    ],
+    "publicationRules": [
+      "所有 entityCode 必须已发布且 enabled=true。",
+      "每个实体的 id 字段必须标记为虚拟主键；query.get 的 id 简写和关联列表稳定分页依赖它。",
+      "sourceKey 必须替换为环境中实际注册的数据源标识；physicalTable 必须来自已导入的物理表元数据。",
+      "每条 relation 以 sourceEntityCode 为作用域创建；resultMode 使用 OBJECT 或 COLLECTION，不填写物理 1:1/1:N/N:N 类型。"
+    ]
+  },
+  "testCases": [
+    {
+      "id": "list-order-with-object-and-collection",
+      "description": "query.list 同时返回跨源 user/account 对象和 items 集合；items 不得复制订单主记录。",
+      "request": {
+        "path": "/api/v1/query.list",
+        "body": {
+          "title": "db-virtual: order object and collection",
+          "model": "vt_order",
+          "filter_dict": { "order_no": "SO-202607-001" },
+          "page": 1,
+          "page_size": 10,
+          "ext": {
+            "fields": ["id", "order_no", "order_status", "total_amount", "user.user_name", "user.mobile", "account.account_no", "account.balance", "items.sku", "items.quantity", "items.unit_price"],
+            "relations": [{ "key": "user" }, { "key": "account" }, { "key": "items" }],
+            "sorts": [{ "field": "id", "order": "asc" }]
+          }
+        }
+      },
+      "expect": [
+        { "path": "data.pageInfo.total", "operator": "equals", "value": 1 },
+        { "path": "data.list", "operator": "length", "value": 1 },
+        { "path": "data.list[0].id", "operator": "equals", "value": 50001 },
+        { "path": "data.list[0].user.user_name", "operator": "equals", "value": "Alice" },
+        { "path": "data.list[0].account.account_no", "operator": "equals", "value": "ACC-10001" },
+        { "path": "data.list[0].items", "operator": "length", "value": 2 },
+        { "path": "data.list[0].items", "operator": "contains", "value": { "sku": "SKU-BOOK-001", "quantity": 1 } },
+        { "path": "data.list[0].items", "operator": "contains", "value": { "sku": "SKU-PEN-001", "quantity": 2 } }
+      ]
+    },
+    {
+      "id": "list-user-with-parallel-collections",
+      "description": "query.list 返回 1:1 account、同源 addresses 和跨源 orders 两个集合；根用户只出现一次。",
+      "request": {
+        "path": "/api/v1/query.list",
+        "body": {
+          "title": "db-virtual: user parallel relations",
+          "model": "vt_user",
+          "filter_dict": { "id": 10001 },
+          "page": 1,
+          "page_size": 10,
+          "ext": {
+            "fields": ["id", "user_name", "account.account_no", "addresses.address_type", "addresses.city", "orders.order_no", "orders.order_status"],
+            "relations": [{ "key": "account" }, { "key": "addresses" }, { "key": "orders" }]
+          }
+        }
+      },
+      "expect": [
+        { "path": "data.pageInfo.total", "operator": "equals", "value": 1 },
+        { "path": "data.list", "operator": "length", "value": 1 },
+        { "path": "data.list[0].account.account_no", "operator": "equals", "value": "ACC-10001" },
+        { "path": "data.list[0].addresses", "operator": "length", "value": 2 },
+        { "path": "data.list[0].addresses", "operator": "contains", "value": { "address_type": "HOME", "city": "Shanghai" } },
+        { "path": "data.list[0].orders", "operator": "length", "value": 2 },
+        { "path": "data.list[0].orders", "operator": "contains", "value": { "order_no": "SO-202607-002", "order_status": "CREATED" } }
+      ]
+    },
+    {
+      "id": "get-order-with-items",
+      "description": "query.get 用虚拟主键简写查询订单，并验证对象/集合的嵌套响应。",
+      "request": {
+        "path": "/api/v1/query.get",
+        "body": {
+          "title": "db-virtual: get order",
+          "model": "vt_order",
+          "id": 50001,
+          "ext": {
+            "fields": ["id", "order_no", "user.user_name", "account.account_no", "items.sku", "items.quantity"],
+            "relations": [{ "key": "user" }, { "key": "account" }, { "key": "items" }]
+          }
+        }
+      },
+      "expect": [
+        { "path": "data.record.id", "operator": "equals", "value": 50001 },
+        { "path": "data.record.user.user_name", "operator": "equals", "value": "Alice" },
+        { "path": "data.record.account.account_no", "operator": "equals", "value": "ACC-10001" },
+        { "path": "data.record.items", "operator": "length", "value": 2 }
+      ]
+    },
+    {
+      "id": "get-account-with-transactions",
+      "description": "query.get 覆盖账户 1:1 user 与 1:N transactions。",
+      "request": {
+        "path": "/api/v1/query.get",
+        "body": {
+          "title": "db-virtual: get account",
+          "model": "vt_account",
+          "id": 90001,
+          "ext": {
+            "fields": ["id", "account_no", "balance", "user.user_name", "transactions.txn_no", "transactions.txn_type", "transactions.amount"],
+            "relations": [{ "key": "user" }, { "key": "transactions" }]
+          }
+        }
+      },
+      "expect": [
+        { "path": "data.record.account_no", "operator": "equals", "value": "ACC-10001" },
+        { "path": "data.record.user.user_name", "operator": "equals", "value": "Alice" },
+        { "path": "data.record.transactions", "operator": "length", "value": 2 },
+        { "path": "data.record.transactions", "operator": "contains", "value": { "txn_no": "TXN-202607-002", "txn_type": "TOP_UP" } }
+      ]
+    },
+    {
+      "id": "list-user-role-bridge",
+      "description": "以 vt_user_role 作为桥接实体查询，验证 N:N 数据的两端对象；不假设 user.roles 可多跳自动展开。",
+      "request": {
+        "path": "/api/v1/query.list",
+        "body": {
+          "title": "db-virtual: user role bridge",
+          "model": "vt_user_role",
+          "filter_dict": { "user_id": 10001 },
+          "page": 1,
+          "page_size": 10,
+          "ext": {
+            "fields": ["id", "granted_at", "user.user_name", "role.role_code", "role.role_name"],
+            "relations": [{ "key": "user" }, { "key": "role" }],
+            "sorts": [{ "field": "id", "order": "asc" }]
+          }
+        }
+      },
+      "expect": [
+        { "path": "data.pageInfo.total", "operator": "equals", "value": 2 },
+        { "path": "data.list", "operator": "length", "value": 2 },
+        { "path": "data.list[0].user.user_name", "operator": "equals", "value": "Alice" },
+        { "path": "data.list", "operator": "contains", "value": { "role": { "role_code": "ROLE_VIP", "role_name": "会员" } } },
+        { "path": "data.list", "operator": "contains", "value": { "role": { "role_code": "ROLE_BUYER", "role_name": "买家" } } }
+      ]
+    },
+    {
+      "id": "list-user-with-empty-collections",
+      "description": "无关联数据时 OBJECT 返回 null，COLLECTION 返回 []。",
+      "request": {
+        "path": "/api/v1/query.list",
+        "body": {
+          "title": "db-virtual: empty relations",
+          "model": "vt_user",
+          "filter_dict": { "id": 10003 },
+          "page": 1,
+          "page_size": 10,
+          "ext": {
+            "fields": ["id", "user_name", "account.account_no", "addresses.city", "orders.order_no"],
+            "relations": [{ "key": "account" }, { "key": "addresses" }, { "key": "orders" }]
+          }
+        }
+      },
+      "expect": [
+        { "path": "data.list", "operator": "length", "value": 1 },
+        { "path": "data.list[0].account", "operator": "equals", "value": null },
+        { "path": "data.list[0].addresses", "operator": "length", "value": 0 },
+        { "path": "data.list[0].orders", "operator": "length", "value": 0 }
+      ]
+    },
+    {
+      "id": "count-paid-orders",
+      "description": "query.count 覆盖无关系的精确计数。",
+      "request": {
+        "path": "/api/v1/query.count",
+        "body": {
+          "title": "db-virtual: count paid orders",
+          "model": "vt_order",
+          "filter_dict": { "order_status": "PAID" },
+          "page": 1,
+          "page_size": 10
+        }
+      },
+      "expect": [
+        { "path": "data.total", "operator": "equals", "value": 2 },
+        { "path": "data.summary.count", "operator": "equals", "value": 2 },
+        { "path": "data.records[0].count", "operator": "equals", "value": 2 }
+      ]
+    },
+    {
+      "id": "aggregate-order-status",
+      "description": "query.aggregate 覆盖分组、COUNT、SUM 和扁平 records 返回。",
+      "request": {
+        "path": "/api/v1/query.aggregate",
+        "body": {
+          "title": "db-virtual: aggregate orders",
+          "model": "vt_order",
+          "dimensions": [{ "field": "order_status", "alias": "status" }],
+          "metrics": [{ "func": "count", "alias": "order_count" }, { "field": "total_amount", "func": "sum", "alias": "amount_sum" }],
+          "sorts": [{ "field": "status", "order": "asc" }],
+          "page": 1,
+          "page_size": 10
+        }
+      },
+      "expect": [
+        { "path": "data.total", "operator": "equals", "value": 2 },
+        { "path": "data.records", "operator": "length", "value": 2 },
+        { "path": "data.records", "operator": "contains", "value": { "status": "CREATED", "order_count": 1, "amount_sum": 80.0 } },
+        { "path": "data.records", "operator": "contains", "value": { "status": "PAID", "order_count": 2, "amount_sum": 249.5 } }
+      ]
+    }
+  ]
+}

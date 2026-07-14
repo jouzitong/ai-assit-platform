@@ -27,13 +27,15 @@ public class FilterEvaluator {
         return switch (node.getOperator()) {
             case EQ -> java.util.Objects.equals(normalize(actual), normalize(expected));
             case NE -> !java.util.Objects.equals(normalize(actual), normalize(expected));
-            case GT -> compare(actual, expected) > 0;
-            case GTE -> compare(actual, expected) >= 0;
-            case LT -> compare(actual, expected) < 0;
-            case LTE -> compare(actual, expected) <= 0;
+            case GT -> actual != null && expected != null && compare(actual, expected) > 0;
+            case GTE -> actual != null && expected != null && compare(actual, expected) >= 0;
+            case LT -> actual != null && expected != null && compare(actual, expected) < 0;
+            case LTE -> actual != null && expected != null && compare(actual, expected) <= 0;
             case IS_NULL -> actual == null;
             case IS_NOT_NULL -> actual != null;
             case LIKE -> actual != null && expected != null && String.valueOf(actual).contains(String.valueOf(expected));
+            case STARTS_WITH -> actual != null && expected != null && String.valueOf(actual).startsWith(String.valueOf(expected));
+            case ENDS_WITH -> actual != null && expected != null && String.valueOf(actual).endsWith(String.valueOf(expected));
             case IN -> values(node).stream().map(this::normalize).anyMatch(value -> java.util.Objects.equals(normalize(actual), value));
             case NOT_IN -> values(node).stream().map(this::normalize).noneMatch(value -> java.util.Objects.equals(normalize(actual), value));
         };

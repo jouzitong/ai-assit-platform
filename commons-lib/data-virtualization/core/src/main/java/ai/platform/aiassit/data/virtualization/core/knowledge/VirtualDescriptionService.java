@@ -5,10 +5,9 @@ import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualRelationEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
-import ai.platform.aiassit.service.ai.api.AiTextGenerationApi;
-import ai.platform.aiassit.service.ai.api.dto.AiTextGenerationRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiTextGenerationResponse;
-import org.athena.framework.web.vo.R;
+import ai.platform.aiassit.data.virtualization.spi.text.TextGenerationCommand;
+import ai.platform.aiassit.data.virtualization.spi.text.TextGenerationPort;
+import ai.platform.aiassit.data.virtualization.spi.text.TextGenerationResult;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -39,11 +38,11 @@ public class VirtualDescriptionService {
             """;
 
     private final VirtualCatalogDataRepository repository;
-    private final AiTextGenerationApi textGenerationApi;
+    private final TextGenerationPort textGenerationPort;
 
-    public VirtualDescriptionService(VirtualCatalogDataRepository repository, AiTextGenerationApi textGenerationApi) {
+    public VirtualDescriptionService(VirtualCatalogDataRepository repository, TextGenerationPort textGenerationPort) {
         this.repository = repository;
-        this.textGenerationApi = textGenerationApi;
+        this.textGenerationPort = textGenerationPort;
     }
 
     public VirtualDescriptionGenerateResponse generate(VirtualDescriptionGenerateRequest input) {
@@ -55,19 +54,18 @@ public class VirtualDescriptionService {
             throw new VirtualDataException("CATALOG_NOT_FOUND", "虚拟表不存在: " + input.getEntityId());
         }
 
-        AiTextGenerationRequest request = new AiTextGenerationRequest();
-        request.setSystemPrompt(SYSTEM_PROMPT);
-        request.setUserPrompt(buildVirtualContext(entity, input.getCurrentDescription()));
-        request.setScene("virtual-table-knowledge-description");
-        request.setMaxTokens(600);
-        request.setTemperature(0.2D);
-
-        R<AiTextGenerationResponse> response = textGenerationApi.generate(request);
-        if (response == null || response.getCode() != 0 || response.getData() == null
-                || !StringUtils.hasText(response.getData().getText())) {
+        TextGenerationCommand command = new TextGenerationCommand(
+                SYSTEM_PROMPT,
+                buildVirtualContext(entity, input.getCurrentDescription()),
+                "virtual-table-knowledge-description",
+                600,
+                0.2D
+        );
+        TextGenerationResult result = textGenerationPort.generate(command);
+        if (result == null || !StringUtils.hasText(result.text())) {
             throw new VirtualDataException("AI_DESCRIPTION_GENERATE_FAILED", "AI 未能生成虚拟表说明，请检查模型配置后重试");
         }
-        return new VirtualDescriptionGenerateResponse(replaceVirtualTerms(normalizeDescription(response.getData().getText())));
+        return new VirtualDescriptionGenerateResponse(replaceVirtualTerms(normalizeDescription(result.text())));
     }
 
     private String buildVirtualContext(VirtualEntityEntity entity, String currentDescription) {

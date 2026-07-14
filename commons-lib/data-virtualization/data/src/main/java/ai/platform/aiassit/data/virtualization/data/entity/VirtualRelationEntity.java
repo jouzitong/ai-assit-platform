@@ -1,5 +1,6 @@
 package ai.platform.aiassit.data.virtualization.data.entity;
 
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import lombok.Data;
@@ -18,6 +19,11 @@ public class VirtualRelationEntity extends AuditableEntity {
     @JdbcColumn(name = "relation_name", dataType = "VARCHAR(128)", length = 128, nullable = false, comment = "关系名称")
     @TableField("relation_name")
     private String relationName;
+
+    /** 当前源虚拟实体中该关系的返回形态，不从物理表推断基数。 */
+    @JdbcColumn(name = "relation_result_mode", dataType = "TINYINT", nullable = false, defaultValue = "0", comment = "关联结果形态：0=对象，1=集合")
+    @TableField("relation_result_mode")
+    private RelationResultMode resultMode = RelationResultMode.OBJECT;
 
     @JdbcColumn(name = "source_entity_id", dataType = "BIGINT", nullable = false, comment = "源虚拟实体ID")
     @TableField("source_entity_id")

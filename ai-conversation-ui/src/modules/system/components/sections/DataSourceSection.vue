@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Connection, DataBoard, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { Connection, CopyDocument, DataBoard, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
@@ -295,6 +295,13 @@ function openEditDialog(card: ReturnType<typeof mapDataSourceCard>) {
   dialogVisible.value = true
 }
 
+function openCopyDialog(card: ReturnType<typeof mapDataSourceCard>) {
+  openEditDialog(card)
+  dialogMode.value = 'create'
+  editingId.value = null
+  form.sourceKey = `${form.sourceKey}_copy`
+}
+
 function closeDialog() {
   dialogVisible.value = false
 }
@@ -575,6 +582,11 @@ onMounted(() => {
               </el-tag>
             </div>
             <div class="data-source-card__actions">
+              <el-tooltip content="复制配置" placement="top">
+                <el-button circle plain @click.stop="openCopyDialog(item)">
+                  <el-icon><CopyDocument /></el-icon>
+                </el-button>
+              </el-tooltip>
               <el-tooltip content="编辑" placement="top">
                 <el-button circle plain type="primary" @click.stop="openEditDialog(item)">
                   <el-icon><EditPen /></el-icon>

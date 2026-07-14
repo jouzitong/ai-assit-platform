@@ -1,6 +1,7 @@
 package ai.platform.aiassit.data.virtualization.core.plan;
 
 import ai.platform.aiassit.data.virtualization.core.catalog.CatalogSnapshot;
+import ai.platform.aiassit.data.virtualization.spi.query.PhysicalQueryCommand;
 
 import java.util.List;
 import java.util.Map;
@@ -20,10 +21,7 @@ public record PhysicalExecutionPlan(
     public record PhysicalTask(
             String taskId,
             CatalogSnapshot.Binding binding,
-            String dbType,
-            String sql,
-            List<Object> parameters,
-            int maxRows,
+            PhysicalQueryCommand queryCommand,
             boolean filterPushed,
             boolean countOnly,
             String routeReason,
@@ -31,7 +29,6 @@ public record PhysicalExecutionPlan(
             Map<Long, String> physicalFieldAliases
     ) {
         public PhysicalTask {
-            parameters = List.copyOf(parameters);
             transformRules = List.copyOf(transformRules);
             physicalFieldAliases = Map.copyOf(physicalFieldAliases);
         }

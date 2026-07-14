@@ -2,7 +2,7 @@ package ai.platform.aiassit.data.virtualization.core.execution;
 
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
 import ai.platform.aiassit.data.virtualization.core.plan.PhysicalExecutionPlan;
-import ai.platform.aiassit.db.engine.executor.spi.result.QueryResult;
+import ai.platform.aiassit.data.virtualization.spi.query.PhysicalQueryResult;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Qualifier;
 
@@ -49,6 +49,6 @@ public class ExecutionOrchestrator {
         }
     }
 
-    public record TaskOutput(PhysicalExecutionPlan.PhysicalTask task, QueryResult result) {
+    public record TaskOutput(PhysicalExecutionPlan.PhysicalTask task, PhysicalQueryResult result) {
     }
 }

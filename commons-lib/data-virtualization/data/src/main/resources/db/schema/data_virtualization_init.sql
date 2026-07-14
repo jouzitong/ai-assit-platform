@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS vd_relation (
     id BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     relation_code VARCHAR(64) NOT NULL COMMENT '源实体内关系编码',
     relation_name VARCHAR(128) NOT NULL COMMENT '关系名称',
+    relation_result_mode TINYINT NOT NULL DEFAULT 0 COMMENT '关联结果形态：0=对象，1=集合',
     source_entity_id BIGINT NOT NULL COMMENT '源虚拟实体ID',
     source_field_id BIGINT NOT NULL COMMENT '源虚拟字段ID',
     target_entity_id BIGINT NOT NULL COMMENT '目标虚拟实体ID',

@@ -24,7 +24,6 @@ import ai.platform.aiassit.db.engine.executor.spi.enums.DbOperationType;
 import ai.platform.aiassit.db.engine.executor.spi.plan.DbQueryPlan;
 import ai.platform.aiassit.db.engine.executor.spi.result.QueryResult;
 import org.arthena.framework.common.exception.BizException;
-import org.springframework.stereotype.Service;
 import org.springframework.util.CollectionUtils;
 import org.springframework.util.StringUtils;
 
@@ -41,7 +40,6 @@ import java.util.Set;
 import java.util.StringJoiner;
 import java.util.stream.Collectors;
 
-@Service
 public class DbQueryServiceImpl implements DbQueryService {
 
     private static final int DEFAULT_MAX_ROWS = 1000;

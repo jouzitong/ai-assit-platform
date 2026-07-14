@@ -13,33 +13,29 @@ import ai.platform.aiassit.data.virtualization.data.entity.VirtualBindingEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
 import ai.platform.aiassit.data.virtualization.data.service.VirtualCatalogDataRepository;
-import ai.platform.aiassit.db.engine.meta.entity.DbTableFieldMetaEntity;
-import ai.platform.aiassit.db.engine.meta.entity.DbTableMetaEntity;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableFieldMetaMapper;
-import ai.platform.aiassit.db.engine.meta.mapper.DbTableMetaMapper;
-import com.baomidou.mybatisplus.core.toolkit.Wrappers;
+import ai.platform.aiassit.data.virtualization.spi.catalog.PhysicalCatalogPort;
+import ai.platform.aiassit.data.virtualization.spi.catalog.PhysicalFieldDefinition;
+import ai.platform.aiassit.data.virtualization.spi.catalog.PhysicalTableDefinition;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
 @Service
 public class VirtualEntityDraftFactory {
-    private final DbTableMetaMapper tableMetaMapper;
-    private final DbTableFieldMetaMapper fieldMetaMapper;
+    private final PhysicalCatalogPort physicalCatalogPort;
     private final VirtualCatalogDataRepository repository;
     private final CatalogAssembler assembler;
 
     public VirtualEntityDraftFactory(
-            DbTableMetaMapper tableMetaMapper,
-            DbTableFieldMetaMapper fieldMetaMapper,
+            PhysicalCatalogPort physicalCatalogPort,
             VirtualCatalogDataRepository repository,
             CatalogAssembler assembler
     ) {
-        this.tableMetaMapper = tableMetaMapper;
-        this.fieldMetaMapper = fieldMetaMapper;
+        this.physicalCatalogPort = physicalCatalogPort;
         this.repository = repository;
         this.assembler = assembler;
     }
@@ -49,12 +45,12 @@ public class VirtualEntityDraftFactory {
         if (request == null || request.getPhysicalTableMetaId() == null) {
             throw new VirtualDataException("CATALOG_NOT_FOUND", "物理表 ID 不能为空");
         }
-        DbTableMetaEntity table = tableMetaMapper.selectById(request.getPhysicalTableMetaId());
-        if (table == null || !Boolean.TRUE.equals(table.getEnabled())) {
+        PhysicalTableDefinition table = physicalCatalogPort.findTable(request.getPhysicalTableMetaId()).orElse(null);
+        if (table == null || !table.enabled()) {
             throw new VirtualDataException("CATALOG_NOT_FOUND", "物理表不存在或未启用: " + request.getPhysicalTableMetaId());
         }
         String entityCode = request.getEntityCode() == null || request.getEntityCode().isBlank()
-                ? VirtualEntityNaming.fromPhysicalTable(table.getSourceKey(), table.getTableName())
+                ? VirtualEntityNaming.fromPhysicalTable(table.sourceKey(), table.tableName())
                 : request.getEntityCode().trim();
         if (!entityCode.matches("[A-Za-z][A-Za-z0-9_]{1,63}")) {
             throw new VirtualDataException("CATALOG_VALIDATION_FAILED", "entityCode 只允许字母、数字和下划线，且必须以字母开头");
@@ -62,19 +58,19 @@ public class VirtualEntityDraftFactory {
         if (repository.entityByCode(entityCode) != null) {
             throw new VirtualDataException("CATALOG_VERSION_CONFLICT", "虚拟实体编码已存在: " + entityCode);
         }
-        List<DbTableFieldMetaEntity> physicalFields = fieldMetaMapper.selectList(Wrappers.<DbTableFieldMetaEntity>lambdaQuery()
-                .eq(DbTableFieldMetaEntity::getSourceKey, table.getSourceKey())
-                .eq(DbTableFieldMetaEntity::getTableName, table.getTableName())
-                .eq(DbTableFieldMetaEntity::getEnabled, true)
-                .orderByAsc(DbTableFieldMetaEntity::getOrdinalPosition));
+        List<PhysicalFieldDefinition> physicalFields = physicalCatalogPort.fields(table.id()).stream()
+                .filter(PhysicalFieldDefinition::enabled)
+                .sorted(Comparator.comparing(PhysicalFieldDefinition::ordinalPosition,
+                        Comparator.nullsLast(Integer::compareTo)))
+                .toList();
         if (physicalFields.isEmpty()) {
-            throw new VirtualDataException("FIELD_NOT_FOUND", "物理表没有可用字段: " + table.getTableName());
+            throw new VirtualDataException("FIELD_NOT_FOUND", "物理表没有可用字段: " + table.tableName());
         }
 
         VirtualEntityEntity entity = new VirtualEntityEntity();
         entity.setEntityCode(entityCode);
         entity.setEntityName(text(request.getEntityName(), entityCode));
-        entity.setDescription("由物理表 " + table.getSourceKey() + "." + table.getTableName() + " 生成");
+        entity.setDescription("由物理表 " + table.sourceKey() + "." + table.tableName() + " 生成");
         entity.setStatus(CatalogStatus.DRAFT);
         entity.setCatalogVersion(0L);
         entity.setEnabled(true);
@@ -85,9 +81,9 @@ public class VirtualEntityDraftFactory {
         binding.setBindingCode("primary");
         binding.setBindingGroup("default");
         binding.setBindingRole(BindingRole.PRIMARY);
-        binding.setPhysicalTableMetaId(table.getId());
-        binding.setSourceKey(table.getSourceKey());
-        binding.setPhysicalTableName(table.getTableName());
+        binding.setPhysicalTableMetaId(table.id());
+        binding.setSourceKey(table.sourceKey());
+        binding.setPhysicalTableName(table.tableName());
         binding.setReadable(true);
         binding.setWritable(true);
         binding.setReadWeight(100);
@@ -97,16 +93,16 @@ public class VirtualEntityDraftFactory {
         repository.insertBinding(binding);
 
         int ordinal = 0;
-        for (DbTableFieldMetaEntity physical : physicalFields) {
+        for (PhysicalFieldDefinition physical : physicalFields) {
             VirtualFieldEntity field = new VirtualFieldEntity();
             field.setEntityId(entity.getId());
-            field.setFieldCode(toFieldCode(physical.getColumnName()));
-            field.setFieldName(text(physical.getColumnComment(), physical.getColumnName()));
-            field.setLogicalType(logicalType(physical.getDataType()));
-            field.setNullable(Boolean.TRUE.equals(physical.getNullable()));
-            field.setPrimaryKey(Boolean.TRUE.equals(physical.getPrimaryKey()));
+            field.setFieldCode(toFieldCode(physical.columnName()));
+            field.setFieldName(text(physical.columnComment(), physical.columnName()));
+            field.setLogicalType(logicalType(physical.dataType()));
+            field.setNullable(physical.nullable());
+            field.setPrimaryKey(physical.primaryKey());
             field.setOrdinalPosition(ordinal++);
-            field.setDefaultValue(physical.getDefaultValue());
+            field.setDefaultValue(physical.defaultValue());
             field.setEnabled(true);
             repository.insertField(field);
 
@@ -128,8 +124,8 @@ public class VirtualEntityDraftFactory {
             physicalPort.setRuleId(rule.getId());
             physicalPort.setFieldSide(FieldSide.PHYSICAL);
             physicalPort.setPortCode("physical");
-            physicalPort.setPhysicalFieldMetaId(physical.getId());
-            physicalPort.setPhysicalColumnName(physical.getColumnName());
+            physicalPort.setPhysicalFieldMetaId(physical.id());
+            physicalPort.setPhysicalColumnName(physical.columnName());
             physicalPort.setOrdinalPosition(0);
             physicalPort.setRequiredOnWrite(false);
             repository.insertPort(physicalPort);

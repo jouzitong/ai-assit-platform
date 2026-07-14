@@ -5,6 +5,7 @@ import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.Bindin
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.CatalogStatus;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FieldSide;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.LogicalType;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.TransformMode;
 
 import java.util.ArrayList;
@@ -53,7 +54,11 @@ public record CatalogSnapshot(
     }
 
     public List<Relation> relationGroup(String relationCode) {
-        return relations.stream().filter(Relation::enabled).filter(item -> item.relationCode().equals(relationCode)).toList();
+        return relations.stream()
+                .filter(Relation::enabled)
+                .filter(item -> entityId.equals(item.sourceEntityId()))
+                .filter(item -> item.relationCode().equals(relationCode))
+                .toList();
     }
 
     public record VirtualField(
@@ -92,7 +97,18 @@ public record CatalogSnapshot(
 
     public record Relation(
             Long id, String relationCode, String relationName, Long sourceEntityId, Long sourceFieldId,
-            Long targetEntityId, Long targetFieldId, boolean enabled
+            Long targetEntityId, Long targetFieldId, RelationResultMode resultMode, boolean enabled
     ) {
+        public Relation {
+            resultMode = resultMode == null ? RelationResultMode.OBJECT : resultMode;
+        }
+
+        public Relation(
+                Long id, String relationCode, String relationName, Long sourceEntityId, Long sourceFieldId,
+                Long targetEntityId, Long targetFieldId, boolean enabled
+        ) {
+            this(id, relationCode, relationName, sourceEntityId, sourceFieldId,
+                    targetEntityId, targetFieldId, RelationResultMode.OBJECT, enabled);
+        }
     }
 }

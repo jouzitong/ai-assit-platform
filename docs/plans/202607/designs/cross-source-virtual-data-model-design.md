@@ -457,6 +457,7 @@ first_name + last_name -> person_name_compose -> full_name
 |---|---|---|
 | `relation_code` | `VARCHAR(64)` | 源实体内稳定关系编码 |
 | `relation_name` | `VARCHAR(128)` | 展示名称 |
+| `relation_result_mode` | `TINYINT` | 虚拟返回形态：`OBJECT` 或 `COLLECTION`；不是物理表基数 |
 | `source_entity_id` | `BIGINT` | 源虚拟实体 |
 | `source_field_id` | `BIGINT` | 源虚拟字段 |
 | `target_entity_id` | `BIGINT` | 目标虚拟实体 |
@@ -470,7 +471,10 @@ first_name + last_name -> person_name_compose -> full_name
 - 正向查询索引：`idx_vd_relation_source(source_entity_id, enabled)`。
 - 反向查询索引：`idx_vd_relation_target(target_entity_id, enabled)`。
 - 同一 `relation_code` 下的所有记录必须拥有相同的源实体和目标实体。
+- 同一 `relation_code` 下的所有记录必须拥有相同的 `relation_result_mode`。
 - 源字段与目标字段必须存在可用的逻辑类型比较规则。
+
+`relation_result_mode` 是源虚拟实体的展示与执行语义：`OBJECT` 返回单个嵌套对象，`COLLECTION` 返回对象数组。它不尝试从物理表唯一键、外键或命名推导 1:1、1:N、N:N；反向使用同一条物理字段关系时，应在反向虚拟实体上显式创建新的 `relation_code` 和结果形态。
 
 ## 9. 配置发布与目录快照
 
@@ -497,7 +501,7 @@ DRAFT -> 校验 -> PUBLISHED -> DISABLED
 9. 物理类型能够经过读取规则转换为标准逻辑类型。
 10. 分片字段存在、可读，并且能被对应读取规则下推或安全求值。
 11. 同一个绑定组只有一个可写主绑定。
-12. 虚拟关系的源、目标实体和字段有效且类型兼容。
+12. 虚拟关系的源、目标实体和字段有效且类型兼容；同一关系编码的结果形态一致。
 13. 字段变换依赖和虚拟关系不允许形成无法执行的循环依赖。
 
 ### 9.3 版本与缓存

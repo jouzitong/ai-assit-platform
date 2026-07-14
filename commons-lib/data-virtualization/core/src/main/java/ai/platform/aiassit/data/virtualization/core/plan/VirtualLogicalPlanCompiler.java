@@ -3,6 +3,7 @@ package ai.platform.aiassit.data.virtualization.core.plan;
 import ai.platform.aiassit.data.virtualization.api.dto.FilterNode;
 import ai.platform.aiassit.data.virtualization.api.dto.QueryHints;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualAggregate;
+import ai.platform.aiassit.data.virtualization.api.dto.VirtualGroupBy;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualPage;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualQueryRequest;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualSort;
@@ -30,8 +31,15 @@ public class VirtualLogicalPlanCompiler {
             throw new VirtualDataException("FIELD_NOT_FOUND", "查询请求不能为空");
         }
         QueryType queryType = request.getQueryType() == null ? QueryType.LIST : request.getQueryType();
+        List<VirtualGroupBy> groupings = effectiveGroupings(request);
+        List<String> groupBy = groupings.stream().map(VirtualGroupBy::getField).toList();
+        boolean aggregateQuery = queryType == QueryType.AGGREGATE
+                || request.getAggregates() != null && !request.getAggregates().isEmpty();
+        validateAggregates(queryType, request.getAggregates());
+        Set<String> aggregateAliases = validateAggregateAliases(groupings, request.getAggregates());
+        validateHaving(request.getHaving(), aggregateAliases);
         List<String> projections = request.getFields() == null || request.getFields().isEmpty()
-                ? (queryType == QueryType.COUNT ? List.of() : snapshot.fieldsByCode().values().stream().filter(CatalogSnapshot.VirtualField::enabled)
+                ? (queryType == QueryType.COUNT || aggregateQuery ? List.of() : snapshot.fieldsByCode().values().stream().filter(CatalogSnapshot.VirtualField::enabled)
                     .sorted(java.util.Comparator.comparingInt(CatalogSnapshot.VirtualField::ordinalPosition))
                     .map(CatalogSnapshot.VirtualField::code).toList())
                 : request.getFields().stream().filter(field -> !field.contains(".")).toList();
@@ -43,9 +51,9 @@ public class VirtualLogicalPlanCompiler {
                 required.add(item.getField());
             }
         });
-        if (request.getSorts() != null) request.getSorts().stream()
+        if (!aggregateQuery && request.getSorts() != null) request.getSorts().stream()
                 .map(VirtualSort::getField).filter(field -> !isRelationField(field)).forEach(required::add);
-        if (request.getGroupBy() != null) request.getGroupBy().stream()
+        groupBy.stream()
                 .filter(field -> !isRelationField(field)).forEach(required::add);
         required.forEach(field -> {
             CatalogSnapshot.VirtualField definition = snapshot.fieldsByCode().get(field);
@@ -54,18 +62,17 @@ public class VirtualLogicalPlanCompiler {
             }
         });
         validateFilter(request.getFilter());
-        validateSorts(request.getSorts());
-        validateAggregates(queryType, request.getAggregates());
+        validateSorts(request.getSorts(), aggregateQuery, aggregateAliases);
         validateFieldReferences(request.getFields(), "投影");
-        validateFieldReferences(request.getGroupBy(), "分组");
+        validateFieldReferences(groupBy, "分组");
 
         QueryHints hints = request.getHints() == null ? new QueryHints() : request.getHints();
         VirtualPage page = request.getPage() == null ? new VirtualPage() : request.getPage();
         page.setNumber(clamp(page.getNumber(), 1, Integer.MAX_VALUE, 1));
-        page.setSize(clamp(page.getSize(), 1, 500, 20));
+        page.setSize(clamp(page.getSize(), 1, 1000, 20));
         return new VirtualLogicalPlan(
                 snapshot.entityCode(), snapshot.catalogVersion(), queryType, List.copyOf(projections), Set.copyOf(required),
-                request.getFilter(), safe(request.getRelationCodes()), safe(request.getAggregates()), safe(request.getGroupBy()),
+                request.getFilter(), safe(request.getRelationCodes()), safe(request.getAggregates()), List.copyOf(groupBy),
                 safe(request.getSorts()), page, request.getConsistency() == null ? ConsistencyLevel.STRONG : request.getConsistency(),
                 clamp(hints.getMaxPhysicalTasks(), 1, 64, 16), clamp(hints.getMaxScanRows(), 1, 100000, 10000),
                 clamp(hints.getTimeoutMs(), 100, 120000, 30000), !Boolean.FALSE.equals(hints.getAllowLocalTransform())
@@ -96,13 +103,80 @@ public class VirtualLogicalPlanCompiler {
         if (node.getChildren() != null) node.getChildren().forEach(this::validateFilter);
     }
 
-    private void validateSorts(List<VirtualSort> sorts) {
+    private void validateSorts(List<VirtualSort> sorts, boolean aggregateQuery, Set<String> aggregateAliases) {
         if (sorts == null) return;
         for (VirtualSort sort : sorts) {
             if (sort == null || sort.getField() == null || sort.getField().isBlank() || sort.getDirection() == null) {
                 throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "排序定义缺少 field/direction");
             }
-            validateFieldReference(sort.getField(), "排序");
+            if (aggregateQuery) {
+                if (!aggregateAliases.contains(sort.getField())) {
+                    throw new VirtualDataException("FIELD_NOT_FOUND", "聚合排序只能引用分组或聚合别名: " + sort.getField());
+                }
+            } else {
+                validateFieldReference(sort.getField(), "排序");
+            }
+        }
+    }
+
+    private List<VirtualGroupBy> effectiveGroupings(VirtualQueryRequest request) {
+        if (request.getGroupings() != null && !request.getGroupings().isEmpty()) {
+            return List.copyOf(request.getGroupings());
+        }
+        if (request.getGroupBy() == null || request.getGroupBy().isEmpty()) {
+            return List.of();
+        }
+        return request.getGroupBy().stream().map(field -> {
+            VirtualGroupBy group = new VirtualGroupBy();
+            group.setField(field);
+            group.setAlias(field);
+            return group;
+        }).toList();
+    }
+
+    private Set<String> validateAggregateAliases(
+            List<VirtualGroupBy> groupings,
+            List<VirtualAggregate> aggregates
+    ) {
+        Set<String> aliases = new LinkedHashSet<>();
+        for (VirtualGroupBy group : groupings) {
+            if (group == null) {
+                throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "分组定义不能为空");
+            }
+            validateFieldReference(group.getField(), "分组");
+            String alias = group.getAlias() == null || group.getAlias().isBlank() ? group.getField() : group.getAlias();
+            if (!aliases.add(alias)) {
+                throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "分组或聚合别名重复: " + alias);
+            }
+        }
+        if (aggregates != null) {
+            for (VirtualAggregate aggregate : aggregates) {
+                if (aggregate == null || aggregate.getFunction() == null) continue;
+                String alias = aggregate.getAlias();
+                if (alias == null || alias.isBlank()) {
+                    String field = aggregate.getField() == null || aggregate.getField().isBlank() ? "all" : aggregate.getField();
+                    alias = aggregate.getFunction().name().toLowerCase() + "_" + field;
+                }
+                if (!aliases.add(alias)) {
+                    throw new VirtualDataException("FIELD_TRANSFORM_INVALID", "分组或聚合别名重复: " + alias);
+                }
+            }
+        }
+        return aliases;
+    }
+
+    private void validateHaving(FilterNode node, Set<String> aliases) {
+        if (node == null) return;
+        validateFilter(node);
+        validateHavingFields(node, aliases);
+    }
+
+    private void validateHavingFields(FilterNode node, Set<String> aliases) {
+        if (node.getType() == FilterType.PREDICATE && !aliases.contains(node.getField())) {
+            throw new VirtualDataException("FIELD_NOT_FOUND", "HAVING 只能引用分组或聚合别名: " + node.getField());
+        }
+        if (node.getChildren() != null) {
+            node.getChildren().forEach(child -> validateHavingFields(child, aliases));
         }
     }
 
