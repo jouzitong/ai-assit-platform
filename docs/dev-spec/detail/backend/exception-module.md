@@ -120,6 +120,9 @@
 - “全局唯一”不是指当前类里不重复，而是整个 `ai-assit-platform` + Athena 公共错误码体系中都不能重复占用同一语义编号。
 - 不允许不同模块各自定义同一个数字但表达不同语义。
 - 一旦错误码已经上线使用，不允许随意改号；只能新增，不能重排。
+- `data/errCode/err.json` 是仓库级错误码全局登记文件，也是跨服务、跨模块检查错误码唯一性的基准。
+- 本仓库新增或调整的程序错误码，都必须在同一次变更中同步登记到 `data/errCode/err.json`；只新增常量或只补文案而未更新登记文件，均视为不完整实现。
+- 提交前必须检查错误码在 `err.json` 中没有重复，且每个本仓库程序定义的业务错误码都有对应登记项。
 
 ### 6.3 定义位置
 
@@ -129,6 +132,8 @@
 - 业务模块自己的错误码，放在该模块对外契约层的 `constant` 包中。
 - 如果多个模块要共享同一组业务错误码，常量必须放到对应 `api` 模块，而不是散落在 `core` 或 `boot` 中。
 - 不要把业务错误码直接写死在 service / controller 中。
+- `data/errCode/err.json` 统一登记本仓库程序定义的错误码，至少维护 `code`、`httpStatus`、`description`、`tags` 和各语言 `value` 文案；错误码按数值升序维护，便于全局检索和冲突检查。
+- `err.json` 是全局登记与审查基准，不替代业务代码中的 `*BizCodeConstant`，也不替代运行时加载的 `ErrorCode-*.properties`；三者必须保持同一错误码语义。
 
 ### 6.4 编码格式
 
@@ -177,6 +182,7 @@
 
 - 每个错误码都必须有对应文案。
 - 文案统一通过 `ErrorCode-*.properties` 维护，不要只定义常量不补文案。
+- 每个错误码还必须在全局登记文件 `data/errCode/err.json` 中登记，并补齐至少 `zh-CN` 文案；面向多语言场景时同步补齐 `en-US` 等已支持语言。
 - 业务模块如果定义了自己的 `code`，必须在对应应用的 `boot` 模块下定义文案文件：
   - `ErrorCode-zh.properties`
   - `ErrorCode-en.properties`
@@ -202,10 +208,13 @@
 ### 6.9 新增错误码流程
 
 1. 先确认 Athena 公共错误码或当前模块错误码里是否已有可复用语义。
-2. 如果没有，再在目标模块的 `*BizCodeConstant` 中新增常量。
-3. 选择该模块已分配的 `YY` 段，并按 `XX` 子类归位。
-4. 同步补充 `ErrorCode-zh.properties`，必要时补 `ErrorCode-en.properties`。
-5. 在业务代码中统一引用该常量，不要散落裸数字。
+2. 检查 `data/errCode/err.json`，确认候选数字没有被任何服务或模块占用。
+3. 选择该模块已分配的 `YY` 段，并按 `XX` 子类归位；没有可用码段时先补充模块码段规划，不得临时占用其他模块码段。
+4. 在 `data/errCode/err.json` 中登记新的 `code`、HTTP status、业务描述、标签和多语言文案。
+5. 在目标模块的 `*BizCodeConstant` 中新增常量，并保持常量值与 `err.json.code` 完全一致。
+6. 同步补充 `ErrorCode-zh.properties`，必要时补 `ErrorCode-en.properties`。
+7. 在业务代码中统一引用该常量，不要散落裸数字。
+8. 提交前检查：`err.json` JSON 格式有效、错误码无重复、常量均已登记、登记项均有必要文案。
 
 ## 7. 何时新建异常类
 
@@ -262,6 +271,7 @@
 - 新增了 `BizCodeConstant` 常量，但没有补 `ErrorCode-*.properties` 文案。
 - 不同模块重复占用同一个错误码数字。
 - 继续新增或引用 `exception.base` 下的异常基类。
+- 新增错误码未同步更新 `data/errCode/err.json`，或 `err.json`、常量和运行时文案的语义不一致。
 
 ## 11. 落地建议
 

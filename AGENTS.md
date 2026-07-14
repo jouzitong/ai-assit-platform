@@ -61,16 +61,23 @@ Do not commit `.codegraph/`.
 ## 2. 开发规范文档
 
 - `docs/dev-spec/` 是本仓库开发规范入口，采用“单一入口 + 子文档”结构。
-- 根入口是 `docs/dev-spec/README.md`；前后端目录下不再维护二级 `README.md`。
-- 前端任务默认按需读取：
+- 根入口是 `docs/dev-spec/README.md`，它是当前规范专题的唯一索引；前后端目录下不再维护二级 `README.md`。
+- 涉及开发规范或实现方式选择的任务，先读取根入口，根据任务涉及的专题读取对应细则；跨多个专题时，应一并读取相关文档，不要只凭索引摘要设计或编码。
+- 前端任务按需读取：
   - `docs/dev-spec/detail/frontend/router.md`
   - `docs/dev-spec/detail/frontend/page.md`
   - `docs/dev-spec/detail/frontend/style.md`
   - `docs/dev-spec/detail/frontend/theme.md`
   - `docs/dev-spec/detail/frontend/component.md`
-- 后端模块边界、服务分层类任务默认按需读取：
+  - `docs/dev-spec/detail/frontend/application.md`
+- 后端任务按需读取：
   - `docs/dev-spec/detail/backend/service-module.md`
   - `docs/dev-spec/detail/backend/data-module.md`
+  - `docs/dev-spec/detail/backend/logging-module.md`
+  - `docs/dev-spec/detail/backend/exception-module.md`
+  - `docs/dev-spec/detail/backend/knowledge-client-config.md`
+  - `docs/dev-spec/detail/backend/ai-client-model-config.md`
+- 其中，日志、异常处理、知识库客户端配置和 AI 客户端/模型配置属于独立专题；任务涉及业务日志、异常返回或抛出、客户端配置、模型发现或运行时配置时，必须读取对应细则。
 - 如果规范文档与历史实现不一致，先以当前任务范围内的真实代码为准进行核对，再决定是修代码还是补规范，不要跳过确认。
 
 ## 3. 当前结构

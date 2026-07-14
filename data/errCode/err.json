@@ -913,6 +913,132 @@
     ]
   },
   {
+    "code": 53010023,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：聊天客户端类型不能为空",
+        "description": "参数缺失：聊天客户端类型不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: chat client type is required",
+        "description": "Missing parameter: chat client type is required"
+      }
+    ]
+  },
+  {
+    "code": 53010024,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库客户端类型不能为空",
+        "description": "参数缺失：知识库客户端类型不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge client type is required",
+        "description": "Missing parameter: knowledge client type is required"
+      }
+    ]
+  },
+  {
+    "code": 53010025,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：知识库认证信息不能为空",
+        "description": "参数缺失：知识库认证信息不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: knowledge base authentication is required",
+        "description": "Missing parameter: knowledge base authentication is required"
+      }
+    ]
+  },
+  {
+    "code": 53010026,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：AI 客户端编码不能为空",
+        "description": "参数缺失：AI 客户端编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: AI client code is required",
+        "description": "Missing parameter: AI client code is required"
+      }
+    ]
+  },
+  {
+    "code": 53010027,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：AI 客户端名称不能为空",
+        "description": "参数缺失：AI 客户端名称不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: AI client name is required",
+        "description": "Missing parameter: AI client name is required"
+      }
+    ]
+  },
+  {
+    "code": 53010028,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：嵌入模型不能为空",
+        "description": "参数缺失：嵌入模型不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: embedding model is required",
+        "description": "Missing parameter: embedding model is required"
+      }
+    ]
+  },
+  {
+    "code": 53010029,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：分块方式不能为空",
+        "description": "参数缺失：分块方式不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: chunk method is required",
+        "description": "Missing parameter: chunk method is required"
+      }
+    ]
+  },
+  {
     "code": 53020001,
     "httpStatus": 200,
     "description": "AI 聊天：参数取值非法",
@@ -1017,6 +1143,42 @@
         "locale": "en-US",
         "messageTemplate": "Model configuration not found",
         "description": "Model configuration not found"
+      }
+    ]
+  },
+  {
+    "code": 53030006,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "AI 客户端配置不存在：{}",
+        "description": "AI 客户端配置不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "AI client configuration not found: {}",
+        "description": "AI client configuration not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 53040001,
+    "httpStatus": 200,
+    "description": "AI 聊天：状态或约束冲突",
+    "tags": "AI 聊天,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "AI 客户端正在使用中：{}",
+        "description": "AI 客户端正在使用中：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "AI client is in use: {}",
+        "description": "AI client is in use: {}"
       }
     ]
   },
