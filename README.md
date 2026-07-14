@@ -29,7 +29,7 @@ ai-assit-platform/
 │   │   ├── service-ai-core/               # AI 领域编排层（校验/路由/控制器/领域服务）
 │   │   │   ├── pom.xml
 │   │   │   └── src/main/java/...
-│   │   ├── service-ai-provider/           # AI 提供方实现层（Qwen 等）
+│   │   ├── service-ai-provider/           # AI 提供方实现层（OpenAI 兼容等）
 │   │   │   ├── pom.xml
 │   │   │   └── src/main/java/...
 │   │   └── boot-ai-engine/                # AI 引擎启动模块（Spring Boot）
@@ -108,17 +108,17 @@ ai-assit-platform/
 
 #### C. `service-ai-provider`（提供方实现层）
 职责：
-- 实现具体模型厂商接入，当前已实现 `QwenProvider`。
+- `ai-provider-openai` 实现通用 OpenAI 兼容对话客户端；`ai-provider-bailian-kb` 专门实现百炼知识库能力。
 - 基于 Spring AI OpenAI 兼容接口调用 DashScope。
-- 通过 `QwenProperties` 管理提供方参数。
+- 对话客户端的 `baseUrl` 和 `apiKey` 必须来自当前请求或模型/客户端配置，不在 Provider 中创建默认客户端。
 
 边界：
 - 只做“厂商适配与协议转换”，不承担 Controller、路由、业务规则。
 - 通过实现 `AiProvider` 接入 core 层。
-- `@ConditionalOnProperty(prefix = "ai.provider.qwen", name = "enabled", havingValue = "true")` 控制启用。
+- OpenAI provider 常驻注册为 `SPRING_AI` 客户端；是否可用由请求是否提供完整连接配置决定。
 
 说明：
-- 当前 `QwenProvider` 已实现 `chat/chatStream/embed`。
+- 当前 `OpenAiProvider` 实现 `chat/chatStream`，百炼知识库能力由 `BailianKnowledgeProvider` 提供。
 - `rerank`、`kbUpsert`、`kbDelete`、`kbSearch` 在 provider 中仍是 `unsupported`（待完善）。
 
 #### D. `boot-ai-engine`（启动层）
@@ -164,7 +164,7 @@ HTTP Request
   -> service-ai-core Controller
   -> DefaultAiExecutionDomainService
   -> AiProvider (SPI)
-  -> QwenProvider (具体实现)
+  -> OpenAiProvider / BailianKnowledgeProvider (具体实现)
   -> DashScope/OpenAI-Compatible API
 ```
 
@@ -184,7 +184,7 @@ HTTP Request
 
 ## 5. 配置与安全注意事项
 
-- `boot-ai-engine/src/main/resources/application.yml` 当前包含 `ai.provider.qwen.apiKey` 明文示例。
+- OpenAI 兼容客户端不依赖 Provider 级别的 API Key 配置。
 - 建议改为环境变量或外部配置中心注入，避免将真实密钥提交到仓库。
 
 ## 6. 构建示例

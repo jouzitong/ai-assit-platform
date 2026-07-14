@@ -19,7 +19,7 @@ public class AiCoreProperties {
     /** 默认知识库客户端类型 */
     private AiKnowledgeClientType defaultKnowledgeClientType = AiKnowledgeClientType.BAILIAN;
     /** 默认对话模型 */
-    private String defaultChatModel = "qwen3.6-plus";
+    private String defaultChatModel = "gpt-5.5";
     /** 默认向量模型 */
     private String defaultEmbeddingModel = "text-embedding-v3";
     /** 默认重排模型 */

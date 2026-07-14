@@ -11,9 +11,9 @@
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
-    <artifactId>app-platform-chat-provider-qwen-public</artifactId>
+    <artifactId>app-platform-chat-provider-bailian-kb</artifactId>
     <packaging>jar</packaging>
-    <name>app-platform-chat-provider-qwen-public</name>
+    <name>app-platform-chat-provider-bailian-kb</name>
 
     <dependencies>
         <dependency>
@@ -28,11 +28,6 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter</artifactId>
             <version>3.2.5</version>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-openai</artifactId>
-            <version>1.0.7</version>
         </dependency>
         <dependency>
             <groupId>com.aliyun</groupId>

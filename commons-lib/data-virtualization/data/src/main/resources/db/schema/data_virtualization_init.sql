@@ -74,6 +74,7 @@ CREATE TABLE IF NOT EXISTS vd_field_transform_rule (
     write_transformer_version INT DEFAULT NULL COMMENT '写回变换器版本',
     read_config JSON DEFAULT NULL COMMENT '强类型读取配置',
     write_config JSON DEFAULT NULL COMMENT '强类型写回配置',
+    script_code TEXT DEFAULT NULL COMMENT 'Python-like字段转换脚本',
     enabled BOOLEAN NOT NULL DEFAULT TRUE COMMENT '是否启用',
     remark VARCHAR(512) DEFAULT NULL COMMENT '备注',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',

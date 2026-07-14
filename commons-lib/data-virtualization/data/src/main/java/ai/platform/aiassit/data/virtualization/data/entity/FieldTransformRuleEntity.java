@@ -57,6 +57,10 @@ public class FieldTransformRuleEntity extends AuditableEntity {
     @TableField(value = "write_config", typeHandler = JacksonTypeHandler.class)
     private Map<String, Object> writeConfig = new LinkedHashMap<>();
 
+    @JdbcColumn(name = "script_code", dataType = "TEXT", nullable = true, comment = "Python-like字段转换脚本")
+    @TableField("script_code")
+    private String scriptCode;
+
     @JdbcColumn(name = "enabled", dataType = "BOOLEAN", nullable = false, defaultValue = "TRUE", comment = "是否启用")
     @TableField("enabled")
     private Boolean enabled;

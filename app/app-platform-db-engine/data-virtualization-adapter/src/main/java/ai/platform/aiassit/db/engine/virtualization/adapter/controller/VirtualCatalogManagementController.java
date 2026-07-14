@@ -19,6 +19,9 @@ import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeSy
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualUnpublishResponse;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformManagementService;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformerRegistry;
+import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformScriptGenerateRequest;
+import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformScriptGenerateResponse;
+import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformScriptService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -37,19 +40,22 @@ public class VirtualCatalogManagementController {
     private final FieldTransformManagementService transformService;
     private final VirtualKnowledgeService knowledgeService;
     private final VirtualDescriptionService descriptionService;
+    private final FieldTransformScriptService scriptService;
 
     public VirtualCatalogManagementController(
             VirtualEntityDraftFactory draftFactory,
             VirtualCatalogPublisher publisher,
             FieldTransformManagementService transformService,
             VirtualKnowledgeService knowledgeService,
-            VirtualDescriptionService descriptionService
+            VirtualDescriptionService descriptionService,
+            FieldTransformScriptService scriptService
     ) {
         this.draftFactory = draftFactory;
         this.publisher = publisher;
         this.transformService = transformService;
         this.knowledgeService = knowledgeService;
         this.descriptionService = descriptionService;
+        this.scriptService = scriptService;
     }
 
     @PostMapping("/entities/from-physical-table")
@@ -110,6 +116,13 @@ public class VirtualCatalogManagementController {
     @PostMapping("/field-transform-rules/validate")
     public void validateRule(@RequestParam Long ruleId) {
         transformService.validate(ruleId);
+    }
+
+    @PostMapping("/field-transform-rules/script/generate")
+    public FieldTransformScriptGenerateResponse generateFieldTransformScript(
+            @RequestBody FieldTransformScriptGenerateRequest request
+    ) {
+        return scriptService.generate(request);
     }
 
     @PostMapping("/field-transform-rules/preview")

@@ -13,10 +13,10 @@ import {
   deleteFieldTransformRule,
   deleteVirtualBinding,
   deleteVirtualField,
-  listFieldTransformers,
   checkVirtualUnpublish,
   getVirtualKnowledgeStatus,
   generateVirtualDescription,
+  generateFieldTransformScript,
   previewVirtualKnowledge,
   publishVirtualCatalogBatch,
   syncVirtualKnowledge,
@@ -32,7 +32,7 @@ import {
   type FieldTransformPortItem,
   type FieldTransformPortPayload,
   type FieldTransformRulePayload,
-  type TransformerDescriptor,
+  type FieldTransformScriptGeneratePayload,
   type VirtualBindingPayload,
   type VirtualDataId,
   type VirtualEntityItem,
@@ -134,7 +134,6 @@ const relationLineStyle = ref<RelationLineStyle>(queryRelationLineStyle(route.qu
 const overview = ref<VirtualCatalogOverview>(emptyOverview())
 const dataSources = ref<DbDataSourceItem[]>([])
 const physicalTables = ref<DbTableMetaItem[]>([])
-const transformers = ref<TransformerDescriptor[]>([])
 const knowledgeBases = ref<AiKbStoreItem[]>([])
 const knowledgeStatuses = ref<VirtualKnowledgeStatusItem[]>([])
 const selectedEntity = ref<VirtualEntityItem | null>(null)
@@ -238,10 +237,9 @@ async function switchView(view: ActiveView) {
 async function loadPage() {
   loading.value = true
   try {
-    const [catalog, sourceResult, transformerResult, knowledgeBaseResult] = await Promise.all([
+    const [catalog, sourceResult, knowledgeBaseResult] = await Promise.all([
       loadVirtualCatalogOverview(),
       searchDbDataSources({ page: 1, size: 1000, enabled: true }),
-      listFieldTransformers(),
       searchAiKbStores({ page: 1, size: 1000, enabled: true }).catch((error) => {
         ElMessage.warning(error instanceof Error ? error.message : '可用知识库加载失败')
         return { list: [] }
@@ -249,7 +247,6 @@ async function loadPage() {
     ])
     overview.value = catalog
     dataSources.value = sourceResult?.list || []
-    transformers.value = transformerResult || []
     knowledgeBases.value = knowledgeBaseResult?.list || []
     await loadKnowledgeStatuses(catalog.entities)
     if (selectedEntity.value) {
@@ -320,14 +317,17 @@ async function refreshWorkspace() {
   await Promise.all([loadWorkspace(selectedEntity.value.id), refreshOverview()])
 }
 
-async function loadSourceTables(sourceKey: string) {
-  if (!sourceKey) {
+async function loadSourceTables(sourceKeys: string | string[]) {
+  const requestedSourceKeys = Array.isArray(sourceKeys) ? sourceKeys : [sourceKeys]
+  const normalizedSourceKeys = Array.from(new Set(requestedSourceKeys.filter(Boolean)))
+  if (!normalizedSourceKeys.length) {
     physicalTables.value = []
     return
   }
   physicalTableLoading.value = true
   try {
-    physicalTables.value = await loadPhysicalTables(sourceKey)
+    const tableGroups = await Promise.all(normalizedSourceKeys.map(sourceKey => loadPhysicalTables(sourceKey)))
+    physicalTables.value = tableGroups.flat()
   }
   catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '物理表加载失败')
@@ -337,12 +337,21 @@ async function loadSourceTables(sourceKey: string) {
   }
 }
 
-async function syncSourceTables(sourceKey: string) {
+async function syncSourceTables(sourceKeys: string[]) {
+  const normalizedSourceKeys = Array.from(new Set((sourceKeys || []).filter(Boolean)))
+  if (!normalizedSourceKeys.length) return
   physicalSyncing.value = true
   try {
-    const result = await syncPhysicalTableMetadata(sourceKey)
-    ElMessage.success(`物理元数据同步完成，共发现 ${result.tableCount} 张表`)
-    await loadSourceTables(sourceKey)
+    const results = await Promise.allSettled(normalizedSourceKeys.map(sourceKey => syncPhysicalTableMetadata(sourceKey)))
+    const succeeded = results.filter((result): result is PromiseFulfilledResult<{ tableCount: number }> => result.status === 'fulfilled')
+    const failed = results.filter(result => result.status === 'rejected')
+    const tableCount = succeeded.reduce((total, result) => total + result.value.tableCount, 0)
+    if (!succeeded.length && failed.length) {
+      throw failed[0].reason
+    }
+    ElMessage.success(`已同步 ${normalizedSourceKeys.length - failed.length} 个数据源，共发现 ${tableCount} 张表`)
+    if (failed.length) ElMessage.warning(`${failed.length} 个数据源同步失败，请稍后重试`)
+    await loadSourceTables(normalizedSourceKeys)
   }
   catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '物理元数据同步失败')
@@ -352,10 +361,10 @@ async function syncSourceTables(sourceKey: string) {
   }
 }
 
-async function initializeSelectedTables(sourceKey: string, tables: DbTableMetaItem[]) {
+async function initializeSelectedTables(tables: DbTableMetaItem[]) {
   initializeLoading.value = true
   try {
-    const result = await initializeVirtualTables(sourceKey, tables)
+    const result = await initializeVirtualTables(tables)
     if (result.created.length) {
       ElMessage.success(`已初始化 ${result.created.length} 张虚拟表`)
       initializeVisible.value = false
@@ -408,6 +417,21 @@ async function generateDescription(
   }
   finally {
     descriptionGenerating.value = false
+  }
+}
+
+async function generateScript(
+  payload: FieldTransformScriptGeneratePayload,
+  apply: (script: string) => void,
+  fail: (message: string) => void,
+) {
+  try {
+    const result = await generateFieldTransformScript(payload)
+    if (!result.script?.trim()) throw new Error('AI 未返回有效转换脚本')
+    apply(result.script.trim())
+  }
+  catch (error) {
+    fail(error instanceof Error ? error.message : 'AI 脚本生成失败')
   }
 }
 
@@ -751,7 +775,6 @@ onMounted(() => {
       v-model="modelDrawerVisible"
       :entity="selectedEntity"
       :workspace="workspace"
-      :transformers="transformers"
       :data-sources="dataSources"
       :physical-tables="physicalTables"
       :physical-table-loading="physicalTableLoading"
@@ -767,6 +790,7 @@ onMounted(() => {
       @save-rule="saveRule"
       @delete-rule="removeRule"
       @validate-rule="validateRule"
+      @generate-script="generateScript"
       @generate-description="generateDescription"
     />
 

@@ -43,7 +43,11 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-chat-provider-qwen-public</artifactId>
+            <artifactId>app-platform-chat-provider-openai</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-provider-bailian-kb</artifactId>
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>

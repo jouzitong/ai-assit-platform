@@ -86,7 +86,9 @@ public class CatalogAssembler {
                     rule.getTransformMode(),
                     rule.getReadTransformerCode(), version(rule.getReadTransformerVersion()),
                     rule.getWriteTransformerCode(), version(rule.getWriteTransformerVersion()),
-                    rule.getReadConfig(), rule.getWriteConfig(), Boolean.TRUE.equals(rule.getEnabled()), physical, virtual
+                    scriptConfig(rule.getReadConfig(), rule.getScriptCode(), "read", physical, virtual, fieldsById),
+                    scriptConfig(rule.getWriteConfig(), rule.getScriptCode(), "write", physical, virtual, fieldsById),
+                    Boolean.TRUE.equals(rule.getEnabled()), physical, virtual
             );
             rulesByBinding.computeIfAbsent(rule.getBindingId(), key -> new ArrayList<>()).add(item);
         }
@@ -120,5 +122,38 @@ public class CatalogAssembler {
 
     private int version(Integer value) {
         return value == null || value < 1 ? 1 : value;
+    }
+
+    private Map<String, Object> scriptConfig(
+            Map<String, Object> config,
+            String scriptCode,
+            String direction,
+            List<CatalogSnapshot.Port> physical,
+            List<CatalogSnapshot.Port> virtual,
+            Map<Long, CatalogSnapshot.VirtualField> fieldsById
+    ) {
+        Map<String, Object> value = new LinkedHashMap<>();
+        if (config != null) value.putAll(config);
+        if (scriptCode == null || scriptCode.isBlank()) return value;
+        value.put("__scriptCode", scriptCode);
+        value.put("__direction", direction);
+        List<CatalogSnapshot.Port> inputs = "read".equals(direction) ? physical : virtual;
+        List<CatalogSnapshot.Port> outputs = "read".equals(direction) ? virtual : physical;
+        value.put("__inputAliases", aliases(inputs, fieldsById));
+        value.put("__outputAliases", aliases(outputs, fieldsById));
+        return value;
+    }
+
+    private Map<String, String> aliases(List<CatalogSnapshot.Port> ports, Map<Long, CatalogSnapshot.VirtualField> fieldsById) {
+        Map<String, String> aliases = new LinkedHashMap<>();
+        for (CatalogSnapshot.Port port : ports) {
+            String alias = port.side() == FieldSide.PHYSICAL
+                    ? port.physicalColumnName()
+                    : fieldsById.getOrDefault(port.virtualFieldId(), null) == null
+                    ? port.code()
+                    : fieldsById.get(port.virtualFieldId()).code();
+            aliases.put(port.code(), alias);
+        }
+        return aliases;
     }
 }

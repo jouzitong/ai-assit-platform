@@ -2,6 +2,7 @@
 import { Check, Delete, EditPen, MagicStick, Plus, RefreshRight, Setting } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, reactive, ref, watch } from 'vue'
+import { AppCodeEditor } from '../../../../components'
 import type { DbDataSourceItem, DbTableFieldMetaItem, DbTableMetaItem } from '../../api/dataSources'
 import type {
   FieldTransformPortItem,
@@ -9,7 +10,7 @@ import type {
   FieldSide,
   FieldTransformRuleItem,
   FieldTransformRulePayload,
-  TransformerDescriptor,
+  FieldTransformScriptGeneratePayload,
   VirtualBindingItem,
   VirtualBindingPayload,
   VirtualDataId,
@@ -18,14 +19,13 @@ import type {
   VirtualFieldItem,
   VirtualFieldPayload,
 } from '../../api/virtualData'
-import { bindingRoleLabel, catalogStatusLabel, catalogStatusType, logicalTypeLabel, logicalTypeOptions, transformModeLabel, transformModeOptions } from '../data/options'
+import { bindingRoleLabel, catalogStatusLabel, catalogStatusType, logicalTypeLabel, logicalTypeOptions } from '../data/options'
 import type { VirtualTableWorkspace } from '../service/virtualTable'
 
 const props = defineProps<{
   modelValue: boolean
   entity: VirtualEntityItem | null
   workspace: VirtualTableWorkspace
-  transformers: TransformerDescriptor[]
   dataSources: DbDataSourceItem[]
   physicalTables: DbTableMetaItem[]
   physicalTableLoading?: boolean
@@ -45,6 +45,7 @@ const emit = defineEmits<{
   saveRule: [id: VirtualDataId | null, payload: FieldTransformRulePayload, ports: Array<FieldTransformPortPayload & { id?: VirtualDataId }>, existingPorts: FieldTransformPortItem[]]
   deleteRule: [id: VirtualDataId]
   validateRule: [id: VirtualDataId]
+  generateScript: [payload: FieldTransformScriptGeneratePayload, apply: (script: string) => void, fail: (message: string) => void]
   generateDescription: [id: VirtualDataId, currentDescription: string, apply: (description: string) => void]
 }>()
 
@@ -55,13 +56,15 @@ const entityDialogVisible = ref(false)
 const fieldDialogVisible = ref(false)
 const bindingDialogVisible = ref(false)
 const ruleDialogVisible = ref(false)
+const aiScriptDialogVisible = ref(false)
+const aiScriptLoading = ref(false)
+const aiScriptRequirement = ref('')
 const editingFieldId = ref<VirtualDataId | null>(null)
 const editingBindingId = ref<VirtualDataId | null>(null)
 const editingRuleId = ref<VirtualDataId | null>(null)
 const existingRulePorts = ref<FieldTransformPortItem[]>([])
 const portRows = ref<PortEditorRow[]>([])
-const readConfigText = ref('{\n  "configVersion": 1\n}')
-const writeConfigText = ref('{\n  "configVersion": 1\n}')
+const scriptTemplateValue = ref('')
 const routingConfigText = ref('{\n  "version": 1,\n  "strategy": 0,\n  "shardFields": []\n}')
 
 const entityForm = reactive<VirtualEntityPayload>({
@@ -114,17 +117,12 @@ const ruleForm = reactive<FieldTransformRulePayload>({
   writeTransformerVersion: 1,
   readConfig: { configVersion: 1 },
   writeConfig: { configVersion: 1 },
+  scriptCode: '',
   enabled: true,
   remark: '',
 })
 
 const sortedFields = computed(() => [...props.workspace.fields].sort((left, right) => Number(left.ordinalPosition || 0) - Number(right.ordinalPosition || 0)))
-const transformerOptions = computed(() => props.transformers.map(item => ({
-  label: `${item.code || '-'} v${item.version || 1}`,
-  code: item.code || '',
-  version: item.version || 1,
-  capabilities: item.capabilities,
-})))
 const selectedBinding = computed(() => props.workspace.bindings.find(binding => String(binding.id) === String(ruleForm.bindingId)))
 const databaseSourceOptions = computed(() => {
   const options = props.dataSources.filter((source) => {
@@ -278,8 +276,142 @@ function submitBinding() {
   bindingDialogVisible.value = false
 }
 
-function transformerVersion(code?: string) {
-  return transformerOptions.value.find(item => item.code === code)?.version || 1
+function selectedPhysicalCode() {
+  const row = portRows.value.find(item => item.fieldSide === 0 && item.physicalFieldMetaId)
+  return props.workspace.physicalFields.find(field => String(field.id) === String(row?.physicalFieldMetaId))?.columnName || 'physical_field'
+}
+
+function selectedVirtualCode() {
+  const row = portRows.value.find(item => item.fieldSide === 1 && item.virtualFieldId)
+  return sortedFields.value.find(field => String(field.id) === String(row?.virtualFieldId))?.fieldCode || 'virtual_field'
+}
+
+function buildScriptTemplate() {
+  const physicalCode = selectedPhysicalCode()
+  const virtualCode = selectedVirtualCode()
+  return `def read(inputs, context):
+    # 读取：物理字段 -> 虚拟字段
+    # inputs 的键是下方选择的字段编码；返回值的键是虚拟字段编码。
+    value = inputs.get("${physicalCode}")
+    return {
+        "${virtualCode}": value,
+    }
+
+def write(inputs, context):
+    # 写回：虚拟字段 -> 物理字段
+    # 使用 "字段名" in inputs 判断本次请求是否传入了该字段。
+    return {
+        "${physicalCode}": inputs.get("${virtualCode}"),
+    }`
+}
+
+function resetScriptTemplate() {
+  ruleForm.scriptCode = buildScriptTemplate()
+  scriptTemplateValue.value = ruleForm.scriptCode
+}
+
+function openAiScriptDialog() {
+  aiScriptRequirement.value = ''
+  aiScriptDialogVisible.value = true
+}
+
+function buildAiScriptPayload(requirement: string): FieldTransformScriptGeneratePayload | null {
+  if (!props.entity || !ruleForm.bindingId) return null
+
+  const physicalFields = availablePhysicalFields.value
+    .map(field => ({
+      code: field.columnName || '',
+      name: field.columnComment || field.columnName || '',
+      dataType: field.dataType || '',
+      nullable: field.nullable,
+      primaryKey: field.primaryKey,
+      remark: field.remark || '',
+    }))
+    .filter(field => field.code)
+  const virtualFields = sortedFields.value
+    .map(field => ({
+      code: field.fieldCode || '',
+      name: field.fieldName || field.fieldCode || '',
+      dataType: logicalTypeLabel(field.logicalType),
+      nullable: field.nullable,
+      primaryKey: field.primaryKey,
+      remark: field.remark || '',
+    }))
+    .filter(field => field.code)
+  const mappings = portRows.value.flatMap((port) => {
+    if (port.fieldSide === 0) {
+      const field = availablePhysicalFields.value.find(item => String(item.id) === String(port.physicalFieldMetaId))
+      if (!field?.columnName) return []
+      return [{
+        side: 'physical' as const,
+        code: field.columnName,
+        name: field.columnComment || field.columnName,
+        dataType: field.dataType || '',
+        requiredOnWrite: false,
+      }]
+    }
+    const field = sortedFields.value.find(item => String(item.id) === String(port.virtualFieldId))
+    if (!field?.fieldCode) return []
+    return [{
+      side: 'virtual' as const,
+      code: field.fieldCode,
+      name: field.fieldName || field.fieldCode,
+      dataType: logicalTypeLabel(field.logicalType),
+      requiredOnWrite: port.requiredOnWrite === true,
+    }]
+  })
+
+  return {
+    entityId: props.entity.id,
+    bindingId: ruleForm.bindingId,
+    ruleName: ruleForm.ruleName,
+    requirement,
+    currentScript: ruleForm.scriptCode || '',
+    physicalFields,
+    virtualFields,
+    mappings,
+  }
+}
+
+function submitAiScript() {
+  const requirement = aiScriptRequirement.value.trim()
+  if (!requirement) {
+    ElMessage.warning('请先描述需要完成的字段转换需求')
+    return
+  }
+  const payload = buildAiScriptPayload(requirement)
+  if (!payload) {
+    ElMessage.warning('请先选择物理绑定')
+    return
+  }
+  if (!payload.mappings.some(item => item.side === 'physical') || !payload.mappings.some(item => item.side === 'virtual')) {
+    ElMessage.warning('请至少选择一个物理字段和一个虚拟字段')
+    return
+  }
+
+  aiScriptLoading.value = true
+  emit('generateScript', payload, (script) => {
+    ruleForm.scriptCode = script.trim()
+    scriptTemplateValue.value = ruleForm.scriptCode
+    aiScriptLoading.value = false
+    aiScriptDialogVisible.value = false
+    ElMessage.success('AI 脚本已生成，请检查后保存')
+  }, (message) => {
+    aiScriptLoading.value = false
+    ElMessage.error(message || 'AI 脚本生成失败')
+  })
+}
+
+function syncScriptTemplate() {
+  if (ruleForm.scriptCode && ruleForm.scriptCode !== scriptTemplateValue.value) return
+  ruleForm.scriptCode = buildScriptTemplate()
+  scriptTemplateValue.value = ruleForm.scriptCode
+}
+
+function scriptMode(code: string) {
+  const readable = /(^|\n)\s*def\s+read\s*\(/.test(code)
+  const writable = /(^|\n)\s*def\s+write\s*\(/.test(code)
+  return readable && writable ? 2 : readable ? 0 : writable ? 1 : null
 }
 
 function openRuleEditor(rule?: FieldTransformRuleItem) {
@@ -295,11 +427,11 @@ function openRuleEditor(rule?: FieldTransformRuleItem) {
     writeTransformerVersion: rule?.writeTransformerVersion || 1,
     readConfig: rule?.readConfig || { configVersion: 1 },
     writeConfig: rule?.writeConfig || { configVersion: 1 },
+    scriptCode: rule?.scriptCode || '',
     enabled: rule?.enabled !== false,
     remark: rule?.remark || '',
   })
-  readConfigText.value = prettyJson(rule?.readConfig, { configVersion: 1 })
-  writeConfigText.value = prettyJson(rule?.writeConfig, { configVersion: 1 })
+  scriptTemplateValue.value = ''
   existingRulePorts.value = rule ? props.workspace.ports.filter(port => String(port.ruleId) === String(rule.id)) : []
   const loadedPorts: PortEditorRow[] = []
   existingRulePorts.value.forEach((port) => {
@@ -323,6 +455,7 @@ function openRuleEditor(rule?: FieldTransformRuleItem) {
     addPort(0)
     addPort(1)
   }
+  if (!ruleForm.scriptCode) syncScriptTemplate()
   ruleDialogVisible.value = true
 }
 
@@ -352,18 +485,20 @@ function addPort(side: FieldSide) {
 function syncPhysicalPort(row: PortEditorRow) {
   const field = props.workspace.physicalFields.find(item => String(item.id) === String(row.physicalFieldMetaId))
   row.physicalColumnName = field?.columnName || ''
+  syncScriptTemplate()
+}
+
+function syncVirtualPort() {
+  syncScriptTemplate()
 }
 
 function submitRule() {
-  const readConfig = parseJsonObject(readConfigText.value, '读转换配置')
-  const writeConfig = parseJsonObject(writeConfigText.value, '写转换配置')
-  if (!readConfig || !writeConfig) return
   if (!ruleForm.bindingId || !ruleForm.ruleCode.trim() || !ruleForm.ruleName.trim()) {
     ElMessage.warning('绑定、规则编码和规则名称不能为空')
     return
   }
-  if (!portRows.value.length || portRows.value.some(port => !port.portCode.trim())) {
-    ElMessage.warning('至少配置一个端口，且端口编码不能为空')
+  if (!portRows.value.length) {
+    ElMessage.warning('至少配置一个物理字段和一个虚拟字段')
     return
   }
   const invalidPort = portRows.value.some(port => port.fieldSide === 1 ? !port.virtualFieldId : !port.physicalFieldMetaId)
@@ -371,13 +506,25 @@ function submitRule() {
     ElMessage.warning('每个端口都必须选择对应字段')
     return
   }
-  const payload: FieldTransformRulePayload = {
-    ...ruleForm,
-    readTransformerVersion: transformerVersion(ruleForm.readTransformerCode),
-    writeTransformerVersion: transformerVersion(ruleForm.writeTransformerCode),
-    readConfig,
-    writeConfig,
+  const scriptCode = String(ruleForm.scriptCode || '').trim()
+  const mode = scriptMode(scriptCode)
+  if (scriptCode && mode === null) {
+    ElMessage.warning('请至少定义 read 或 write 方法')
+    return
   }
+  const payload: FieldTransformRulePayload = scriptCode
+    ? {
+        ...ruleForm,
+        scriptCode,
+        transformMode: mode as 0 | 1 | 2,
+        readTransformerCode: mode === 1 ? undefined : 'script',
+        readTransformerVersion: mode === 1 ? undefined : 1,
+        writeTransformerCode: mode === 0 ? undefined : 'script',
+        writeTransformerVersion: mode === 0 ? undefined : 1,
+        readConfig: {},
+        writeConfig: {},
+      }
+    : { ...ruleForm }
   emit('saveRule', editingRuleId.value, payload, portRows.value.map(port => ({ ...port })), existingRulePorts.value)
   ruleDialogVisible.value = false
 }
@@ -480,8 +627,6 @@ watch(() => props.modelValue, (visible) => {
             <el-table-column prop="ruleName" label="规则名称" min-width="160" />
             <el-table-column label="规则编码" min-width="150"><template #default="{ row }"><code>{{ row.ruleCode }}</code></template></el-table-column>
             <el-table-column label="物理绑定" min-width="220"><template #default="{ row }">{{ bindingLabel(row.bindingId) }}</template></el-table-column>
-            <el-table-column label="方向" width="130"><template #default="{ row }">{{ transformModeLabel(row.transformMode) }}</template></el-table-column>
-            <el-table-column label="转换器" min-width="180"><template #default="{ row }"><span>{{ row.readTransformerCode || '-' }} / {{ row.writeTransformerCode || '-' }}</span></template></el-table-column>
             <el-table-column label="端口" width="80" align="center"><template #default="{ row }">{{ workspace.ports.filter(item => String(item.ruleId) === String(row.id)).length }}</template></el-table-column>
             <el-table-column label="操作" width="220" fixed="right"><template #default="{ row }"><el-button text type="primary" :icon="Setting" @click="openRuleEditor(row)">配置</el-button><el-button text :icon="Check" @click="emit('validateRule', row.id)">校验</el-button><el-button text type="danger" @click="confirmDelete('rule', row.id, row.ruleName || row.ruleCode)">删除</el-button></template></el-table-column>
           </el-table>
@@ -527,12 +672,22 @@ watch(() => props.modelValue, (visible) => {
 
     <el-dialog v-model="ruleDialogVisible" :title="editingRuleId === null ? '新增字段变换规则' : '配置字段变换规则'" width="980px" append-to-body>
       <el-form label-position="top" class="transform-rule-editor">
-        <div class="virtual-editor-grid virtual-editor-grid--3"><el-form-item label="物理绑定"><el-select v-model="ruleForm.bindingId" filterable><el-option v-for="binding in workspace.bindings" :key="binding.id" :label="bindingLabel(binding.id)" :value="binding.id" /></el-select></el-form-item><el-form-item label="规则编码"><el-input v-model="ruleForm.ruleCode" /></el-form-item><el-form-item label="规则名称"><el-input v-model="ruleForm.ruleName" /></el-form-item><el-form-item label="转换方向"><el-select v-model="ruleForm.transformMode"><el-option v-for="option in transformModeOptions" :key="option.value" :label="option.label" :value="option.value" /></el-select></el-form-item><el-form-item label="读转换器"><el-select v-model="ruleForm.readTransformerCode" filterable :disabled="ruleForm.transformMode === 1"><el-option v-for="option in transformerOptions.filter(item => item.capabilities?.readable !== false)" :key="`r-${option.code}-${option.version}`" :label="option.label" :value="option.code" /></el-select></el-form-item><el-form-item label="写转换器"><el-select v-model="ruleForm.writeTransformerCode" filterable :disabled="ruleForm.transformMode === 0"><el-option v-for="option in transformerOptions.filter(item => item.capabilities?.writable !== false)" :key="`w-${option.code}-${option.version}`" :label="option.label" :value="option.code" /></el-select></el-form-item></div>
-        <div class="transform-rule-editor__configs"><el-form-item label="读配置（JSON 对象）"><el-input v-model="readConfigText" type="textarea" :rows="7" /></el-form-item><el-form-item label="写配置（JSON 对象）"><el-input v-model="writeConfigText" type="textarea" :rows="7" /></el-form-item></div>
-        <section class="transform-rule-editor__ports"><header><div><strong>字段端口映射</strong><p>端口顺序会传给转换器；物理端口和虚拟端口都可以配置多个。</p></div><div><el-button :icon="Plus" @click="addPort(0)">物理端口</el-button><el-button :icon="Plus" @click="addPort(1)">虚拟端口</el-button></div></header><div v-for="(port, index) in portRows" :key="port.id || `${port.fieldSide}-${index}`" class="transform-rule-editor__port"><el-tag :type="port.fieldSide === 0 ? 'warning' : 'success'">{{ port.fieldSide === 0 ? '物理' : '虚拟' }}</el-tag><el-select v-if="port.fieldSide === 0" v-model="port.physicalFieldMetaId" filterable placeholder="选择物理字段" @change="syncPhysicalPort(port)"><el-option v-for="field in availablePhysicalFields" :key="field.id" :label="`${field.columnName} · ${field.dataType}`" :value="field.id" /></el-select><el-select v-else v-model="port.virtualFieldId" filterable placeholder="选择虚拟字段"><el-option v-for="field in sortedFields" :key="field.id" :label="`${field.fieldName} · ${field.fieldCode}`" :value="field.id" /></el-select><el-input-number v-model="port.ordinalPosition" :min="0" aria-label="端口顺序" /><el-checkbox v-model="port.requiredOnWrite">写入必填</el-checkbox><el-button text type="danger" :icon="Delete" aria-label="删除端口" @click="portRows.splice(index, 1)" /></div></section>
+        <div class="virtual-editor-grid virtual-editor-grid--3"><el-form-item label="物理绑定"><el-select v-model="ruleForm.bindingId" filterable><el-option v-for="binding in workspace.bindings" :key="binding.id" :label="bindingLabel(binding.id)" :value="binding.id" /></el-select></el-form-item><el-form-item label="规则编码"><el-input v-model="ruleForm.ruleCode" /></el-form-item><el-form-item label="规则名称"><el-input v-model="ruleForm.ruleName" /></el-form-item></div>
+        <section class="transform-rule-editor__script"><header><div><strong>转换脚本（Python-like）</strong><p>脚本只处理字段值；inputs 的键是所选字段编码，返回对象的键必须是目标字段编码。仅支持受限语法。</p></div><div class="transform-rule-editor__script-actions"><el-button text type="primary" size="small" :icon="MagicStick" @click="openAiScriptDialog">AI 编写</el-button><el-button text type="primary" size="small" @click="resetScriptTemplate">恢复示例模板</el-button></div></header><AppCodeEditor v-model="ruleForm.scriptCode" format="python" :show-format-switcher="false" toolbar-label="Python-like" min-height="300px" /></section>
+        <section class="transform-rule-editor__ports"><header><div><strong>字段映射</strong><p>程序内部自动维护映射编码和顺序，用户只需选择物理字段、虚拟字段。</p></div><div><el-button :icon="Plus" @click="addPort(0)">物理字段</el-button><el-button :icon="Plus" @click="addPort(1)">虚拟字段</el-button></div></header><div v-for="(port, index) in portRows" :key="port.id || `${port.fieldSide}-${index}`" class="transform-rule-editor__port"><el-tag :type="port.fieldSide === 0 ? 'warning' : 'success'">{{ port.fieldSide === 0 ? '物理' : '虚拟' }}</el-tag><el-select v-if="port.fieldSide === 0" v-model="port.physicalFieldMetaId" filterable placeholder="选择物理字段" @change="syncPhysicalPort(port)"><el-option v-for="field in availablePhysicalFields" :key="field.id" :label="`${field.columnName} · ${field.dataType}`" :value="field.id" /></el-select><el-select v-else v-model="port.virtualFieldId" filterable placeholder="选择虚拟字段" @change="syncVirtualPort"><el-option v-for="field in sortedFields" :key="field.id" :label="`${field.fieldName} · ${field.fieldCode}`" :value="field.id" /></el-select><el-checkbox v-if="port.fieldSide === 1" v-model="port.requiredOnWrite">写入必填</el-checkbox><span v-else></span><el-button text type="danger" :icon="Delete" aria-label="删除字段" @click="portRows.splice(index, 1)" /></div></section>
         <div class="virtual-editor-switches"><el-checkbox v-model="ruleForm.enabled">启用规则</el-checkbox></div><el-form-item label="备注"><el-input v-model="ruleForm.remark" /></el-form-item>
       </el-form>
       <template #footer><el-button @click="ruleDialogVisible = false">取消</el-button><el-button type="primary" @click="submitRule">保存规则与端口</el-button></template>
+    </el-dialog>
+
+    <el-dialog v-model="aiScriptDialogVisible" title="AI 编写转换脚本" width="680px" append-to-body destroy-on-close>
+      <p class="transform-rule-editor__ai-hint">请描述想要实现的字段转换逻辑，AI 会结合当前虚拟表、物理字段、虚拟字段、字段映射和当前模板生成脚本。生成结果只回填编辑器，不会自动保存。</p>
+      <el-form label-position="top">
+        <el-form-item label="需求描述" required>
+          <el-input v-model="aiScriptRequirement" type="textarea" :rows="7" maxlength="4000" show-word-limit :disabled="aiScriptLoading" placeholder="例如：实体字段 a 的值为 1、2、3 时写入 vb_f_1，值为 4、5、6 时写入 vb_f_2；写入时两个虚拟字段不能同时传入。" />
+        </el-form-item>
+      </el-form>
+      <template #footer><el-button :disabled="aiScriptLoading" @click="aiScriptDialogVisible = false">取消</el-button><el-button type="primary" :loading="aiScriptLoading" @click="submitAiScript">生成脚本</el-button></template>
     </el-dialog>
   </el-drawer>
 </template>
@@ -659,13 +814,44 @@ watch(() => props.modelValue, (visible) => {
   line-height: 1.6;
 }
 
-.transform-rule-editor__configs {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--app-space-4);
+.transform-rule-editor__script {
+  margin-bottom: var(--app-space-4);
+  padding: var(--app-space-4);
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  background: var(--app-surface-muted);
 }
 
-.transform-rule-editor__configs :deep(textarea),
+.transform-rule-editor__script header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  margin-bottom: var(--app-space-3);
+}
+
+.transform-rule-editor__script-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--app-space-2);
+}
+
+.transform-rule-editor__script p {
+  margin: 3px 0 0;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+}
+
+.transform-rule-editor__ai-hint {
+  margin: 0 0 var(--app-space-4);
+  color: var(--app-text-muted);
+  line-height: 1.6;
+}
+
+.transform-rule-editor__script :deep(.app-code-editor) {
+  min-height: 300px;
+}
+
 .transform-rule-editor__ports code {
   font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 }
@@ -694,7 +880,7 @@ watch(() => props.modelValue, (visible) => {
 
 .transform-rule-editor__port {
   display: grid;
-  grid-template-columns: 70px minmax(180px, 1fr) 110px max-content 38px;
+  grid-template-columns: 70px minmax(180px, 1fr) max-content 38px;
   gap: var(--app-space-2);
   align-items: center;
   margin-top: var(--app-space-2);

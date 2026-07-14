@@ -121,6 +121,7 @@ export interface FieldTransformRuleItem {
   writeTransformerVersion?: number
   readConfig?: Record<string, unknown>
   writeConfig?: Record<string, unknown>
+  scriptCode?: string
   enabled?: boolean
   remark?: string
 }
@@ -136,8 +137,41 @@ export interface FieldTransformRulePayload {
   writeTransformerVersion?: number
   readConfig: Record<string, unknown>
   writeConfig: Record<string, unknown>
+  scriptCode?: string
   enabled: boolean
   remark?: string
+}
+
+export interface FieldTransformScriptFieldContext {
+  code: string
+  name?: string
+  dataType?: string
+  nullable?: boolean
+  primaryKey?: boolean
+  remark?: string
+}
+
+export interface FieldTransformScriptMappingContext {
+  side: 'physical' | 'virtual'
+  code: string
+  name?: string
+  dataType?: string
+  requiredOnWrite?: boolean
+}
+
+export interface FieldTransformScriptGeneratePayload {
+  entityId: VirtualDataId
+  bindingId: VirtualDataId
+  ruleName?: string
+  requirement: string
+  currentScript?: string
+  physicalFields: FieldTransformScriptFieldContext[]
+  virtualFields: FieldTransformScriptFieldContext[]
+  mappings: FieldTransformScriptMappingContext[]
+}
+
+export interface FieldTransformScriptGenerateResult {
+  script?: string
 }
 
 export interface FieldTransformPortItem {
@@ -473,5 +507,12 @@ export function validateFieldTransformRule(ruleId: VirtualDataId) {
   return request<void>(`${VIRTUAL_DATA_API_PREFIX}/field-transform-rules/validate`, {
     method: 'POST',
     query: { ruleId },
+  })
+}
+
+export function generateFieldTransformScript(payload: FieldTransformScriptGeneratePayload) {
+  return request<FieldTransformScriptGenerateResult>(`${VIRTUAL_DATA_API_PREFIX}/field-transform-rules/script/generate`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }

@@ -95,12 +95,16 @@ export async function syncPhysicalTableMetadata(sourceKey: string) {
   return { tableCount: tableNames.length }
 }
 
-export async function initializeVirtualTables(sourceKey: string, tables: DbTableMetaItem[]): Promise<InitializeResult> {
-  const results = await Promise.allSettled(tables.map(table => createVirtualEntityFromPhysicalTable({
-    physicalTableMetaId: table.id,
-    entityCode: buildVirtualEntityCode(sourceKey, table.tableName),
-    entityName: buildVirtualEntityCode(sourceKey, table.tableName),
-  })))
+export async function initializeVirtualTables(tables: DbTableMetaItem[]): Promise<InitializeResult> {
+  const results = await Promise.allSettled(tables.map((table) => {
+    if (!table.sourceKey?.trim()) return Promise.reject(new Error('物理表缺少数据源编码'))
+    const virtualCode = buildVirtualEntityCode(table.sourceKey, table.tableName)
+    return createVirtualEntityFromPhysicalTable({
+      physicalTableMetaId: table.id,
+      entityCode: virtualCode,
+      entityName: virtualCode,
+    })
+  }))
 
   const summary: InitializeResult = { created: [], failed: [] }
   results.forEach((result, index) => {

@@ -97,7 +97,12 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
-                <artifactId>app-platform-chat-provider-qwen-public</artifactId>
+                <artifactId>app-platform-chat-provider-bailian-kb</artifactId>
+                <version>${app.platform.chat.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-chat-provider-openai</artifactId>
                 <version>${app.platform.chat.version}</version>
             </dependency>
             <dependency>
@@ -152,7 +157,8 @@
         <module>modules/core-workflow</module>
         <module>spi</module>
         <module>providers/ai-provider-ai-agent</module>
-        <module>providers/ai-provider-qwen-public</module>
+        <module>providers/ai-provider-bailian-kb</module>
+        <module>providers/ai-provider-openai</module>
         <module>providers/ai-provider-ragflow</module>
     </modules>
 </project>

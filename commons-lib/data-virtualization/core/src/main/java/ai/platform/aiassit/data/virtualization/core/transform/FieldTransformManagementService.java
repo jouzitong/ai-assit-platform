@@ -35,11 +35,11 @@ public class FieldTransformManagementService {
         }
         if (context.rule().getTransformMode().readable()) {
             registry.require(context.rule().getReadTransformerCode(), context.rule().getReadTransformerVersion())
-                    .validate(definition(context, context.rule().getReadConfig()));
+                    .validate(definition(context, scriptConfig(context, context.rule().getReadConfig(), context.rule().getScriptCode(), "read")));
         }
         if (context.rule().getTransformMode().writable()) {
             registry.require(context.rule().getWriteTransformerCode(), context.rule().getWriteTransformerVersion())
-                    .validate(definition(context, context.rule().getWriteConfig()));
+                    .validate(definition(context, scriptConfig(context, context.rule().getWriteConfig(), context.rule().getScriptCode(), "write")));
         }
     }
 
@@ -57,7 +57,9 @@ public class FieldTransformManagementService {
         }
         String code = write ? context.rule().getWriteTransformerCode() : context.rule().getReadTransformerCode();
         Integer version = write ? context.rule().getWriteTransformerVersion() : context.rule().getReadTransformerVersion();
-        Map<String, Object> config = write ? context.rule().getWriteConfig() : context.rule().getReadConfig();
+        Map<String, Object> config = write
+                ? scriptConfig(context, context.rule().getWriteConfig(), context.rule().getScriptCode(), "write")
+                : scriptConfig(context, context.rule().getReadConfig(), context.rule().getScriptCode(), "read");
         FieldTransformer transformer = registry.require(code, version);
         if (write && !transformer.capabilities().writable() || !write && !transformer.capabilities().readable()) {
             throw new VirtualDataException("FIELD_TRANSFORM_WRITE_UNSUPPORTED", "变换器不支持请求的预览方向: " + code);
@@ -117,6 +119,32 @@ public class FieldTransformManagementService {
 
     private TransformDefinition definition(RuleContext context, Map<String, Object> config) {
         return new TransformDefinition(context.rule().getRuleCode(), context.physicalPorts(), context.virtualPorts(), config);
+    }
+
+    private Map<String, Object> scriptConfig(RuleContext context, Map<String, Object> config, String scriptCode, String direction) {
+        Map<String, Object> value = new java.util.LinkedHashMap<>();
+        if (config != null) value.putAll(config);
+        if (scriptCode == null || scriptCode.isBlank()) return value;
+        value.put("__scriptCode", scriptCode);
+        value.put("__direction", direction);
+        List<FieldTransformPortEntity> inputs = "read".equals(direction) ? context.physicalPorts() : context.virtualPorts();
+        List<FieldTransformPortEntity> outputs = "read".equals(direction) ? context.virtualPorts() : context.physicalPorts();
+        value.put("__inputAliases", aliases(inputs));
+        value.put("__outputAliases", aliases(outputs));
+        return value;
+    }
+
+    private Map<String, String> aliases(List<FieldTransformPortEntity> ports) {
+        Map<String, String> aliases = new java.util.LinkedHashMap<>();
+        for (FieldTransformPortEntity port : ports) {
+            String alias = port.getFieldSide() == FieldSide.PHYSICAL
+                    ? port.getPhysicalColumnName()
+                    : repository.fieldById(port.getVirtualFieldId()) == null
+                    ? port.getPortCode()
+                    : repository.fieldById(port.getVirtualFieldId()).getFieldCode();
+            aliases.put(port.getPortCode(), alias);
+        }
+        return aliases;
     }
 
     private record RuleContext(

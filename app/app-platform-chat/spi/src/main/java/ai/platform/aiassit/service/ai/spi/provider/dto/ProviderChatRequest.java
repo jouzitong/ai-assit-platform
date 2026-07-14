@@ -4,7 +4,9 @@ import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.dto.ResponseFormat;
 import ai.platform.aiassit.service.ai.api.dto.ToolDefinition;
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import lombok.Data;
+import org.apache.commons.lang3.builder.ToStringExclude;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -23,6 +25,8 @@ public class ProviderChatRequest {
     private String baseUrl;
 
     /** 当前模型实体解析出的 API Key，不对外暴露且不得写入日志。 */
+    @JsonIgnore
+    @ToStringExclude
     private String apiKey;
 
     /**

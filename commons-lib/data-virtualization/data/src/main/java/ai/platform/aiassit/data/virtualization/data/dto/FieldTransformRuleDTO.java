@@ -21,6 +21,7 @@ public class FieldTransformRuleDTO extends AuditableDTO {
     private Integer writeTransformerVersion;
     private Map<String, Object> readConfig = new LinkedHashMap<>();
     private Map<String, Object> writeConfig = new LinkedHashMap<>();
+    private String scriptCode;
     private Boolean enabled;
     private String remark;
 }

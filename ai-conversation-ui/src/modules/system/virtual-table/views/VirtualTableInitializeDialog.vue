@@ -16,12 +16,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
-  sourceChange: [sourceKey: string]
-  sync: [sourceKey: string]
-  submit: [sourceKey: string, tables: DbTableMetaItem[]]
+  sourceChange: [sourceKeys: string[]]
+  sync: [sourceKeys: string[]]
+  submit: [tables: DbTableMetaItem[]]
 }>()
 
-const sourceKey = ref('')
+const sourceKeys = ref<string[]>([])
 const selectedRows = ref<DbTableMetaItem[]>([])
 const keyword = ref('')
 
@@ -38,28 +38,33 @@ const filteredTables = computed(() => {
   return props.physicalTables.filter(table => `${table.tableName || ''} ${table.tableComment || ''}`.toLowerCase().includes(normalized))
 })
 
+function virtualCode(table: DbTableMetaItem) {
+  const sourceKey = table.sourceKey || (sourceKeys.value.length === 1 ? sourceKeys.value[0] : '')
+  return sourceKey ? buildVirtualEntityCode(sourceKey, table.tableName) : '-'
+}
+
 function isInitialized(table: DbTableMetaItem) {
-  return existingCodeSet.value.has(buildVirtualEntityCode(sourceKey.value, table.tableName))
+  return virtualCode(table) !== '-' && existingCodeSet.value.has(virtualCode(table))
 }
 
 function selectable(table: DbTableMetaItem) {
-  return !isInitialized(table)
+  return virtualCode(table) !== '-' && !isInitialized(table)
 }
 
-function handleSourceChange(value: string) {
+function handleSourceChange(value: string[]) {
   selectedRows.value = []
   keyword.value = ''
-  emit('sourceChange', value)
+  emit('sourceChange', value || [])
 }
 
 function handleSubmit() {
-  if (!sourceKey.value || !selectedRows.value.length) return
-  emit('submit', sourceKey.value, selectedRows.value)
+  if (!sourceKeys.value.length || !selectedRows.value.length) return
+  emit('submit', selectedRows.value)
 }
 
 watch(() => props.modelValue, (visible) => {
   if (!visible) return
-  sourceKey.value = ''
+  sourceKeys.value = []
   selectedRows.value = []
   keyword.value = ''
 })
@@ -78,7 +83,7 @@ watch(() => props.modelValue, (visible) => {
       <section class="virtual-init__step">
         <span class="virtual-init__step-index">1</span>
         <div><strong>选择数据源</strong><p>读取已经同步到元数据中心的物理表。</p></div>
-        <el-select v-model="sourceKey" filterable placeholder="请选择数据库数据源" @change="handleSourceChange">
+        <el-select v-model="sourceKeys" multiple filterable collapse-tags collapse-tags-tooltip placeholder="请选择数据库数据源" @change="handleSourceChange">
           <el-option
             v-for="source in databaseSources"
             :key="source.sourceKey || source.id"
@@ -86,14 +91,14 @@ watch(() => props.modelValue, (visible) => {
             :value="source.sourceKey"
           />
         </el-select>
-        <el-button :icon="RefreshRight" :disabled="!sourceKey" :loading="syncing" @click="emit('sync', sourceKey)">同步物理元数据</el-button>
+        <el-button :icon="RefreshRight" :disabled="!sourceKeys.length" :loading="syncing" @click="emit('sync', sourceKeys)">同步物理元数据</el-button>
       </section>
 
       <section class="virtual-init__step virtual-init__step--tables">
         <span class="virtual-init__step-index">2</span>
         <div class="virtual-init__table-head">
           <div><strong>选择物理表</strong><p>默认虚拟表 name/key：<code>sourceKey_tableName</code>，已初始化的表不可重复选择。</p></div>
-          <el-input v-model="keyword" clearable placeholder="搜索物理表" :disabled="!sourceKey" />
+          <el-input v-model="keyword" clearable placeholder="搜索物理表" :disabled="!sourceKeys.length" />
         </div>
         <el-table
           class="virtual-init__table"
@@ -104,10 +109,11 @@ watch(() => props.modelValue, (visible) => {
           @selection-change="selectedRows = $event"
         >
           <el-table-column type="selection" width="46" :selectable="selectable" />
+          <el-table-column prop="sourceKey" label="数据源" min-width="150" />
           <el-table-column prop="tableName" label="物理表" min-width="190" />
           <el-table-column prop="tableComment" label="说明" min-width="180" show-overflow-tooltip />
           <el-table-column label="生成的虚拟表编码" min-width="250">
-            <template #default="{ row }"><code>{{ buildVirtualEntityCode(sourceKey, row.tableName) }}</code></template>
+            <template #default="{ row }"><code>{{ virtualCode(row) }}</code></template>
           </el-table-column>
           <el-table-column label="状态" width="100">
             <template #default="{ row }">
@@ -116,19 +122,19 @@ watch(() => props.modelValue, (visible) => {
             </template>
           </el-table-column>
           <template #empty>
-            <div class="virtual-init__empty">{{ sourceKey ? '暂无已同步的物理表，可先执行“同步物理元数据”' : '请先选择数据源' }}</div>
+            <div class="virtual-init__empty">{{ sourceKeys.length ? '暂无已同步的物理表，可先执行“同步物理元数据”' : '请先选择数据源' }}</div>
           </template>
         </el-table>
       </section>
 
       <div class="virtual-init__summary">
         <el-icon><Select /></el-icon>
-        已选择 <strong>{{ selectedRows.length }}</strong> 张表。初始化会创建虚拟字段、主绑定和默认 identity 双向转换规则。
+        已选择 <strong>{{ selectedRows.length }}</strong> 张表，来自 <strong>{{ sourceKeys.length }}</strong> 个数据源。初始化会创建虚拟字段、主绑定和默认 identity 双向转换规则。
       </div>
     </div>
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="submitting" :disabled="!sourceKey || !selectedRows.length" @click="handleSubmit">
+      <el-button type="primary" :loading="submitting" :disabled="!sourceKeys.length || !selectedRows.length" @click="handleSubmit">
         初始化 {{ selectedRows.length || '' }} 张虚拟表
       </el-button>
     </template>
