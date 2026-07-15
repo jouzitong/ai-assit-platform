@@ -1,9 +1,11 @@
 package ai.platform.aiassit.knowledge.manage.vo;
 
+import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
 import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.AuditableDTO;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -33,6 +35,12 @@ public class AiKbStoreVO extends AuditableDTO {
     private String pipelineId;
 
     private Boolean enabled;
+
+    private AiKbStoreSyncStatus syncStatus;
+
+    private String syncError;
+
+    private LocalDateTime lastSyncAt;
 
     private List<String> tags;
 

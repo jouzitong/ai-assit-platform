@@ -101,7 +101,9 @@ python3 docs/test/db-virtual/run_db_virtual_tests.py \
 
 ## 当前边界
 
-- `ext.relations` 的 `key`、`model` 必填；`key` 是本次查询的返回别名，`model` 是目标虚拟表编码。
+- `query.get/list/tree` 未传 `relations` 时默认加载当前虚拟表的全部正向关系；反向关系需要显式声明。
+- 明细查询未传字段时，默认返回主虚拟表及已选关系目标表的全部启用字段。
+- 显式传入 `ext.relations[]` 时，`key`、`model` 必填；`key` 是本次查询的返回别名，`model` 是目标虚拟表编码。
 - 两张虚拟表已有唯一已发布关系时可省略 `on`；没有已发布关系时必须用 `on` 声明“当前表字段 -> 目标表字段”。
 - 已发布关系支持双向查询；反向查询会交换字段方向，并按反向结果形态返回对象或数组。
 - `COLLECTION` 允许明细投影，空值返回 `[]`；`OBJECT` 无匹配返回 `null`。

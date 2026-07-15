@@ -491,9 +491,9 @@ VirtualListExecutionPlan
 | model | entityCode | 必须对应已发布虚拟实体 |
 | filter_dict | filter | 每个条件翻译为 Predicate |
 | filterExpr | filter | 解析为 AND/OR 组合树 |
-| ext.fields | fields | 只允许虚拟字段或 relationCode.fieldCode |
+| ext.fields | fields | 只允许虚拟字段或 relationCode.fieldCode；空值展开主实体和已选关系的全部启用字段 |
 | ext.sorts | sorts | 字段必须通过目录和权限校验 |
-| ext.relations | relationCodes + relationFilters | key 映射关系；model/on/type 校验；filter 翻译为关系域 AST |
+| ext.relations | relationCodes + relationFilters | GET/LIST/TREE 空值默认选择全部正向关系；显式项按 key/model/on 解析 |
 | page | page.number | 默认保持 1 |
 | page_size | page.size | 默认保持 10，最大值按旧接口先保持 1000 |
 
@@ -506,7 +506,7 @@ LegacyRequestTranslator 需要提供独立的 LegacyFilterAstParser：
 3. filterExpr 只引用 filter_dict 中的 key。
 4. 保持旧语义：表达式必须恰好引用全部 key，缺少或多余都失败。
 5. 只支持 AND、OR 和括号；不把字符串直接传给 SQL。
-6. relationCode.fieldCode 可作为条件 key，但 relationCode 必须显式声明。
+6. relationCode.fieldCode 可作为条件 key，但 relationCode 必须存在于显式或默认解析出的关系集合。
 
 操作符映射：
 
@@ -568,7 +568,7 @@ LegacyRequestTranslator 需要提供独立的 LegacyFilterAstParser：
 关系在虚拟目录中还必须声明 `relation_result_mode`，而不是从物理表强行推断 1:1、1:N 或 N:N：
 
 - `OBJECT`：关联字段恢复为对象；无匹配时为 `null`。
-- `COLLECTION`：关联字段恢复为数组；无匹配时为 `[]`。数组中的每个元素只包含 `ext.fields` 显式声明的子字段。
+- `COLLECTION`：关联字段恢复为数组；无匹配时为 `[]`。显式投影时只包含声明的子字段，空投影时包含目标虚拟表全部启用字段。
 
 例如内部结果为：
 
@@ -586,12 +586,13 @@ LegacyRequestTranslator 需要提供独立的 LegacyFilterAstParser：
 
 聚合和透视结果继续保持扁平。
 
-投影必须显式：声明 relationCode 只表示本次查询允许使用该关系，不代表自动投影远端全部字段。为保持旧行为：
+兼容层按以下规则展开投影：
 
-- ext.fields 为空时只返回主虚拟实体字段。
-- 只有 ext.fields 中显式出现 relationCode.fieldCode 时才读取并返回对应远端字段。
-- 关系仅用于过滤或存在性判断时，不得把远端字段附带到响应中。
-- Planner 应按实际需要补充内部 Join key，但 LegacyResponseAssembler 必须移除这些内部字段，避免数据泄露。
+- `ext.fields` 为空时，显式生成主虚拟实体全部启用字段，以及已选关系目标实体的全部启用字段。
+- `ext.fields` 非空时严格按调用方声明投影，不额外附带远端字段。
+- `GET/LIST/TREE` 的 `ext.relations` 为空时，默认选择当前虚拟实体作为 source 的全部正向关系；反向关系必须显式声明。
+- `COUNT/AGGREGATE/PIVOT` 不默认加载关系，避免 1:N 关系改变统计基数。
+- Planner 可补充内部 Join key，但 LegacyResponseAssembler 必须移除未进入业务投影的内部字段。
 
 ### 8.5 六类接口字段兼容矩阵
 
@@ -601,9 +602,9 @@ LegacyRequestTranslator 需要提供独立的 LegacyFilterAstParser：
 | 全部 | model | 物理表名 | 已发布 entityCode；缺失目录即失败 |
 | 全部 | filter_dict / filterExpr | 生成主表或关系表 WHERE | 翻译为虚拟 Filter AST；保持 key 全引用校验 |
 | GET | id | 固定匹配物理 id | 映射单一虚拟主键；复合主键用 filter_dict |
-| GET/LIST | ext.fields | 投影主表或关系字段；空值为主表全部字段 | 只投影虚拟字段；空值仅为主实体字段 |
+| GET/LIST | ext.fields | 投影主表或关系字段；空值为主表全部字段 | 空值展开主实体和已选关系全部启用字段 |
 | GET/LIST | ext.sorts | SQL ORDER BY | 虚拟排序并追加稳定 tie-breaker |
-| 全部 | ext.relations | 动态物理 Join，filter 位于 ON | key 映射 relationCode；model/on/type 校验；filter 翻译为关系域 AST |
+| 全部 | ext.relations | 动态物理 Join，filter 位于 ON | 明细接口空值默认正向关系；统计接口空值不关联；显式项按 key/model/on 解析 |
 | COUNT/AGGREGATE | dimensions.field/alias | GROUP BY 与别名 | 强类型 groupBy 与显式别名 |
 | COUNT/AGGREGATE/PIVOT | metrics.field/func/alias | 聚合表达式 | 白名单 AggregateFunction 与别名 |
 | COUNT/AGGREGATE/PIVOT | having | 聚合别名过滤 | HAVING AST；只允许分组字段或聚合别名 |
@@ -1332,7 +1333,7 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 3. INNER、关系字段 WHERE、跨源关系和本地变换场景要么返回可证明的精确 total，要么明确拒绝。
 4. model、fields、sort 和 filter 只能引用已发布虚拟目录。
 5. relation 只能引用已发布 relationCode，关系过滤保持 ON/WHERE 作用域。
-6. query.get/list 的关联结果保持旧嵌套结构，空投影不会泄露远端字段。
+6. query.get/list 的关联结果保持嵌套结构，空投影按目录展开主表及已选关系全部启用字段。
 7. count/aggregate 的分组、HAVING、别名排序和 summary 正确。
 8. tree/pivot 通过虚拟结果完成，且预算保护生效。
 
@@ -1420,7 +1421,7 @@ VIRTUAL 模式下以下错误不能回退物理 SQL：
 - DbQueryApi 六个 URL 与 DTO 保持不变，Controller 已切换到 DbQueryCompatibilityFacade；旧动态 SQL 实现退出 Spring Bean 执行路径。
 - LegacyRequestTranslator 已覆盖 GET、LIST、COUNT、AGGREGATE、TREE、PIVOT，并完成过滤 AST、虚拟主键、关系迁移校验、分组/指标别名和 HAVING 翻译。
 - query.list 已启用独立精确 count 分支、稳定主键排序和预算完整性校验；无法完整扫描时明确失败。
-- relation.filter 已进入远端关系分支并保持 LEFT JOIN ON 作用域；关系字段 WHERE 仍在 Join 后执行；空关系投影不会读取或返回远端全部字段。
+- relation.filter 已进入远端关系分支并保持 LEFT JOIN ON 作用域；关系字段 WHERE 仍在 Join 后执行；明细查询空投影会按目录返回主表及已选关系全部启用字段。
 - DbQuery v1 关系结果已支持由虚拟目录声明的 COLLECTION：远端结果按主实体 Join key 归组为数组，不复制主记录；OBJECT 关系仍会校验主实体虚拟主键并拒绝多值匹配。
 - 树和透视在虚拟结果之上组装，并对未完整物化、重复节点、循环、深度及不支持选项明确失败。
 - 物理 SQL 只在应用适配器内由结构化 SPI 计划受控生成，业务值全部参数绑定，更新和删除禁止无条件执行。

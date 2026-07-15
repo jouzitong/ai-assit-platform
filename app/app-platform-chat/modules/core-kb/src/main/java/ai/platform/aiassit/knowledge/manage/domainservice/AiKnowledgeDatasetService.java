@@ -4,6 +4,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 
 import java.util.List;
 
@@ -31,6 +33,12 @@ public interface AiKnowledgeDatasetService {
      * @return Dataset 列表
      */
     List<AiKbDatasetDTO> listDatasets(String clientKey, AiKbDatasetListRequest request);
+
+    /** 查询知识库提供方可用于向量化的模型。 */
+    List<AiKbEmbeddingModelDTO> listEmbeddingModels(AiKbEmbeddingModelListRequest request);
+
+    /** 使用系统配置中的客户端查询 Provider Embedding 模型。 */
+    List<AiKbEmbeddingModelDTO> listEmbeddingModels(String clientKey, AiKbEmbeddingModelListRequest request);
 
     /** 创建 Provider Dataset。 */
     AiKbDatasetDTO createDataset(AiKbDatasetSaveRequest request);

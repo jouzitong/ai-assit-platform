@@ -149,6 +149,19 @@ public class AiProviderRequestMapper {
         target.setKbId(request.getKbId());
         target.setQuery(request.getQuery());
         target.setTopK(request.getTopK());
+        target.setPage(request.getPage());
+        target.setPageSize(request.getPageSize());
+        target.setRetrievalTopK(request.getRetrievalTopK());
+        target.setSimilarityThreshold(request.getSimilarityThreshold());
+        target.setVectorSimilarityWeight(request.getVectorSimilarityWeight());
+        target.setRerankId(request.getRerankId());
+        target.setKeyword(request.getKeyword());
+        target.setHighlight(request.getHighlight());
+        target.setUseKg(request.getUseKg());
+        target.setTocEnhance(request.getTocEnhance());
+        target.setDocumentIds(request.getDocumentIds());
+        target.setCrossLanguages(request.getCrossLanguages());
+        target.setMetadataCondition(request.getMetadataCondition());
         target.setMeta(request.getMeta());
         return target;
     }

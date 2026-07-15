@@ -86,7 +86,7 @@ public class DbQueryCompatibilityFacade implements DbQueryService {
         LegacyRequestTranslator.Translation translated = translator.translateTree(request);
         VirtualQueryResponse result = queryGateway.query(translated.request());
         requireFullyMaterialized(result, "query.tree");
-        return treeAssembler.assemble(result, request);
+        return treeAssembler.assemble(result, request, translated.outputFields());
     }
 
     @Override

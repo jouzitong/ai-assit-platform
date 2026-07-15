@@ -6,6 +6,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentContentUpdateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentBatchRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentDeleteResponse;
@@ -84,6 +86,10 @@ public interface AiKnowledgeApi {
      */
     @PostMapping("/internal/v1/ai/kb/dataset/list")
     R<List<AiKbDatasetDTO>> listDatasets(@RequestBody(required = false) AiKbDatasetListRequest request);
+
+    /** 查询知识库提供方侧可用于 Dataset 的 Embedding 模型。 */
+    @PostMapping("/internal/v1/ai/kb/embedding-model/list")
+    R<List<AiKbEmbeddingModelDTO>> listEmbeddingModels(@RequestBody(required = false) AiKbEmbeddingModelListRequest request);
 
     /** 创建知识库提供方侧的 Dataset。 */
     @PostMapping("/internal/v1/ai/kb/dataset")

@@ -7,6 +7,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.spi.KnowledgeDatasetService;
 import org.arthena.framework.common.exception.BizException;
@@ -53,6 +55,21 @@ public class AiKnowledgeDatasetServiceImpl implements AiKnowledgeDatasetService 
         normalized.setClientType(clientType);
         normalized.setMeta(knowledgeClientConfigService.apply(clientKey, clientType, normalized.getMeta()));
         return listDatasets(normalized);
+    }
+
+    @Override
+    public List<AiKbEmbeddingModelDTO> listEmbeddingModels(AiKbEmbeddingModelListRequest request) {
+        AiKbEmbeddingModelListRequest normalized = request == null ? new AiKbEmbeddingModelListRequest() : request;
+        return requireDatasetService(normalized.getClientType()).listEmbeddingModels(normalized);
+    }
+
+    @Override
+    public List<AiKbEmbeddingModelDTO> listEmbeddingModels(String clientKey, AiKbEmbeddingModelListRequest request) {
+        AiKbEmbeddingModelListRequest normalized = request == null ? new AiKbEmbeddingModelListRequest() : request;
+        AiKnowledgeClientType clientType = knowledgeClientConfigService.requireOption(clientKey).getClientType();
+        normalized.setClientType(clientType);
+        normalized.setMeta(knowledgeClientConfigService.apply(clientKey, clientType, normalized.getMeta()));
+        return listEmbeddingModels(normalized);
     }
 
     @Override

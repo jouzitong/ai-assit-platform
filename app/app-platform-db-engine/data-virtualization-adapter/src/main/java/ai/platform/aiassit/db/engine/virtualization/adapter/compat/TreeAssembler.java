@@ -7,6 +7,7 @@ import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeResponse;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -34,6 +35,15 @@ public class TreeAssembler {
     }
 
     public DbQueryTreeResponse assemble(VirtualQueryResponse source, DbQueryTreeRequest request) {
+        Collection<String> outputFields = request == null ? List.of() : request.getFields();
+        return assemble(source, request, outputFields);
+    }
+
+    public DbQueryTreeResponse assemble(
+            VirtualQueryResponse source,
+            DbQueryTreeRequest request,
+            Collection<String> translatedOutputFields
+    ) {
         DbQueryTreeExt ext = request == null || request.getExt() == null ? new DbQueryTreeExt() : request.getExt();
         String idField = valueOrDefault(ext.getIdField(), "id");
         String parentField = valueOrDefault(ext.getParentField(), "parent_id");
@@ -47,8 +57,8 @@ public class TreeAssembler {
         outputFields.add(idField);
         outputFields.add(parentField);
         outputFields.add(labelField);
-        if (request != null && request.getFields() != null) {
-            outputFields.addAll(request.getFields());
+        if (translatedOutputFields != null) {
+            outputFields.addAll(translatedOutputFields);
         }
 
         List<Map<String, Object>> rows = source == null || source.getRecords() == null

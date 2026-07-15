@@ -1,5 +1,6 @@
 package ai.platform.aiassit.execution.validator;
 
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassit.service.ai.api.dto.EmbedRequest;
@@ -84,6 +85,15 @@ public class AiRequestValidator {
         if (request.getTopK() != null && request.getTopK() <= 0) {
             throw BizException.illegalParam(ParamBizCodeConstant.INVALID_TOP_K);
         }
+        requirePositive(request.getPage(), "page");
+        requirePositive(request.getPageSize(), "pageSize");
+        requirePositive(request.getRetrievalTopK(), "retrievalTopK");
+        requireRatio(request.getSimilarityThreshold(), "similarityThreshold");
+        requireRatio(request.getVectorSimilarityWeight(), "vectorSimilarityWeight");
+        if (!CollectionUtils.isEmpty(request.getDocumentIds())
+                && request.getDocumentIds().stream().anyMatch(item -> !StringUtils.hasText(item))) {
+            throw invalidKbSearchOption("documentIds");
+        }
     }
 
     public void validateHybridSearch(HybridSearchRequest request) {
@@ -106,5 +116,21 @@ public class AiRequestValidator {
                 }
             }
         }
+    }
+
+    private void requirePositive(Integer value, String field) {
+        if (value != null && value <= 0) {
+            throw invalidKbSearchOption(field);
+        }
+    }
+
+    private void requireRatio(Double value, String field) {
+        if (value != null && (!Double.isFinite(value) || value < 0D || value > 1D)) {
+            throw invalidKbSearchOption(field);
+        }
+    }
+
+    private BizException invalidKbSearchOption(String field) {
+        return BizException.illegalParam(AiChatBizCodeConstant.INVALID_KB_SEARCH_OPTIONS, field);
     }
 }

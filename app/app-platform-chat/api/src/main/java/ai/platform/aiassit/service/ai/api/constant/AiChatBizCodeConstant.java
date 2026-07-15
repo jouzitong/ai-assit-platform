@@ -45,6 +45,7 @@ public interface AiChatBizCodeConstant {
 
     // 53_02_xxxx 参数取值非法
     Integer INVALID_WORKFLOW_OUTPUT = 53_02_0001;
+    Integer INVALID_KB_SEARCH_OPTIONS = 53_02_0002;
 
     // 53_03_xxxx 资源不存在
     Integer CONVERSATION_NOT_FOUND = 53_03_0001;

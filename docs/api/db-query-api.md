@@ -58,6 +58,8 @@
   - 未传 `filterExpr` 时，`filter_dict` 默认仍按顶层 `AND` 拼接
 - 排序来源：`ext.sorts`
 - 关联来源：`ext.relations`
+- 默认展开：`ext.fields` 为空时返回主虚拟表全部启用字段，以及本次选中关系的全部启用字段
+- 默认关系：`ext.relations` 为空时自动选择当前虚拟表配置的全部正向关系
 - 返回结构：明细记录支持按关联 `key` 组装嵌套对象
 
 示例返回：
@@ -81,6 +83,8 @@
 - 过滤组合：`filterExpr`
 - 排序来源：`ext.sorts`
 - 关联来源：`ext.relations`
+- 默认展开：`ext.fields` 为空时返回主虚拟表和本次选中关系的全部启用字段
+- 默认关系：`ext.relations` 为空时自动选择当前虚拟表配置的全部正向关系
 - 总数统计：由虚拟查询内核按当前关系与过滤语义计算
 - 返回结构：分页数据放在 `list`，分页信息放在 `pageInfo.{ total, size, page }`，其中每条列表记录同样支持关联对象嵌套
 
@@ -117,6 +121,7 @@
   - `ext.labelField`
   - `ext.rootValue`
 - 关联来源：`ext.relations`
+- 默认关系：`ext.relations` 为空时自动选择当前虚拟表配置的全部正向关系；`fields` 为空时同步展开其字段
 - 返回结构：
   - 节点本身有 `id`、`parentId`、`label`
   - 节点 `data` 支持关联对象嵌套
@@ -163,6 +168,8 @@
 4. 同一对虚拟表存在多条关系时，必须用 `on` 唯一消歧。
 5. 已发布关系可以从 source 或 target 任一侧查询；反向查询会同时交换 Join 字段方向和返回形态。
 6. `filter` 只作用于关联对象，保持 `LEFT JOIN ON` 作用域。
+7. `query.get/list/tree` 未声明 `relations` 时，默认加载当前虚拟表作为 source 的正向关系；反向关系仍需显式声明。
+8. `query.count/aggregate/pivot` 不自动加载关系，避免集合关系改变统计语义。
 
 示例：
 

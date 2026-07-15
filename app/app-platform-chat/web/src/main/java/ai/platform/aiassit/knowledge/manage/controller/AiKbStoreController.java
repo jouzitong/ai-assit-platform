@@ -54,4 +54,9 @@ public class AiKbStoreController {
     public Boolean delete(@PathVariable Long id) {
         return domainService.delete(id);
     }
+
+    @PostMapping("/{id}/_retry-sync")
+    public Boolean retrySync(@PathVariable Long id) {
+        return domainService.retrySync(id);
+    }
 }

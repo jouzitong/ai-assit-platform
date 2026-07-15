@@ -89,9 +89,11 @@ public class RagflowProvider implements KnowledgeService {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
         try {
+            RagflowKnowledgeBaseClient.SearchResult result = knowledgeBaseClient.searchDetailed(request);
             KbSearchResponse response = new KbSearchResponse();
             response.setKbId(request.getKbId());
-            response.setItems(knowledgeBaseClient.search(request.getKbId(), request.getQuery(), request.getTopK(), request.getMeta()));
+            response.setTotal(result.total());
+            response.setItems(result.items());
             return response;
         } catch (BizException ex) {
             throw ex;

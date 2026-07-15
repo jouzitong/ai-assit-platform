@@ -1,6 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.service.impl;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
+import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
 import ai.platform.aiassit.knowledge.manage.convert.AiKbStoreConvert;
 import ai.platform.aiassit.knowledge.manage.entity.store.AiKbStoreEntity;
 import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
@@ -61,7 +62,9 @@ public class AiKbStoreServiceImpl
         }
         query.setPage(1);
         query.setSize(Integer.MAX_VALUE);
-        return queryAll(query);
+        return queryAll(query).stream()
+                .filter(this::isSyncedStore)
+                .toList();
     }
 
     @Override
@@ -85,6 +88,10 @@ public class AiKbStoreServiceImpl
             wrapper.lambda().orderByDesc(AiKbStoreEntity::getUpdateTime, AiKbStoreEntity::getId);
         }
         return wrapper;
+    }
+
+    private boolean isSyncedStore(AiKbStoreDTO store) {
+        return store.getSyncStatus() == null || store.getSyncStatus() == AiKbStoreSyncStatus.ACTIVE;
     }
 
 }

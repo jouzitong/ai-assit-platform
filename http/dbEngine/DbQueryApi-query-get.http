@@ -2,7 +2,7 @@
 @orderId = 50001
 
 ### 基础 query.get：按虚拟主键查询订单
-# 不声明 ext.fields / ext.relations，让服务按已发布目录返回主实体字段。
+# 不声明 ext.fields / ext.relations，让服务返回主实体全部字段和全部正向关联信息。
 # 适合先确认当前 ods_trade_order_sales_order 的真实字段与是否存在 id=50001 的测试数据。
 POST {{host}}{{apiPrefix}}/api/v1/query.get
 Content-Type: application/json;charset=UTF-8
@@ -12,14 +12,5 @@ Authorization: Bearer {{token}}
 {
   "title": "manual: get test order",
   "model": "ods_trade_order_sales_order",
-  "id": 50001,
-  "ext": {
-    "fields": ["id", "account.id", "account.balance"],
-    "relations": [
-      {
-        "key": "account",
-        "model": "ods_trade_user_account"
-      }
-    ]
-  }
+  "id": 50001
 }

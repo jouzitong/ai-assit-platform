@@ -19,4 +19,6 @@ public interface AiKbStoreManageDomainService {
     AiKbStoreVO edit(Long id, AiKbStoreDTO dto);
 
     boolean delete(Long id);
+
+    boolean retrySync(Long id);
 }

@@ -7,6 +7,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -42,6 +44,12 @@ public class AiKbClientOptionController {
     public R<List<AiKbDatasetDTO>> listDatasets(@PathVariable String clientKey,
                                                 @RequestBody(required = false) AiKbDatasetListRequest request) {
         return R.ok(datasetService.listDatasets(clientKey, request));
+    }
+
+    @PostMapping("/{clientKey}/embedding-models")
+    public R<List<AiKbEmbeddingModelDTO>> listEmbeddingModels(@PathVariable String clientKey,
+                                                              @RequestBody(required = false) AiKbEmbeddingModelListRequest request) {
+        return R.ok(datasetService.listEmbeddingModels(clientKey, request));
     }
 
     /** 通过已选系统客户端创建 RAGFlow Dataset，认证信息不会返回给页面。 */

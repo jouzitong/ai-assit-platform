@@ -128,6 +128,83 @@ class LegacyRequestTranslatorTest {
     }
 
     @Test
+    void expandsAllEnabledFieldsAndOnlyDefaultForwardRelationsWhenFieldsAndRelationsAreEmpty() {
+        when(catalogGateway.describePublished("bidirectional_orders", null))
+                .thenReturn(bidirectionalOrdersCatalog());
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("bidirectional_orders");
+
+        LegacyRequestTranslator.Translation translation = translator.translateList(source);
+        VirtualQueryRequest target = translation.request();
+
+        List<String> expectedFields = List.of(
+                "id", "customer_id", "name", "parent_id",
+                "customer.id", "customer.name", "customer.active"
+        );
+        assertEquals(expectedFields, target.getFields());
+        assertEquals(expectedFields, translation.outputFields());
+        assertEquals(List.of("customer"), target.getRelationCodes());
+        assertEquals(1, target.getRelations().size());
+        assertEquals("customer", target.getRelations().get(0).getKey());
+        assertEquals("customer", target.getRelations().get(0).getRelationCode());
+        assertEquals(Map.of("customer_id", "id"),
+                target.getRelations().get(0).getLocalToRemoteFields());
+        assertEquals(RelationResultMode.OBJECT, target.getRelations().get(0).getResultMode());
+    }
+
+    @Test
+    void expandsAllFieldsForExplicitReverseRelation() {
+        when(catalogGateway.describePublished("bidirectional_orders", null))
+                .thenReturn(bidirectionalOrdersCatalog());
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("bidirectional_orders");
+        source.getExt().setRelations(List.of(relation("warehouses", "warehouses", Map.of())));
+
+        LegacyRequestTranslator.Translation translation = translator.translateList(source);
+        VirtualQueryRequest target = translation.request();
+
+        assertEquals(List.of(
+                "id", "customer_id", "name", "parent_id",
+                "warehouses.id", "warehouses.order_id", "warehouses.name"
+        ), target.getFields());
+        assertEquals(List.of("warehouses"), target.getRelationCodes());
+        assertEquals("warehouse_orders", target.getRelations().get(0).getRelationCode());
+        assertEquals(Map.of("id", "order_id"), target.getRelations().get(0).getLocalToRemoteFields());
+        assertEquals(RelationResultMode.COLLECTION, target.getRelations().get(0).getResultMode());
+    }
+
+    @Test
+    void keepsExplicitFieldsStrictWhileStillAddingDefaultForwardRelation() {
+        when(catalogGateway.describePublished("bidirectional_orders", null))
+                .thenReturn(bidirectionalOrdersCatalog());
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("bidirectional_orders");
+        source.getExt().setFields(List.of("name"));
+
+        LegacyRequestTranslator.Translation translation = translator.translateList(source);
+
+        assertEquals(List.of("name"), translation.request().getFields());
+        assertEquals(List.of("name"), translation.outputFields());
+        assertEquals(List.of("customer"), translation.request().getRelationCodes());
+    }
+
+    @Test
+    void expandsDefaultGetFieldsAndForwardRelations() {
+        when(catalogGateway.describePublished("bidirectional_orders", null))
+                .thenReturn(bidirectionalOrdersCatalog());
+        DbQueryGetRequest source = new DbQueryGetRequest();
+        source.setModel("bidirectional_orders");
+
+        LegacyRequestTranslator.Translation translation = translator.translateGet(source);
+
+        assertEquals(List.of(
+                "id", "customer_id", "name", "parent_id",
+                "customer.id", "customer.name", "customer.active"
+        ), translation.outputFields());
+        assertEquals(List.of("customer"), translation.request().getRelationCodes());
+    }
+
+    @Test
     void translatesPlainCountWithoutAccidentallyCreatingAggregateShape() {
         DbQueryCountRequest source = new DbQueryCountRequest();
         source.setTitle("count orders");
@@ -145,6 +222,8 @@ class LegacyRequestTranslatorTest {
         assertEquals(Boolean.TRUE, target.getExactTotal());
         assertEquals(2, target.getPage().getNumber());
         assertEquals(25, target.getPage().getSize());
+        assertTrue(target.getRelationCodes().isEmpty());
+        assertTrue(target.getRelations().isEmpty());
     }
 
     @Test
@@ -172,6 +251,8 @@ class LegacyRequestTranslatorTest {
         assertEquals(100, target.getHaving().getValue());
         assertEquals(List.of("region_name", "total_amount"),
                 target.getSorts().stream().map(item -> item.getField()).toList());
+        assertTrue(target.getRelationCodes().isEmpty());
+        assertTrue(target.getRelations().isEmpty());
     }
 
     @Test
@@ -193,6 +274,24 @@ class LegacyRequestTranslatorTest {
         assertEquals(Boolean.TRUE, target.getExactTotal());
         assertEquals(1, target.getPage().getNumber());
         assertEquals(1000, target.getPage().getSize());
+        assertEquals(List.of("customer"), target.getRelationCodes());
+    }
+
+    @Test
+    void expandsDefaultTreeFieldsAndOnlyForwardRelationsWhenSourceFieldsAreEmpty() {
+        when(catalogGateway.describePublished("bidirectional_orders", null))
+                .thenReturn(bidirectionalOrdersCatalog());
+        DbQueryTreeRequest source = new DbQueryTreeRequest();
+        source.setModel("bidirectional_orders");
+
+        LegacyRequestTranslator.Translation translation = translator.translateTree(source);
+
+        assertEquals(List.of(
+                "id", "customer_id", "name", "parent_id",
+                "customer.id", "customer.name", "customer.active"
+        ), translation.outputFields());
+        assertEquals(translation.outputFields(), translation.request().getFields());
+        assertEquals(List.of("customer"), translation.request().getRelationCodes());
     }
 
     @Test
@@ -216,6 +315,8 @@ class LegacyRequestTranslatorTest {
         assertEquals("sales", target.getHaving().getField());
         assertEquals(Boolean.TRUE, target.getExactTotal());
         assertEquals(1000, target.getPage().getSize());
+        assertTrue(target.getRelationCodes().isEmpty());
+        assertTrue(target.getRelations().isEmpty());
     }
 
     @Test
@@ -448,7 +549,8 @@ class LegacyRequestTranslatorTest {
                 List.of(
                         field("id", true),
                         field("name", false),
-                        field("active", false)
+                        field("active", false),
+                        disabledField("private_note")
                 ),
                 List.of()
         );
@@ -464,6 +566,39 @@ class LegacyRequestTranslatorTest {
                         field("name", false)
                 ),
                 List.of()
+        );
+    }
+
+    private VirtualCatalogDescriptor bidirectionalOrdersCatalog() {
+        List<VirtualCatalogDescriptor.Field> fields = List.of(
+                field("id", true),
+                field("customer_id", false),
+                field("name", false),
+                field("parent_id", false),
+                disabledField("internal_note")
+        );
+        List<VirtualCatalogDescriptor.Relation> relations = List.of(
+                new VirtualCatalogDescriptor.Relation(
+                        "customer",
+                        "customers",
+                        Map.of("customer_id", "id"),
+                        RelationResultMode.OBJECT,
+                        false
+                ),
+                new VirtualCatalogDescriptor.Relation(
+                        "warehouse_orders",
+                        "warehouses",
+                        Map.of("id", "order_id"),
+                        RelationResultMode.COLLECTION,
+                        true
+                )
+        );
+        return new VirtualCatalogDescriptor(
+                "bidirectional_orders",
+                20L,
+                fields,
+                relations.stream().map(VirtualCatalogDescriptor.Relation::code).toList(),
+                relations
         );
     }
 
@@ -496,7 +631,7 @@ class LegacyRequestTranslatorTest {
                 new VirtualCatalogDescriptor.Relation(
                         "customer", "customers", Map.of("customer_id", "id"), RelationResultMode.OBJECT),
                 new VirtualCatalogDescriptor.Relation(
-                        "orders", "customers", Map.of("customer_id", "id"), RelationResultMode.OBJECT)
+                        "orders", "customers", Map.of("customer_id", "id"), RelationResultMode.OBJECT, true)
         );
         return new VirtualCatalogDescriptor(
                 "equivalent_orders",
@@ -509,6 +644,10 @@ class LegacyRequestTranslatorTest {
 
     private VirtualCatalogDescriptor.Field field(String code, boolean primaryKey) {
         return new VirtualCatalogDescriptor.Field(code, primaryKey, true);
+    }
+
+    private VirtualCatalogDescriptor.Field disabledField(String code) {
+        return new VirtualCatalogDescriptor.Field(code, false, false);
     }
 
     private DbQueryRelation relation(String key, String model, Map<String, String> on) {

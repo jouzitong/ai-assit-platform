@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, nextTick, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { AppPagination } from '../../../../components'
+import KbRetrievalTestDialog from './KbRetrievalTestDialog.vue'
 import {
   createAiKbStore,
   createAiModelManage,
@@ -11,12 +12,15 @@ import {
   deleteAiModelManage,
   editAiKbStore,
   editAiModelManage,
+  listAiKbClientEmbeddingModels,
   listAiKbClientOptions,
+  retryAiKbStoreSync,
   searchAiKbStores,
   searchAiModelManages,
   testAiModelChat,
   updateAiKbStore,
   updateAiModelManage,
+  type AiKbEmbeddingModelItem,
   type AiKbStoreItem,
   type AiKbStoreUpsertPayload,
   type AiKbClientOption,
@@ -57,6 +61,16 @@ const kbChunkMethodOptions = [
   { value: 'presentation', label: '演示文稿 (presentation)' },
 ]
 
+const kbSyncStatusOptions = [
+  { value: 1, label: '创建中', retryable: false },
+  { value: 2, label: '已同步', retryable: false },
+  { value: 3, label: '创建失败', retryable: true },
+  { value: 4, label: '更新中', retryable: false },
+  { value: 5, label: '更新失败', retryable: true },
+  { value: 6, label: '删除中', retryable: false },
+  { value: 7, label: '删除失败', retryable: true },
+] as const
+
 const props = defineProps<{
   activeTab: PlatformTab
 }>()
@@ -72,6 +86,9 @@ const dialogVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
 const editingId = ref<string | number | null>(null)
 const statusUpdatingKey = ref('')
+const kbSyncRetryingKey = ref('')
+const kbRetrievalTestVisible = ref(false)
+const kbRetrievalTestTarget = ref<AiKbStoreItem | null>(null)
 const testDialogVisible = ref(false)
 const testingChat = ref(false)
 const testInput = ref('')
@@ -81,6 +98,9 @@ const testMessages = ref<TestChatMessage[]>([])
 const modelRecords = ref<AiModelManageItem[]>([])
 const kbRecords = ref<AiKbStoreItem[]>([])
 const kbAuthSummary = ref('系统认证配置加载中...')
+const kbEmbeddingModels = ref<AiKbEmbeddingModelItem[]>([])
+const kbEmbeddingModelsLoading = ref(false)
+const kbEmbeddingModelsError = ref('')
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
@@ -127,6 +147,26 @@ const currentSearchPlaceholder = computed(() => props.activeTab === 'model'
   ? '搜索名称 / 编码 / 客户端类型'
   : '搜索名称 / 编码 / 知识库客户端')
 const isNoChunking = computed(() => kbForm.chunkMethod === NO_CHUNKING_METHOD)
+const kbEmbeddingModelOptions = computed(() => {
+  const options = kbEmbeddingModels.value
+    .filter(item => normalizeText(item.value))
+    .map(item => ({
+      value: item.value,
+      label: resolveKbEmbeddingModelLabel(item),
+      description: resolveKbEmbeddingModelDescription(item),
+    }))
+
+  const currentValue = normalizeText(kbForm.embeddingModel)
+  if (currentValue && !options.some(item => item.value === currentValue)) {
+    options.unshift({
+      value: currentValue,
+      label: currentValue,
+      description: '当前保存值',
+    })
+  }
+
+  return options
+})
 
 const currentCards = computed<PlatformCard[]>(() => {
   if (props.activeTab === 'model') {
@@ -157,17 +197,20 @@ const currentCards = computed<PlatformCard[]>(() => {
     title: item.kbName || item.kbCode || '未命名知识库',
     code: item.kbCode || '-',
     tags: [
+      resolveKbSyncStatusLabel(item.syncStatus),
       item.chunkMethod ? resolveKbChunkMethodLabel(item.chunkMethod) : 'RAGFlow Dataset',
       ...(item.tags || []).slice(0, 3),
       item.enabled === false ? '停用' : '启用',
     ],
     summary: item.description || item.providerKbId || '暂无知识库说明',
-      extras: [
-        { label: '远端 KB ID', value: item.providerKbId || '-' },
-        { label: 'Embedding 模型', value: item.embeddingModel || 'Provider 默认' },
-        { label: '权限', value: item.permission || 'team' },
-        { label: '认证快照', value: resolveKbAuthSummary(item.auth) },
-        { label: '标签数', value: String(item.tags?.length || 0) },
+    extras: [
+      { label: '远端 KB ID', value: item.providerKbId || '-' },
+      { label: 'Embedding 模型', value: item.embeddingModel || 'Provider 默认' },
+      { label: '权限', value: item.permission || 'team' },
+      { label: '认证快照', value: resolveKbAuthSummary(item.auth) },
+      { label: '标签数', value: String(item.tags?.length || 0) },
+      { label: '最近同步', value: formatDateTime(item.lastSyncAt) },
+      ...(item.syncError ? [{ label: '同步错误', value: item.syncError }] : []),
       { label: '更新时间', value: formatDateTime(item.updateTime || item.createTime) },
     ],
     enabled: item.enabled !== false,
@@ -223,6 +266,46 @@ function resolveKbChunkMethodLabel(chunkMethod?: string) {
   return kbChunkMethodOptions.find(item => item.value === chunkMethod)?.label || `分片：${chunkMethod}`
 }
 
+function resolveKbSyncStatusValue(status?: number | string) {
+  const numericStatus = Number(status ?? 2)
+  return Number.isFinite(numericStatus) ? numericStatus : 2
+}
+
+function resolveKbSyncStatusOption(status?: number | string) {
+  const value = resolveKbSyncStatusValue(status)
+  return kbSyncStatusOptions.find(item => item.value === value) || kbSyncStatusOptions[1]
+}
+
+function resolveKbSyncStatusLabel(status?: number | string) {
+  return resolveKbSyncStatusOption(status).label
+}
+
+function isKbSyncRetryable(card: PlatformCard) {
+  if (card.entityType !== 'kb') {
+    return false
+  }
+  const item = card.raw as AiKbStoreItem
+  return resolveKbSyncStatusOption(item.syncStatus).retryable
+}
+
+function canNavigateToKbDocuments(card: PlatformCard) {
+  if (card.entityType !== 'kb') {
+    return false
+  }
+  const item = card.raw as AiKbStoreItem
+  return resolveKbSyncStatusValue(item.syncStatus) === 2 && Boolean(normalizeText(item.providerKbId))
+}
+
+function canTestKbRetrieval(card: PlatformCard) {
+  if (card.entityType !== 'kb') {
+    return false
+  }
+  const item = card.raw as AiKbStoreItem
+  return item.enabled !== false
+    && resolveKbSyncStatusValue(item.syncStatus) === 2
+    && Boolean(normalizeText(item.providerKbId))
+}
+
 function toFormChunkMethod(chunkMethod?: string) {
   return chunkMethod === RAGFLOW_SINGLE_CHUNK_METHOD ? NO_CHUNKING_METHOD : chunkMethod || ''
 }
@@ -253,18 +336,60 @@ function resolveSystemAuthSummary(option?: AiKbClientOption) {
   return `系统 ${type === 'bearer' || !type ? 'Bearer Token' : option.authType} · ${option.authValueMasked || '已配置'}`
 }
 
-async function loadKbAuthSummary(snapshot?: AiKbStoreItem['auth']) {
+function resolveKbEmbeddingModelLabel(item: AiKbEmbeddingModelItem) {
+  return item.name || item.value || '未命名 Embedding 模型'
+}
+
+function resolveKbEmbeddingModelDescription(item: AiKbEmbeddingModelItem) {
+  const providerText = [item.instanceName, item.providerName].filter(Boolean).join(' @ ')
+  const modelValue = item.value && item.value !== item.name ? item.value : ''
+  return [providerText, modelValue].filter(Boolean).join(' · ') || 'RAGFlow 模型'
+}
+
+function isValidRagflowEmbeddingModel(value?: string) {
+  const trimmed = normalizeText(value)
+  if (!trimmed) return false
+  if (/^[0-9a-fA-F]{32}$/.test(trimmed)) return true
+  const parts = trimmed.split('@')
+  return parts.length >= 2 && parts.every(part => Boolean(part.trim()))
+}
+
+async function loadKbDialogOptions(snapshot?: AiKbStoreItem['auth']) {
+  kbEmbeddingModelsLoading.value = true
+  kbEmbeddingModelsError.value = ''
+  kbEmbeddingModels.value = []
+
   if (snapshot?.type) {
     kbAuthSummary.value = `已保存快照：${resolveKbAuthSummary(snapshot)}`
-    return
+  } else {
+    kbAuthSummary.value = '系统认证配置加载中...'
   }
-  kbAuthSummary.value = '系统认证配置加载中...'
+
   try {
     const options = await listAiKbClientOptions()
-    kbAuthSummary.value = resolveSystemAuthSummary(options?.[0])
+    const option = options?.[0]
+    if (!snapshot?.type) {
+      kbAuthSummary.value = resolveSystemAuthSummary(option)
+    }
+    if (!option?.key) {
+      kbEmbeddingModelsError.value = '未配置 RAGFlow 客户端，无法加载模型列表'
+      return
+    }
+
+    const models = await listAiKbClientEmbeddingModels(option.key)
+    kbEmbeddingModels.value = models ?? []
+    if (!kbEmbeddingModels.value.length) {
+      kbEmbeddingModelsError.value = 'RAGFlow 未返回可用 Embedding 模型，可手动输入 model@provider'
+    }
   }
   catch (error) {
-    kbAuthSummary.value = '系统认证配置加载失败'
+    if (!snapshot?.type) {
+      kbAuthSummary.value = '系统认证配置加载失败'
+    }
+    kbEmbeddingModelsError.value = 'Embedding 模型加载失败，可手动输入 RAGFlow 模型标识'
+  }
+  finally {
+    kbEmbeddingModelsLoading.value = false
   }
 }
 
@@ -293,6 +418,14 @@ function isCardStatusUpdating(card: PlatformCard) {
   return statusUpdatingKey.value === buildStatusUpdateKey(card)
 }
 
+function buildKbSyncRetryKey(card: PlatformCard) {
+  return `kb-sync:${card.id}`
+}
+
+function isKbSyncRetrying(card: PlatformCard) {
+  return kbSyncRetryingKey.value === buildKbSyncRetryKey(card)
+}
+
 function openCreateDialog() {
   dialogMode.value = 'create'
   editingId.value = null
@@ -300,7 +433,7 @@ function openCreateDialog() {
     resetModelForm()
   } else if (props.activeTab === 'kb') {
     resetKbForm()
-    void loadKbAuthSummary()
+    void loadKbDialogOptions()
   }
   dialogVisible.value = true
 }
@@ -332,7 +465,7 @@ function openEditDialog(card: PlatformCard) {
     kbForm.tagsText = (item.tags || []).join(', ')
     kbForm.enabled = item.enabled !== false
     kbForm.extJsonText = formatJsonText(item.extJson)
-    void loadKbAuthSummary(item.auth)
+    void loadKbDialogOptions(item.auth)
   }
 
   dialogVisible.value = true
@@ -346,6 +479,10 @@ async function navigateToKbDocuments(card: PlatformCard) {
   if (card.entityType !== 'kb') {
     return
   }
+  if (!canNavigateToKbDocuments(card)) {
+    ElMessage.warning('知识库尚未同步成功，暂不能进入文档管理')
+    return
+  }
   const item = card.raw as AiKbStoreItem
   const targetKbCode = item.kbCode || card.code
   if (!targetKbCode || targetKbCode === '-') {
@@ -353,6 +490,15 @@ async function navigateToKbDocuments(card: PlatformCard) {
     return
   }
   await router.push(`/settings/system/ai-platform/${targetKbCode}`)
+}
+
+function openKbRetrievalTest(card: PlatformCard) {
+  if (!canTestKbRetrieval(card)) {
+    ElMessage.warning('知识库需启用并同步成功后才能执行检索测试')
+    return
+  }
+  kbRetrievalTestTarget.value = card.raw as AiKbStoreItem
+  kbRetrievalTestVisible.value = true
 }
 
 function buildModelPayload(): AiModelManageUpsertPayload {
@@ -435,6 +581,9 @@ function validateCurrentForm() {
     }
     if (!normalizeText(kbForm.embeddingModel)) {
       return '请选择或输入 Embedding 模型'
+    }
+    if (!isValidRagflowEmbeddingModel(kbForm.embeddingModel)) {
+      return 'Embedding 模型必须选择 RAGFlow 返回的模型，或使用 model@provider 格式'
     }
     if (!normalizeText(kbForm.chunkMethod) && !normalizeText(kbForm.pipelineId)) {
       return '请选择分片方式'
@@ -593,6 +742,9 @@ async function handleSubmitDialog() {
   }
   catch (error) {
     ElMessage.error(error instanceof Error ? error.message : `${currentDialogTitle.value}失败`)
+    if (props.activeTab === 'kb') {
+      await loadData()
+    }
   }
   finally {
     saving.value = false
@@ -629,6 +781,9 @@ async function handleDeleteCard(card: PlatformCard) {
       return
     }
     ElMessage.error(error instanceof Error ? error.message : `${entityLabel}删除失败`)
+    if (card.entityType === 'kb') {
+      await loadData()
+    }
   }
 }
 
@@ -660,6 +815,25 @@ async function handleToggleEnabled(card: PlatformCard, nextEnabled: boolean) {
   }
   finally {
     statusUpdatingKey.value = ''
+  }
+}
+
+async function handleRetryKbSync(card: PlatformCard) {
+  if (card.entityType !== 'kb') {
+    return
+  }
+  kbSyncRetryingKey.value = buildKbSyncRetryKey(card)
+  try {
+    await retryAiKbStoreSync(card.id)
+    ElMessage.success('知识库同步重试完成')
+    await loadData()
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '知识库同步重试失败')
+    await loadData()
+  }
+  finally {
+    kbSyncRetryingKey.value = ''
   }
 }
 
@@ -786,8 +960,8 @@ watch(
           <article
             v-for="card in currentCards"
             :key="`${card.entityType}-${card.id}`"
-            :class="['ai-platform-card', { 'ai-platform-card--clickable': card.entityType === 'kb' }]"
-            @click="card.entityType === 'kb' ? navigateToKbDocuments(card) : undefined"
+            :class="['ai-platform-card', { 'ai-platform-card--clickable': canNavigateToKbDocuments(card) }]"
+            @click="canNavigateToKbDocuments(card) ? navigateToKbDocuments(card) : undefined"
           >
             <div class="ai-platform-card__head">
               <div>
@@ -826,6 +1000,29 @@ watch(
                 />
               </div>
               <div class="ai-platform-card__action-buttons">
+                <el-tooltip v-if="card.entityType === 'kb'" content="检索测试" placement="top">
+                  <el-button
+                    plain
+                    circle
+                    type="primary"
+                    :disabled="!canTestKbRetrieval(card)"
+                    title="检索测试"
+                    @click.stop="openKbRetrievalTest(card)"
+                  >
+                    <el-icon><Search /></el-icon>
+                  </el-button>
+                </el-tooltip>
+                <el-button
+                  v-if="isKbSyncRetryable(card)"
+                  plain
+                  circle
+                  type="warning"
+                  title="重试同步"
+                  :loading="isKbSyncRetrying(card)"
+                  @click.stop="handleRetryKbSync(card)"
+                >
+                  <el-icon><RefreshRight /></el-icon>
+                </el-button>
                 <el-button plain circle title="编辑" @click.stop="openEditDialog(card)">
                   <el-icon><EditPen /></el-icon>
                 </el-button>
@@ -917,7 +1114,31 @@ watch(
           <el-input v-model="kbForm.description" type="textarea" :rows="2" placeholder="说明该知识库适用的内容和检索范围" />
         </el-form-item>
         <el-form-item label="Embedding 模型" required>
-          <el-input v-model="kbForm.embeddingModel" placeholder="请输入 RAGFlow Embedding 模型" />
+          <el-select
+            v-model="kbForm.embeddingModel"
+            class="ai-platform-dialog-form__select"
+            filterable
+            allow-create
+            default-first-option
+            clearable
+            :loading="kbEmbeddingModelsLoading"
+            placeholder="选择 RAGFlow Embedding 模型，或输入 model@provider"
+          >
+            <el-option
+              v-for="option in kbEmbeddingModelOptions"
+              :key="option.value"
+              :label="option.label"
+              :value="option.value"
+            >
+              <div class="ai-platform-dataset-option">
+                <span>{{ option.label }}</span>
+                <small>{{ option.description }}</small>
+              </div>
+            </el-option>
+          </el-select>
+          <div v-if="kbEmbeddingModelsError" class="ai-platform-dialog-form__field-tip">
+            {{ kbEmbeddingModelsError }}
+          </div>
         </el-form-item>
         <el-form-item label="权限">
           <el-select v-model="kbForm.permission" class="ai-platform-dialog-form__select">
@@ -1040,6 +1261,11 @@ watch(
         </div>
       </div>
     </el-dialog>
+
+    <KbRetrievalTestDialog
+      v-model="kbRetrievalTestVisible"
+      :knowledge-base="kbRetrievalTestTarget"
+    />
   </section>
 </template>
 
@@ -1334,6 +1560,18 @@ watch(
 
 .ai-platform-dialog-form :deep(.el-textarea__inner) {
   font-family: Menlo, Monaco, Consolas, 'Courier New', monospace;
+}
+
+.ai-platform-dialog-form__select {
+  width: 100%;
+}
+
+.ai-platform-dialog-form__field-tip {
+  width: 100%;
+  margin-top: 6px;
+  color: var(--system-text-muted);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .ai-platform-dialog-form__hint {

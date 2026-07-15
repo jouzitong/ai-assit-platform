@@ -37,6 +37,34 @@ class TreeAssemblerTest {
     }
 
     @Test
+    void usesTranslatedOutputFieldsForDefaultObjectAndCollectionRelations() {
+        DbQueryTreeRequest request = request(null);
+        Map<String, Object> row = row(1, 0, "root", null);
+        row.put("manager.name", "Alice");
+        row.put("members", List.of(
+                Map.of("id", 11, "name", "Bob"),
+                Map.of("id", 12, "name", "Carol")
+        ));
+
+        DbQueryTreeResponse response = assembler.assemble(
+                response(row),
+                request,
+                List.of("id", "parent_id", "name", "manager.name", "members.id", "members.name")
+        );
+
+        Map<String, Object> data = response.getRecords().get(0).getData();
+        @SuppressWarnings("unchecked")
+        Map<String, Object> manager = (Map<String, Object>) data.get("manager");
+        assertEquals("Alice", manager.get("name"));
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> members = (List<Map<String, Object>>) data.get("members");
+        assertEquals(List.of(
+                Map.of("id", 11, "name", "Bob"),
+                Map.of("id", 12, "name", "Carol")
+        ), members);
+    }
+
+    @Test
     void rejectsDuplicateIds() {
         LegacyQueryCompatibilityException exception = assertThrows(
                 LegacyQueryCompatibilityException.class,

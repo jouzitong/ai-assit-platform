@@ -13,6 +13,8 @@ import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -47,6 +49,7 @@ class VirtualCatalogServiceTest {
         assertEquals("customers", descriptor.relations().get(0).targetEntityCode());
         assertEquals(Map.of("customer_id", "id"), descriptor.relations().get(0).localToRemoteFields());
         assertEquals(RelationResultMode.OBJECT, descriptor.relations().get(0).resultMode());
+        assertFalse(descriptor.relations().get(0).reverse());
     }
 
     @Test
@@ -75,6 +78,7 @@ class VirtualCatalogServiceTest {
                 .describePublished("orders", 7L);
 
         assertEquals(RelationResultMode.COLLECTION, descriptor.relations().get(0).resultMode());
+        assertFalse(descriptor.relations().get(0).reverse());
     }
 
     @Test
@@ -110,6 +114,7 @@ class VirtualCatalogServiceTest {
         assertEquals("orders", descriptor.relations().get(0).targetEntityCode());
         assertEquals(Map.of("order_id", "id"), descriptor.relations().get(0).localToRemoteFields());
         assertEquals(RelationResultMode.COLLECTION, descriptor.relations().get(0).resultMode());
+        assertTrue(descriptor.relations().get(0).reverse());
     }
 
     @Test
@@ -141,6 +146,7 @@ class VirtualCatalogServiceTest {
                 .describePublished("employees", 7L);
 
         assertEquals(RelationResultMode.OBJECT, descriptor.relations().get(0).resultMode());
+        assertTrue(descriptor.relations().get(0).reverse());
     }
 
     @Test
@@ -173,6 +179,7 @@ class VirtualCatalogServiceTest {
                 .describePublished("employees", 7L);
 
         assertEquals(RelationResultMode.COLLECTION, descriptor.relations().get(0).resultMode());
+        assertTrue(descriptor.relations().get(0).reverse());
     }
 
     @Test
@@ -218,6 +225,7 @@ class VirtualCatalogServiceTest {
                 .map(VirtualCatalogDescriptor.Relation::targetEntityCode).toList());
         assertEquals(List.of(RelationResultMode.OBJECT, RelationResultMode.COLLECTION),
                 descriptor.relations().stream().map(VirtualCatalogDescriptor.Relation::resultMode).toList());
+        assertTrue(descriptor.relations().stream().allMatch(VirtualCatalogDescriptor.Relation::reverse));
     }
 
     private VirtualEntityEntity entity(Long id, String code) {

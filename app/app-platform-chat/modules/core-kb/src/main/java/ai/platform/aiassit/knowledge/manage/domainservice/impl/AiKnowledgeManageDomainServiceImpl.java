@@ -24,6 +24,7 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbPublishStage;
+import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbTaskStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbTaskType;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
@@ -85,6 +86,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     private static final String LAST_SYNC_VERSION_NO_KEY = "lastSyncVersionNo";
     private static final String LAST_SYNC_AT_KEY = "lastSyncAt";
     private static final String LAST_SYNC_PROVIDER_DOCUMENT_ID_KEY = "lastSyncProviderDocumentId";
+    private static final String PENDING_DELETE_PROVIDER_DOCUMENT_IDS_KEY = "pendingDeleteProviderDocumentIds";
 
     private final AiKbStoreService storeService;
     private final AiKbDocumentService documentService;
@@ -130,7 +132,6 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     }
 
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public AiKbInfoDTO createKnowledgeBase(AiKbCreateRequest request) {
         validateCreateRequest(request);
         Map<String, Object> ext = normalizeExt(request.getExt());
@@ -676,13 +677,30 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (!StringUtils.hasText(document.getProviderDocumentId())) {
             return;
         }
+        deleteProviderDocuments(document.getKbCode(), List.of(document.getProviderDocumentId().trim()));
+    }
+
+    private void deleteProviderDocuments(String kbCode, List<String> providerDocumentIds) {
+        List<String> normalizedIds = normalizeProviderDocumentIds(providerDocumentIds);
+        if (normalizedIds.isEmpty()) {
+            return;
+        }
         KbDeleteRequest request = new KbDeleteRequest();
-        request.setKbId(document.getKbCode());
-        request.setDocumentIds(List.of(document.getProviderDocumentId().trim()));
+        request.setKbId(kbCode);
+        request.setDocumentIds(normalizedIds);
         try {
             aiKnowledgeExecutionService.kbDelete(request);
         } catch (RuntimeException ex) {
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_DELETE_FAILED, ex.getMessage());
+        }
+    }
+
+    private void cleanupProviderDocumentsQuietly(String kbCode, List<String> providerDocumentIds) {
+        try {
+            deleteProviderDocuments(kbCode, providerDocumentIds);
+        } catch (RuntimeException ex) {
+            log.warn("ai kb cleanup provider documents failed, kbCode={}, providerDocumentIds={}",
+                    kbCode, providerDocumentIds, ex);
         }
     }
 
@@ -691,10 +709,14 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (store == null) {
             throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbCode);
         }
+        if (!isSyncedStore(store) || !StringUtils.hasText(store.getProviderKbId())) {
+            throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbCode);
+        }
         Map<String, Object> storeExt = copyMap(store.getExtJson());
 
         List<KbDocument> aiDocuments = new ArrayList<>(documents.size());
         List<AiKbDocumentDTO> acceptedDocuments = new ArrayList<>(documents.size());
+        Map<String, AiKbDocumentContentDTO> contentByDocumentCode = new LinkedHashMap<>();
         List<String> skipped = new ArrayList<>();
         for (AiKbDocumentDTO document : documents) {
             AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
@@ -706,6 +728,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                 skipped.add(document.getDocumentCode());
                 continue;
             }
+            contentByDocumentCode.put(document.getDocumentCode(), content);
             aiDocuments.add(toKbDocument(document, content, renderedContent));
             acceptedDocuments.add(document);
         }
@@ -727,29 +750,200 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         }
         if (upsertResponse == null || upsertResponse.getAccepted() == null || upsertResponse.getAccepted() < aiDocuments.size()) {
             String message = "AI kb upsert did not accept all current documents";
+            cleanupProviderDocumentsQuietly(store.getKbCode(), mappedProviderDocumentIds(upsertResponse));
             markDocumentsSyncFailed(acceptedDocuments, message);
             throw BizException.of(AiKbBizCodeConstant.PROVIDER_UPSERT_NOT_ACCEPTED);
         }
 
-        String providerKbId = trimToNull(upsertResponse.getKbId());
-        if (providerKbId != null && !Objects.equals(providerKbId, store.getProviderKbId())) {
-            store.setProviderKbId(providerKbId);
-        }
-        store.setEnabled(Boolean.TRUE);
-        storeService.update(store.getId(), store);
-
         Map<String, String> providerDocumentIds = upsertResponse.getDocumentIdMappings() == null
                 ? Map.of()
                 : upsertResponse.getDocumentIdMappings();
+        Map<String, String> syncedProviderDocumentIds;
+        try {
+            syncedProviderDocumentIds = requireProviderDocumentIds(aiDocuments, providerDocumentIds);
+        } catch (RuntimeException ex) {
+            cleanupProviderDocumentsQuietly(store.getKbCode(), mappedProviderDocumentIds(upsertResponse));
+            markDocumentsSyncFailed(acceptedDocuments, ex.getMessage());
+            throw ex;
+        }
+
+        Map<String, String> previousProviderDocumentIdsByCode = currentProviderDocumentIdsByCode(acceptedDocuments);
+        Map<String, List<String>> cleanupProviderDocumentIdsByCode = buildCleanupProviderDocumentIds(
+                acceptedDocuments, syncedProviderDocumentIds, contentByDocumentCode);
+        try {
+            String providerKbId = trimToNull(upsertResponse.getKbId());
+            if (providerKbId != null && !Objects.equals(providerKbId, store.getProviderKbId())) {
+                store.setProviderKbId(providerKbId);
+            }
+            store.setEnabled(Boolean.TRUE);
+            storeService.update(store.getId(), store);
+
+            for (AiKbDocumentDTO document : acceptedDocuments) {
+                String providerDocumentId = syncedProviderDocumentIds.get(document.getDocumentCode());
+                document.setProviderDocumentId(providerDocumentId);
+                document.setProviderSyncStatus(AiKbProviderSyncStatus.RUNNING);
+                document.setLastError(null);
+                documentService.update(document.getId(), document);
+            }
+        } catch (RuntimeException ex) {
+            cleanupProviderDocumentsQuietly(store.getKbCode(), new ArrayList<>(syncedProviderDocumentIds.values()));
+            restoreProviderDocumentIds(acceptedDocuments, previousProviderDocumentIdsByCode);
+            markDocumentsSyncFailedQuietly(acceptedDocuments, ex.getMessage());
+            throw ex;
+        }
+
+        try {
+            cleanupPreviousProviderDocuments(store.getKbCode(), cleanupProviderDocumentIdsByCode);
+        } catch (RuntimeException ex) {
+            rememberPendingCleanupProviderDocumentsQuietly(cleanupProviderDocumentIdsByCode, contentByDocumentCode);
+            String message = "old provider document cleanup failed: " + safeErrorMessage(ex);
+            markDocumentsSyncFailed(acceptedDocuments, message);
+            throw BizException.of(AiKbBizCodeConstant.PROVIDER_UPSERT_FAILED, message);
+        }
+
         for (AiKbDocumentDTO document : acceptedDocuments) {
-            String providerDocumentId = trimToNull(providerDocumentIds.get(document.getDocumentCode()));
-            document.setProviderDocumentId(providerDocumentId == null ? document.getProviderDocumentId() : providerDocumentId);
             document.setProviderSyncStatus(AiKbProviderSyncStatus.SUCCESS);
             document.setLastError(null);
             documentService.update(document.getId(), document);
-            persistSyncSnapshot(document, contentService.getByDocumentId(document.getId()));
+            persistSyncSnapshot(document, contentByDocumentCode.get(document.getDocumentCode()));
         }
         return new PublishResult(aiDocuments.size(), skipped);
+    }
+
+    private Map<String, String> requireProviderDocumentIds(List<KbDocument> aiDocuments,
+                                                           Map<String, String> providerDocumentIds) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (KbDocument document : aiDocuments) {
+            String documentCode = document.getDocumentId();
+            String providerDocumentId = trimToNull(providerDocumentIds.get(documentCode));
+            if (!StringUtils.hasText(providerDocumentId)) {
+                throw BizException.of(AiKbBizCodeConstant.PROVIDER_UPSERT_NOT_ACCEPTED, documentCode);
+            }
+            result.put(documentCode, providerDocumentId);
+        }
+        return result;
+    }
+
+    private List<String> mappedProviderDocumentIds(KbUpsertResponse response) {
+        if (response == null || response.getDocumentIdMappings() == null || response.getDocumentIdMappings().isEmpty()) {
+            return List.of();
+        }
+        return normalizeProviderDocumentIds(new ArrayList<>(response.getDocumentIdMappings().values()));
+    }
+
+    private Map<String, List<String>> buildCleanupProviderDocumentIds(List<AiKbDocumentDTO> documents,
+                                                                      Map<String, String> newProviderDocumentIds,
+                                                                      Map<String, AiKbDocumentContentDTO> contentByDocumentCode) {
+        Map<String, List<String>> result = new LinkedHashMap<>();
+        for (AiKbDocumentDTO document : documents) {
+            String documentCode = document.getDocumentCode();
+            List<String> cleanupIds = cleanupProviderDocumentIds(
+                    document.getProviderDocumentId(),
+                    newProviderDocumentIds.get(documentCode),
+                    contentByDocumentCode.get(documentCode));
+            if (!cleanupIds.isEmpty()) {
+                result.put(documentCode, cleanupIds);
+            }
+        }
+        return result;
+    }
+
+    private Map<String, String> currentProviderDocumentIdsByCode(List<AiKbDocumentDTO> documents) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (AiKbDocumentDTO document : documents) {
+            result.put(document.getDocumentCode(), trimToNull(document.getProviderDocumentId()));
+        }
+        return result;
+    }
+
+    private void restoreProviderDocumentIds(List<AiKbDocumentDTO> documents, Map<String, String> providerDocumentIdsByCode) {
+        for (AiKbDocumentDTO document : documents) {
+            document.setProviderDocumentId(providerDocumentIdsByCode.get(document.getDocumentCode()));
+        }
+    }
+
+    private List<String> cleanupProviderDocumentIds(String previousProviderDocumentId,
+                                                    String newProviderDocumentId,
+                                                    AiKbDocumentContentDTO content) {
+        List<String> result = new ArrayList<>();
+        addProviderDocumentId(result, previousProviderDocumentId, newProviderDocumentId);
+        for (String pendingId : pendingDeleteProviderDocumentIds(content)) {
+            addProviderDocumentId(result, pendingId, newProviderDocumentId);
+        }
+        return result;
+    }
+
+    private List<String> pendingDeleteProviderDocumentIds(AiKbDocumentContentDTO content) {
+        if (content == null || content.getExtJson() == null) {
+            return List.of();
+        }
+        Object value = content.getExtJson().get(PENDING_DELETE_PROVIDER_DOCUMENT_IDS_KEY);
+        if (value instanceof List<?> values) {
+            List<String> result = new ArrayList<>();
+            for (Object item : values) {
+                addProviderDocumentId(result, objectText(item), null);
+            }
+            return result;
+        }
+        String text = objectText(value);
+        return StringUtils.hasText(text) ? List.of(text) : List.of();
+    }
+
+    private void cleanupPreviousProviderDocuments(String kbCode, Map<String, List<String>> providerDocumentIdsByCode) {
+        List<String> cleanupIds = new ArrayList<>();
+        for (List<String> providerDocumentIds : providerDocumentIdsByCode.values()) {
+            for (String providerDocumentId : providerDocumentIds) {
+                addProviderDocumentId(cleanupIds, providerDocumentId, null);
+            }
+        }
+        deleteProviderDocuments(kbCode, cleanupIds);
+    }
+
+    private void rememberPendingCleanupProviderDocumentsQuietly(Map<String, List<String>> providerDocumentIdsByCode,
+                                                                Map<String, AiKbDocumentContentDTO> contentByDocumentCode) {
+        for (Map.Entry<String, List<String>> entry : providerDocumentIdsByCode.entrySet()) {
+            try {
+                setPendingDeleteProviderDocumentIds(contentByDocumentCode.get(entry.getKey()), entry.getValue());
+            } catch (RuntimeException ex) {
+                log.warn("ai kb remember pending provider document cleanup failed, documentCode={}",
+                        entry.getKey(), ex);
+            }
+        }
+    }
+
+    private void setPendingDeleteProviderDocumentIds(AiKbDocumentContentDTO content, List<String> providerDocumentIds) {
+        if (content == null || content.getId() == null) {
+            return;
+        }
+        Map<String, Object> ext = copyMap(content.getExtJson());
+        List<String> normalizedIds = normalizeProviderDocumentIds(providerDocumentIds);
+        if (normalizedIds.isEmpty()) {
+            ext.remove(PENDING_DELETE_PROVIDER_DOCUMENT_IDS_KEY);
+        } else {
+            ext.put(PENDING_DELETE_PROVIDER_DOCUMENT_IDS_KEY, normalizedIds);
+        }
+        content.setExtJson(ext);
+        contentService.update(content.getId(), content);
+    }
+
+    private List<String> normalizeProviderDocumentIds(List<String> providerDocumentIds) {
+        if (providerDocumentIds == null || providerDocumentIds.isEmpty()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (String providerDocumentId : providerDocumentIds) {
+            addProviderDocumentId(result, providerDocumentId, null);
+        }
+        return result;
+    }
+
+    private void addProviderDocumentId(List<String> target, String providerDocumentId, String excludedProviderDocumentId) {
+        String normalized = trimToNull(providerDocumentId);
+        String excluded = trimToNull(excludedProviderDocumentId);
+        if (!StringUtils.hasText(normalized) || Objects.equals(normalized, excluded) || target.contains(normalized)) {
+            return;
+        }
+        target.add(normalized);
     }
 
     private void persistSyncSnapshot(AiKbDocumentDTO document, AiKbDocumentContentDTO content) {
@@ -761,6 +955,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         ext.put(LAST_SYNC_VERSION_NO_KEY, document.getDocumentVersionNo());
         ext.put(LAST_SYNC_AT_KEY, LocalDateTime.now().toString());
         ext.put(LAST_SYNC_PROVIDER_DOCUMENT_ID_KEY, document.getProviderDocumentId());
+        ext.remove(PENDING_DELETE_PROVIDER_DOCUMENT_IDS_KEY);
         content.setExtJson(ext);
         contentService.update(content.getId(), content);
     }
@@ -778,6 +973,14 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             document.setProviderSyncStatus(AiKbProviderSyncStatus.FAILED);
             document.setLastError(message);
             documentService.update(document.getId(), document);
+        }
+    }
+
+    private void markDocumentsSyncFailedQuietly(List<AiKbDocumentDTO> documents, String message) {
+        try {
+            markDocumentsSyncFailed(documents, message);
+        } catch (RuntimeException ex) {
+            log.warn("ai kb mark document sync failed state failed, documentCount={}", documents.size(), ex);
         }
     }
 
@@ -985,7 +1188,15 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             log.warn("ai kb store not found, kbId={}", kbId);
             throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbId);
         }
+        if (!isSyncedStore(store) || !StringUtils.hasText(store.getProviderKbId())) {
+            log.warn("ai kb store not synced, kbId={}, syncStatus={}", kbId, store.getSyncStatus());
+            throw BizException.of(AiKbBizCodeConstant.KB_STORE_NOT_FOUND, kbId);
+        }
         return store;
+    }
+
+    private boolean isSyncedStore(AiKbStoreDTO store) {
+        return store.getSyncStatus() == null || store.getSyncStatus() == AiKbStoreSyncStatus.ACTIVE;
     }
 
     private String resolveUpsertSourceKey(Map<String, Object> ext, AiKbDocumentDTO existing) {

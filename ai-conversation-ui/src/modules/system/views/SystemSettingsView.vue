@@ -124,7 +124,7 @@ const sections: SettingsSection[] = [
   },
   {
     key: 'workflow',
-    label: '流程配置',
+    label: '智能体配置',
     icon: Share,
     title: '流程配置',
     description: '配置工作流节点、执行链路和流程编排策略。',

@@ -1,6 +1,7 @@
 package ai.platform.aiassit.knowledge.manage.entity.store;
 
 import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
+import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.baomidou.mybatisplus.extension.handlers.JacksonTypeHandler;
@@ -12,6 +13,7 @@ import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -157,6 +159,44 @@ public class AiKbStoreEntity extends AuditableEntity {
     )
     @TableField("enabled")
     private Boolean enabled;
+
+    /**
+     * 与 RAGFlow Dataset 的同步状态。
+     */
+    @JdbcColumn(
+            name = "sync_status",
+            dataType = "INT",
+            nullable = false,
+            defaultValue = "2",
+            comment = "RAGFlow 同步状态：1=创建中,2=已同步,3=创建失败,4=更新中,5=更新失败,6=删除中,7=删除失败"
+    )
+    @TableField("sync_status")
+    private AiKbStoreSyncStatus syncStatus;
+
+    /**
+     * 最近一次同步错误。
+     */
+    @JdbcColumn(
+            name = "sync_error",
+            dataType = "VARCHAR(1024)",
+            length = 1024,
+            nullable = true,
+            comment = "最近一次 RAGFlow 同步错误"
+    )
+    @TableField("sync_error")
+    private String syncError;
+
+    /**
+     * 最近一次同步时间。
+     */
+    @JdbcColumn(
+            name = "last_sync_at",
+            dataType = "DATETIME",
+            nullable = true,
+            comment = "最近一次 RAGFlow 同步时间"
+    )
+    @TableField("last_sync_at")
+    private LocalDateTime lastSyncAt;
 
     /**
      * 知识库标签。

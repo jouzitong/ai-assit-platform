@@ -74,7 +74,7 @@ public class LegacyRequestTranslator {
         requireRequest(source, "query.get");
         VirtualCatalogDescriptor catalog = catalog(source.getModel());
         DbQueryGetExt ext = source.getExt() == null ? new DbQueryGetExt() : source.getExt();
-        RelationTranslation relations = translateRelations(ext.getRelations(), catalog);
+        RelationTranslation relations = translateRelations(ext.getRelations(), catalog, true);
         List<String> fields = validateDetailFields(ext.getFields(), catalog, relations.targetCatalogs());
         FilterNode filter = translateFilter(
                 source.getFilterDict(), source.getFilterExpr(), catalog, relations.targetCatalogs());
@@ -97,7 +97,7 @@ public class LegacyRequestTranslator {
         requireRequest(source, "query.list");
         VirtualCatalogDescriptor catalog = catalog(source.getModel());
         DbQueryExt ext = source.getExt() == null ? new DbQueryExt() : source.getExt();
-        RelationTranslation relations = translateRelations(ext.getRelations(), catalog);
+        RelationTranslation relations = translateRelations(ext.getRelations(), catalog, true);
         List<String> fields = validateDetailFields(ext.getFields(), catalog, relations.targetCatalogs());
         int pageNumber = normalizePage(source.getPage());
         int pageSize = normalizePageSize(source.getPageSize());
@@ -163,7 +163,7 @@ public class LegacyRequestTranslator {
         requireRequest(source, "query.tree");
         VirtualCatalogDescriptor catalog = catalog(source.getModel());
         DbQueryTreeExt ext = source.getExt() == null ? new DbQueryTreeExt() : source.getExt();
-        RelationTranslation relations = translateRelations(ext.getRelations(), catalog);
+        RelationTranslation relations = translateRelations(ext.getRelations(), catalog, true);
         LinkedHashSet<String> fields = new LinkedHashSet<>();
         fields.add(valueOrDefault(ext.getIdField(), "id"));
         fields.add(valueOrDefault(ext.getParentField(), "parent_id"));
@@ -171,8 +171,10 @@ public class LegacyRequestTranslator {
         if (source.getFields() != null) {
             fields.addAll(source.getFields());
         }
-        List<String> outputFields = validateDetailFields(
+        List<String> validatedFields = validateDetailFields(
                 new ArrayList<>(fields), catalog, relations.targetCatalogs());
+        List<String> outputFields = empty(source.getFields())
+                ? defaultDetailFields(catalog, relations.targetCatalogs()) : validatedFields;
         if (!empty(source.getMetrics()) || (source.getHaving() != null && !source.getHaving().isEmpty())) {
             LOGGER.warn("query.tree 的 metrics/having 在 DbQuery v1 中不生效，已忽略, model={}", source.getModel());
         }
@@ -245,7 +247,7 @@ public class LegacyRequestTranslator {
             boolean plainCount
     ) {
         VirtualCatalogDescriptor catalog = catalog(model);
-        RelationTranslation relations = translateRelations(requestedRelations, catalog);
+        RelationTranslation relations = translateRelations(requestedRelations, catalog, false);
         int pageNumber = normalizePage(requestedPage);
         int pageSize = normalizePageSize(requestedPageSize);
         if (hasText(timeGrain) || topN != null) {
@@ -382,10 +384,13 @@ public class LegacyRequestTranslator {
 
     private RelationTranslation translateRelations(
             List<DbQueryRelation> source,
-            VirtualCatalogDescriptor catalog
+            VirtualCatalogDescriptor catalog,
+            boolean defaultForwardRelations
     ) {
         if (source == null || source.isEmpty()) {
-            return new RelationTranslation(List.of(), Map.of(), List.of());
+            return defaultForwardRelations
+                    ? translateDefaultForwardRelations(catalog)
+                    : new RelationTranslation(List.of(), Map.of(), List.of());
         }
         LinkedHashSet<String> aliases = new LinkedHashSet<>();
         Map<String, VirtualCatalogDescriptor> targetCatalogs = new LinkedHashMap<>();
@@ -446,6 +451,39 @@ public class LegacyRequestTranslator {
             target.setLocalToRemoteFields(new LinkedHashMap<>(fields));
             target.setResultMode(resultMode);
             target.setFilter(relationFilter);
+            requests.add(target);
+            targetCatalogs.put(alias, targetCatalog);
+        }
+        return new RelationTranslation(new ArrayList<>(aliases), targetCatalogs, requests);
+    }
+
+    private RelationTranslation translateDefaultForwardRelations(VirtualCatalogDescriptor catalog) {
+        LinkedHashSet<String> aliases = new LinkedHashSet<>();
+        Map<String, VirtualCatalogDescriptor> targetCatalogs = new LinkedHashMap<>();
+        Map<String, VirtualCatalogDescriptor> catalogsByModel = new LinkedHashMap<>();
+        List<VirtualRelationRequest> requests = new ArrayList<>();
+        for (VirtualCatalogDescriptor.Relation relation : catalog.relations()) {
+            if (relation.reverse()) {
+                continue;
+            }
+            String alias = relationAlias(relation.code());
+            String model = relationModel(relation.targetEntityCode());
+            if (!aliases.add(alias)) {
+                throw error(INVALID_RELATION, "默认正向关系别名重复: " + alias);
+            }
+            if (catalog.fields().stream().anyMatch(field -> field.enabled() && alias.equals(field.code()))) {
+                throw error(INVALID_RELATION, "默认正向关系别名不能与主虚拟表字段同名: " + alias);
+            }
+            VirtualCatalogDescriptor targetCatalog = catalogsByModel.computeIfAbsent(model, this::catalog);
+            Map<String, String> fields = normalizeRelationFields(
+                    relation.localToRemoteFields(), catalog, targetCatalog, alias);
+
+            VirtualRelationRequest target = new VirtualRelationRequest();
+            target.setKey(alias);
+            target.setRelationCode(relation.code());
+            target.setTargetEntityCode(model);
+            target.setLocalToRemoteFields(new LinkedHashMap<>(fields));
+            target.setResultMode(relation.resultMode());
             requests.add(target);
             targetCatalogs.put(alias, targetCatalog);
         }
@@ -556,12 +594,28 @@ public class LegacyRequestTranslator {
             Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         if (fields == null || fields.isEmpty()) {
-            return List.of();
+            return defaultDetailFields(catalog, relationCatalogs);
         }
         LinkedHashSet<String> result = new LinkedHashSet<>();
         for (String field : fields) {
             result.add(validateField(field, catalog, relationCatalogs));
         }
+        return new ArrayList<>(result);
+    }
+
+    private List<String> defaultDetailFields(
+            VirtualCatalogDescriptor catalog,
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
+    ) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        catalog.fields().stream()
+                .filter(VirtualCatalogDescriptor.Field::enabled)
+                .map(VirtualCatalogDescriptor.Field::code)
+                .forEach(result::add);
+        relationCatalogs.forEach((alias, targetCatalog) -> targetCatalog.fields().stream()
+                .filter(VirtualCatalogDescriptor.Field::enabled)
+                .map(field -> alias + "." + field.code())
+                .forEach(result::add));
         return new ArrayList<>(result);
     }
 

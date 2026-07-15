@@ -21,6 +21,7 @@ import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbAuthType;
+import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
 import ai.platform.aiassit.service.ai.spi.KnowledgeService;
 import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
@@ -111,7 +112,14 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         if (requireEnabled && !Boolean.TRUE.equals(store.getEnabled())) {
             throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, kbCode);
         }
+        if (!isSyncedStore(store) || !StringUtils.hasText(store.getProviderKbId())) {
+            throw BizException.of(AiChatBizCodeConstant.KNOWLEDGE_SERVICE_NOT_FOUND, kbCode);
+        }
         return store;
+    }
+
+    private boolean isSyncedStore(AiKbStoreDTO store) {
+        return store.getSyncStatus() == null || store.getSyncStatus() == AiKbStoreSyncStatus.ACTIVE;
     }
 
     private RequestMeta mergeStoreMeta(AiKbStoreDTO store, RequestMeta requestMeta) {

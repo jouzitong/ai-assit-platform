@@ -40,12 +40,22 @@ public record VirtualCatalogDescriptor(
             String code,
             String targetEntityCode,
             Map<String, String> localToRemoteFields,
-            RelationResultMode resultMode
+            RelationResultMode resultMode,
+            boolean reverse
     ) {
         public Relation {
             localToRemoteFields = localToRemoteFields == null
                     ? Map.of() : Map.copyOf(new LinkedHashMap<>(localToRemoteFields));
             resultMode = resultMode == null ? RelationResultMode.OBJECT : resultMode;
+        }
+
+        public Relation(
+                String code,
+                String targetEntityCode,
+                Map<String, String> localToRemoteFields,
+                RelationResultMode resultMode
+        ) {
+            this(code, targetEntityCode, localToRemoteFields, resultMode, false);
         }
 
         public Relation(String code, String targetEntityCode, Map<String, String> localToRemoteFields) {

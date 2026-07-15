@@ -5,6 +5,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.provider.client.RagflowKnowledgeBaseClient;
 import ai.platform.aiassit.service.ai.spi.KnowledgeDatasetService;
@@ -33,6 +35,17 @@ public class RagflowDatasetService implements KnowledgeDatasetService {
     public List<AiKbDatasetDTO> listDatasets(AiKbDatasetListRequest request) {
         try {
             return knowledgeBaseClient.listDatasets(request);
+        } catch (BizException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, ex.getMessage());
+        }
+    }
+
+    @Override
+    public List<AiKbEmbeddingModelDTO> listEmbeddingModels(AiKbEmbeddingModelListRequest request) {
+        try {
+            return knowledgeBaseClient.listEmbeddingModels(request);
         } catch (BizException ex) {
             throw ex;
         } catch (Exception ex) {

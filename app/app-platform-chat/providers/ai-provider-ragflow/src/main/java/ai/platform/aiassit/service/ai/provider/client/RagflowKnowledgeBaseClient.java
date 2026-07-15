@@ -7,9 +7,12 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
+import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbSearchRequest;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -35,14 +38,12 @@ import java.util.Map;
  * RAGFlow HTTP API 客户端。
  *
  * <p>统一 SPI 的文档写入会映射为：创建空 Document，再创建一个承载正文的 Chunk。
- * 文档内容发生变更时，调用方传入原 providerDocumentId 后会先删除旧 Document，符合
- * RAGFlow 推荐的“删除后重建”更新方式。</p>
+ * Chunk 创建成功后才返回新的 providerDocumentId；旧 Document 的清理由调用方在本地
+ * providerDocumentId 持久化成功后执行，避免更新失败时丢失上一次可检索版本。</p>
  */
 @Slf4j
 @Component
 public class RagflowKnowledgeBaseClient {
-
-    private static final String PROVIDER_DOCUMENT_ID = "providerDocumentId";
 
     private final RagflowProperties properties;
     private final ObjectMapper objectMapper;
@@ -67,12 +68,13 @@ public class RagflowKnowledgeBaseClient {
                 if (document == null || !StringUtils.hasText(localDocumentId) || !StringUtils.hasText(document.getContent())) {
                     throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CONTENT);
                 }
-                String previousDocumentId = metadataText(document, PROVIDER_DOCUMENT_ID);
-                if (StringUtils.hasText(previousDocumentId)) {
-                    deleteDocuments(datasetId, List.of(previousDocumentId), meta);
-                }
                 String providerDocumentId = createEmptyDocument(datasetId, document, meta);
-                addChunk(datasetId, providerDocumentId, document, meta);
+                try {
+                    addChunk(datasetId, providerDocumentId, document, meta);
+                } catch (Exception ex) {
+                    deleteDocumentQuietly(datasetId, providerDocumentId, meta);
+                    throw ex;
+                }
                 documentIdMappings.put(localDocumentId, providerDocumentId);
                 accepted++;
             } catch (Exception ex) {
@@ -93,23 +95,67 @@ public class RagflowKnowledgeBaseClient {
         return documentIds.size();
     }
 
+    private void deleteDocumentQuietly(String datasetId, String documentId, RequestMeta meta) {
+        if (!StringUtils.hasText(documentId)) {
+            return;
+        }
+        try {
+            deleteDocuments(datasetId, List.of(documentId), meta);
+        } catch (Exception cleanupError) {
+            log.warn("ragflow cleanup newly created document failed, datasetId={}, documentId={}",
+                    datasetId, documentId, cleanupError);
+        }
+    }
+
     public List<KbSearchItem> search(String datasetId, String query, Integer pageSize, RequestMeta meta) throws Exception {
+        ProviderKbSearchRequest request = new ProviderKbSearchRequest();
+        request.setKbId(datasetId);
+        request.setQuery(query);
+        request.setTopK(pageSize);
+        request.setMeta(meta);
+        return searchDetailed(request).items();
+    }
+
+    /** 按统一检索请求映射 RAGFlow retrieval API 参数。 */
+    public List<KbSearchItem> search(ProviderKbSearchRequest request) throws Exception {
+        return searchDetailed(request).items();
+    }
+
+    /** 执行检索并保留 RAGFlow 返回的总命中数。 */
+    public SearchResult searchDetailed(ProviderKbSearchRequest request) throws Exception {
+        String datasetId = request == null ? null : request.getKbId();
+        String query = request == null ? null : request.getQuery();
         requireDatasetId(datasetId);
         if (!StringUtils.hasText(query)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
-        int resultSize = pageSize == null || pageSize <= 0 ? 5 : pageSize;
+        RequestMeta meta = request.getMeta();
+        int resultSize = positive(request.getPageSize(), positive(request.getTopK(), 5));
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("question", query);
         body.put("dataset_ids", List.of(datasetId));
-        body.put("page", 1);
+        body.put("page", positive(request.getPage(), 1));
         body.put("page_size", resultSize);
-        body.put("similarity_threshold", decimalMeta(meta, "similarityThreshold", 0.2D));
-        body.put("vector_similarity_weight", decimalMeta(meta, "vectorSimilarityWeight", 0.4D));
-        body.put("top_k", integerMeta(meta, "retrievalTopK", 1024));
-        body.put("keyword", booleanMeta(meta, "keyword", true));
-        body.put("highlight", booleanMeta(meta, "highlight", true));
-        String rerankId = metaText(meta, "rerankId");
+        body.put("similarity_threshold", ratio(request.getSimilarityThreshold(),
+                decimalMeta(meta, "similarityThreshold", 0.2D)));
+        body.put("vector_similarity_weight", ratio(request.getVectorSimilarityWeight(),
+                decimalMeta(meta, "vectorSimilarityWeight", 0.4D)));
+        body.put("top_k", positive(request.getRetrievalTopK(), integerMeta(meta, "retrievalTopK", 1024)));
+        body.put("keyword", request.getKeyword() == null
+                ? booleanMeta(meta, "keyword", true) : request.getKeyword());
+        body.put("highlight", request.getHighlight() == null
+                ? booleanMeta(meta, "highlight", true) : request.getHighlight());
+        body.put("use_kg", request.getUseKg() == null
+                ? booleanMeta(meta, "useKg", false) : request.getUseKg());
+        body.put("toc_enhance", request.getTocEnhance() == null
+                ? booleanMeta(meta, "tocEnhance", false) : request.getTocEnhance());
+        putTextList(body, "document_ids", request.getDocumentIds());
+        putTextList(body, "cross_languages", request.getCrossLanguages());
+        if (request.getMetadataCondition() != null && !request.getMetadataCondition().isEmpty()) {
+            body.put("metadata_condition", request.getMetadataCondition());
+        }
+        String rerankId = StringUtils.hasText(request.getRerankId())
+                ? request.getRerankId().trim() : metaText(meta, "rerankId");
         if (StringUtils.hasText(rerankId)) {
             body.put("rerank_id", rerankId);
         }
@@ -120,12 +166,13 @@ public class RagflowKnowledgeBaseClient {
         }
         List<KbSearchItem> items = new ArrayList<>();
         if (!chunks.isArray()) {
-            return items;
+            return new SearchResult(items, 0);
         }
         for (JsonNode chunk : chunks) {
             items.add(toSearchItem(chunk));
         }
-        return items;
+        int total = data.path("total").isNumber() ? data.path("total").asInt() : items.size();
+        return new SearchResult(items, total);
     }
 
     /** 查询 RAGFlow Dataset 列表，Dataset ID 即业务侧使用的 kbId。 */
@@ -149,6 +196,24 @@ public class RagflowKnowledgeBaseClient {
         for (JsonNode dataset : datasets) {
             if (dataset.isObject()) {
                 result.add(toDataset(dataset));
+            }
+        }
+        return result;
+    }
+
+    /** 查询 RAGFlow 已添加的 Embedding 模型。 */
+    public List<AiKbEmbeddingModelDTO> listEmbeddingModels(AiKbEmbeddingModelListRequest request) throws Exception {
+        AiKbEmbeddingModelListRequest normalized = request == null ? new AiKbEmbeddingModelListRequest() : request;
+        JsonNode data = data(request("GET", "/api/v1/models?type=embedding", null, normalized.getMeta()));
+        JsonNode models = modelItems(data);
+        List<AiKbEmbeddingModelDTO> result = new ArrayList<>();
+        for (JsonNode model : models) {
+            if (!model.isObject()) {
+                continue;
+            }
+            AiKbEmbeddingModelDTO item = toEmbeddingModel(model);
+            if (StringUtils.hasText(item.getValue())) {
+                result.add(item);
             }
         }
         return result;
@@ -302,6 +367,21 @@ public class RagflowKnowledgeBaseClient {
         return objectMapper.createArrayNode();
     }
 
+    private JsonNode modelItems(JsonNode data) {
+        if (data != null && data.isArray()) {
+            return data;
+        }
+        if (data != null && data.isObject()) {
+            for (String field : List.of("models", "list", "items")) {
+                JsonNode items = data.get(field);
+                if (items != null && items.isArray()) {
+                    return items;
+                }
+            }
+        }
+        return objectMapper.createArrayNode();
+    }
+
     private Map<String, Object> datasetPayload(AiKbDatasetSaveRequest request, boolean creating) {
         Map<String, Object> body = request.getExt() == null
                 ? new LinkedHashMap<>()
@@ -349,6 +429,63 @@ public class RagflowKnowledgeBaseClient {
                 ? objectMapper.convertValue(dataset, new TypeReference<LinkedHashMap<String, Object>>() { })
                 : new LinkedHashMap<>());
         return result;
+    }
+
+    private AiKbEmbeddingModelDTO toEmbeddingModel(JsonNode model) {
+        AiKbEmbeddingModelDTO result = new AiKbEmbeddingModelDTO();
+        result.setModelId(firstText(model, "model_id", "modelId", "id"));
+        result.setName(firstText(model, "name", "model_name", "modelName"));
+        result.setProviderName(firstText(model, "provider_name", "providerName", "model_provider", "modelProvider"));
+        result.setInstanceName(firstText(model, "instance_name", "instanceName", "model_instance", "modelInstance"));
+        result.setModelTypes(textList(model, "model_type", "modelType", "model_types", "modelTypes"));
+        result.setEnabled(booleanField(model, "enable", "enabled"));
+        result.setValue(firstText(result.getModelId(), compositeModelValue(result)));
+        result.setExt(model != null && model.isObject()
+                ? objectMapper.convertValue(model, new TypeReference<LinkedHashMap<String, Object>>() { })
+                : new LinkedHashMap<>());
+        return result;
+    }
+
+    private String compositeModelValue(AiKbEmbeddingModelDTO model) {
+        if (model == null || !StringUtils.hasText(model.getName()) || !StringUtils.hasText(model.getProviderName())) {
+            return null;
+        }
+        if (StringUtils.hasText(model.getInstanceName())) {
+            return model.getName().trim() + "@" + model.getInstanceName().trim() + "@" + model.getProviderName().trim();
+        }
+        return model.getName().trim() + "@" + model.getProviderName().trim();
+    }
+
+    private List<String> textList(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.get(field);
+            if (value == null || value.isNull()) {
+                continue;
+            }
+            if (value.isArray()) {
+                List<String> result = new ArrayList<>();
+                value.forEach(item -> {
+                    if (item.isValueNode() && StringUtils.hasText(item.asText())) {
+                        result.add(item.asText());
+                    }
+                });
+                return result;
+            }
+            if (value.isValueNode() && StringUtils.hasText(value.asText())) {
+                return List.of(value.asText());
+            }
+        }
+        return List.of();
+    }
+
+    private Boolean booleanField(JsonNode node, String... fields) {
+        for (String field : fields) {
+            JsonNode value = node.get(field);
+            if (value != null && value.isValueNode()) {
+                return value.asBoolean();
+            }
+        }
+        return null;
     }
 
     private Integer integerField(JsonNode node, String... fields) {
@@ -460,6 +597,28 @@ public class RagflowKnowledgeBaseClient {
         return value == null ? defaultValue : Boolean.parseBoolean(String.valueOf(value));
     }
 
+    private int positive(Integer value, int defaultValue) {
+        return value == null || value <= 0 ? defaultValue : value;
+    }
+
+    private double ratio(Double value, double defaultValue) {
+        return value == null || !Double.isFinite(value) || value < 0D || value > 1D ? defaultValue : value;
+    }
+
+    private void putTextList(Map<String, Object> body, String field, List<String> values) {
+        if (values == null) {
+            return;
+        }
+        List<String> normalized = values.stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (!normalized.isEmpty()) {
+            body.put(field, normalized);
+        }
+    }
+
     private String encodePath(String value) {
         return value.replace("%", "%25").replace("/", "%2F");
     }
@@ -493,5 +652,8 @@ public class RagflowKnowledgeBaseClient {
 
     public record UpsertResult(String kbId, int accepted, List<String> failedDocumentIds,
                                Map<String, String> documentIdMappings) {
+    }
+
+    public record SearchResult(List<KbSearchItem> items, int total) {
     }
 }

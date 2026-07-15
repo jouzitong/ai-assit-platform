@@ -4,6 +4,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
 
 import java.util.List;
@@ -30,6 +32,14 @@ public interface KnowledgeDatasetService {
      * @return Dataset 列表，其中 {@code kbId} 为提供方 Dataset ID
      */
     List<AiKbDatasetDTO> listDatasets(AiKbDatasetListRequest request);
+
+    /**
+     * 查询提供方侧可用于 Dataset 的 Embedding 模型。
+     *
+     * @param request 查询上下文
+     * @return Embedding 模型选项列表
+     */
+    List<AiKbEmbeddingModelDTO> listEmbeddingModels(AiKbEmbeddingModelListRequest request);
 
     /**
      * 创建提供方侧 Dataset。

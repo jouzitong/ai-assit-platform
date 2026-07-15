@@ -11,6 +11,9 @@ CREATE TABLE IF NOT EXISTS ai_kb_store (
     parse_type VARCHAR(64) DEFAULT NULL COMMENT 'RAGFlow 自定义解析类型',
     pipeline_id VARCHAR(128) DEFAULT NULL COMMENT 'RAGFlow ingestion pipeline ID',
     enabled TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否启用：1=启用，0=禁用',
+    sync_status INT NOT NULL DEFAULT 2 COMMENT 'RAGFlow 同步状态：1=创建中,2=已同步,3=创建失败,4=更新中,5=更新失败,6=删除中,7=删除失败',
+    sync_error VARCHAR(1024) DEFAULT NULL COMMENT '最近一次 RAGFlow 同步错误',
+    last_sync_at DATETIME DEFAULT NULL COMMENT '最近一次 RAGFlow 同步时间',
     tags_json MEDIUMTEXT DEFAULT NULL COMMENT '知识库标签 JSON 数组',
     auth_json MEDIUMTEXT DEFAULT NULL COMMENT '知识库认证配置 JSON 快照',
     ext_json MEDIUMTEXT DEFAULT NULL COMMENT '扩展信息 JSON',
@@ -21,6 +24,7 @@ CREATE TABLE IF NOT EXISTS ai_kb_store (
     version BIGINT NOT NULL DEFAULT 1 COMMENT '版本号',
     UNIQUE KEY uk_kb_code (kb_code),
     KEY idx_kb_enabled (enabled),
+    KEY idx_kb_sync_status (sync_status),
     KEY idx_kb_update_time (update_time)
 ) COMMENT='AI知识库主表';
 

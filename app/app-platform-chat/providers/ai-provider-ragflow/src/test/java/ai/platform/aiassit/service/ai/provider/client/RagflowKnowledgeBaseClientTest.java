@@ -5,9 +5,13 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchItem;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
+import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderKbSearchRequest;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -32,6 +36,8 @@ class RagflowKnowledgeBaseClientTest {
     private final AtomicInteger createCalls = new AtomicInteger();
     private final AtomicInteger chunkCalls = new AtomicInteger();
     private final AtomicInteger deleteCalls = new AtomicInteger();
+    private volatile boolean chunkShouldFail;
+    private volatile JsonNode retrievalRequestBody;
 
     @BeforeEach
     void setUp() throws IOException {
@@ -39,6 +45,7 @@ class RagflowKnowledgeBaseClientTest {
         server.createContext("/api/v1/datasets/dataset-1/documents", this::handleDocuments);
         server.createContext("/api/v1/datasets/dataset-1/documents/doc-1/chunks", this::handleChunks);
         server.createContext("/api/v1/datasets", this::handleDatasets);
+        server.createContext("/api/v1/models", this::handleModels);
         server.createContext("/api/v1/retrieval", this::handleRetrieval);
         server.start();
 
@@ -80,6 +87,39 @@ class RagflowKnowledgeBaseClientTest {
     }
 
     @Test
+    void shouldNotDeletePreviousDocumentBeforeNewChunkSucceeds() throws Exception {
+        KbDocument document = new KbDocument();
+        document.setDocumentId("local-doc-1");
+        document.setContent("新的销售额定义");
+        document.getMetadata().put("providerDocumentId", "doc-old");
+
+        RagflowKnowledgeBaseClient.UpsertResult result = client.upsert("dataset-1", List.of(document), new RequestMeta());
+
+        assertEquals(1, result.accepted());
+        assertEquals("doc-1", result.documentIdMappings().get("local-doc-1"));
+        assertEquals(1, createCalls.get());
+        assertEquals(1, chunkCalls.get());
+        assertEquals(0, deleteCalls.get());
+    }
+
+    @Test
+    void shouldCleanupNewDocumentWhenChunkCreationFails() throws Exception {
+        chunkShouldFail = true;
+        KbDocument document = new KbDocument();
+        document.setDocumentId("local-doc-1");
+        document.setContent("无法切片的内容");
+
+        RagflowKnowledgeBaseClient.UpsertResult result = client.upsert("dataset-1", List.of(document), new RequestMeta());
+
+        assertEquals(0, result.accepted());
+        assertTrue(result.failedDocumentIds().contains("local-doc-1"));
+        assertTrue(result.documentIdMappings().isEmpty());
+        assertEquals(1, createCalls.get());
+        assertEquals(1, chunkCalls.get());
+        assertEquals(1, deleteCalls.get());
+    }
+
+    @Test
     void shouldListDatasetsAndExposeDatasetIdAsKbId() throws Exception {
         AiKbDatasetListRequest request = new AiKbDatasetListRequest();
         request.setPage(2);
@@ -115,11 +155,63 @@ class RagflowKnowledgeBaseClientTest {
     }
 
     @Test
+    void shouldForwardRagflowRetrievalTestOptions() throws Exception {
+        ProviderKbSearchRequest request = new ProviderKbSearchRequest();
+        request.setKbId("dataset-1");
+        request.setQuery("销售额怎么算？");
+        request.setTopK(5);
+        request.setPage(2);
+        request.setPageSize(12);
+        request.setRetrievalTopK(256);
+        request.setSimilarityThreshold(0.35D);
+        request.setVectorSimilarityWeight(0.7D);
+        request.setRerankId("rerank-model");
+        request.setKeyword(false);
+        request.setHighlight(true);
+        request.setUseKg(true);
+        request.setTocEnhance(true);
+        request.setDocumentIds(List.of("doc-1"));
+        request.setCrossLanguages(List.of("English"));
+        request.setMetadataCondition(Map.of(
+                "logic", "and",
+                "conditions", List.of(Map.of("name", "business", "comparison_operator", "=", "value", "sales"))));
+        request.setMeta(new RequestMeta());
+
+        RagflowKnowledgeBaseClient.SearchResult result = client.searchDetailed(request);
+
+        assertEquals(1, result.items().size());
+        assertEquals(7, result.total());
+        assertEquals(2, retrievalRequestBody.path("page").asInt());
+        assertEquals(12, retrievalRequestBody.path("page_size").asInt());
+        assertEquals(256, retrievalRequestBody.path("top_k").asInt());
+        assertEquals(0.35D, retrievalRequestBody.path("similarity_threshold").asDouble());
+        assertEquals(0.7D, retrievalRequestBody.path("vector_similarity_weight").asDouble());
+        assertEquals("rerank-model", retrievalRequestBody.path("rerank_id").asText());
+        assertTrue(retrievalRequestBody.path("highlight").asBoolean());
+        assertTrue(retrievalRequestBody.path("use_kg").asBoolean());
+        assertTrue(retrievalRequestBody.path("toc_enhance").asBoolean());
+        assertEquals("doc-1", retrievalRequestBody.path("document_ids").path(0).asText());
+        assertEquals("English", retrievalRequestBody.path("cross_languages").path(0).asText());
+        assertEquals("sales", retrievalRequestBody.path("metadata_condition").path("conditions").path(0).path("value").asText());
+    }
+
+    @Test
+    void shouldListEmbeddingModelsAndExposeValidDatasetValue() throws Exception {
+        List<AiKbEmbeddingModelDTO> models = client.listEmbeddingModels(new AiKbEmbeddingModelListRequest());
+
+        assertEquals(2, models.size());
+        assertEquals("0123456789abcdef0123456789abcdef", models.get(0).getValue());
+        assertEquals("text-embedding-3-large", models.get(0).getName());
+        assertEquals("OpenAI", models.get(0).getProviderName());
+        assertEquals("tei-bge-m3@default@Builtin", models.get(1).getValue());
+    }
+
+    @Test
     void shouldCreateUpdateAndDeleteDatasets() throws Exception {
         AiKbDatasetSaveRequest createRequest = new AiKbDatasetSaveRequest();
         createRequest.setName("销售知识库");
         createRequest.setDescription("销售指标说明");
-        createRequest.setEmbeddingModel("BAAI/bge-m3");
+        createRequest.setEmbeddingModel("BAAI/bge-m3@BAAI");
         createRequest.setChunkMethod("naive");
         createRequest.setParserConfig(Map.of("chunk_token_num", 512));
         createRequest.setExt(Map.of("pagerank", 10));
@@ -158,12 +250,17 @@ class RagflowKnowledgeBaseClientTest {
     private void handleChunks(HttpExchange exchange) throws IOException {
         assertEquals("POST", exchange.getRequestMethod());
         chunkCalls.incrementAndGet();
+        if (chunkShouldFail) {
+            respond(exchange, 500, "{\"code\":500,\"message\":\"chunk failed\"}");
+            return;
+        }
         respond(exchange, 200, "{\"code\":\"0\",\"data\":{\"id\":\"chunk-1\"}}");
     }
 
     private void handleRetrieval(HttpExchange exchange) throws IOException {
         assertEquals("POST", exchange.getRequestMethod());
-        respond(exchange, 200, "{\"code\":0,\"data\":{\"chunks\":[{\"document_id\":\"doc-1\",\"content\":\"销售额定义\",\"similarity\":0.93,\"metadata\":{\"business\":\"sales\"}}]}}");
+        retrievalRequestBody = new ObjectMapper().readTree(exchange.getRequestBody());
+        respond(exchange, 200, "{\"code\":0,\"data\":{\"total\":7,\"chunks\":[{\"document_id\":\"doc-1\",\"content\":\"销售额定义\",\"similarity\":0.93,\"metadata\":{\"business\":\"sales\"}}]}}");
     }
 
     private void handleDatasets(HttpExchange exchange) throws IOException {
@@ -175,7 +272,7 @@ class RagflowKnowledgeBaseClientTest {
         if ("POST".equals(exchange.getRequestMethod())) {
             String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
             assertTrue(body.contains("\"name\":\"销售知识库\""));
-            assertTrue(body.contains("\"embedding_model\":\"BAAI/bge-m3\""));
+            assertTrue(body.contains("\"embedding_model\":\"BAAI/bge-m3@BAAI\""));
             assertTrue(body.contains("\"parser_config\":{\"chunk_token_num\":512}"));
             assertTrue(body.contains("\"pagerank\":10"));
             respond(exchange, 200, "{\"code\":0,\"data\":{\"id\":\"dataset-2\",\"name\":\"销售知识库\"}}");
@@ -201,6 +298,18 @@ class RagflowKnowledgeBaseClientTest {
         assertTrue(query.contains("include_parsing_status=true"));
         assertTrue(query.contains("name=%E9%94%80%E5%94%AE+%E7%9F%A5%E8%AF%86%E5%BA%93"));
         respond(exchange, 200, "{\"code\":0,\"data\":[{\"id\":\"dataset-1\",\"name\":\"销售知识库\",\"description\":\"RAGFlow 对外知识库\",\"embedding_model\":\"BAAI/bge-m3\",\"chunk_method\":\"naive\",\"permission\":\"team\",\"document_count\":2,\"chunk_count\":8}]}");
+    }
+
+    private void handleModels(HttpExchange exchange) throws IOException {
+        assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
+        assertEquals("GET", exchange.getRequestMethod());
+        assertEquals("type=embedding", exchange.getRequestURI().getRawQuery());
+        respond(exchange, 200, "{\"code\":0,\"data\":{\"models\":["
+                + "{\"model_id\":\"0123456789abcdef0123456789abcdef\",\"name\":\"text-embedding-3-large\","
+                + "\"provider_name\":\"OpenAI\",\"instance_name\":\"default\",\"model_type\":[\"embedding\"],\"enable\":true},"
+                + "{\"model_id\":\"\",\"name\":\"tei-bge-m3\",\"provider_name\":\"Builtin\","
+                + "\"instance_name\":\"default\",\"model_type\":[\"embedding\"],\"enable\":true}"
+                + "]}}");
     }
 
     private void respond(HttpExchange exchange, int status, String body) throws IOException {

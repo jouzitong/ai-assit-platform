@@ -112,7 +112,8 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
         }
         return new VirtualCatalogDescriptor.Relation(
                 relationCode, target.getEntityCode(), fieldMappings,
-                effectiveResultMode(first, mappings, forward)
+                effectiveResultMode(first, mappings, forward),
+                !forward
         );
     }
 

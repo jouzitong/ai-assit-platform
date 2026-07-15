@@ -6,12 +6,14 @@ import ai.platform.aiassit.data.virtualization.api.dto.VirtualCatalogDescriptor;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualQueryRequest;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualQueryResponse;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryAggregateRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryCountDimension;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryCountMetric;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryCountRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryGetRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryListRequest;
+import ai.platform.aiassit.db.engine.api.dto.DbQueryListResponse;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryPivotRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryTreeRequest;
 import org.junit.jupiter.api.BeforeEach;
@@ -103,6 +105,56 @@ class DbQueryCompatibilityFacadeTest {
 
         assertEquals("PLAN_EXACTNESS_UNPROVABLE", exception.getCode());
         verify(queryGateway).query(any());
+    }
+
+    @Test
+    void returnsAllFieldsFromMainAndDefaultForwardRelations() {
+        VirtualCatalogGateway catalogGateway = mock(VirtualCatalogGateway.class);
+        VirtualCatalogDescriptor.Relation customer = new VirtualCatalogDescriptor.Relation(
+                "customer",
+                "customers",
+                Map.of("customer_id", "id"),
+                RelationResultMode.OBJECT,
+                false
+        );
+        VirtualCatalogDescriptor.Relation warehouseOrders = new VirtualCatalogDescriptor.Relation(
+                "warehouse_orders",
+                "warehouses",
+                Map.of("id", "order_id"),
+                RelationResultMode.COLLECTION,
+                true
+        );
+        when(catalogGateway.describePublished("orders", null)).thenReturn(new VirtualCatalogDescriptor(
+                "orders",
+                17L,
+                List.of(field("id", true), field("customer_id", false), field("name", false)),
+                List.of("customer", "warehouse_orders"),
+                List.of(customer, warehouseOrders)
+        ));
+        when(catalogGateway.describePublished("customers", null)).thenReturn(new VirtualCatalogDescriptor(
+                "customers",
+                9L,
+                List.of(field("id", true), field("name", false)),
+                List.of()
+        ));
+        facade = new DbQueryCompatibilityFacade(queryGateway, catalogGateway);
+        when(queryGateway.query(any())).thenReturn(response(
+                1L,
+                row("id", 1L, "customer_id", 10L, "name", "order",
+                        "customer.id", 10L, "customer.name", "Alice")
+        ));
+
+        DbQueryListResponse response = facade.queryList(listRequest());
+
+        ArgumentCaptor<VirtualQueryRequest> captor = ArgumentCaptor.forClass(VirtualQueryRequest.class);
+        verify(queryGateway).query(captor.capture());
+        assertEquals(List.of("id", "customer_id", "name", "customer.id", "customer.name"),
+                captor.getValue().getFields());
+        assertEquals(List.of("customer"), captor.getValue().getRelationCodes());
+        @SuppressWarnings("unchecked")
+        Map<String, Object> nestedCustomer = (Map<String, Object>) response.getList().get(0).get("customer");
+        assertEquals(Map.of("id", 10L, "name", "Alice"), nestedCustomer);
+        verify(catalogGateway, never()).describePublished("warehouses", null);
     }
 
     private DbQueryGetRequest getRequest() {

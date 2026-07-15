@@ -105,6 +105,9 @@ export interface AiKbStoreItem {
   parseType?: string
   pipelineId?: string
   enabled?: boolean
+  syncStatus?: number | string
+  syncError?: string
+  lastSyncAt?: string
   tags?: string[]
   auth?: AiKbAuthItem | null
   extJson?: Record<string, unknown> | null
@@ -162,6 +165,17 @@ export interface AiKbDatasetListPayload {
   page?: number
   pageSize?: number
   includeParsingStatus?: boolean
+}
+
+export interface AiKbEmbeddingModelItem {
+  value: string
+  modelId?: string
+  name?: string
+  providerName?: string
+  instanceName?: string
+  modelTypes?: string[]
+  enabled?: boolean
+  ext?: Record<string, unknown> | null
 }
 
 export interface AiFlowSkillItem {
@@ -277,6 +291,42 @@ export interface AiKbSyncTaskItem {
   errorMessage?: string
   startedAt?: string
   finishedAt?: string
+}
+
+export interface AiKbRetrievalTestPayload {
+  kbId: string
+  query: string
+  topK?: number
+  page?: number
+  pageSize?: number
+  retrievalTopK?: number
+  similarityThreshold?: number
+  vectorSimilarityWeight?: number
+  rerankId?: string
+  keyword?: boolean
+  highlight?: boolean
+  useKg?: boolean
+  tocEnhance?: boolean
+  documentIds?: string[]
+  crossLanguages?: string[]
+  metadataCondition?: Record<string, unknown> | null
+  meta?: {
+    scene?: string
+    ext?: Record<string, unknown>
+  }
+}
+
+export interface AiKbRetrievalTestItem {
+  documentId?: string
+  score?: number
+  content?: string
+  metadata?: Record<string, unknown> | null
+}
+
+export interface AiKbRetrievalTestResult {
+  kbId?: string
+  total?: number
+  items?: AiKbRetrievalTestItem[]
 }
 
 export interface PageResult<T> {
@@ -416,6 +466,13 @@ export function deleteAiKbStore(id: string | number) {
   })
 }
 
+export function retryAiKbStoreSync(id: string | number) {
+  return request<boolean>(`${AI_KB_STORE_API_PREFIX}/${id}/_retry-sync`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  })
+}
+
 export function listAiKbClientOptions() {
   return request<AiKbClientOption[]>(AI_KB_CLIENT_OPTION_API_PREFIX)
 }
@@ -424,6 +481,13 @@ export function listAiKbClientDatasets(clientKey: string, payload: AiKbDatasetLi
   return request<AiKbDatasetItem[]>(`${AI_KB_CLIENT_OPTION_API_PREFIX}/${encodeURIComponent(clientKey)}/datasets`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  })
+}
+
+export function listAiKbClientEmbeddingModels(clientKey: string) {
+  return request<AiKbEmbeddingModelItem[]>(`${AI_KB_CLIENT_OPTION_API_PREFIX}/${encodeURIComponent(clientKey)}/embedding-models`, {
+    method: 'POST',
+    body: JSON.stringify({}),
   })
 }
 
@@ -476,6 +540,13 @@ export function getAiKbSyncTask(taskCode: string) {
   return request<AiKbSyncTaskItem>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/sync/task`, {
     method: 'GET',
     query: { taskCode },
+  })
+}
+
+export function testAiKbRetrieval(payload: AiKbRetrievalTestPayload) {
+  return request<AiKbRetrievalTestResult>(`${CHAT_API_PREFIX}/api/v1/ai/execution/kb/search`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
 

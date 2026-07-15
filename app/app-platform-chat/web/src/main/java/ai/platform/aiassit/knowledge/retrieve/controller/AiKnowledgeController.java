@@ -11,6 +11,8 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbDatasetSaveRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelDTO;
+import ai.platform.aiassit.service.ai.api.dto.AiKbEmbeddingModelListRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteResponse;
@@ -86,6 +88,11 @@ public class AiKnowledgeController implements AiKnowledgeApi {
     @Override
     public R<List<AiKbDatasetDTO>> listDatasets(@RequestBody(required = false) AiKbDatasetListRequest request) {
         return R.ok(datasetService.listDatasets(request));
+    }
+
+    @Override
+    public R<List<AiKbEmbeddingModelDTO>> listEmbeddingModels(@RequestBody(required = false) AiKbEmbeddingModelListRequest request) {
+        return R.ok(datasetService.listEmbeddingModels(request));
     }
 
     @Override
