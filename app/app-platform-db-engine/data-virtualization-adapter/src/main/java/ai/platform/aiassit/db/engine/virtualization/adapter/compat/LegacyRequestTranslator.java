@@ -12,6 +12,7 @@ import ai.platform.aiassit.data.virtualization.api.dto.VirtualSort;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.AggregateFunction;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FilterType;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.SortDirection;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryAggregateExt;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryAggregateRequest;
@@ -35,6 +36,7 @@ import org.slf4j.LoggerFactory;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -73,8 +75,9 @@ public class LegacyRequestTranslator {
         VirtualCatalogDescriptor catalog = catalog(source.getModel());
         DbQueryGetExt ext = source.getExt() == null ? new DbQueryGetExt() : source.getExt();
         RelationTranslation relations = translateRelations(ext.getRelations(), catalog);
-        List<String> fields = validateDetailFields(ext.getFields(), catalog, relations.codes());
-        FilterNode filter = translateFilter(source.getFilterDict(), source.getFilterExpr(), catalog, relations.codes());
+        List<String> fields = validateDetailFields(ext.getFields(), catalog, relations.targetCatalogs());
+        FilterNode filter = translateFilter(
+                source.getFilterDict(), source.getFilterExpr(), catalog, relations.targetCatalogs());
         if (source.getId() != null) {
             List<VirtualCatalogDescriptor.Field> primaryKeys = catalog.primaryKeys();
             if (primaryKeys.size() != 1) {
@@ -85,7 +88,7 @@ public class LegacyRequestTranslator {
             filter = and(filter, filterParser.parse(idFilter, null));
         }
         VirtualQueryRequest target = base(source.getTitle(), catalog, QueryType.GET, fields, filter, relations);
-        target.setSorts(translateDetailSorts(ext.getSorts(), catalog, relations.codes()));
+        target.setSorts(translateDetailSorts(ext.getSorts(), catalog, relations.targetCatalogs()));
         target.setPage(page(1, 1));
         return new Translation(target, fields, 1, 1, false);
     }
@@ -95,7 +98,7 @@ public class LegacyRequestTranslator {
         VirtualCatalogDescriptor catalog = catalog(source.getModel());
         DbQueryExt ext = source.getExt() == null ? new DbQueryExt() : source.getExt();
         RelationTranslation relations = translateRelations(ext.getRelations(), catalog);
-        List<String> fields = validateDetailFields(ext.getFields(), catalog, relations.codes());
+        List<String> fields = validateDetailFields(ext.getFields(), catalog, relations.targetCatalogs());
         int pageNumber = normalizePage(source.getPage());
         int pageSize = normalizePageSize(source.getPageSize());
         VirtualQueryRequest target = base(
@@ -103,10 +106,11 @@ public class LegacyRequestTranslator {
                 catalog,
                 QueryType.LIST,
                 fields,
-                translateFilter(source.getFilterDict(), source.getFilterExpr(), catalog, relations.codes()),
+                translateFilter(
+                        source.getFilterDict(), source.getFilterExpr(), catalog, relations.targetCatalogs()),
                 relations
         );
-        target.setSorts(stableListSorts(ext.getSorts(), catalog, relations.codes()));
+        target.setSorts(stableListSorts(ext.getSorts(), catalog, relations.targetCatalogs()));
         target.setPage(page(pageNumber, pageSize));
         target.setExactTotal(true);
         return new Translation(target, fields, pageNumber, pageSize, false);
@@ -167,7 +171,8 @@ public class LegacyRequestTranslator {
         if (source.getFields() != null) {
             fields.addAll(source.getFields());
         }
-        List<String> outputFields = validateDetailFields(new ArrayList<>(fields), catalog, relations.codes());
+        List<String> outputFields = validateDetailFields(
+                new ArrayList<>(fields), catalog, relations.targetCatalogs());
         if (!empty(source.getMetrics()) || (source.getHaving() != null && !source.getHaving().isEmpty())) {
             LOGGER.warn("query.tree 的 metrics/having 在 DbQuery v1 中不生效，已忽略, model={}", source.getModel());
         }
@@ -176,10 +181,11 @@ public class LegacyRequestTranslator {
                 catalog,
                 QueryType.LIST,
                 outputFields,
-                translateFilter(source.getFilterDict(), source.getFilterExpr(), catalog, relations.codes()),
+                translateFilter(
+                        source.getFilterDict(), source.getFilterExpr(), catalog, relations.targetCatalogs()),
                 relations
         );
-        target.setSorts(translateDetailSorts(source.getSorts(), catalog, relations.codes()));
+        target.setSorts(translateDetailSorts(source.getSorts(), catalog, relations.targetCatalogs()));
         target.setPage(page(1, MAX_PAGE_SIZE));
         target.setExactTotal(true);
         return new Translation(target, outputFields, 1, MAX_PAGE_SIZE, false);
@@ -250,13 +256,14 @@ public class LegacyRequestTranslator {
                 catalog,
                 plainCount ? QueryType.COUNT : QueryType.AGGREGATE,
                 List.of(),
-                translateFilter(filters, filterExpr, catalog, relations.codes()),
+                translateFilter(filters, filterExpr, catalog, relations.targetCatalogs()),
                 relations
         );
         target.setPage(page(pageNumber, pageSize));
         target.setExactTotal(true);
         if (!plainCount) {
-            AggregateTranslation aggregate = translateAggregateShape(dimensions, metrics, catalog, relations.codes());
+            AggregateTranslation aggregate = translateAggregateShape(
+                    dimensions, metrics, catalog, relations.targetCatalogs());
             target.setGroupings(aggregate.groupings());
             target.setGroupBy(aggregate.groupings().stream().map(VirtualGroupBy::getField).toList());
             target.setAggregates(aggregate.aggregates());
@@ -270,7 +277,7 @@ public class LegacyRequestTranslator {
             List<DbQueryCountDimension> dimensions,
             List<DbQueryCountMetric> metrics,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         List<VirtualGroupBy> groupings = new ArrayList<>();
         List<VirtualAggregate> aggregates = new ArrayList<>();
@@ -280,7 +287,7 @@ public class LegacyRequestTranslator {
                 if (dimension == null) {
                     throw error(INVALID_REQUEST, "dimension 不能为空");
                 }
-                String field = validateField(dimension.getField(), catalog, relationCodes);
+                String field = validateField(dimension.getField(), catalog, relationCatalogs);
                 String alias = hasText(dimension.getAlias()) ? identifier(dimension.getAlias(), "dimension alias") : field;
                 requireUniqueAlias(aliases, alias);
                 VirtualGroupBy grouping = new VirtualGroupBy();
@@ -304,7 +311,7 @@ public class LegacyRequestTranslator {
                 AggregateFunction function = aggregateFunction(metric.getFunc());
                 String field = null;
                 if (hasText(metric.getField())) {
-                    field = validateField(metric.getField(), catalog, relationCodes);
+                    field = validateField(metric.getField(), catalog, relationCatalogs);
                 } else if (function != AggregateFunction.COUNT) {
                     throw error(INVALID_REQUEST, function + " 指标必须提供 field");
                 }
@@ -368,7 +375,7 @@ public class LegacyRequestTranslator {
         target.setQueryType(queryType);
         target.setFields(new ArrayList<>(fields));
         target.setFilter(filter);
-        target.setRelationCodes(new ArrayList<>(relations.codes()));
+        target.setRelationCodes(new ArrayList<>(relations.aliases()));
         target.setRelations(new ArrayList<>(relations.requests()));
         return target;
     }
@@ -378,101 +385,182 @@ public class LegacyRequestTranslator {
             VirtualCatalogDescriptor catalog
     ) {
         if (source == null || source.isEmpty()) {
-            return new RelationTranslation(Set.of(), List.of());
+            return new RelationTranslation(List.of(), Map.of(), List.of());
         }
-        LinkedHashSet<String> codes = new LinkedHashSet<>();
+        LinkedHashSet<String> aliases = new LinkedHashSet<>();
+        Map<String, VirtualCatalogDescriptor> targetCatalogs = new LinkedHashMap<>();
+        Map<String, VirtualCatalogDescriptor> catalogsByModel = new LinkedHashMap<>();
         List<VirtualRelationRequest> requests = new ArrayList<>();
         for (DbQueryRelation relation : source) {
-            String code = identifier(relation == null ? null : relation.getKey(), "relation key");
-            if (!codes.add(code)) {
-                throw error(INVALID_RELATION, "关系编码重复: " + code);
+            String alias = relationAlias(relation == null ? null : relation.getKey());
+            String model = relationModel(relation == null ? null : relation.getModel());
+            if (!aliases.add(alias)) {
+                throw error(INVALID_RELATION, "关系别名重复: " + alias);
             }
-            if (!catalog.relationCodes().contains(code)) {
-                throw error(INVALID_RELATION, "关系未发布或不属于虚拟实体: " + code);
+            if (catalog.fields().stream().anyMatch(field -> field.enabled() && alias.equals(field.code()))) {
+                throw error(INVALID_RELATION, "关系别名不能与主虚拟表字段同名: " + alias);
             }
-            validateRelationMetadata(relation, catalog, code);
+            validateRelationType(relation, alias);
+
+            VirtualCatalogDescriptor targetCatalog = catalogsByModel.computeIfAbsent(model, this::catalog);
+            Map<String, String> requestedOn = normalizeRelationFields(
+                    relation.getOn(), catalog, targetCatalog, alias);
+            List<PublishedRelation> available = catalog.relations().stream()
+                    .filter(item -> model.equals(item.targetEntityCode()))
+                    .map(item -> new PublishedRelation(
+                            item,
+                            normalizeRelationFields(item.localToRemoteFields(), catalog, targetCatalog, alias)
+                    ))
+                    .toList();
+            List<PublishedRelation> candidates = available.stream()
+                    .filter(item -> requestedOn.isEmpty() || requestedOn.equals(item.localToRemoteFields()))
+                    .toList();
+
+            if (!available.isEmpty() && !requestedOn.isEmpty() && candidates.isEmpty()) {
+                throw error(RELATION_METADATA_MISMATCH,
+                        "relation.on 与已发布虚拟关系不一致: " + model);
+            }
+            candidates = collapseEquivalentRelations(candidates);
+
+            if (candidates.size() > 1) {
+                String suffix = requestedOn.isEmpty() ? "，请提供 on 唯一匹配" : "，on 仍无法唯一匹配";
+                throw error(INVALID_RELATION, "目标虚拟表存在多个已发布关系: " + model + suffix);
+            }
+
+            PublishedRelation published = candidates.isEmpty() ? null : candidates.get(0);
+            if (published == null && requestedOn.isEmpty()) {
+                throw error(INVALID_RELATION, "未找到目标虚拟表的已发布关系，必须提供 on: " + model);
+            }
+
+            Map<String, String> fields = published == null
+                    ? requestedOn : published.localToRemoteFields();
+            RelationResultMode resultMode = published == null
+                    ? inferAdHocResultMode(fields, targetCatalog) : published.descriptor().resultMode();
+            FilterNode relationFilter = filterParser.parse(relation.getFilter(), null);
+            validateFilterFields(relationFilter, targetCatalog, Map.of());
+
             VirtualRelationRequest target = new VirtualRelationRequest();
-            target.setRelationCode(code);
-            target.setFilter(filterParser.parse(relation.getFilter(), null));
+            target.setKey(alias);
+            target.setRelationCode(published == null ? null : published.descriptor().code());
+            target.setTargetEntityCode(model);
+            target.setLocalToRemoteFields(new LinkedHashMap<>(fields));
+            target.setResultMode(resultMode);
+            target.setFilter(relationFilter);
             requests.add(target);
+            targetCatalogs.put(alias, targetCatalog);
         }
-        return new RelationTranslation(codes, requests);
+        return new RelationTranslation(new ArrayList<>(aliases), targetCatalogs, requests);
     }
 
-    private void validateRelationMetadata(
-            DbQueryRelation source,
-            VirtualCatalogDescriptor catalog,
-            String relationCode
-    ) {
+    private List<PublishedRelation> collapseEquivalentRelations(List<PublishedRelation> source) {
+        Map<PublishedRelationSignature, PublishedRelation> unique = new LinkedHashMap<>();
+        for (PublishedRelation relation : source) {
+            unique.putIfAbsent(new PublishedRelationSignature(
+                    relation.localToRemoteFields(), relation.descriptor().resultMode()), relation);
+        }
+        return new ArrayList<>(unique.values());
+    }
+
+    private void validateRelationType(DbQueryRelation source, String alias) {
         String type = valueOrDefault(source.getType(), "left").toLowerCase(Locale.ROOT);
         if (!"left".equals(type)) {
-            throw error(UNSUPPORTED_OPTION, "DbQuery 虚拟关系首期只支持 LEFT JOIN: " + relationCode);
+            throw error(UNSUPPORTED_OPTION, "DbQuery 虚拟关系首期只支持 LEFT JOIN: " + alias);
         }
-        boolean hasLegacyModel = hasText(source.getModel());
-        boolean hasLegacyOn = source.getOn() != null && !source.getOn().isEmpty();
-        if (!hasLegacyModel && !hasLegacyOn) {
-            return;
+    }
+
+    private Map<String, String> normalizeRelationFields(
+            Map<String, String> source,
+            VirtualCatalogDescriptor localCatalog,
+            VirtualCatalogDescriptor remoteCatalog,
+            String alias
+    ) {
+        if (source == null || source.isEmpty()) {
+            return Map.of();
         }
-        VirtualCatalogDescriptor.Relation descriptor = catalog.relations().stream()
-                .filter(item -> relationCode.equals(item.code()))
-                .findFirst()
-                .orElseThrow(() -> error(
-                        RELATION_METADATA_MISMATCH,
-                        "目录未提供关系迁移元数据，不能校验旧 model/on: " + relationCode
-                ));
-        if (hasLegacyModel && !source.getModel().trim().equals(descriptor.targetEntityCode())) {
-            throw error(RELATION_METADATA_MISMATCH, "relation.model 与已发布目标虚拟实体不一致: " + relationCode);
+        Map<String, String> result = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : source.entrySet()) {
+            String local = simpleIdentifier(entry.getKey(), "relation on local field");
+            String remote = simpleIdentifier(entry.getValue(), "relation on remote field");
+            requireEnabledField(localCatalog, local, "关系本地字段不存在或未启用: " + alias + "." + local);
+            requireEnabledField(remoteCatalog, remote, "关系目标字段不存在或未启用: " + alias + "." + remote);
+            result.put(local, remote);
         }
-        if (hasLegacyOn) {
-            Map<String, String> normalized = new LinkedHashMap<>();
-            source.getOn().forEach((local, remote) -> normalized.put(
-                    identifier(local, "relation on local field"),
-                    identifier(remote, "relation on remote field")
-            ));
-            if (!normalized.equals(descriptor.localToRemoteFields())) {
-                throw error(RELATION_METADATA_MISMATCH, "relation.on 与已发布虚拟关系不一致: " + relationCode);
-            }
+        return result;
+    }
+
+    private RelationResultMode inferAdHocResultMode(
+            Map<String, String> localToRemoteFields,
+            VirtualCatalogDescriptor remoteCatalog
+    ) {
+        List<VirtualCatalogDescriptor.Field> primaryKeys = remoteCatalog.primaryKeys();
+        if (primaryKeys.isEmpty()) {
+            return RelationResultMode.COLLECTION;
         }
+        Set<String> remoteFields = new LinkedHashSet<>(localToRemoteFields.values());
+        boolean coversPrimaryKey = primaryKeys.stream().allMatch(field -> remoteFields.contains(field.code()));
+        return coversPrimaryKey ? RelationResultMode.OBJECT : RelationResultMode.COLLECTION;
+    }
+
+    private String relationAlias(String source) {
+        if (!hasText(source)) {
+            throw error(INVALID_RELATION, "relation key 不能为空");
+        }
+        String value = source.trim();
+        if (!value.matches("[A-Za-z0-9_]+")) {
+            throw error(INVALID_RELATION, "relation key 格式非法: " + source);
+        }
+        return value;
+    }
+
+    private String relationModel(String source) {
+        if (!hasText(source)) {
+            throw error(INVALID_RELATION, "relation model 不能为空");
+        }
+        String value = source.trim();
+        if (!value.matches("[A-Za-z0-9_]+(\\.[A-Za-z0-9_]+)*")) {
+            throw error(INVALID_RELATION, "relation model 格式非法: " + source);
+        }
+        return value;
     }
 
     private FilterNode translateFilter(
             Map<String, ?> filters,
             String expression,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         FilterNode result = filterParser.parse(filters, expression);
-        validateFilterFields(result, catalog, relationCodes);
+        validateFilterFields(result, catalog, relationCatalogs);
         return result;
     }
 
     private void validateFilterFields(
             FilterNode node,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         if (node == null) {
             return;
         }
         if (node.getType() == FilterType.PREDICATE) {
-            validateField(node.getField(), catalog, relationCodes);
+            validateField(node.getField(), catalog, relationCatalogs);
         }
         if (node.getChildren() != null) {
-            node.getChildren().forEach(child -> validateFilterFields(child, catalog, relationCodes));
+            node.getChildren().forEach(child -> validateFilterFields(child, catalog, relationCatalogs));
         }
     }
 
     private List<String> validateDetailFields(
             List<String> fields,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         if (fields == null || fields.isEmpty()) {
             return List.of();
         }
         LinkedHashSet<String> result = new LinkedHashSet<>();
         for (String field : fields) {
-            result.add(validateField(field, catalog, relationCodes));
+            result.add(validateField(field, catalog, relationCatalogs));
         }
         return new ArrayList<>(result);
     }
@@ -480,28 +568,31 @@ public class LegacyRequestTranslator {
     private String validateField(
             String source,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         String field = identifier(source, "virtual field");
         int separator = field.indexOf('.');
         if (separator < 0) {
-            boolean exists = catalog.fields().stream().anyMatch(item -> item.enabled() && field.equals(item.code()));
-            if (!exists) {
-                throw error(INVALID_FIELD, "虚拟字段不存在或未启用: " + field);
-            }
+            requireEnabledField(catalog, field, "虚拟字段不存在或未启用: " + field);
             return field;
         }
-        String relationCode = field.substring(0, separator);
-        if (!relationCodes.contains(relationCode) || !catalog.relationCodes().contains(relationCode)) {
-            throw error(INVALID_FIELD, "关系字段必须显式声明已发布关系: " + field);
+        if (separator != field.lastIndexOf('.')) {
+            throw error(INVALID_FIELD, "关系字段仅支持 key.field 格式: " + field);
         }
+        String alias = field.substring(0, separator);
+        String remoteField = field.substring(separator + 1);
+        VirtualCatalogDescriptor targetCatalog = relationCatalogs.get(alias);
+        if (targetCatalog == null) {
+            throw error(INVALID_FIELD, "关系字段必须显式声明关系别名: " + field);
+        }
+        requireEnabledField(targetCatalog, remoteField, "关系目标字段不存在或未启用: " + field);
         return field;
     }
 
     private List<VirtualSort> translateDetailSorts(
             List<DbQuerySort> sorts,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
         if (sorts == null || sorts.isEmpty()) {
             return List.of();
@@ -511,7 +602,7 @@ public class LegacyRequestTranslator {
             if (source == null || !hasText(source.getField())) {
                 continue;
             }
-            result.add(sort(validateField(source.getField(), catalog, relationCodes), source.getOrder()));
+            result.add(sort(validateField(source.getField(), catalog, relationCatalogs), source.getOrder()));
         }
         return result;
     }
@@ -519,9 +610,9 @@ public class LegacyRequestTranslator {
     private List<VirtualSort> stableListSorts(
             List<DbQuerySort> sorts,
             VirtualCatalogDescriptor catalog,
-            Set<String> relationCodes
+            Map<String, VirtualCatalogDescriptor> relationCatalogs
     ) {
-        List<VirtualSort> result = new ArrayList<>(translateDetailSorts(sorts, catalog, relationCodes));
+        List<VirtualSort> result = new ArrayList<>(translateDetailSorts(sorts, catalog, relationCatalogs));
         List<VirtualCatalogDescriptor.Field> primaryKeys = catalog.primaryKeys();
         if (primaryKeys.isEmpty()) {
             throw error("PLAN_EXACTNESS_UNPROVABLE", "query.list 需要虚拟主键以保证稳定分页: " + catalog.entityCode());
@@ -611,6 +702,24 @@ public class LegacyRequestTranslator {
         return value;
     }
 
+    private String simpleIdentifier(String source, String label) {
+        if (!hasText(source)) {
+            throw error(INVALID_FIELD, label + " 不能为空");
+        }
+        String value = source.trim();
+        if (!value.matches("[A-Za-z0-9_]+")) {
+            throw error(INVALID_FIELD, label + " 格式非法: " + source);
+        }
+        return value;
+    }
+
+    private void requireEnabledField(VirtualCatalogDescriptor catalog, String field, String message) {
+        boolean exists = catalog.fields().stream().anyMatch(item -> item.enabled() && field.equals(item.code()));
+        if (!exists) {
+            throw error(INVALID_FIELD, message);
+        }
+    }
+
     private String valueOrDefault(String value, String fallback) {
         return hasText(value) ? value.trim() : fallback;
     }
@@ -639,11 +748,29 @@ public class LegacyRequestTranslator {
         }
     }
 
-    private record RelationTranslation(Set<String> codes, List<VirtualRelationRequest> requests) {
+    private record RelationTranslation(
+            List<String> aliases,
+            Map<String, VirtualCatalogDescriptor> targetCatalogs,
+            List<VirtualRelationRequest> requests
+    ) {
         private RelationTranslation {
-            codes = codes == null ? Set.of() : Set.copyOf(new LinkedHashSet<>(codes));
+            aliases = aliases == null ? List.of() : List.copyOf(aliases);
+            targetCatalogs = targetCatalogs == null
+                    ? Map.of() : Collections.unmodifiableMap(new LinkedHashMap<>(targetCatalogs));
             requests = requests == null ? List.of() : List.copyOf(requests);
         }
+    }
+
+    private record PublishedRelation(
+            VirtualCatalogDescriptor.Relation descriptor,
+            Map<String, String> localToRemoteFields
+    ) {
+    }
+
+    private record PublishedRelationSignature(
+            Map<String, String> localToRemoteFields,
+            RelationResultMode resultMode
+    ) {
     }
 
     private record AggregateTranslation(

@@ -11,6 +11,7 @@ public class VirtualRelationDTO extends AuditableDTO {
     private String relationCode;
     private String relationName;
     private RelationResultMode resultMode = RelationResultMode.OBJECT;
+    private RelationResultMode reverseResultMode;
     private Long sourceEntityId;
     private Long sourceFieldId;
     private Long targetEntityId;

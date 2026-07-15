@@ -20,6 +20,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -190,6 +191,8 @@ public class CatalogValidator {
     private void validateRelations(CatalogSnapshot snapshot) {
         Map<String, String> endpointsByCode = new HashMap<>();
         Map<String, RelationResultMode> resultModesByCode = new HashMap<>();
+        Map<String, RelationResultMode> reverseResultModesByCode = new HashMap<>();
+        Set<String> reverseResultModeCodes = new HashSet<>();
         snapshot.relations().stream()
                 .filter(CatalogSnapshot.Relation::enabled)
                 .filter(relation -> snapshot.entityId().equals(relation.sourceEntityId()))
@@ -202,6 +205,12 @@ public class CatalogValidator {
             RelationResultMode existingMode = resultModesByCode.putIfAbsent(relation.relationCode(), relation.resultMode());
             require(existingMode == null || existingMode == relation.resultMode(),
                     "同一 relationCode 的结果形态不一致: " + relation.relationCode());
+            if (reverseResultModeCodes.add(relation.relationCode())) {
+                reverseResultModesByCode.put(relation.relationCode(), relation.reverseResultMode());
+            } else {
+                require(Objects.equals(reverseResultModesByCode.get(relation.relationCode()), relation.reverseResultMode()),
+                        "同一 relationCode 的反向结果形态不一致: " + relation.relationCode());
+            }
             VirtualFieldEntity source = repository.fieldById(relation.sourceFieldId());
             VirtualFieldEntity target = repository.fieldById(relation.targetFieldId());
             require(source != null && target != null, "虚拟关系引用字段不存在: " + relation.relationCode());

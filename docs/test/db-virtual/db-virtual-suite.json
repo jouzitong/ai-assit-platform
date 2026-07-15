@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "name": "db-virtual-three-source-relation-suite",
-  "description": "三 MySQL 数据源的虚拟实体、关系定义与 DbQueryApi 验收用例。关系返回形态只由虚拟目录 resultMode 声明。",
+  "description": "三 MySQL 数据源的虚拟实体、关系定义与 DbQueryApi 验收用例。正反向返回形态分别由 resultMode、reverseResultMode 声明。",
   "api": {
     "baseUrlExample": "http://localhost:9764/dbEngine",
     "successCode": 0,
@@ -139,6 +139,7 @@
         "relationName": "账户",
         "targetEntityCode": "ods_trade_user_account",
         "resultMode": "OBJECT",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "测试 1:1 呈现；物理库使用 account.user_id 唯一约束，虚拟层仅声明 OBJECT。"
       },
@@ -148,6 +149,7 @@
         "relationName": "地址集合",
         "targetEntityCode": "ods_trade_account_user_address",
         "resultMode": "COLLECTION",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "测试 1:N 集合返回。"
       },
@@ -157,6 +159,7 @@
         "relationName": "订单集合",
         "targetEntityCode": "ods_trade_order_sales_order",
         "resultMode": "COLLECTION",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "测试跨数据源 1:N 集合返回。"
       },
@@ -166,6 +169,7 @@
         "relationName": "用户角色桥接集合",
         "targetEntityCode": "ods_trade_account_user_role",
         "resultMode": "COLLECTION",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "user_id" } ],
         "description": "N:N 的第一跳；v1 不将它自动穿透为 user.roles。"
       },
@@ -175,6 +179,7 @@
         "relationName": "下单用户",
         "targetEntityCode": "ods_trade_account_user_profile",
         "resultMode": "OBJECT",
+        "reverseResultMode": "COLLECTION",
         "mappings": [ { "sourceField": "user_id", "targetField": "id" } ],
         "description": "测试跨数据源 M:1 对象返回。"
       },
@@ -184,6 +189,7 @@
         "relationName": "支付账户",
         "targetEntityCode": "ods_trade_user_account",
         "resultMode": "OBJECT",
+        "reverseResultMode": "COLLECTION",
         "mappings": [ { "sourceField": "account_id", "targetField": "id" } ],
         "description": "测试跨数据源 M:1 对象返回。"
       },
@@ -193,6 +199,7 @@
         "relationName": "订单明细",
         "targetEntityCode": "ods_trade_order_sales_order_item",
         "resultMode": "COLLECTION",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "order_id" } ],
         "description": "测试主记录不复制的 1:N 集合返回。"
       },
@@ -202,6 +209,7 @@
         "relationName": "关联用户",
         "targetEntityCode": "ods_trade_account_user_profile",
         "resultMode": "OBJECT",
+        "reverseResultMode": "COLLECTION",
         "mappings": [ { "sourceField": "user_id", "targetField": "id" } ]
       },
       {
@@ -210,6 +218,7 @@
         "relationName": "关联角色",
         "targetEntityCode": "ods_trade_account_app_role",
         "resultMode": "OBJECT",
+        "reverseResultMode": "COLLECTION",
         "mappings": [ { "sourceField": "role_id", "targetField": "id" } ],
         "description": "N:N 的第二跳由桥接实体直接查询验证。"
       },
@@ -219,6 +228,7 @@
         "relationName": "账户用户",
         "targetEntityCode": "ods_trade_account_user_profile",
         "resultMode": "OBJECT",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "user_id", "targetField": "id" } ]
       },
       {
@@ -227,6 +237,7 @@
         "relationName": "账户流水",
         "targetEntityCode": "ods_trade_user_account_transaction",
         "resultMode": "COLLECTION",
+        "reverseResultMode": "OBJECT",
         "mappings": [ { "sourceField": "id", "targetField": "account_id" } ]
       }
     ],
@@ -234,7 +245,7 @@
       "所有 entityCode 必须已发布且 enabled=true。",
       "每个实体的 id 字段必须标记为虚拟主键；query.get 的 id 简写和关联列表稳定分页依赖它。",
       "sourceKey 必须替换为环境中实际注册的数据源标识；physicalTable 必须来自已导入的物理表元数据。",
-      "每条 relation 以 sourceEntityCode 为作用域创建；resultMode 使用 OBJECT 或 COLLECTION，不填写物理 1:1/1:N/N:N 类型。"
+      "每条 relation 以 sourceEntityCode 为作用域创建；resultMode、reverseResultMode 分别声明正向和反向的 OBJECT 或 COLLECTION。"
     ]
   },
   "testCases": [
@@ -251,7 +262,11 @@
           "page_size": 10,
           "ext": {
             "fields": ["id", "order_no", "order_status", "total_amount", "user.user_name", "user.mobile", "account.account_no", "account.balance", "items.sku", "items.quantity", "items.unit_price"],
-            "relations": [{ "key": "user" }, { "key": "account" }, { "key": "items" }],
+            "relations": [
+              { "key": "user", "model": "ods_trade_account_user_profile" },
+              { "key": "account", "model": "ods_trade_user_account" },
+              { "key": "items", "model": "ods_trade_order_sales_order_item" }
+            ],
             "sorts": [{ "field": "id", "order": "asc" }]
           }
         }
@@ -280,7 +295,11 @@
           "page_size": 10,
           "ext": {
             "fields": ["id", "user_name", "account.account_no", "addresses.address_type", "addresses.city", "orders.order_no", "orders.order_status"],
-            "relations": [{ "key": "account" }, { "key": "addresses" }, { "key": "orders" }]
+            "relations": [
+              { "key": "account", "model": "ods_trade_user_account" },
+              { "key": "addresses", "model": "ods_trade_account_user_address" },
+              { "key": "orders", "model": "ods_trade_order_sales_order" }
+            ]
           }
         }
       },
@@ -305,7 +324,11 @@
           "id": 50001,
           "ext": {
             "fields": ["id", "order_no", "user.user_name", "account.account_no", "items.sku", "items.quantity"],
-            "relations": [{ "key": "user" }, { "key": "account" }, { "key": "items" }]
+            "relations": [
+              { "key": "user", "model": "ods_trade_account_user_profile" },
+              { "key": "account", "model": "ods_trade_user_account" },
+              { "key": "items", "model": "ods_trade_order_sales_order_item" }
+            ]
           }
         }
       },
@@ -327,7 +350,10 @@
           "id": 90001,
           "ext": {
             "fields": ["id", "account_no", "balance", "user.user_name", "transactions.txn_no", "transactions.txn_type", "transactions.amount"],
-            "relations": [{ "key": "user" }, { "key": "transactions" }]
+            "relations": [
+              { "key": "user", "model": "ods_trade_account_user_profile" },
+              { "key": "transactions", "model": "ods_trade_user_account_transaction" }
+            ]
           }
         }
       },
@@ -351,7 +377,10 @@
           "page_size": 10,
           "ext": {
             "fields": ["id", "granted_at", "user.user_name", "role.role_code", "role.role_name"],
-            "relations": [{ "key": "user" }, { "key": "role" }],
+            "relations": [
+              { "key": "user", "model": "ods_trade_account_user_profile" },
+              { "key": "role", "model": "ods_trade_account_app_role" }
+            ],
             "sorts": [{ "field": "id", "order": "asc" }]
           }
         }
@@ -377,7 +406,11 @@
           "page_size": 10,
           "ext": {
             "fields": ["id", "user_name", "account.account_no", "addresses.city", "orders.order_no"],
-            "relations": [{ "key": "account" }, { "key": "addresses" }, { "key": "orders" }]
+            "relations": [
+              { "key": "account", "model": "ods_trade_user_account" },
+              { "key": "addresses", "model": "ods_trade_account_user_address" },
+              { "key": "orders", "model": "ods_trade_order_sales_order" }
+            ]
           }
         }
       },

@@ -11,7 +11,7 @@
 
 1. DbQueryApi 的 URL、既有请求字段、响应 DTO 和 R 包装在第一阶段保持不变；允许对 Ext DTO 做非必填的加法扩展，继续服务现有前端 Runtime、存量 Render JSON 和仓库外 Feign 调用。
 2. DbQueryApi 不再直接查询物理表。请求中的 model 在新实现中只表示虚拟实体 entityCode，字段只表示虚拟字段编码。
-3. ext.relations 不再是调用方提交任意物理表、ON 条件和关联表过滤的入口；关联必须预先配置为虚拟关系并发布。
+3. ext.relations 只接受虚拟模型和虚拟字段；优先复用已发布关系，没有已发布关系时允许通过受校验的虚拟字段 `on` 建立请求级关联。
 4. DbQueryApi 只作为旧协议兼容入口。新的内部调用优先使用 VirtualDataApi 和 VirtualQueryRequest。
 5. DbQueryController 不通过 Feign 调用本服务，而是通过同进程的 VirtualQueryGateway 调用虚拟查询内核。
 6. commons-lib 中的虚拟化模块不再直接依赖 app 下的 DB Engine 实现。虚拟层定义物理目录、物理查询和能力发现端口，由 app-platform-db-engine 的适配模块实现。
@@ -152,23 +152,25 @@ DbQueryRequest.model == VirtualQueryRequest.entityCode
 
 为了兼容旧调用，第一阶段不强制修改 DTO 字段名，但文档和前端 Schema 必须明确 model 已是“虚拟模型编码”，不再是物理表名。后续 v2 可以新增 entityCode 并废弃 model。
 
-### 4.3 关联只来自已发布虚拟目录
+### 4.3 关联优先复用已发布虚拟目录
 
-旧 ext.relations 中的 key 可在迁移期映射为 relationCode。model、on 和 type 不再生成运行时 Join，但不能被静默忽略；它们用于和已发布关系做迁移一致性校验。filter 是当前有效语义，需要翻译为受控的关系域 Filter AST。
+`ext.relations[].key` 是本次查询的字段前缀和返回别名，`model` 是目标虚拟表编码。运行时按当前实体、`model` 和可选 `on` 解析已发布关系；未找到已发布关系时，`on` 作为受目录校验的请求级虚拟字段映射。`filter` 翻译为受控的关系域 Filter AST。
 
-- model/on/type 缺省：按已发布关系执行。
-- model/on/type 已提供且与迁移清单或已发布关系不一致：拒绝请求。
+- key/model 必填；key 不再等同于 relationCode。
+- 当前实体与 model 之间存在唯一已发布关系：on 可省略。
+- 不存在已发布关系：on 必填，且两端字段必须已发布、启用、类型兼容。
+- 存在多条候选关系：on 必须唯一匹配，否则拒绝请求。
 - filter 可映射为目标虚拟字段和白名单操作符：生成 RelationRequestFilter，并保持原 JOIN ON 作用域。
 - filter 无法映射：返回 LEGACY_RELATION_FILTER_NOT_MIGRATED，不能丢弃后继续执行。
 
 兼容策略：
 
-1. 第一阶段直接用 ext.relations[].key 解析 relationCode，不要求旧调用方增加字段。
-2. 可在 DbQueryGetExt、DbQueryExt、DbQueryCountExt、DbQueryAggregateExt、DbQueryTreeExt 和 DbQueryPivotExt 中加法新增可选 relationCodes；这是兼容扩展，不删除或改名既有字段。
-3. 新调用方优先显式提交 relationCodes 和标准 relationFilters。
-4. model/on/type 只做一致性校验，不能作为 SQL 标识符或 Join 定义进入执行器。
+1. 兼容入口把 key 作为 alias，把已发布 relationCode 作为可选内部身份，两者必须解耦。
+2. model 和 on 始终是虚拟目录语义，不能作为物理 SQL 标识符进入执行器。
+3. 新虚拟查询协议保留 relationCodes 兼容读取，并以结构化 relation request 承载 alias、目标实体和字段映射。
+4. 请求级 on 只在应用层受预算保护的 Hash Join 中使用。
 5. relations[].filter 翻译为关系作用域过滤；目录中的固定关系过滤与请求过滤使用 AND 合并。
-6. 无法与已发布虚拟关系匹配时请求失败。
+6. 未找到已发布关系且没有提供合法 `on` 时请求失败。
 7. 稳定后在 v2 移除旧 relations 的运行时兼容。
 
 ### 4.4 不通过 Feign 自调用
@@ -835,7 +837,7 @@ DbQuery 兼容入口第一阶段只开放：
 - `OBJECT` 与 `COLLECTION` 两种已发布关系结果形态。
 - 已发布的等值字段关系。
 
-`relationResultMode` 不是物理实体基数。它只说明“从 source 虚拟实体查询时如何返回这个 relationCode”。需要反向关系时，在反向虚拟实体上再发布一条关系；N:N 则以中间虚拟实体承载关系路径，而不能把任意物理多表 Join 隐式塞进一个 relationCode。
+`relationResultMode` 说明从 source 查询 target 时返回对象还是数组；`reverseResultMode` 说明从 target 反向查询 source 时的返回形态。两者共同表达 1:1、1:N、N:1、N:N。旧关系缺少反向形态时，仅在源虚拟主键能够证明唯一性时推导对象，否则保守按集合处理。
 
 VirtualQueryRequest 需要增加 relationFilters。它与普通 filter 的区别是作用域：relationFilters 约束关系对象并保持 JOIN ON 语义；普通 filter 引用 relationCode.fieldCode 时属于结果 WHERE 语义，可能改变主实体集合。Planner 必须保留这一区别，尤其不能把 LEFT Join 的 ON 条件错误移动到 WHERE。
 

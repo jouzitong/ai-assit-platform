@@ -14,19 +14,21 @@
 
 控制器实现位于：
 
-- `app/app-platform-db-engine/core/src/main/java/ai/platform/aiassit/db/engine/core/controller/DbQueryController.java`
+- `app/app-platform-db-engine/data-virtualization-adapter/src/main/java/ai/platform/aiassit/db/engine/virtualization/adapter/controller/DbQueryController.java`
 
-服务实现位于：
+兼容门面与请求翻译位于：
 
-- `app/app-platform-db-engine/core/src/main/java/ai/platform/aiassit/db/engine/core/service/impl/DbQueryServiceImpl.java`
+- `app/app-platform-db-engine/data-virtualization-adapter/src/main/java/ai/platform/aiassit/db/engine/virtualization/adapter/compat/DbQueryCompatibilityFacade.java`
+- `app/app-platform-db-engine/data-virtualization-adapter/src/main/java/ai/platform/aiassit/db/engine/virtualization/adapter/compat/LegacyRequestTranslator.java`
 
 当前调用链固定为：
 
 1. `DbQueryController` 通过 Spring MVC 暴露 HTTP 接口。
 2. `DbQueryController` 直接委托 `DbQueryService`。
-3. `DbQueryServiceImpl` 负责把请求 DTO 转成 SQL。
-4. `DbQueryServiceImpl` 调用 `DbAccessService.query(...)` 执行 SQL。
-5. 查询结果根据接口类型转换为明细记录、树结构、统计结果或透视结果。
+3. `DbQueryCompatibilityFacade` 把旧 `DbQueryApi` 请求交给 `LegacyRequestTranslator`。
+4. Translator 只生成虚拟字段、虚拟模型和请求级关系描述，不接收物理表或物理列。
+5. `VirtualQueryGateway` 通过已发布目录执行主查询及受预算保护的应用层关联。
+6. 查询结果再组装为旧接口的明细、树、统计或透视结构。
 
 ## 3. 路由清单
 
@@ -45,8 +47,8 @@
 
 ### 4.1 `query.get`
 
-- 入口方法：`DbQueryServiceImpl.queryGet(...)`
-- 语义：查询一条记录，最终 SQL 固定 `LIMIT 1`
+- 入口方法：`DbQueryCompatibilityFacade.queryGet(...)`
+- 语义：按虚拟目录查询一条记录
 - 过滤来源：
   - `id` 存在时，自动拼接 `id = ?`
   - `filter_dict` 同时支持两种结构：
@@ -73,19 +75,18 @@
 
 ### 4.2 `query.list`
 
-- 入口方法：`DbQueryServiceImpl.queryList(...)`
+- 入口方法：`DbQueryCompatibilityFacade.queryList(...)`
 - 语义：分页查询
 - 过滤来源：`filter_dict`
 - 过滤组合：`filterExpr`
 - 排序来源：`ext.sorts`
 - 关联来源：`ext.relations`
-- 总数统计：通过 `queryTotal(...)` 额外执行一条 `COUNT(1)` SQL
+- 总数统计：由虚拟查询内核按当前关系与过滤语义计算
 - 返回结构：分页数据放在 `list`，分页信息放在 `pageInfo.{ total, size, page }`，其中每条列表记录同样支持关联对象嵌套
 
 ### 4.3 `query.count`
 
-- 入口方法：`DbQueryServiceImpl.queryCount(...)`
-- 实际依赖：`buildAggregateBundle(...)`
+- 入口方法：`DbQueryCompatibilityFacade.queryCount(...)`
 - 语义：分组统计 / 计数统计
 - 过滤来源：`filter_dict`
 - 过滤组合：`filterExpr`
@@ -98,8 +99,7 @@
 
 ### 4.4 `query.aggregate`
 
-- 入口方法：`DbQueryServiceImpl.queryAggregate(...)`
-- 与 `query.count` 共用 `buildAggregateBundle(...)`
+- 入口方法：`DbQueryCompatibilityFacade.queryAggregate(...)`
 - 语义：聚合统计
 - 过滤来源：`filter_dict`
 - 过滤组合：`filterExpr`
@@ -107,7 +107,7 @@
 
 ### 4.5 `query.tree`
 
-- 入口方法：`DbQueryServiceImpl.queryTree(...)`
+- 入口方法：`DbQueryCompatibilityFacade.queryTree(...)`
 - 语义：先查平铺数据，再在内存中按父子关系组装树
 - 过滤来源：`filter_dict`
 - 过滤组合：`filterExpr`
@@ -123,7 +123,7 @@
 
 ### 4.6 `query.pivot`
 
-- 入口方法：`DbQueryServiceImpl.queryPivot(...)`
+- 入口方法：`DbQueryCompatibilityFacade.queryPivot(...)`
 - 语义：基于聚合结果再转成透视表
 - 过滤来源：`filter_dict`
 - 过滤组合：`filterExpr`
@@ -133,47 +133,46 @@
 - 关联来源：`ext.relations`
 - 返回结构：透视结果保持扁平，不做关联对象嵌套
 
-## 5. SQL 生成规则
+## 5. 虚拟字段与关联规则
 
 ### 5.1 表与字段标识符
 
-- `model`、字段名、排序字段、维度字段、指标字段都走统一校验。
+- `model`、字段名、排序字段、维度字段、指标字段都走已发布虚拟目录校验。
 - 当前允许格式：
   - `table`
   - `field`
   - `relationKey.field`
-- 最终统一转为反引号包裹的 SQL 标识符。
-
-示例：
-
-- `user.name` -> `` `user`.`name` ``
+- `relationKey.field` 中的 `relationKey` 是本次请求声明的返回别名，不是物理表别名。
+- 物理表和物理字段只能由 Binding 与 TransformRule 解析，不能从请求直接进入执行器。
 
 ### 5.2 关联表实现
 
 `DbQueryRelation` 当前关键字段：
 
-- `key`：关联 SQL 别名，也是返回结果中的关联对象 key
-- `model`：关联表名
-- `type`：关联类型，当前支持 `left`、`inner`、`right`、`full`
-- `on`：关联条件映射
+- `key`：必填，本次查询的关联别名，也是返回结果中的对象或数组 key
+- `model`：必填，目标虚拟表编码
+- `type`：可选，当前仅支持 `left`
+- `on`：当前主虚拟表字段到目标虚拟表字段的映射
 - `filter`：关联表过滤条件
 
 当前实现规则：
 
-1. 主表固定使用 `model`。
-2. 每个 relation 追加一段 `JOIN`。
-3. `on` 的 key 视为左侧字段，value 视为关联表字段。
-4. `filter` 会拼进 `ON`，不会下沉到 `WHERE`，这样可以保留 `LEFT JOIN` 语义。
+1. `key` 只负责字段前缀和返回命名，不参与已发布关系身份匹配。
+2. 当前虚拟表与 `model` 之间存在唯一已发布关系时，只需提交 `key + model`。
+3. 不存在已发布关系时，必须提交 `on`；`on` 两端都只能引用已发布且类型兼容的虚拟字段。
+4. 同一对虚拟表存在多条关系时，必须用 `on` 唯一消歧。
+5. 已发布关系可以从 source 或 target 任一侧查询；反向查询会同时交换 Join 字段方向和返回形态。
+6. `filter` 只作用于关联对象，保持 `LEFT JOIN ON` 作用域。
 
 示例：
 
 ```json
 {
-  "key": "user",
-  "model": "users",
+  "key": "employee",
+  "model": "emp",
   "type": "left",
   "on": {
-    "user_id": "id"
+    "emp_id": "id"
   },
   "filter": {
     "deleted": 0
@@ -181,17 +180,11 @@
 }
 ```
 
-大致生成：
-
-```sql
-LEFT JOIN `users` `user`
-  ON `user_id` = `user`.`id`
- AND `user`.`deleted` = 0
-```
+若 `emp_base.emp_id -> emp.id` 已配置为虚拟关系，可以省略 `on`；从 `emp` 查询 `emp_base` 时，内核自动使用反向字段映射。
 
 ## 6. 关联结果组装规则
 
-当前只有“明细型结果”会把关联字段从扁平列名还原为嵌套对象：
+当前只有“明细型结果”会把关联字段还原为嵌套对象或对象数组：
 
 - `query.get`
 - `query.list`
@@ -200,8 +193,10 @@ LEFT JOIN `users` `user`
 实现方式：
 
 1. 关联字段在 `SELECT` 阶段自动加内部别名。
-2. 查询返回后，按 `relation.key` 把字段还原成嵌套对象。
-3. 如果某个关联对象所有字段都为 `null`，则整个关联对象置为 `null`。
+2. 查询返回后，按 `relation.key` 还原关联结果。
+3. 有效形态为 `OBJECT` 时返回 `key: { ... }`，无匹配返回 `key: null`。
+4. 有效形态为 `COLLECTION` 时返回 `key: [{ ... }]`，无匹配返回 `key: []`。
+5. 反向查询优先使用关系配置的 `reverseResultMode`；旧关系未配置时按源侧虚拟主键保守推导。
 
 示例字段：
 

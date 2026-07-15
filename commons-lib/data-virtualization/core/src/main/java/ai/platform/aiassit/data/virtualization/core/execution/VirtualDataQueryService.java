@@ -26,6 +26,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 @Service
@@ -58,17 +59,18 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
     public VirtualQueryResponse query(VirtualQueryRequest request) {
         requireRequest(request);
         CatalogSnapshot snapshot = catalogService.requirePublished(request.getEntityCode(), request.getCatalogVersion());
-        List<String> relationCodes = effectiveRelationCodes(request);
-        request = normalizedRelations(request, relationCodes);
-        validateRelationReferences(request, relationCodes);
-        Map<String, RelationResultMode> relationModes = relationModes(snapshot, relationCodes);
+        List<ResolvedRelation> relations = resolveRelations(snapshot, request);
+        List<String> relationAliases = relations.stream().map(ResolvedRelation::alias).toList();
+        request = normalizedRelations(request, relationAliases);
+        validateRelationReferences(request, relationAliases);
+        Map<String, RelationResultMode> relationModes = relationModes(relations);
         validateCollectionRelationUsage(request, relationModes);
-        Set<String> joinFields = localJoinFields(snapshot, relationCodes);
-        if (!relationCodes.isEmpty()) {
+        Set<String> joinFields = localJoinFields(relations);
+        if (!relations.isEmpty()) {
             addStableIdentityFields(snapshot, joinFields);
         }
         boolean relationFilter = hasRelationFilter(request.getFilter());
-        if (relationFilter && relationCodes.isEmpty()) {
+        if (relationFilter && relations.isEmpty()) {
             throw new VirtualDataException("RELATION_NOT_FOUND", "关联字段过滤必须显式声明 relationCodes");
         }
         if (relationFilter) {
@@ -77,13 +79,13 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         }
         VirtualQueryRequest executionRequest = request;
         RawQueryResult exactCount = exactCount(snapshot, request, relationModes, relationFilter);
-        if (relationFilter || request.getQueryType() == QueryType.COUNT && !relationCodes.isEmpty()) {
+        if (relationFilter || request.getQueryType() == QueryType.COUNT && !relations.isEmpty()) {
             executionRequest = copy(request);
             executionRequest.setQueryType(QueryType.LIST);
             if (relationFilter) executionRequest.setFilter(null);
         }
         RawQueryResult raw = raw(snapshot, executionRequest, joinFields);
-        RelationJoinResult joined = joinRelations(snapshot, request, raw.executionRows().rows());
+        RelationJoinResult joined = joinRelations(request, raw.executionRows().rows(), relations);
         List<Map<String, Object>> rows = joined.rows();
         FilterNode requestedFilter = request.getFilter();
         if (relationFilter) rows = rows.stream().filter(row -> filterEvaluator.test(requestedFilter, row)).toList();
@@ -108,17 +110,18 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
     public VirtualExplainResponse explain(VirtualQueryRequest request) {
         requireRequest(request);
         CatalogSnapshot snapshot = catalogService.requirePublished(request.getEntityCode(), request.getCatalogVersion());
-        List<String> relationCodes = effectiveRelationCodes(request);
-        request = normalizedRelations(request, relationCodes);
-        validateRelationReferences(request, relationCodes);
-        Map<String, RelationResultMode> relationModes = relationModes(snapshot, relationCodes);
+        List<ResolvedRelation> relations = resolveRelations(snapshot, request);
+        List<String> relationAliases = relations.stream().map(ResolvedRelation::alias).toList();
+        request = normalizedRelations(request, relationAliases);
+        validateRelationReferences(request, relationAliases);
+        Map<String, RelationResultMode> relationModes = relationModes(relations);
         validateCollectionRelationUsage(request, relationModes);
-        Set<String> extraFields = localJoinFields(snapshot, relationCodes);
-        if (!relationCodes.isEmpty()) addStableIdentityFields(snapshot, extraFields);
+        Set<String> extraFields = localJoinFields(relations);
+        if (!relations.isEmpty()) addStableIdentityFields(snapshot, extraFields);
         boolean relationFilter = hasRelationFilter(request.getFilter());
         if (relationFilter) logicalPlanCompiler.compile(snapshot, request, extraFields);
         VirtualQueryRequest executionRequest = request;
-        if (relationFilter || request.getQueryType() == QueryType.COUNT && !relationCodes.isEmpty()) {
+        if (relationFilter || request.getQueryType() == QueryType.COUNT && !relations.isEmpty()) {
             executionRequest = copy(request);
             executionRequest.setQueryType(QueryType.LIST);
             if (relationFilter) {
@@ -133,10 +136,10 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         response.setEntityCode(snapshot.entityCode());
         response.setCatalogVersion(snapshot.catalogVersion());
         response.setWarnings(new ArrayList<>(plan.warnings()));
-        if (!relationCodes.isEmpty()) {
+        if (!relations.isEmpty()) {
             response.getWarnings().add("关联关系将在应用层执行受预算保护的 Hash Join");
         }
-        if (Boolean.TRUE.equals(request.getExactTotal()) && request.getQueryType() == QueryType.LIST && relationCodes.isEmpty()) {
+        if (Boolean.TRUE.equals(request.getExactTotal()) && request.getQueryType() == QueryType.LIST && relations.isEmpty()) {
             response.getWarnings().add("LIST 将执行独立精确总数分支");
         }
         if (hasScopedRelationFilters(request)) {
@@ -165,29 +168,21 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
     }
 
     private RelationJoinResult joinRelations(
-            CatalogSnapshot localSnapshot,
             VirtualQueryRequest request,
-            List<Map<String, Object>> initialRows
+            List<Map<String, Object>> initialRows,
+            List<ResolvedRelation> relations
     ) {
-        if (request.getRelationCodes() == null || request.getRelationCodes().isEmpty()) {
+        if (relations == null || relations.isEmpty()) {
             return new RelationJoinResult(initialRows, 0, 0L);
         }
         List<Map<String, Object>> rows = initialRows;
         int physicalTaskCount = 0;
         long executionMs = 0L;
-        for (String relationCode : request.getRelationCodes()) {
-            List<CatalogSnapshot.Relation> relations = localSnapshot.relationGroup(relationCode);
-            if (relations.isEmpty()) throw new VirtualDataException("RELATION_NOT_FOUND", "虚拟关系不存在: " + relationCode);
-            RelationResultMode resultMode = relationResultMode(relations, relationCode);
-            boolean forward = relations.get(0).sourceEntityId().equals(localSnapshot.entityId());
-            Long remoteEntityId = forward ? relations.get(0).targetEntityId() : relations.get(0).sourceEntityId();
-            CatalogSnapshot remoteSnapshot = catalogService.requirePublished(remoteEntityId);
-            List<String> localKeys = relations.stream().map(relation -> fieldCode(localSnapshot,
-                    forward ? relation.sourceFieldId() : relation.targetFieldId())).toList();
-            List<String> remoteKeys = relations.stream().map(relation -> fieldCode(remoteSnapshot,
-                    forward ? relation.targetFieldId() : relation.sourceFieldId())).toList();
-            List<String> requestedRemote = requestedRelationFields(request, relationCode, remoteSnapshot);
-            Set<String> remoteRequired = new LinkedHashSet<>(remoteKeys);
+        for (ResolvedRelation relation : relations) {
+            String alias = relation.alias();
+            CatalogSnapshot remoteSnapshot = relation.remoteSnapshot();
+            List<String> requestedRemote = requestedRelationFields(request, alias, remoteSnapshot);
+            Set<String> remoteRequired = new LinkedHashSet<>(relation.remoteKeys());
             remoteRequired.addAll(requestedRemote);
 
             VirtualQueryRequest remoteRequest = new VirtualQueryRequest();
@@ -195,10 +190,9 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
             remoteRequest.setCatalogVersion(remoteSnapshot.catalogVersion());
             remoteRequest.setQueryType(QueryType.LIST);
             remoteRequest.setFields(new ArrayList<>(remoteRequired));
-            VirtualRelationRequest relationRequest = relationRequest(request, relationCode);
-            if (relationRequest != null && relationRequest.getFilter() != null) {
-                validateRelationFilterScope(relationRequest.getFilter(), relationCode);
-                remoteRequest.setFilter(relationRequest.getFilter());
+            if (relation.filter() != null) {
+                validateRelationFilterScope(relation.filter(), alias);
+                remoteRequest.setFilter(relation.filter());
             }
             remoteRequest.setConsistency(request.getConsistency());
             remoteRequest.setHints(request.getHints() == null ? new QueryHints() : request.getHints());
@@ -206,11 +200,11 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
             RawQueryResult remoteRaw = raw(remoteSnapshot, remoteRequest, Set.of());
             physicalTaskCount += remoteRaw.executionRows().physicalTaskCount();
             executionMs += remoteRaw.executionRows().executionMs();
-            rows = resultMode == RelationResultMode.COLLECTION
-                    ? attachCollection(rows, remoteRaw.executionRows().rows(), localKeys, remoteKeys, requestedRemote,
-                    relationCode, joinBudget(request))
-                    : hashJoin(rows, remoteRaw.executionRows().rows(), localKeys, remoteKeys, requestedRemote,
-                    relationCode, joinBudget(request));
+            rows = relation.effectiveMode() == RelationResultMode.COLLECTION
+                    ? attachCollection(rows, remoteRaw.executionRows().rows(), relation.localKeys(), relation.remoteKeys(),
+                    requestedRemote, alias, joinBudget(request))
+                    : hashJoin(rows, remoteRaw.executionRows().rows(), relation.localKeys(), relation.remoteKeys(),
+                    requestedRemote, alias, joinBudget(request));
         }
         return new RelationJoinResult(rows, physicalTaskCount, executionMs);
     }
@@ -309,46 +303,188 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         return configured == null ? 10000 : Math.max(1, Math.min(100000, configured));
     }
 
-    private Set<String> localJoinFields(CatalogSnapshot snapshot, List<String> relationCodes) {
-        Set<String> result = new LinkedHashSet<>();
-        if (relationCodes == null) return result;
-        for (String code : relationCodes) {
-            List<CatalogSnapshot.Relation> relations = snapshot.relationGroup(code);
-            if (relations.isEmpty()) throw new VirtualDataException("RELATION_NOT_FOUND", "虚拟关系不存在: " + code);
-            for (CatalogSnapshot.Relation relation : relations) {
-                Long fieldId = relation.sourceEntityId().equals(snapshot.entityId()) ? relation.sourceFieldId() : relation.targetFieldId();
-                result.add(fieldCode(snapshot, fieldId));
+    private List<ResolvedRelation> resolveRelations(CatalogSnapshot localSnapshot, VirtualQueryRequest request) {
+        Map<String, VirtualRelationRequest> declarations = new LinkedHashMap<>();
+        Set<String> representedPublishedCodes = new LinkedHashSet<>();
+        if (request.getRelations() != null) {
+            for (VirtualRelationRequest relation : request.getRelations()) {
+                if (relation == null) {
+                    throw new VirtualDataException("RELATION_NOT_FOUND", "关系请求不能为空");
+                }
+                String alias = relationAlias(relation);
+                validateRelationAlias(localSnapshot, alias);
+                if (declarations.putIfAbsent(alias, relation) != null) {
+                    throw new VirtualDataException("RELATION_ALIAS_INVALID", "关系别名重复: " + alias);
+                }
+                if (hasText(relation.getRelationCode())) {
+                    representedPublishedCodes.add(relation.getRelationCode().trim());
+                }
             }
         }
-        return result;
+        if (request.getRelationCodes() != null) {
+            for (String relationCode : request.getRelationCodes()) {
+                if (!hasText(relationCode)) continue;
+                String code = relationCode.trim();
+                if (declarations.containsKey(code) || representedPublishedCodes.contains(code)) continue;
+                validateRelationAlias(localSnapshot, code);
+                VirtualRelationRequest legacy = new VirtualRelationRequest();
+                legacy.setKey(code);
+                legacy.setRelationCode(code);
+                declarations.put(code, legacy);
+            }
+        }
+        List<ResolvedRelation> result = new ArrayList<>(declarations.size());
+        declarations.forEach((alias, declaration) -> result.add(
+                hasText(declaration.getRelationCode())
+                        ? resolvePublishedRelation(localSnapshot, alias, declaration)
+                        : resolveAdHocRelation(localSnapshot, alias, declaration)
+        ));
+        return List.copyOf(result);
     }
 
-    private Map<String, RelationResultMode> relationModes(
-            CatalogSnapshot snapshot,
-            List<String> relationCodes
+    private ResolvedRelation resolvePublishedRelation(
+            CatalogSnapshot localSnapshot,
+            String alias,
+            VirtualRelationRequest request
     ) {
-        Map<String, RelationResultMode> result = new LinkedHashMap<>();
-        if (relationCodes == null) return result;
-        for (String relationCode : relationCodes) {
-            List<CatalogSnapshot.Relation> relations = snapshot.relationGroup(relationCode);
-            if (relations.isEmpty()) {
-                throw new VirtualDataException("RELATION_NOT_FOUND", "虚拟关系不存在: " + relationCode);
-            }
-            result.put(relationCode, relationResultMode(relations, relationCode));
+        String relationCode = request.getRelationCode().trim();
+        Map<PublishedRelationKey, List<CatalogSnapshot.Relation>> grouped = new LinkedHashMap<>();
+        for (CatalogSnapshot.Relation relation : localSnapshot.relationGroup(relationCode)) {
+            boolean forward = localSnapshot.entityId().equals(relation.sourceEntityId());
+            if (!forward && !localSnapshot.entityId().equals(relation.targetEntityId())) continue;
+            Long remoteEntityId = forward ? relation.targetEntityId() : relation.sourceEntityId();
+            grouped.computeIfAbsent(new PublishedRelationKey(forward, remoteEntityId), ignored -> new ArrayList<>())
+                    .add(relation);
         }
+        List<PublishedRelationCandidate> candidates = new ArrayList<>();
+        for (Map.Entry<PublishedRelationKey, List<CatalogSnapshot.Relation>> entry : grouped.entrySet()) {
+            CatalogSnapshot remoteSnapshot = catalogService.requirePublished(entry.getKey().remoteEntityId());
+            if (!hasText(request.getTargetEntityCode())
+                    || request.getTargetEntityCode().trim().equals(remoteSnapshot.entityCode())) {
+                candidates.add(new PublishedRelationCandidate(
+                        entry.getKey().forward(), remoteSnapshot, List.copyOf(entry.getValue())));
+            }
+        }
+        if (candidates.isEmpty()) {
+            throw new VirtualDataException("RELATION_NOT_FOUND",
+                    "已发布虚拟关系不存在或目标实体不匹配: " + relationCode);
+        }
+        if (candidates.size() > 1) {
+            throw new VirtualDataException("RELATION_AMBIGUOUS",
+                    "关系编码对应多个目标实体，请提供 targetEntityCode: " + relationCode);
+        }
+        PublishedRelationCandidate candidate = candidates.get(0);
+        List<String> localKeys = new ArrayList<>();
+        List<String> remoteKeys = new ArrayList<>();
+        for (CatalogSnapshot.Relation mapping : candidate.mappings()) {
+            CatalogSnapshot.VirtualField localField = requireJoinField(
+                    localSnapshot,
+                    candidate.forward() ? mapping.sourceFieldId() : mapping.targetFieldId(),
+                    relationCode
+            );
+            CatalogSnapshot.VirtualField remoteField = requireJoinField(
+                    candidate.remoteSnapshot(),
+                    candidate.forward() ? mapping.targetFieldId() : mapping.sourceFieldId(),
+                    relationCode
+            );
+            requireCompatibleTypes(localField, remoteField, relationCode);
+            localKeys.add(localField.code());
+            remoteKeys.add(remoteField.code());
+        }
+        if (request.getLocalToRemoteFields() != null && !request.getLocalToRemoteFields().isEmpty()) {
+            ResolvedJoinKeys requested = resolveJoinKeys(
+                    localSnapshot, candidate.remoteSnapshot(), request.getLocalToRemoteFields(), relationCode);
+            if (!fieldMapping(localKeys, remoteKeys).equals(requested.mapping())) {
+                throw new VirtualDataException("CATALOG_RELATION_INVALID",
+                        "请求 on 与已发布虚拟关系不一致: " + relationCode);
+            }
+        }
+        RelationResultMode mode = publishedResultMode(
+                candidate.mappings(), candidate.forward(), candidate.remoteSnapshot(), remoteKeys, relationCode);
+        return new ResolvedRelation(alias, candidate.remoteSnapshot(), localKeys, remoteKeys, mode, request.getFilter());
+    }
+
+    private ResolvedRelation resolveAdHocRelation(
+            CatalogSnapshot localSnapshot,
+            String alias,
+            VirtualRelationRequest request
+    ) {
+        if (!hasText(request.getTargetEntityCode())) {
+            throw new VirtualDataException("RELATION_NOT_FOUND", "临时关系必须提供 targetEntityCode: " + alias);
+        }
+        if (request.getLocalToRemoteFields() == null || request.getLocalToRemoteFields().isEmpty()) {
+            throw new VirtualDataException("RELATION_NOT_FOUND", "临时关系必须提供 on 字段映射: " + alias);
+        }
+        CatalogSnapshot remoteSnapshot = catalogService.requirePublished(request.getTargetEntityCode().trim(), null);
+        ResolvedJoinKeys keys = resolveJoinKeys(
+                localSnapshot, remoteSnapshot, request.getLocalToRemoteFields(), alias);
+        RelationResultMode mode = request.getResultMode() == null
+                ? inferResultMode(remoteSnapshot, keys.remoteKeys()) : request.getResultMode();
+        return new ResolvedRelation(
+                alias, remoteSnapshot, keys.localKeys(), keys.remoteKeys(), mode, request.getFilter());
+    }
+
+    private ResolvedJoinKeys resolveJoinKeys(
+            CatalogSnapshot localSnapshot,
+            CatalogSnapshot remoteSnapshot,
+            Map<String, String> localToRemoteFields,
+            String relationLabel
+    ) {
+        List<String> localKeys = new ArrayList<>();
+        List<String> remoteKeys = new ArrayList<>();
+        Map<String, String> normalized = new LinkedHashMap<>();
+        for (Map.Entry<String, String> entry : localToRemoteFields.entrySet()) {
+            String localCode = requireFieldCode(entry.getKey(), "本地 Join 字段", relationLabel);
+            String remoteCode = requireFieldCode(entry.getValue(), "远端 Join 字段", relationLabel);
+            CatalogSnapshot.VirtualField localField = requireJoinField(localSnapshot, localCode, relationLabel);
+            CatalogSnapshot.VirtualField remoteField = requireJoinField(remoteSnapshot, remoteCode, relationLabel);
+            requireCompatibleTypes(localField, remoteField, relationLabel);
+            if (normalized.putIfAbsent(localCode, remoteCode) != null) {
+                throw new VirtualDataException("CATALOG_RELATION_INVALID", "Join 本地字段重复: " + localCode);
+            }
+            localKeys.add(localCode);
+            remoteKeys.add(remoteCode);
+        }
+        return new ResolvedJoinKeys(localKeys, remoteKeys, normalized);
+    }
+
+    private Set<String> localJoinFields(List<ResolvedRelation> relations) {
+        Set<String> result = new LinkedHashSet<>();
+        if (relations != null) relations.forEach(relation -> result.addAll(relation.localKeys()));
         return result;
     }
 
-    private RelationResultMode relationResultMode(
+    private Map<String, RelationResultMode> relationModes(List<ResolvedRelation> relations) {
+        Map<String, RelationResultMode> result = new LinkedHashMap<>();
+        if (relations != null) relations.forEach(relation -> result.put(relation.alias(), relation.effectiveMode()));
+        return result;
+    }
+
+    private RelationResultMode publishedResultMode(
             List<CatalogSnapshot.Relation> relations,
+            boolean forward,
+            CatalogSnapshot remoteSnapshot,
+            List<String> remoteKeys,
             String relationCode
     ) {
-        RelationResultMode mode = relations.get(0).resultMode();
-        if (relations.stream().anyMatch(relation -> relation.resultMode() != mode)) {
+        RelationResultMode mode = forward ? relations.get(0).resultMode() : relations.get(0).reverseResultMode();
+        if (relations.stream().anyMatch(relation -> !Objects.equals(
+                forward ? relation.resultMode() : relation.reverseResultMode(), mode))) {
             throw new VirtualDataException("CATALOG_RELATION_INVALID",
                     "同一虚拟关系的结果形态不一致: " + relationCode);
         }
-        return mode;
+        return mode == null ? inferResultMode(remoteSnapshot, remoteKeys) : mode;
+    }
+
+    private RelationResultMode inferResultMode(CatalogSnapshot remoteSnapshot, List<String> remoteKeys) {
+        Set<String> primaryKeys = new LinkedHashSet<>();
+        remoteSnapshot.fieldsByCode().values().stream()
+                .filter(CatalogSnapshot.VirtualField::enabled)
+                .filter(CatalogSnapshot.VirtualField::primaryKey)
+                .map(CatalogSnapshot.VirtualField::code)
+                .forEach(primaryKeys::add);
+        return !primaryKeys.isEmpty() && new LinkedHashSet<>(remoteKeys).containsAll(primaryKeys)
+                ? RelationResultMode.OBJECT : RelationResultMode.COLLECTION;
     }
 
     private List<String> requestedRelationFields(VirtualQueryRequest request, String relationCode, CatalogSnapshot remote) {
@@ -363,6 +499,7 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         if (request.getGroupBy() != null) request.getGroupBy().forEach(field -> addRelationField(field, prefix, requestedSet));
         if (request.getGroupings() != null) request.getGroupings().forEach(
                 grouping -> addRelationField(grouping.getField(), prefix, requestedSet));
+        requestedSet.forEach(field -> requireJoinField(remote, field, relationCode));
         return List.copyOf(requestedSet);
     }
 
@@ -473,10 +610,76 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         if (dot > 0) result.add(field.substring(0, dot));
     }
 
-    private String fieldCode(CatalogSnapshot snapshot, Long fieldId) {
+    private String relationAlias(VirtualRelationRequest relation) {
+        String alias = hasText(relation.getKey()) ? relation.getKey() : relation.getRelationCode();
+        if (!hasText(alias)) {
+            throw new VirtualDataException("RELATION_ALIAS_INVALID", "关系请求缺少 key/relationCode");
+        }
+        return alias.trim();
+    }
+
+    private void validateRelationAlias(CatalogSnapshot localSnapshot, String alias) {
+        if (!alias.matches("[A-Za-z0-9_]+")) {
+            throw new VirtualDataException("RELATION_ALIAS_INVALID", "关系别名格式非法: " + alias);
+        }
+        if (localSnapshot.fieldsByCode().containsKey(alias)) {
+            throw new VirtualDataException("RELATION_ALIAS_INVALID", "关系别名不能与主实体字段重名: " + alias);
+        }
+    }
+
+    private String requireFieldCode(String value, String label, String relationLabel) {
+        if (!hasText(value) || !value.trim().matches("[A-Za-z0-9_]+")) {
+            throw new VirtualDataException("FIELD_NOT_FOUND", label + "格式非法: " + relationLabel + "." + value);
+        }
+        return value.trim();
+    }
+
+    private CatalogSnapshot.VirtualField requireJoinField(
+            CatalogSnapshot snapshot,
+            Long fieldId,
+            String relationLabel
+    ) {
         CatalogSnapshot.VirtualField field = snapshot.fieldsById().get(fieldId);
-        if (field == null) throw new VirtualDataException("FIELD_NOT_FOUND", "关系引用字段不属于目录: " + fieldId);
-        return field.code();
+        if (field == null || !field.enabled()) {
+            throw new VirtualDataException("FIELD_NOT_FOUND",
+                    "关系引用字段不存在或未启用: " + relationLabel + "." + fieldId);
+        }
+        return field;
+    }
+
+    private CatalogSnapshot.VirtualField requireJoinField(
+            CatalogSnapshot snapshot,
+            String fieldCode,
+            String relationLabel
+    ) {
+        CatalogSnapshot.VirtualField field = snapshot.fieldsByCode().get(fieldCode);
+        if (field == null || !field.enabled()) {
+            throw new VirtualDataException("FIELD_NOT_FOUND",
+                    "关系引用字段不存在或未启用: " + relationLabel + "." + fieldCode);
+        }
+        return field;
+    }
+
+    private void requireCompatibleTypes(
+            CatalogSnapshot.VirtualField local,
+            CatalogSnapshot.VirtualField remote,
+            String relationLabel
+    ) {
+        if (local.logicalType() != remote.logicalType()) {
+            throw new VirtualDataException("CATALOG_RELATION_INVALID",
+                    "关系字段逻辑类型不兼容: " + relationLabel + "[" + local.code() + " -> " + remote.code() + "]");
+        }
+    }
+
+    private Map<String, String> fieldMapping(List<String> localKeys, List<String> remoteKeys) {
+        Map<String, String> result = new LinkedHashMap<>();
+        for (int index = 0; index < localKeys.size(); index++) {
+            if (result.putIfAbsent(localKeys.get(index), remoteKeys.get(index)) != null) {
+                throw new VirtualDataException("CATALOG_RELATION_INVALID",
+                        "已发布关系存在重复本地字段: " + localKeys.get(index));
+            }
+        }
+        return result;
     }
 
     private VirtualQueryRequest copy(VirtualQueryRequest source) {
@@ -527,26 +730,6 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         return raw(snapshot, count, Set.of());
     }
 
-    private List<String> effectiveRelationCodes(VirtualQueryRequest request) {
-        LinkedHashSet<String> result = new LinkedHashSet<>();
-        if (request.getRelationCodes() != null) {
-            request.getRelationCodes().stream().filter(this::hasText).forEach(result::add);
-        }
-        if (request.getRelations() != null) {
-            Set<String> scopedCodes = new LinkedHashSet<>();
-            for (VirtualRelationRequest relation : request.getRelations()) {
-                if (relation == null || !hasText(relation.getRelationCode())) {
-                    throw new VirtualDataException("RELATION_NOT_FOUND", "关系请求缺少 relationCode");
-                }
-                if (!scopedCodes.add(relation.getRelationCode())) {
-                    throw new VirtualDataException("RELATION_NOT_FOUND", "关系请求重复: " + relation.getRelationCode());
-                }
-                result.add(relation.getRelationCode());
-            }
-        }
-        return List.copyOf(result);
-    }
-
     private VirtualQueryRequest normalizedRelations(VirtualQueryRequest request, List<String> relationCodes) {
         if (request.getRelationCodes() != null && request.getRelationCodes().equals(relationCodes)) {
             return request;
@@ -554,14 +737,6 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
         VirtualQueryRequest normalized = copy(request);
         normalized.setRelationCodes(relationCodes);
         return normalized;
-    }
-
-    private VirtualRelationRequest relationRequest(VirtualQueryRequest request, String relationCode) {
-        if (request.getRelations() == null) return null;
-        return request.getRelations().stream()
-                .filter(java.util.Objects::nonNull)
-                .filter(item -> relationCode.equals(item.getRelationCode()))
-                .findFirst().orElse(null);
     }
 
     private void validateRelationFilterScope(FilterNode node, String relationCode) {
@@ -637,5 +812,44 @@ public class VirtualDataQueryService implements VirtualQueryGateway {
     }
 
     private record RelationJoinResult(List<Map<String, Object>> rows, int physicalTaskCount, long executionMs) {
+    }
+
+    private record ResolvedRelation(
+            String alias,
+            CatalogSnapshot remoteSnapshot,
+            List<String> localKeys,
+            List<String> remoteKeys,
+            RelationResultMode effectiveMode,
+            FilterNode filter
+    ) {
+        private ResolvedRelation {
+            localKeys = List.copyOf(localKeys);
+            remoteKeys = List.copyOf(remoteKeys);
+        }
+    }
+
+    private record ResolvedJoinKeys(
+            List<String> localKeys,
+            List<String> remoteKeys,
+            Map<String, String> mapping
+    ) {
+        private ResolvedJoinKeys {
+            localKeys = List.copyOf(localKeys);
+            remoteKeys = List.copyOf(remoteKeys);
+            mapping = Map.copyOf(new LinkedHashMap<>(mapping));
+        }
+    }
+
+    private record PublishedRelationKey(boolean forward, Long remoteEntityId) {
+    }
+
+    private record PublishedRelationCandidate(
+            boolean forward,
+            CatalogSnapshot remoteSnapshot,
+            List<CatalogSnapshot.Relation> mappings
+    ) {
+        private PublishedRelationCandidate {
+            mappings = List.copyOf(mappings);
+        }
     }
 }

@@ -17,11 +17,7 @@ Authorization: Bearer {{token}}
     "relations": [
       {
         "key": "account",
-        "model": "ods_trade_user_account",
-        "type": "left  join",
-        "on": {
-          "main.account_id": "account.id"
-        }
+        "model": "ods_trade_user_account"
       }
     ]
   }

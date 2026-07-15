@@ -8,6 +8,7 @@ import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.Aggreg
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FilterOperator;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FilterType;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.SortDirection;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryAggregateRequest;
 import ai.platform.aiassit.db.engine.api.dto.DbQueryCountDimension;
@@ -33,6 +34,7 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
@@ -47,6 +49,8 @@ class LegacyRequestTranslatorTest {
     void setUp() {
         catalogGateway = mock(VirtualCatalogGateway.class);
         when(catalogGateway.describePublished("orders", null)).thenReturn(ordersCatalog());
+        when(catalogGateway.describePublished("customers", null)).thenReturn(customersCatalog());
+        when(catalogGateway.describePublished("warehouses", null)).thenReturn(warehousesCatalog());
         translator = new LegacyRequestTranslator(catalogGateway);
     }
 
@@ -215,35 +219,145 @@ class LegacyRequestTranslatorTest {
     }
 
     @Test
-    void validatesRelationKeyModelOnAndKeepsRelationFilterOnScoped() {
-        DbQueryRelation relation = relation("customer", "customers", Map.of("customer_id", "id"));
+    void resolvesPublishedRelationByModelAndKeepsArbitraryAliasAndScopedFilter() {
+        DbQueryRelation relation = relation("buyer", "customers", Map.of());
         relation.setFilter(Map.of("active", true));
         DbQueryListRequest source = new DbQueryListRequest();
         source.setModel("orders");
         source.getExt().setRelations(List.of(relation));
-        source.getExt().setFields(List.of("id", "customer.name"));
+        source.getExt().setFields(List.of("id", "buyer.name"));
 
         VirtualQueryRequest target = translator.translateList(source).request();
 
-        assertEquals(List.of("customer"), target.getRelationCodes());
+        assertEquals(List.of("buyer"), target.getRelationCodes());
         assertEquals(1, target.getRelations().size());
+        assertEquals("buyer", target.getRelations().get(0).getKey());
         assertEquals("customer", target.getRelations().get(0).getRelationCode());
+        assertEquals("customers", target.getRelations().get(0).getTargetEntityCode());
+        assertEquals(Map.of("customer_id", "id"), target.getRelations().get(0).getLocalToRemoteFields());
+        assertEquals(RelationResultMode.OBJECT, target.getRelations().get(0).getResultMode());
         assertEquals("active", target.getRelations().get(0).getFilter().getField());
         assertEquals(Boolean.TRUE, target.getRelations().get(0).getFilter().getValue());
-        assertEquals(null, target.getFilter(), "relation.filter 不能混入主查询 WHERE AST");
+        assertNull(target.getFilter(), "relation.filter 不能混入主查询 WHERE AST");
+    }
 
+    @Test
+    void requiresRelationKeyAndModelAndRejectsUnsafeAliases() {
         assertRelationError(
-                relation("unknown", "customers", Map.of("customer_id", "id")),
+                relation(null, "customers", Map.of()),
                 LegacyRequestTranslator.INVALID_RELATION
         );
         assertRelationError(
-                relation("customer", "wrong_customer_model", Map.of("customer_id", "id")),
-                LegacyRequestTranslator.RELATION_METADATA_MISMATCH
+                relation("buyer", null, Map.of()),
+                LegacyRequestTranslator.INVALID_RELATION
         );
         assertRelationError(
-                relation("customer", "customers", Map.of("wrong_local", "id")),
+                relation("buyer.info", "customers", Map.of()),
+                LegacyRequestTranslator.INVALID_RELATION
+        );
+        assertRelationError(
+                relation("name", "customers", Map.of()),
+                LegacyRequestTranslator.INVALID_RELATION
+        );
+
+        DbQueryListRequest duplicate = new DbQueryListRequest();
+        duplicate.setModel("orders");
+        duplicate.getExt().setRelations(List.of(
+                relation("buyer", "customers", Map.of()),
+                relation("buyer", "warehouses", Map.of("customer_id", "id"))
+        ));
+        LegacyQueryCompatibilityException duplicateException = assertThrows(
+                LegacyQueryCompatibilityException.class,
+                () -> translator.translateList(duplicate)
+        );
+        assertEquals(LegacyRequestTranslator.INVALID_RELATION, duplicateException.getCode());
+    }
+
+    @Test
+    void createsAdHocRelationWhenOnIsProvidedAndInfersResultModeFromRemotePrimaryKey() {
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("orders");
+        source.getExt().setRelations(List.of(
+                relation("warehouse", "warehouses", Map.of("customer_id", "id")),
+                relation("warehouse_orders", "warehouses", Map.of("id", "order_id"))
+        ));
+        source.getExt().setFields(List.of("id", "warehouse.name", "warehouse_orders.name"));
+
+        VirtualQueryRequest target = translator.translateList(source).request();
+
+        assertEquals(List.of("warehouse", "warehouse_orders"), target.getRelationCodes());
+        assertNull(target.getRelations().get(0).getRelationCode());
+        assertEquals(Map.of("customer_id", "id"), target.getRelations().get(0).getLocalToRemoteFields());
+        assertEquals(RelationResultMode.OBJECT, target.getRelations().get(0).getResultMode());
+        assertEquals(RelationResultMode.COLLECTION, target.getRelations().get(1).getResultMode());
+
+        assertRelationError(
+                relation("warehouse", "warehouses", Map.of()),
+                LegacyRequestTranslator.INVALID_RELATION
+        );
+    }
+
+    @Test
+    void requiresOnToDisambiguatePublishedRelationsForTheSameModel() {
+        when(catalogGateway.describePublished("ambiguous_orders", null)).thenReturn(ambiguousOrdersCatalog());
+
+        assertRelationError(
+                "ambiguous_orders",
+                relation("buyer", "customers", Map.of()),
+                LegacyRequestTranslator.INVALID_RELATION
+        );
+
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("ambiguous_orders");
+        source.getExt().setRelations(List.of(relation("buyer", "customers", Map.of("name", "name"))));
+        source.getExt().setFields(List.of("id", "buyer.name"));
+
+        VirtualQueryRequest target = translator.translateList(source).request();
+
+        assertEquals("customer_by_name", target.getRelations().get(0).getRelationCode());
+        assertEquals(Map.of("name", "name"), target.getRelations().get(0).getLocalToRemoteFields());
+    }
+
+    @Test
+    void collapsesEquivalentForwardAndReverseDefinitionsAndRejectsMismatchedOn() {
+        when(catalogGateway.describePublished("equivalent_orders", null)).thenReturn(equivalentOrdersCatalog());
+
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("equivalent_orders");
+        source.getExt().setRelations(List.of(relation("buyer", "customers", Map.of())));
+        source.getExt().setFields(List.of("id", "buyer.name"));
+
+        VirtualQueryRequest target = translator.translateList(source).request();
+
+        assertEquals("customer", target.getRelations().get(0).getRelationCode());
+        assertRelationError(
+                "equivalent_orders",
+                relation("buyer", "customers", Map.of("name", "name")),
                 LegacyRequestTranslator.RELATION_METADATA_MISMATCH
         );
+    }
+
+    @Test
+    void validatesOnFieldsAndProjectedRemoteFieldsAgainstPublishedCatalogs() {
+        assertRelationError(
+                relation("warehouse", "warehouses", Map.of("wrong_local", "id")),
+                LegacyRequestTranslator.INVALID_FIELD
+        );
+        assertRelationError(
+                relation("warehouse", "warehouses", Map.of("customer_id", "wrong_remote")),
+                LegacyRequestTranslator.INVALID_FIELD
+        );
+
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("orders");
+        source.getExt().setRelations(List.of(relation("buyer", "customers", Map.of())));
+        source.getExt().setFields(List.of("buyer.unknown"));
+
+        LegacyQueryCompatibilityException exception = assertThrows(
+                LegacyQueryCompatibilityException.class,
+                () -> translator.translateList(source)
+        );
+        assertEquals(LegacyRequestTranslator.INVALID_FIELD, exception.getCode());
     }
 
     @Test
@@ -272,8 +386,12 @@ class LegacyRequestTranslatorTest {
     }
 
     private void assertRelationError(DbQueryRelation relation, String expectedCode) {
+        assertRelationError("orders", relation, expectedCode);
+    }
+
+    private void assertRelationError(String model, DbQueryRelation relation, String expectedCode) {
         DbQueryListRequest source = new DbQueryListRequest();
-        source.setModel("orders");
+        source.setModel(model);
         source.getExt().setRelations(List.of(relation));
 
         LegacyQueryCompatibilityException exception = assertThrows(
@@ -323,6 +441,72 @@ class LegacyRequestTranslatorTest {
         return new VirtualCatalogDescriptor("orders", 17L, fields, List.of("customer"), List.of(relation));
     }
 
+    private VirtualCatalogDescriptor customersCatalog() {
+        return new VirtualCatalogDescriptor(
+                "customers",
+                9L,
+                List.of(
+                        field("id", true),
+                        field("name", false),
+                        field("active", false)
+                ),
+                List.of()
+        );
+    }
+
+    private VirtualCatalogDescriptor warehousesCatalog() {
+        return new VirtualCatalogDescriptor(
+                "warehouses",
+                5L,
+                List.of(
+                        field("id", true),
+                        field("order_id", false),
+                        field("name", false)
+                ),
+                List.of()
+        );
+    }
+
+    private VirtualCatalogDescriptor ambiguousOrdersCatalog() {
+        VirtualCatalogDescriptor base = ordersCatalog();
+        List<VirtualCatalogDescriptor.Relation> relations = List.of(
+                new VirtualCatalogDescriptor.Relation(
+                        "customer_by_id",
+                        "customers",
+                        Map.of("customer_id", "id")
+                ),
+                new VirtualCatalogDescriptor.Relation(
+                        "customer_by_name",
+                        "customers",
+                        Map.of("name", "name")
+                )
+        );
+        return new VirtualCatalogDescriptor(
+                "ambiguous_orders",
+                18L,
+                base.fields(),
+                relations.stream().map(VirtualCatalogDescriptor.Relation::code).toList(),
+                relations
+        );
+    }
+
+    private VirtualCatalogDescriptor equivalentOrdersCatalog() {
+        VirtualCatalogDescriptor base = ordersCatalog();
+        List<VirtualCatalogDescriptor.Relation> relations = List.of(
+                new VirtualCatalogDescriptor.Relation(
+                        "customer", "customers", Map.of("customer_id", "id"), RelationResultMode.OBJECT),
+                new VirtualCatalogDescriptor.Relation(
+                        "orders", "customers", Map.of("customer_id", "id"), RelationResultMode.OBJECT)
+        );
+        return new VirtualCatalogDescriptor(
+                "equivalent_orders",
+                19L,
+                base.fields(),
+                relations.stream().map(VirtualCatalogDescriptor.Relation::code).toList(),
+                relations
+        );
+    }
+
     private VirtualCatalogDescriptor.Field field(String code, boolean primaryKey) {
         return new VirtualCatalogDescriptor.Field(code, primaryKey, true);
     }
@@ -332,7 +516,7 @@ class LegacyRequestTranslatorTest {
         relation.setKey(key);
         relation.setModel(model);
         relation.setType("left");
-        relation.setOn(new LinkedHashMap<>(on));
+        relation.setOn(on == null ? new LinkedHashMap<>() : new LinkedHashMap<>(on));
         return relation;
     }
 

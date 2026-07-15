@@ -3,6 +3,7 @@ package ai.platform.aiassit.data.virtualization.core.catalog;
 import ai.platform.aiassit.data.virtualization.api.VirtualCatalogGateway;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualCatalogDescriptor;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.CatalogStatus;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualEntityEntity;
 import ai.platform.aiassit.data.virtualization.data.entity.VirtualFieldEntity;
@@ -12,6 +13,7 @@ import org.springframework.stereotype.Service;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
 
@@ -48,9 +50,11 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
         CatalogSnapshot snapshot = requirePublished(entityCode, requestedVersion);
         List<VirtualCatalogDescriptor.Relation> relations = snapshot.relations().stream()
                 .filter(CatalogSnapshot.Relation::enabled)
-                .filter(relation -> snapshot.entityId().equals(relation.sourceEntityId()))
+                .filter(relation -> snapshot.entityId().equals(relation.sourceEntityId())
+                        || snapshot.entityId().equals(relation.targetEntityId()))
                 .collect(Collectors.groupingBy(
-                        CatalogSnapshot.Relation::relationCode,
+                        relation -> new RelationGroupKey(
+                                relation.relationCode(), relation.sourceEntityId(), relation.targetEntityId()),
                         LinkedHashMap::new,
                         Collectors.toList()
                 ))
@@ -63,16 +67,17 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
                 snapshot.fieldsByCode().values().stream()
                         .map(field -> new VirtualCatalogDescriptor.Field(field.code(), field.primaryKey(), field.enabled()))
                         .toList(),
-                relations.stream().map(VirtualCatalogDescriptor.Relation::code).toList(),
+                relations.stream().map(VirtualCatalogDescriptor.Relation::code).distinct().toList(),
                 relations
         );
     }
 
     private VirtualCatalogDescriptor.Relation describeRelation(
             CatalogSnapshot snapshot,
-            String relationCode,
+            RelationGroupKey groupKey,
             List<CatalogSnapshot.Relation> mappings
     ) {
+        String relationCode = groupKey.relationCode();
         if (mappings.isEmpty()) {
             throw new VirtualDataException("CATALOG_RELATION_INVALID", "虚拟关系没有字段映射: " + relationCode);
         }
@@ -81,6 +86,10 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
             if (mapping.resultMode() != first.resultMode()) {
                 throw new VirtualDataException("CATALOG_RELATION_INVALID",
                         "同一虚拟关系的结果形态不一致: " + relationCode);
+            }
+            if (mapping.reverseResultMode() != first.reverseResultMode()) {
+                throw new VirtualDataException("CATALOG_RELATION_INVALID",
+                        "同一虚拟关系的反向结果形态不一致: " + relationCode);
             }
         }
         boolean forward = first.sourceEntityId().equals(snapshot.entityId());
@@ -102,8 +111,33 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
             fieldMappings.put(localField.getFieldCode(), remoteField.getFieldCode());
         }
         return new VirtualCatalogDescriptor.Relation(
-                relationCode, target.getEntityCode(), fieldMappings, first.resultMode()
+                relationCode, target.getEntityCode(), fieldMappings,
+                effectiveResultMode(first, mappings, forward)
         );
+    }
+
+    private RelationResultMode effectiveResultMode(
+            CatalogSnapshot.Relation first,
+            List<CatalogSnapshot.Relation> mappings,
+            boolean forward
+    ) {
+        if (forward) {
+            return first.resultMode();
+        }
+        if (first.reverseResultMode() != null) {
+            return first.reverseResultMode();
+        }
+        Set<Long> mappedSourceFields = mappings.stream()
+                .map(CatalogSnapshot.Relation::sourceFieldId)
+                .collect(Collectors.toSet());
+        List<Long> sourcePrimaryKeys = repository.fields(first.sourceEntityId()).stream()
+                .filter(field -> Boolean.TRUE.equals(field.getEnabled()))
+                .filter(field -> Boolean.TRUE.equals(field.getPrimaryKey()))
+                .map(VirtualFieldEntity::getId)
+                .toList();
+        return !sourcePrimaryKeys.isEmpty() && mappedSourceFields.containsAll(sourcePrimaryKeys)
+                ? RelationResultMode.OBJECT
+                : RelationResultMode.COLLECTION;
     }
 
     public CatalogSnapshot requirePublished(Long entityId) {
@@ -128,5 +162,8 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
         if (entityCode != null) {
             cache.keySet().removeIf(key -> key.startsWith(entityCode + ":"));
         }
+    }
+
+    private record RelationGroupKey(String relationCode, Long sourceEntityId, Long targetEntityId) {
     }
 }

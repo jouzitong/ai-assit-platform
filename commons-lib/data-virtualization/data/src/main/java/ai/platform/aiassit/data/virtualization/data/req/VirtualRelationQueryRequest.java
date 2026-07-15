@@ -10,6 +10,7 @@ import org.athena.framework.data.jdbc.req.BaseRequest;
 public class VirtualRelationQueryRequest extends BaseRequest {
     private String relationCode;
     private RelationResultMode resultMode;
+    private RelationResultMode reverseResultMode;
     private Long sourceEntityId;
     private Long targetEntityId;
     private Boolean enabled;

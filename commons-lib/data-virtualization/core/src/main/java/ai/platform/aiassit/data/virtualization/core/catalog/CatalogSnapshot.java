@@ -56,8 +56,19 @@ public record CatalogSnapshot(
     public List<Relation> relationGroup(String relationCode) {
         return relations.stream()
                 .filter(Relation::enabled)
-                .filter(item -> entityId.equals(item.sourceEntityId()))
+                .filter(item -> entityId.equals(item.sourceEntityId()) || entityId.equals(item.targetEntityId()))
                 .filter(item -> item.relationCode().equals(relationCode))
+                .toList();
+    }
+
+    public List<Relation> relationGroup(String relationCode, Long remoteEntityId) {
+        if (remoteEntityId == null) {
+            return List.of();
+        }
+        return relationGroup(relationCode).stream()
+                .filter(item -> entityId.equals(item.sourceEntityId())
+                        ? remoteEntityId.equals(item.targetEntityId())
+                        : remoteEntityId.equals(item.sourceEntityId()))
                 .toList();
     }
 
@@ -97,7 +108,8 @@ public record CatalogSnapshot(
 
     public record Relation(
             Long id, String relationCode, String relationName, Long sourceEntityId, Long sourceFieldId,
-            Long targetEntityId, Long targetFieldId, RelationResultMode resultMode, boolean enabled
+            Long targetEntityId, Long targetFieldId, RelationResultMode resultMode,
+            RelationResultMode reverseResultMode, boolean enabled
     ) {
         public Relation {
             resultMode = resultMode == null ? RelationResultMode.OBJECT : resultMode;
@@ -105,10 +117,18 @@ public record CatalogSnapshot(
 
         public Relation(
                 Long id, String relationCode, String relationName, Long sourceEntityId, Long sourceFieldId,
+                Long targetEntityId, Long targetFieldId, RelationResultMode resultMode, boolean enabled
+        ) {
+            this(id, relationCode, relationName, sourceEntityId, sourceFieldId,
+                    targetEntityId, targetFieldId, resultMode, null, enabled);
+        }
+
+        public Relation(
+                Long id, String relationCode, String relationName, Long sourceEntityId, Long sourceFieldId,
                 Long targetEntityId, Long targetFieldId, boolean enabled
         ) {
             this(id, relationCode, relationName, sourceEntityId, sourceFieldId,
-                    targetEntityId, targetFieldId, RelationResultMode.OBJECT, enabled);
+                    targetEntityId, targetFieldId, RelationResultMode.OBJECT, null, enabled);
         }
     }
 }

@@ -97,7 +97,8 @@ public class CatalogAssembler {
                 .map(relation -> new CatalogSnapshot.Relation(
                         relation.getId(), relation.getRelationCode(), relation.getRelationName(),
                         relation.getSourceEntityId(), relation.getSourceFieldId(), relation.getTargetEntityId(),
-                        relation.getTargetFieldId(), relation.getResultMode(), Boolean.TRUE.equals(relation.getEnabled())
+                        relation.getTargetFieldId(), relation.getResultMode(), relation.getReverseResultMode(),
+                        Boolean.TRUE.equals(relation.getEnabled())
                 )).toList();
 
         return new CatalogSnapshot(

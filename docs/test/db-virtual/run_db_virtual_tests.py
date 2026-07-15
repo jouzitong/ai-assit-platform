@@ -107,6 +107,10 @@ def validate_suite(suite: Mapping[str, Any]) -> None:
             raise SuiteValidationError(f"关系引用了未知实体: {relation['relationCode']}")
         if relation["resultMode"] not in ("OBJECT", "COLLECTION"):
             raise SuiteValidationError(f"关系 resultMode 只支持 OBJECT/COLLECTION: {relation['relationCode']}")
+        if relation.get("reverseResultMode") not in (None, "OBJECT", "COLLECTION"):
+            raise SuiteValidationError(
+                f"关系 reverseResultMode 只支持 OBJECT/COLLECTION: {relation['relationCode']}"
+            )
     cases = suite.get("testCases")
     if not isinstance(cases, list) or not cases:
         raise SuiteValidationError("testCases 必须为非空数组")

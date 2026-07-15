@@ -7,9 +7,7 @@ import ai.platform.aiassit.data.virtualization.api.dto.VirtualQueryResponse;
 import ai.platform.aiassit.data.virtualization.api.dto.VirtualSort;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.AggregateFunction;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
-import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.SortDirection;
-import ai.platform.aiassit.data.virtualization.core.catalog.CatalogSnapshot;
 import ai.platform.aiassit.data.virtualization.core.plan.PhysicalExecutionPlan;
 import org.springframework.stereotype.Component;
 
@@ -20,7 +18,6 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 @Component
 public class VirtualResultFinalizer {
@@ -153,15 +150,9 @@ public class VirtualResultFinalizer {
         if (request.getQueryType() == QueryType.AGGREGATE || request.getAggregates() != null && !request.getAggregates().isEmpty()) return rows;
         List<String> fields = request.getFields() == null || request.getFields().isEmpty()
                 ? plan.logicalPlan().projections() : request.getFields();
-        Set<String> collectionRelations = plan.snapshot().relations().stream()
-                .filter(CatalogSnapshot.Relation::enabled)
-                .filter(relation -> plan.snapshot().entityId().equals(relation.sourceEntityId()))
-                .filter(relation -> relation.resultMode() == RelationResultMode.COLLECTION)
-                .map(CatalogSnapshot.Relation::relationCode)
-                .collect(java.util.stream.Collectors.toSet());
         return rows.stream().map(row -> {
             Map<String, Object> projected = new LinkedHashMap<>();
-            fields.forEach(field -> projectField(projected, row, field, collectionRelations));
+            fields.forEach(field -> projectField(projected, row, field));
             return projected;
         }).toList();
     }
@@ -169,12 +160,11 @@ public class VirtualResultFinalizer {
     private void projectField(
             Map<String, Object> projected,
             Map<String, Object> row,
-            String field,
-            Set<String> collectionRelations
+            String field
     ) {
         if (field == null) return;
         int separator = field.indexOf('.');
-        if (separator > 0 && collectionRelations.contains(field.substring(0, separator))) {
+        if (separator > 0 && row.get(field.substring(0, separator)) instanceof java.util.Collection<?>) {
             String relationCode = field.substring(0, separator);
             projected.computeIfAbsent(relationCode, ignored -> copyCollection(row.get(relationCode)));
             return;

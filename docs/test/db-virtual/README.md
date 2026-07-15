@@ -51,7 +51,7 @@ mysql -h 127.0.0.1 -P 3306 -u root -p < docs/test/db-virtual/sql/30-account.sql
 
 1. 为三个 sourceKey 导入对应物理表元数据。
 2. 按 `virtualCatalog.entities` 创建八个虚拟实体、字段和只读主绑定；字段编码与物理列同名，`id` 均标记为虚拟主键。
-3. 按 `virtualCatalog.relations` 创建关系。每个关系以 `sourceEntityCode` 为作用域，映射 `sourceField → targetField`，并严格设置 `resultMode`。
+3. 按 `virtualCatalog.relations` 创建关系。每个关系以 `sourceEntityCode` 为作用域，映射 `sourceField → targetField`，并严格设置正向 `resultMode` 与反向 `reverseResultMode`。
 4. 发布全部实体；查询请求里的 `model` 使用 JSON 中的 `entityCode`，例如 `ods_trade_order_sales_order`，而不是物理表名。
 
 例如订单列表的目标响应形状是：
@@ -101,7 +101,9 @@ python3 docs/test/db-virtual/run_db_virtual_tests.py \
 
 ## 当前边界
 
-- 关系查询只能使用已发布的虚拟关系；请求中的 `ext.relations` 只传 `key` 即可。
+- `ext.relations` 的 `key`、`model` 必填；`key` 是本次查询的返回别名，`model` 是目标虚拟表编码。
+- 两张虚拟表已有唯一已发布关系时可省略 `on`；没有已发布关系时必须用 `on` 声明“当前表字段 -> 目标表字段”。
+- 已发布关系支持双向查询；反向查询会交换字段方向，并按反向结果形态返回对象或数组。
 - `COLLECTION` 允许明细投影，空值返回 `[]`；`OBJECT` 无匹配返回 `null`。
 - 集合字段不能作为全局标量过滤、排序、分组或聚合字段。因此统计用例只作用于 `ods_trade_order_sales_order` 自身字段。
 - N:N 的直接多跳投影不属于当前用例范围；桥接实体查询是当前可执行、语义明确的方式。

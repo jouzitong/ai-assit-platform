@@ -86,6 +86,24 @@ class VirtualResultFinalizerTest {
         assertEquals(response.getSummary(), response.getRecords().get(0));
     }
 
+    @Test
+    void shouldProjectRuntimeCollectionAliasAndKeepEmptyArray() {
+        VirtualQueryRequest request = new VirtualQueryRequest();
+        request.setEntityCode("order");
+        request.setFields(List.of("id", "items.name"));
+        List<Map<String, Object>> source = List.of(Map.of("id", 1L, "items", List.of()));
+
+        VirtualQueryResponse response = finalizer.finish(
+                request,
+                plan(request),
+                new PhysicalExecutionEngine.ExecutionRows(source, 1, 1, 1),
+                source
+        );
+
+        assertTrue(response.getRecords().get(0).containsKey("items"));
+        assertEquals(List.of(), response.getRecords().get(0).get("items"));
+    }
+
     private VirtualQueryRequest aggregateRequest() {
         VirtualQueryRequest request = new VirtualQueryRequest();
         request.setEntityCode("order");

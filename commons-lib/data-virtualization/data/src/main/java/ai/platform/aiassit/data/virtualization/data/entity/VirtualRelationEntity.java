@@ -25,6 +25,11 @@ public class VirtualRelationEntity extends AuditableEntity {
     @TableField("relation_result_mode")
     private RelationResultMode resultMode = RelationResultMode.OBJECT;
 
+    /** 从目标虚拟实体反向访问源虚拟实体时的返回形态；为空时由目录根据源虚拟主键保守推导。 */
+    @JdbcColumn(name = "reverse_result_mode", dataType = "TINYINT", nullable = true, comment = "反向关联结果形态：0=对象，1=集合")
+    @TableField("reverse_result_mode")
+    private RelationResultMode reverseResultMode;
+
     @JdbcColumn(name = "source_entity_id", dataType = "BIGINT", nullable = false, comment = "源虚拟实体ID")
     @TableField("source_entity_id")
     private Long sourceEntityId;
