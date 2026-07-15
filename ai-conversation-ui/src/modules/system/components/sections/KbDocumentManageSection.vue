@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeft, Delete, EditPen, Plus, RefreshRight, Search, Upload, View } from '@element-plus/icons-vue'
+import { ArrowLeft, Delete, EditPen, Grid, List, Plus, RefreshRight, Search, Upload, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
@@ -11,8 +11,10 @@ import {
   deleteAiKbDocuments,
   getAiKbDocumentDetail,
   getAiKbSyncTask,
+  searchAiKbStores,
   searchAiKbDocuments,
   syncAiKbDocuments,
+  updateAiKbDocumentStatus,
   type AiKbDocumentDetail,
   type AiKbDocumentItem,
   type AiKbSyncTaskItem,
@@ -20,6 +22,7 @@ import {
 
 type DialogMode = 'create' | 'edit'
 type KbDocumentTab = 'current' | 'draft'
+type KbDocumentViewMode = 'card' | 'list'
 
 const DOCUMENT_TYPE_OPTIONS = [
   { label: '数据库表', value: 1 },
@@ -54,9 +57,13 @@ const saving = ref(false)
 const detailLoading = ref(false)
 const syncSubmitting = ref(false)
 const syncCandidateLoading = ref(false)
+const batchUpdating = ref(false)
 const errorMessage = ref('')
 const documentRows = ref<AiKbDocumentItem[]>([])
 const activeTab = ref<KbDocumentTab>('current')
+const documentViewMode = ref<KbDocumentViewMode>('card')
+const batchMode = ref(false)
+const selectedDocumentCodes = ref<string[]>([])
 const dialogVisible = ref(false)
 const detailVisible = ref(false)
 const dialogMode = ref<DialogMode>('create')
@@ -80,12 +87,10 @@ const form = reactive({
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 const kbCode = computed(() => typeof route.params.sourceKey === 'string' ? route.params.sourceKey.trim() : '')
-const currentKbTitle = computed(() => kbCode.value || '知识库')
+const currentKbName = ref('')
+const currentKbTitle = computed(() => currentKbName.value || kbCode.value || '知识库')
+const currentKbSubtitle = computed(() => kbCode.value ? `编号：${kbCode.value}` : '未提供知识库编号')
 const dialogTitle = computed(() => `${dialogMode.value === 'create' ? '新增' : '编辑'} KB 文档`)
-const tabOptions = [
-  { key: 'current' as const, label: '启用中' },
-  { key: 'draft' as const, label: '已停用' },
-]
 const pendingSyncCandidates = computed(() => syncCandidates.value.filter((item) => {
   const status = Number(item.providerSyncStatus)
   return status !== 2 && status !== 3
@@ -95,6 +100,12 @@ const pendingSyncCandidatesAllSelected = computed(() => areSyncCandidatesSelecte
 const completedSyncCandidatesAllSelected = computed(() => areSyncCandidatesSelected(completedSyncCandidates.value))
 const syncTaskResults = computed(() => syncTask.value?.resultJson?.documents || [])
 const syncTaskFinished = computed(() => [3, 4, 5].includes(Number(syncTask.value?.status)))
+const batchSelectableDocumentCodes = computed(() => documentRows.value
+  .map(selectableDocumentCode)
+  .filter(Boolean))
+const selectedDocumentCount = computed(() => selectedDocumentCodes.value.length)
+const allDocumentsSelected = computed(() => batchSelectableDocumentCodes.value.length > 0
+  && batchSelectableDocumentCodes.value.every(code => selectedDocumentCodes.value.includes(code)))
 
 const documentCards = computed(() => {
   return documentRows.value.map((item) => ({
@@ -355,14 +366,38 @@ async function loadDocuments() {
     })
     documentRows.value = payload?.list ?? []
     total.value = resolveTotal(payload?.pageInfo?.total)
+    selectedDocumentCodes.value = []
   }
   catch (error) {
     documentRows.value = []
     total.value = 0
+    selectedDocumentCodes.value = []
     errorMessage.value = error instanceof Error ? error.message : 'KB 文档列表加载失败'
   }
   finally {
     loading.value = false
+  }
+}
+
+async function loadKbMetadata() {
+  const targetKbCode = kbCode.value
+  currentKbName.value = ''
+  if (!targetKbCode) {
+    return
+  }
+
+  try {
+    const payload = await searchAiKbStores({
+      page: 1,
+      size: 1,
+      kbCode: targetKbCode,
+    })
+    if (kbCode.value === targetKbCode) {
+      currentKbName.value = payload?.list?.[0]?.kbName?.trim() || ''
+    }
+  }
+  catch {
+    // 文档列表可独立使用，知识库名称加载失败时保留编号作为标题。
   }
 }
 
@@ -375,8 +410,121 @@ async function handleRefresh() {
   await loadDocuments()
 }
 
+function setDocumentViewMode(mode: KbDocumentViewMode) {
+  documentViewMode.value = mode
+}
+
 function selectableDocumentCode(item: AiKbDocumentItem) {
   return item.documentCode?.trim() || ''
+}
+
+function enterBatchMode() {
+  batchMode.value = true
+  selectedDocumentCodes.value = []
+}
+
+function exitBatchMode() {
+  batchMode.value = false
+  selectedDocumentCodes.value = []
+}
+
+function selectAllDocuments() {
+  selectedDocumentCodes.value = [...batchSelectableDocumentCodes.value]
+}
+
+function clearSelectedDocuments() {
+  selectedDocumentCodes.value = []
+}
+
+function toggleDocumentSelection(item: AiKbDocumentItem, selected: boolean) {
+  const documentCode = selectableDocumentCode(item)
+  if (!documentCode) {
+    return
+  }
+  if (selected) {
+    selectedDocumentCodes.value = [...new Set([...selectedDocumentCodes.value, documentCode])]
+    return
+  }
+  selectedDocumentCodes.value = selectedDocumentCodes.value.filter(code => code !== documentCode)
+}
+
+async function handleBatchStatusUpdate(enabled: boolean) {
+  const documentCodes = [...selectedDocumentCodes.value]
+  if (!kbCode.value || !documentCodes.length) {
+    ElMessage.warning('请先选择需要操作的文档')
+    return
+  }
+
+  const action = enabled ? '启用' : '停用'
+  try {
+    await ElMessageBox.confirm(
+      `确认${action}已选择的 ${documentCodes.length} 个文档吗？`,
+      `${action}文档`,
+      {
+        type: 'warning',
+        confirmButtonText: `确认${action}`,
+        cancelButtonText: '取消',
+      },
+    )
+
+    batchUpdating.value = true
+    const updatedCount = await updateAiKbDocumentStatus({
+      kbCode: kbCode.value,
+      documentCodes,
+      enabled,
+    })
+    ElMessage.success(`已${action} ${updatedCount} 个文档`)
+    await loadDocuments()
+  }
+  catch (error) {
+    if (error === 'cancel') {
+      return
+    }
+    ElMessage.error(error instanceof Error ? error.message : `文档${action}失败`)
+  }
+  finally {
+    batchUpdating.value = false
+  }
+}
+
+async function handleBatchDelete() {
+  const documentCodes = [...selectedDocumentCodes.value]
+  if (!kbCode.value || !documentCodes.length) {
+    ElMessage.warning('请先选择需要删除的文档')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确认删除已选择的 ${documentCodes.length} 个文档吗？删除后不可恢复。`,
+      '批量删除确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认删除',
+        cancelButtonText: '取消',
+      },
+    )
+
+    batchUpdating.value = true
+    await deleteAiKbDocuments({
+      kbCode: kbCode.value,
+      documentCodes,
+    })
+    if (documentCodes.length >= documentRows.value.length && currentPage.value > 1) {
+      currentPage.value -= 1
+    }
+    ElMessage.success(`已删除 ${documentCodes.length} 个文档`)
+    await loadDocuments()
+  }
+  catch (error) {
+    if (error === 'cancel') {
+      return
+    }
+    ElMessage.error(error instanceof Error ? error.message : '文档批量删除失败')
+  }
+  finally {
+    batchUpdating.value = false
+  }
 }
 
 function setSyncSelection(items: AiKbDocumentItem[]) {
@@ -513,10 +661,12 @@ async function handlePageSizeChange(size: number) {
   await loadDocuments()
 }
 
-async function handleChangeTab(tab: KbDocumentTab) {
+async function handleChangeTab(enabled: boolean) {
+  const tab: KbDocumentTab = enabled ? 'current' : 'draft'
   if (activeTab.value === tab) {
     return
   }
+  exitBatchMode()
   activeTab.value = tab
   currentPage.value = 1
   await loadDocuments()
@@ -530,11 +680,13 @@ watch(kbCode, () => {
   keyword.value = ''
   currentPage.value = 1
   void loadDocuments()
+  void loadKbMetadata()
 })
 
 onMounted(() => {
   void loadServiceEnums(SERVICE_NAMES.CHAT)
   void loadDocuments()
+  void loadKbMetadata()
 })
 
 onBeforeUnmount(() => {
@@ -546,45 +698,92 @@ onBeforeUnmount(() => {
   <section class="kb-document-page">
     <div class="kb-document-shell">
       <header class="kb-document-shell__header">
-        <div class="kb-document-shell__title">
-          <el-button text @click="navigateBack">
-            <el-icon><ArrowLeft /></el-icon>
-            返回知识库
-          </el-button>
-          <div>
-            <h3>{{ currentKbTitle }}</h3>
-            <p>维护当前知识库下的 KB 文档与正文内容。</p>
+        <div class="kb-document-shell__header-main">
+          <div class="kb-document-shell__title">
+            <el-button
+              class="kb-document-shell__back"
+              plain
+              circle
+              title="返回知识库"
+              aria-label="返回知识库"
+              @click="navigateBack"
+            >
+              <el-icon><ArrowLeft /></el-icon>
+            </el-button>
+            <div class="kb-document-shell__title-copy">
+              <div class="kb-document-shell__title-line">
+                <h3>{{ currentKbTitle }}</h3>
+                <el-switch
+                  :model-value="activeTab === 'current'"
+                  :loading="loading"
+                  inline-prompt
+                  active-text="启用"
+                  inactive-text="禁用"
+                  aria-label="切换文档启用状态"
+                  @change="handleChangeTab"
+                />
+              </div>
+              <p>{{ currentKbSubtitle }}</p>
+            </div>
+          </div>
+          <div class="kb-document-shell__tools">
+            <template v-if="batchMode">
+              <div class="kb-document-shell__batch-tools">
+                <span>已选 {{ selectedDocumentCount }} 项</span>
+                <el-button plain :disabled="batchUpdating || !batchSelectableDocumentCodes.length || allDocumentsSelected" @click="selectAllDocuments">全选</el-button>
+                <el-button plain :disabled="batchUpdating || !selectedDocumentCount" @click="clearSelectedDocuments">不选</el-button>
+                <el-button plain :disabled="!selectedDocumentCount || batchUpdating" @click="handleBatchStatusUpdate(true)">启用</el-button>
+                <el-button plain :disabled="!selectedDocumentCount || batchUpdating" @click="handleBatchStatusUpdate(false)">停用</el-button>
+                <el-button type="danger" plain :disabled="!selectedDocumentCount || batchUpdating" @click="handleBatchDelete">删除</el-button>
+                <el-button :disabled="batchUpdating" @click="exitBatchMode">完成</el-button>
+              </div>
+            </template>
+            <template v-else>
+              <el-button plain :loading="syncCandidateLoading || syncSubmitting" @click="openSyncSelectionDialog">
+                <el-icon><Upload /></el-icon>
+                知识库同步
+              </el-button>
+              <el-button plain @click="enterBatchMode">批量操作</el-button>
+              <el-button type="primary" @click="openCreateDialog">
+                <el-icon><Plus /></el-icon>
+                新增文档
+              </el-button>
+            </template>
           </div>
         </div>
-        <div class="kb-document-shell__tools">
-          <div class="kb-document-shell__tabs">
-            <el-tag
-              v-for="tab in tabOptions"
-              :key="tab.key"
-              :type="activeTab === tab.key ? 'primary' : 'info'"
-              effect="plain"
-              class="kb-document-shell__tab"
-              @click="handleChangeTab(tab.key)"
-            >
-              {{ tab.label }}
-            </el-tag>
-          </div>
+        <div class="kb-document-shell__search">
           <el-input v-model="keyword" placeholder="搜索文档名称 / 编码 / bizKey" clearable @keyup.enter="handleSearch">
             <template #prefix>
               <el-icon><Search /></el-icon>
             </template>
           </el-input>
-          <el-button plain :loading="loading" @click="handleRefresh">
+          <div class="kb-document-shell__view-switcher" aria-label="文档视图切换">
+            <span>视图方式</span>
+            <div class="kb-document-shell__view-switch">
+              <button
+                :class="{ 'is-active': documentViewMode === 'card' }"
+                type="button"
+                title="卡片视图"
+                aria-label="卡片视图"
+                :aria-pressed="documentViewMode === 'card'"
+                @click="setDocumentViewMode('card')"
+              >
+                <el-icon><Grid /></el-icon>
+              </button>
+              <button
+                :class="{ 'is-active': documentViewMode === 'list' }"
+                type="button"
+                title="列表视图"
+                aria-label="列表视图"
+                :aria-pressed="documentViewMode === 'list'"
+                @click="setDocumentViewMode('list')"
+              >
+                <el-icon><List /></el-icon>
+              </button>
+            </div>
+          </div>
+          <el-button class="kb-document-shell__refresh" plain circle :loading="loading" title="刷新文档列表" aria-label="刷新文档列表" @click="handleRefresh">
             <el-icon><RefreshRight /></el-icon>
-            刷新
-          </el-button>
-          <el-button plain :loading="syncCandidateLoading || syncSubmitting" @click="openSyncSelectionDialog">
-            <el-icon><Upload /></el-icon>
-            知识库同步
-          </el-button>
-          <el-button type="primary" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>
-            新增文档
           </el-button>
         </div>
       </header>
@@ -599,15 +798,22 @@ onBeforeUnmount(() => {
         <div v-else-if="!documentCards.length" class="kb-document-shell__state">
           当前知识库下没有文档
         </div>
-        <div v-else class="kb-document-grid">
+        <div v-else :class="['kb-document-grid', { 'kb-document-grid--list': documentViewMode === 'list' }]">
           <article v-for="card in documentCards" :key="card.id" class="kb-document-card">
             <div class="kb-document-card__head">
               <div>
-                <h3>{{ card.title }}</h3>
-                <p>{{ card.code }}</p>
+                <h3 :title="card.title">{{ card.title }}</h3>
+                <p :title="card.code">{{ card.code }}</p>
               </div>
               <div class="kb-document-card__tags">
-                <el-tag v-for="tag in card.tags" :key="tag" size="small" effect="plain">
+                <el-checkbox
+                  v-if="batchMode"
+                  :model-value="selectedDocumentCodes.includes(selectableDocumentCode(card.raw))"
+                  :disabled="!selectableDocumentCode(card.raw)"
+                  :aria-label="`选择文档 ${card.title}`"
+                  @change="(selected) => toggleDocumentSelection(card.raw, Boolean(selected))"
+                />
+                <el-tag v-for="tag in card.tags" :key="tag" size="small" effect="plain" :title="tag">
                   {{ tag }}
                 </el-tag>
               </div>
@@ -635,7 +841,7 @@ onBeforeUnmount(() => {
                 <strong>{{ card.updatedAt }}</strong>
               </div>
             </div>
-            <div class="kb-document-card__actions">
+            <div v-if="!batchMode" class="kb-document-card__actions">
               <el-button plain circle title="详情" :loading="detailLoading" @click="openDetailDialog(card.raw)">
                 <el-icon><View /></el-icon>
               </el-button>
@@ -820,28 +1026,74 @@ onBeforeUnmount(() => {
 }
 
 .kb-document-shell__header {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
+  display: grid;
+  gap: 10px;
   padding: 12px 14px;
   border-bottom: 1px solid var(--system-border-subtle);
 }
 
+.kb-document-shell__header-main {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+}
+
 .kb-document-shell__title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.kb-document-shell__back {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: var(--system-border);
+  background: var(--system-surface-muted);
+  color: var(--system-text-soft);
+  transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.kb-document-shell__back:hover,
+.kb-document-shell__back:focus-visible {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
+}
+
+.kb-document-shell__title-copy {
   display: grid;
-  gap: 6px;
+  min-width: 0;
+  gap: 2px;
+}
+
+.kb-document-shell__title-line {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
 }
 
 .kb-document-shell__title h3 {
   margin: 0;
   color: var(--system-title);
   font-size: 17px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kb-document-shell__title p {
   margin: 0;
   color: var(--system-text-soft);
   font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kb-document-shell__tools {
@@ -852,28 +1104,45 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
 }
 
-.kb-document-shell__tabs {
+.kb-document-shell__batch-tools {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 6px;
+  border: 1px solid var(--system-border-subtle);
+  border-radius: 12px;
+  background: var(--system-surface-muted);
+}
+
+.kb-document-shell__batch-tools > span {
+  padding: 0 4px;
+  color: var(--system-text-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.kb-document-shell__search {
   display: flex;
   align-items: center;
   gap: 6px;
+  width: 100%;
 }
 
-.kb-document-shell__tab {
-  cursor: pointer;
+.kb-document-shell__search :deep(.el-input) {
+  flex: 0 1 360px;
+  width: min(100%, 360px);
+  min-width: 0;
 }
 
-.kb-document-shell__tools :deep(.el-input) {
-  width: 240px;
-}
-
-.kb-document-shell__tools :deep(.el-input__wrapper) {
+.kb-document-shell__search :deep(.el-input__wrapper) {
   background: var(--system-surface-muted);
   border: 1px solid var(--system-border);
   box-shadow: none;
 }
 
-.kb-document-shell__tools :deep(.el-input__inner),
-.kb-document-shell__tools :deep(.el-input__prefix-inner) {
+.kb-document-shell__search :deep(.el-input__inner),
+.kb-document-shell__search :deep(.el-input__prefix-inner) {
   color: var(--system-text);
 }
 
@@ -891,6 +1160,88 @@ onBeforeUnmount(() => {
   border-color: var(--system-accent-border);
   background: var(--system-primary-button-bg);
   color: var(--system-primary-button-text);
+}
+
+.kb-document-shell__batch-tools :deep(.el-button--danger) {
+  border-color: color-mix(in srgb, var(--system-danger) 45%, var(--system-border));
+  background: color-mix(in srgb, var(--system-danger) 10%, var(--system-surface-muted));
+  color: var(--system-danger);
+}
+
+.kb-document-shell__search :deep(.el-button) {
+  flex: 0 0 auto;
+  margin-left: auto;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border-color: var(--system-border);
+  border-radius: 50%;
+  background: var(--system-surface-muted);
+  color: var(--system-text-soft);
+}
+
+.kb-document-shell__search :deep(.el-button:hover),
+.kb-document-shell__search :deep(.el-button:focus-visible) {
+  border-color: var(--system-accent-border);
+  background: var(--system-accent-bg);
+  color: var(--system-accent-text);
+}
+
+.kb-document-shell__view-switcher {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 0 0 auto;
+  margin-left: auto;
+}
+
+.kb-document-shell__view-switcher > span {
+  color: var(--system-text-soft);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.kb-document-shell__view-switch {
+  display: flex;
+  padding: 4px;
+  border: 1px solid var(--system-border);
+  border-radius: 10px;
+  background: var(--system-surface-muted);
+}
+
+.kb-document-shell__view-switch button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--system-text-muted);
+  cursor: pointer;
+  transition: color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.kb-document-shell__view-switch button:hover,
+.kb-document-shell__view-switch button:focus-visible {
+  color: var(--system-accent-text);
+  outline: none;
+}
+
+.kb-document-shell__view-switch button:focus-visible {
+  box-shadow: 0 0 0 2px var(--system-accent-border);
+}
+
+.kb-document-shell__view-switch button.is-active {
+  background: var(--system-surface-solid);
+  color: var(--system-accent-text);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.kb-document-shell__refresh {
+  margin-left: 0 !important;
 }
 
 .kb-document-shell__main {
@@ -918,19 +1269,42 @@ onBeforeUnmount(() => {
   gap: 10px;
 }
 
+.kb-document-grid--list {
+  grid-template-columns: 1fr;
+}
+
 .kb-document-card {
   display: grid;
+  min-width: 0;
   gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--system-border);
   border-radius: 12px;
   background: var(--system-surface-solid);
+  overflow: hidden;
+}
+
+.kb-document-grid--list .kb-document-card {
+  grid-template-columns: minmax(220px, 1.25fr) minmax(180px, 1fr) minmax(280px, 1.8fr) auto;
+  align-items: center;
+  column-gap: 16px;
+}
+
+.kb-document-grid--list .kb-document-card__meta {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 6px 12px;
 }
 
 .kb-document-card__head {
   display: flex;
   justify-content: space-between;
   gap: 10px;
+  min-width: 0;
+}
+
+.kb-document-card__head > :first-child {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 
 .kb-document-card__head h3 {
@@ -938,6 +1312,9 @@ onBeforeUnmount(() => {
   color: var(--system-title);
   font-size: 14px;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kb-document-card__head p {
@@ -945,17 +1322,34 @@ onBeforeUnmount(() => {
   color: var(--system-text-soft);
   font-size: 11px;
   line-height: 1.3;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .kb-document-card__tags {
   display: flex;
+  flex: 0 1 46%;
   flex-wrap: wrap;
   gap: 4px;
+  min-width: 0;
+  align-content: flex-start;
   justify-content: flex-end;
 }
 
 .kb-document-card__tags :deep(.el-tag) {
+  max-width: 100%;
   padding: 0 6px;
+}
+
+.kb-document-card__tags :deep(.el-tag__content) {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kb-document-card__tags :deep(.el-checkbox) {
+  margin-right: 2px;
 }
 
 .kb-document-card__summary {
@@ -977,6 +1371,7 @@ onBeforeUnmount(() => {
 
 .kb-document-card__meta-item {
   display: grid;
+  min-width: 0;
   gap: 2px;
 }
 
@@ -1271,21 +1666,34 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 960px) {
-  .kb-document-shell__header {
+  .kb-document-shell__header-main {
     flex-direction: column;
+    align-items: stretch;
   }
 
   .kb-document-shell__tools {
     justify-content: flex-start;
   }
 
-  .kb-document-shell__tools :deep(.el-input) {
+  .kb-document-shell__search {
+    width: 100%;
+  }
+
+  .kb-document-shell__batch-tools {
     width: 100%;
   }
 
   .kb-document-card__meta,
   .kb-document-detail__summary {
     grid-template-columns: 1fr;
+  }
+
+  .kb-document-grid--list .kb-document-card {
+    grid-template-columns: 1fr;
+  }
+
+  .kb-document-grid--list .kb-document-card__meta {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .kb-sync-selection__item {

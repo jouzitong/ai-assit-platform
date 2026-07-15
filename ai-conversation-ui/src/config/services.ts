@@ -1,5 +1,4 @@
 export const SERVICE_NAMES = {
-  AI_ENGINE: 'aiEngine',
   USER: 'user',
   CHAT: 'chat',
   DB_ENGINE: 'dbEngine',
@@ -24,12 +23,6 @@ export const BACKEND_SERVICES = {
     displayName: '数据库引擎服务',
     gatewayPrefix: '/dbEngine',
     enumEndpoint: '/dbEngine/common/v1/system/enums',
-  },
-  [SERVICE_NAMES.AI_ENGINE]: {
-    name: SERVICE_NAMES.AI_ENGINE,
-    displayName: 'AI 引擎服务',
-    gatewayPrefix: '/aiEngine',
-    enumEndpoint: '/aiEngine/common/v1/system/enums',
   },
   [SERVICE_NAMES.RENDER]: {
     name: SERVICE_NAMES.RENDER,

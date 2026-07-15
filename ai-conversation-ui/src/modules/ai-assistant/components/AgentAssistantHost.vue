@@ -4,15 +4,24 @@ import {
   CloseBold,
   Cpu,
   Delete,
+  FullScreen,
   MagicStick,
   Promotion,
+  Rank,
   RefreshRight,
+  ScaleToOriginal,
 } from '@element-plus/icons-vue'
 import { useZIndex, type InputInstance } from 'element-plus'
+import { focusableStack, type FocusLayer } from 'element-plus/es/components/focus-trap/src/utils'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { useAssistantFloatingLayout } from '../composables/useAssistantFloatingLayout'
 import { activeAgentPageCapability } from '../services/pageCapabilityRegistry'
 import { useAiAssistantStore } from '../store/assistant'
+import type { AiAssistantMessage } from '../types'
+import AgentActivityTimeline from './AgentActivityTimeline.vue'
+
+const ASSISTANT_PANEL_ID = 'ai-page-assistant-panel'
 
 const route = useRoute()
 const router = useRouter()
@@ -23,6 +32,32 @@ const triggerRef = ref<HTMLButtonElement | null>(null)
 const composerRef = ref<InputInstance | null>(null)
 const messagesRef = ref<HTMLElement | null>(null)
 const lastExternalFocusRef = ref<HTMLElement | null>(null)
+// Pause the active Element Plus dialog trap only while focus is inside the assistant.
+const assistantFocusLayer: FocusLayer = {
+  paused: false,
+  pause() { this.paused = true },
+  resume() { this.paused = false },
+}
+let assistantFocusLayerActive = false
+const {
+  isCompact,
+  isLauncherDragging,
+  isPanelInteracting,
+  launcherStyle,
+  panelStyle,
+  panelSizeLabel,
+  panelMaximized,
+  startLauncherDrag,
+  startPanelDrag,
+  startPanelResize,
+  handlePointerMove,
+  finishPointerInteraction,
+  consumeLauncherClick,
+  moveLauncherWithKeyboard,
+  movePanelWithKeyboard,
+  resizePanelWithKeyboard,
+  togglePanelMaximize,
+} = useAssistantFloatingLayout(assistantHostRef, triggerRef)
 
 const assistantZIndex = computed(() => currentZIndex.value + 1)
 const contextTitle = computed(() => activeAgentPageCapability.value?.title || String(route.meta.title || document.title || route.path))
@@ -44,8 +79,11 @@ const quickPrompts = [
 ]
 
 function scrollToLatest() {
+  const messages = messagesRef.value
+  const shouldStickToBottom = !messages
+    || messages.scrollHeight - messages.scrollTop - messages.clientHeight < 64
   void nextTick(() => {
-    if (!messagesRef.value) return
+    if (!messagesRef.value || !shouldStickToBottom) return
     messagesRef.value.scrollTop = messagesRef.value.scrollHeight
   })
 }
@@ -68,7 +106,40 @@ function rememberExternalFocus() {
   }
 }
 
+function activateAssistantFocusLayer() {
+  if (assistantFocusLayerActive) return
+  focusableStack.push(assistantFocusLayer)
+  assistantFocusLayerActive = true
+}
+
+function deactivateAssistantFocusLayer() {
+  if (!assistantFocusLayerActive) return
+  focusableStack.remove(assistantFocusLayer)
+  assistantFocusLayerActive = false
+}
+
+function handleTriggerPointerDown(event: PointerEvent) {
+  rememberExternalFocus()
+  startLauncherDrag(event)
+}
+
+function handleTriggerClick(event: MouseEvent) {
+  if (consumeLauncherClick(event)) {
+    deactivateAssistantFocusLayer()
+    lastExternalFocusRef.value?.focus({ preventScroll: true })
+    return
+  }
+  void openAssistant()
+}
+
+function assistantResultLabel(status: AiAssistantMessage['status']) {
+  if (status === 'complete') return '最终总结'
+  if (status === 'pending') return '正在生成总结'
+  return '处理结果'
+}
+
 async function openAssistant() {
+  activateAssistantFocusLayer()
   assistant.openAssistant()
   await nextTick()
   composerRef.value?.focus()
@@ -76,6 +147,7 @@ async function openAssistant() {
 
 async function closeAssistant() {
   assistant.closeAssistant()
+  deactivateAssistantFocusLayer()
   await nextTick()
   const focusTarget = lastExternalFocusRef.value?.isConnected
     ? lastExternalFocusRef.value
@@ -88,20 +160,59 @@ async function openModelSettings() {
   await router.push('/settings/system/ai-platform/model')
 }
 
+function handleGlobalAssistantShortcut(event: KeyboardEvent) {
+  if (
+    event.code !== 'KeyA'
+    || !event.altKey
+    || !event.shiftKey
+    || event.ctrlKey
+    || event.metaKey
+  ) return
+
+  event.preventDefault()
+  event.stopPropagation()
+  if (assistantHostRef.value?.contains(document.activeElement)) {
+    deactivateAssistantFocusLayer()
+    lastExternalFocusRef.value?.focus({ preventScroll: true })
+    return
+  }
+  rememberExternalFocus()
+  void openAssistant()
+}
+
 watch(
-  () => [assistant.state.messages.length, assistant.state.activity, assistant.state.messages.at(-1)?.content],
+  () => {
+    const lastMessage = assistant.state.messages.at(-1)
+    const lastActivity = lastMessage?.activities?.at(-1)
+    return [
+      assistant.state.messages.length,
+      lastMessage?.content,
+      lastMessage?.activities?.length,
+      lastActivity?.status,
+      lastActivity?.title,
+    ]
+  },
   scrollToLatest,
 )
 function handleDocumentFocusIn(event: FocusEvent) {
   const target = event.target
-  if (target instanceof HTMLElement && !assistantHostRef.value?.contains(target)) {
-    lastExternalFocusRef.value = target
+  if (!(target instanceof HTMLElement)) return
+  if (assistantHostRef.value?.contains(target)) {
+    activateAssistantFocusLayer()
+    return
   }
+  deactivateAssistantFocusLayer()
+  lastExternalFocusRef.value = target
 }
 
-onMounted(() => document.addEventListener('focusin', handleDocumentFocusIn))
+onMounted(() => {
+  document.addEventListener('focusin', handleDocumentFocusIn)
+  document.addEventListener('keydown', handleGlobalAssistantShortcut, true)
+})
 onBeforeUnmount(() => {
   document.removeEventListener('focusin', handleDocumentFocusIn)
+  document.removeEventListener('keydown', handleGlobalAssistantShortcut, true)
+  deactivateAssistantFocusLayer()
   assistant.stopRun()
   assistant.closeAssistant()
 })
@@ -119,12 +230,20 @@ onBeforeUnmount(() => {
         v-if="!assistant.state.open"
         ref="triggerRef"
         class="assistant-trigger"
+        :class="{ 'is-dragging': isLauncherDragging }"
+        :style="launcherStyle"
         type="button"
-        aria-label="打开 AI 页面助手"
-        :aria-expanded="assistant.state.open"
-        title="AI 页面助手"
-        @pointerdown="rememberExternalFocus"
-        @click="openAssistant"
+        aria-label="打开或拖动 AI 页面助手"
+        aria-keyshortcuts="Alt+Shift+A"
+        :aria-controls="ASSISTANT_PANEL_ID"
+        title="AI 页面助手（可拖动；Alt + Shift + A 快速切换）"
+        @pointerdown="handleTriggerPointerDown"
+        @pointermove="handlePointerMove"
+        @pointerup="finishPointerInteraction"
+        @pointercancel="finishPointerInteraction"
+        @lostpointercapture="finishPointerInteraction"
+        @keydown="moveLauncherWithKeyboard"
+        @click="handleTriggerClick"
       >
         <el-icon><Cpu /></el-icon>
         <span class="assistant-trigger__status" aria-hidden="true" />
@@ -132,16 +251,38 @@ onBeforeUnmount(() => {
 
       <Transition name="assistant-flyout">
         <aside
+          :id="ASSISTANT_PANEL_ID"
           v-if="assistant.state.open"
           class="assistant-flyout"
+          :class="{
+            'is-compact': isCompact,
+            'is-interacting': isPanelInteracting,
+          }"
+          :style="panelStyle"
           role="complementary"
           aria-label="AI 页面助手"
+          aria-keyshortcuts="Alt+Shift+A"
           data-ai-assistant-panel
           @keydown.esc.stop="closeAssistant"
         >
           <section class="assistant-panel">
       <header class="assistant-panel__header">
         <div class="assistant-panel__identity">
+          <button
+            class="assistant-panel__drag-handle"
+            type="button"
+            :disabled="panelMaximized"
+            aria-label="移动 AI 助手窗口"
+            title="拖动窗口；方向键可微调位置"
+            @pointerdown="startPanelDrag"
+            @pointermove="handlePointerMove"
+            @pointerup="finishPointerInteraction"
+            @pointercancel="finishPointerInteraction"
+            @lostpointercapture="finishPointerInteraction"
+            @keydown="movePanelWithKeyboard"
+          >
+            <el-icon><Rank /></el-icon>
+          </button>
           <span class="assistant-panel__avatar"><el-icon><Cpu /></el-icon></span>
           <div>
             <strong>AI 页面助手</strong>
@@ -149,6 +290,14 @@ onBeforeUnmount(() => {
           </div>
         </div>
         <div class="assistant-panel__header-actions">
+          <el-button
+            text
+            circle
+            :icon="panelMaximized ? ScaleToOriginal : FullScreen"
+            :aria-label="panelMaximized ? '还原 AI 助手窗口' : '最大化 AI 助手窗口'"
+            :title="panelMaximized ? '还原窗口' : '最大化窗口'"
+            @click="togglePanelMaximize"
+          />
           <el-button
             text
             circle
@@ -203,7 +352,14 @@ onBeforeUnmount(() => {
         />
       </div>
 
-      <main ref="messagesRef" class="assistant-panel__messages" aria-live="polite">
+      <main
+        ref="messagesRef"
+        class="assistant-panel__messages"
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        aria-label="AI 助手对话记录"
+      >
         <section v-if="!assistant.state.messages.length" class="assistant-empty">
           <span class="assistant-empty__icon"><el-icon><MagicStick /></el-icon></span>
           <div>
@@ -231,18 +387,27 @@ onBeforeUnmount(() => {
           :class="['assistant-message', `is-${message.role}`, { 'is-error': message.status === 'error' }]"
         >
           <span v-if="message.role === 'assistant'" class="assistant-message__avatar"><el-icon><Cpu /></el-icon></span>
-          <div class="assistant-message__bubble">
-            <span v-if="message.status === 'pending' && !message.content" class="assistant-message__pending">
-              <i /><i /><i />
-            </span>
-            <p v-else>{{ message.content }}</p>
+          <div class="assistant-message__content">
+            <AgentActivityTimeline
+              v-if="message.role === 'assistant' && message.activities?.length"
+              :activities="message.activities"
+              :message-status="message.status"
+            />
+            <div
+              v-if="message.content || message.role === 'user' || !message.activities?.length"
+              class="assistant-message__bubble"
+            >
+              <span
+                v-if="message.role === 'assistant'"
+                class="assistant-message__result-label"
+              >{{ assistantResultLabel(message.status) }}</span>
+              <span v-if="message.status === 'pending' && !message.content" class="assistant-message__pending">
+                <i /><i /><i />
+              </span>
+              <p v-else>{{ message.content }}</p>
+            </div>
           </div>
         </article>
-
-        <div v-if="assistant.state.running && assistant.state.activity" class="assistant-activity">
-          <span class="assistant-activity__dot" />
-          {{ assistant.state.activity }}
-        </div>
       </main>
 
       <footer class="assistant-composer">
@@ -286,9 +451,22 @@ onBeforeUnmount(() => {
             @click="assistant.sendMessage()"
           />
         </div>
-        <span>Enter 发送，Shift + Enter 换行。AI 只回填草稿，不会主动点击保存或提交。</span>
+        <span>Enter 发送；Alt + Shift + A 可在弹窗与助手间切换。AI 只回填草稿，不会主动提交。</span>
       </footer>
           </section>
+          <button
+            v-if="!panelMaximized"
+            class="assistant-panel__resize-handle"
+            type="button"
+            :aria-label="`调整 AI 助手窗口大小，当前 ${panelSizeLabel}`"
+            :title="`拖动调整窗口大小（${panelSizeLabel}）`"
+            @pointerdown="startPanelResize"
+            @pointermove="handlePointerMove"
+            @pointerup="finishPointerInteraction"
+            @pointercancel="finishPointerInteraction"
+            @lostpointercapture="finishPointerInteraction"
+            @keydown="resizePanelWithKeyboard"
+          />
         </aside>
       </Transition>
     </div>
@@ -304,8 +482,6 @@ onBeforeUnmount(() => {
 
 .assistant-trigger {
   position: absolute;
-  right: var(--app-space-6);
-  bottom: var(--app-space-6);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -319,7 +495,13 @@ onBeforeUnmount(() => {
   box-shadow: var(--app-accent-shadow);
   cursor: pointer;
   pointer-events: auto;
+  touch-action: none;
+  user-select: none;
   transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.assistant-trigger.is-dragging {
+  cursor: grabbing;
 }
 
 .assistant-trigger:hover {
@@ -349,16 +531,25 @@ onBeforeUnmount(() => {
 
 .assistant-flyout {
   position: absolute;
-  top: var(--app-space-3);
-  right: var(--app-space-3);
-  bottom: var(--app-space-3);
-  width: min(440px, calc(100% - var(--app-space-6)));
+  max-width: calc(100% - var(--app-space-6));
+  max-height: calc(100% - var(--app-space-6));
   overflow: hidden;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-xl);
   background: var(--app-surface-solid);
   box-shadow: var(--app-shadow-sm);
   pointer-events: auto;
+  transform-origin: center;
+  transition: box-shadow 0.2s ease;
+}
+
+.assistant-flyout.is-interacting {
+  box-shadow: var(--app-shadow-md);
+  user-select: none;
+}
+
+.assistant-flyout.is-compact .assistant-panel__identity > div > span {
+  display: none;
 }
 
 .assistant-panel {
@@ -393,7 +584,6 @@ onBeforeUnmount(() => {
 .assistant-panel__identity > div,
 .assistant-panel__identity span,
 .assistant-panel__model-row,
-.assistant-activity,
 .assistant-message,
 .assistant-empty__prompts,
 .assistant-composer__box {
@@ -403,7 +593,39 @@ onBeforeUnmount(() => {
 .assistant-panel__identity {
   align-items: center;
   min-width: 0;
-  gap: var(--app-space-3);
+  gap: var(--app-space-2);
+}
+
+.assistant-panel__drag-handle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  width: var(--app-control-height-sm);
+  height: var(--app-control-height-sm);
+  padding: 0;
+  border: 0;
+  border-radius: var(--app-radius-md);
+  background: transparent;
+  color: var(--app-text-muted);
+  cursor: grab;
+  touch-action: none;
+}
+
+.assistant-panel__drag-handle:hover:not(:disabled),
+.assistant-panel__drag-handle:focus-visible {
+  background: var(--app-accent-bg);
+  color: var(--app-accent);
+  outline: none;
+}
+
+.assistant-panel__drag-handle:active:not(:disabled) {
+  cursor: grabbing;
+}
+
+.assistant-panel__drag-handle:disabled {
+  color: var(--app-text-faint);
+  cursor: default;
 }
 
 .assistant-panel__identity > div {
@@ -413,8 +635,12 @@ onBeforeUnmount(() => {
 }
 
 .assistant-panel__identity strong {
+  display: block;
+  overflow: hidden;
   color: var(--app-title);
   font-size: var(--app-font-size-title-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .assistant-panel__identity span:not(.assistant-panel__avatar) {
@@ -447,6 +673,11 @@ onBeforeUnmount(() => {
 
 .assistant-panel__header-actions {
   align-items: center;
+  gap: var(--app-space-1);
+}
+
+.assistant-panel__header-actions :deep(.el-button + .el-button) {
+  margin-left: 0;
 }
 
 .assistant-panel__model-row {
@@ -552,18 +783,44 @@ onBeforeUnmount(() => {
   justify-content: flex-end;
 }
 
+.assistant-message__content {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  min-width: 0;
+  max-width: 84%;
+  gap: var(--app-space-2);
+}
+
+.assistant-message.is-user .assistant-message__content {
+  align-items: flex-end;
+}
+
 .assistant-message__avatar {
   width: var(--app-control-height-sm);
   height: var(--app-control-height-sm);
 }
 
 .assistant-message__bubble {
-  max-width: 84%;
+  display: grid;
+  max-width: 100%;
+  gap: var(--app-space-1);
   padding: var(--app-space-3) var(--app-space-4);
   border: 1px solid var(--app-border-subtle);
   border-radius: var(--app-radius-lg);
   background: var(--app-surface-solid);
   box-shadow: var(--app-shadow-sm);
+}
+
+.assistant-message__result-label {
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+  font-weight: 600;
+  line-height: var(--app-line-height-body);
+}
+
+.assistant-message.is-error .assistant-message__result-label {
+  color: var(--app-danger);
 }
 
 .assistant-message.is-user .assistant-message__bubble {
@@ -593,8 +850,7 @@ onBeforeUnmount(() => {
   gap: var(--app-space-1);
 }
 
-.assistant-message__pending i,
-.assistant-activity__dot {
+.assistant-message__pending i {
   width: var(--app-space-tight);
   height: var(--app-space-tight);
   border-radius: var(--app-radius-round);
@@ -604,14 +860,6 @@ onBeforeUnmount(() => {
 
 .assistant-message__pending i:nth-child(2) { animation-delay: 0.15s; }
 .assistant-message__pending i:nth-child(3) { animation-delay: 0.3s; }
-
-.assistant-activity {
-  align-items: center;
-  gap: var(--app-space-2);
-  margin: 0 0 var(--app-space-3) var(--app-control-height-lg);
-  color: var(--app-text-muted);
-  font-size: var(--app-font-size-caption);
-}
 
 .assistant-composer {
   display: grid;
@@ -649,9 +897,52 @@ onBeforeUnmount(() => {
 }
 
 .assistant-composer > span {
-  color: var(--app-text-faint);
+  padding-inline-start: calc(var(--app-control-height-sm) + var(--app-space-1));
+  color: var(--app-text-muted);
   font-size: var(--app-font-size-caption);
   line-height: var(--app-line-height-body);
+}
+
+.assistant-panel__resize-handle {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 1;
+  width: var(--app-control-height-sm);
+  height: var(--app-control-height-sm);
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--app-text-faint);
+  cursor: nesw-resize;
+  touch-action: none;
+}
+
+.assistant-panel__resize-handle::before,
+.assistant-panel__resize-handle::after {
+  position: absolute;
+  bottom: var(--app-space-tight);
+  left: var(--app-space-tight);
+  border-bottom: 2px solid currentColor;
+  border-left: 2px solid currentColor;
+  content: '';
+}
+
+.assistant-panel__resize-handle::before {
+  width: var(--app-space-3);
+  height: var(--app-space-3);
+}
+
+.assistant-panel__resize-handle::after {
+  width: var(--app-space-tight);
+  height: var(--app-space-tight);
+}
+
+.assistant-panel__resize-handle:hover,
+.assistant-panel__resize-handle:focus-visible {
+  color: var(--app-accent);
+  outline: 2px solid var(--app-accent-border);
+  outline-offset: -2px;
 }
 
 @container (max-width: 380px) {
@@ -665,8 +956,12 @@ onBeforeUnmount(() => {
     padding-inline: var(--app-space-3);
   }
 
-  .assistant-message__bubble {
+  .assistant-message__content {
     max-width: 90%;
+  }
+
+  .assistant-panel__avatar {
+    display: none;
   }
 }
 
@@ -683,7 +978,7 @@ onBeforeUnmount(() => {
 .assistant-flyout-enter-from,
 .assistant-flyout-leave-to {
   opacity: 0;
-  transform: translateX(calc(100% + var(--app-space-6)));
+  transform: scale(0.98);
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -695,8 +990,7 @@ onBeforeUnmount(() => {
     transition: none;
   }
 
-  .assistant-message__pending i,
-  .assistant-activity__dot {
+  .assistant-message__pending i {
     animation: none;
   }
 }

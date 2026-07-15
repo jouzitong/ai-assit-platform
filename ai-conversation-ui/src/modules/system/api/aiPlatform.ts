@@ -254,6 +254,12 @@ export interface AiKbDocumentDeletePayload {
   documentCodes: string[]
 }
 
+export interface AiKbDocumentStatusUpdatePayload {
+  kbCode: string
+  documentCodes: string[]
+  enabled: boolean
+}
+
 export interface AiKbDocumentSyncPayload {
   kbCode: string
   documentCodes?: string[]
@@ -347,6 +353,8 @@ export interface AiModelManageQueryPayload {
 export interface AiKbStoreQueryPayload {
   page?: number
   size?: number
+  kbCode?: string
+  kbName?: string
   keyword?: string
   enabled?: boolean
 }
@@ -524,6 +532,13 @@ export function updateAiKbDocumentContent(payload: AiKbDocumentContentUpdatePayl
 
 export function deleteAiKbDocuments(payload: AiKbDocumentDeletePayload) {
   return request(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/delete`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function updateAiKbDocumentStatus(payload: AiKbDocumentStatusUpdatePayload) {
+  return request<number>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/status/update`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

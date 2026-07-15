@@ -10,6 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
+import ai.platform.aiassit.knowledge.manage.req.AiKbDocumentStatusUpdateRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbPageDocumentListRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
@@ -90,6 +91,11 @@ public class AiKnowledgeBasePageController {
     @PostMapping("/api/v1/ai/kb/document/sync/check")
     public R<AiKbSyncCheckResponse> checkDocumentSync(@RequestBody(required = false) AiKbSyncCheckRequest request) {
         return R.ok(domainService.checkDocumentSync(request));
+    }
+
+    @PostMapping("/api/v1/ai/kb/document/status/update")
+    public R<Integer> updateDocumentStatus(@RequestBody AiKbDocumentStatusUpdateRequest request) {
+        return R.ok(domainService.updateDocumentStatus(request));
     }
 
     @PostMapping("/api/v1/ai/kb/document/delete")

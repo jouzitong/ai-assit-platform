@@ -118,7 +118,7 @@ function normalizeOptions(items: unknown): EnumOption[] {
 }
 
 export async function loadServiceEnums(
-  serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.AI_ENGINE,
+  serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.CHAT,
   options: { force?: boolean } = {},
 ) {
   if (!options.force && enumStore.services[serviceName]) {
@@ -157,22 +157,22 @@ export function preloadServiceEnums(serviceNames = DEFAULT_ENUM_SERVICE_NAMES) {
   return Promise.all(serviceNames.map(serviceName => loadServiceEnums(serviceName)))
 }
 
-export function getServiceEnums(serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.AI_ENGINE) {
+export function getServiceEnums(serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.CHAT) {
   return enumStore.services[serviceName] || {}
 }
 
-export function getEnum(enumName: string, serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.AI_ENGINE) {
+export function getEnum(enumName: string, serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.CHAT) {
   return getServiceEnums(serviceName)[enumName] || []
 }
 
-export function getEnumOptions(enumName: string, serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.AI_ENGINE) {
+export function getEnumOptions(enumName: string, serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.CHAT) {
   return normalizeOptions(getEnum(enumName, serviceName))
 }
 
 export function getEnumLabel(
   enumName: string,
   value: unknown,
-  serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.AI_ENGINE,
+  serviceName: keyof typeof SERVICE_NAMES = SERVICE_NAMES.CHAT,
 ) {
   const option = getEnumOptions(enumName, serviceName).find(item => String(item.value) === String(value))
   return option?.label ?? value

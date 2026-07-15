@@ -11,6 +11,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbCreateRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
+import ai.platform.aiassit.knowledge.manage.req.AiKbDocumentStatusUpdateRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbDeleteResponse;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbSyncCheckResponse;
@@ -110,6 +111,8 @@ public interface AiKnowledgeManageDomainService {
     AiKbPublishTaskDTO getSyncTask(String taskCode);
 
     AiKbSyncCheckResponse checkDocumentSync(AiKbSyncCheckRequest request);
+
+    int updateDocumentStatus(AiKbDocumentStatusUpdateRequest request);
 
     AiKbDeleteResponse deleteDocument(AiKbDeleteRequest request);
 }

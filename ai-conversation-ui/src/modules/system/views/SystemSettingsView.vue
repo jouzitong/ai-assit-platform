@@ -179,7 +179,7 @@ function toggleSidebar() {
 }
 
 onMounted(() => {
-  if (!navigableSections.value.some(item => item.key === routeSection.value)) {
+  if (!isAiPlatformSection.value && !navigableSections.value.some(item => item.key === routeSection.value)) {
     void router.replace(`/settings/system/${navigableSections.value[0].key}`)
     return
   }

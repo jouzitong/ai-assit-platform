@@ -29,6 +29,7 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbTaskStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbTaskType;
 import ai.platform.aiassit.execution.service.AiKnowledgeExecutionService;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDeleteRequest;
+import ai.platform.aiassit.knowledge.manage.req.AiKbDocumentStatusUpdateRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncCheckRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
 import ai.platform.aiassit.knowledge.manage.resp.AiKbDeleteResponse;
@@ -587,6 +588,47 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             }
         }
         return response;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int updateDocumentStatus(AiKbDocumentStatusUpdateRequest request) {
+        if (request == null || !StringUtils.hasText(request.getKbCode())) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_CODE);
+        }
+        if (request.getEnabled() == null || request.getDocumentCodes() == null || request.getDocumentCodes().isEmpty()) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
+        }
+
+        List<String> documentCodes = request.getDocumentCodes().stream()
+                .filter(StringUtils::hasText)
+                .map(String::trim)
+                .distinct()
+                .toList();
+        if (documentCodes.isEmpty()) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
+        }
+
+        AiKbDocumentQueryRequest query = new AiKbDocumentQueryRequest();
+        query.setKbCode(request.getKbCode().trim());
+        query.setDocumentCodes(documentCodes);
+        query.setPage(1);
+        query.setSize(Integer.MAX_VALUE);
+        List<AiKbDocumentDTO> documents = documentService.listByQuery(query);
+        AiKbDocumentStatus targetStatus = Boolean.TRUE.equals(request.getEnabled())
+                ? AiKbDocumentStatus.ACTIVE
+                : AiKbDocumentStatus.DISABLED;
+
+        int updatedCount = 0;
+        for (AiKbDocumentDTO document : documents) {
+            if (document.getId() == null || document.getStatus() == targetStatus) {
+                continue;
+            }
+            document.setStatus(targetStatus);
+            documentService.update(document.getId(), document);
+            updatedCount++;
+        }
+        return updatedCount;
     }
 
     @Override
@@ -1366,7 +1408,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (!StringUtils.hasText(tab)) {
             return AiKbDocumentStatus.ACTIVE;
         }
-        if ("history".equalsIgnoreCase(tab.trim())) {
+        if ("history".equalsIgnoreCase(tab.trim()) || "draft".equalsIgnoreCase(tab.trim())) {
             return AiKbDocumentStatus.DISABLED;
         }
         return AiKbDocumentStatus.ACTIVE;

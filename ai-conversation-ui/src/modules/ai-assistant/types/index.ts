@@ -40,13 +40,21 @@ export interface AgentPageActionResult {
   details?: AgentJsonValue
 }
 
+export interface AgentPageActionExecutionContext {
+  signal?: AbortSignal
+}
+
 export interface AgentPageCapability {
   id: string
   title: string
   description?: string
   actions?: AgentPageActionDefinition[]
   getSnapshot: () => AgentPageSnapshot | Promise<AgentPageSnapshot>
-  executeAction?: (action: string, payload: Record<string, AgentJsonPrimitive>) => AgentPageActionResult | Promise<AgentPageActionResult>
+  executeAction?: (
+    action: string,
+    payload: Record<string, AgentJsonPrimitive>,
+    context: AgentPageActionExecutionContext,
+  ) => AgentPageActionResult | Promise<AgentPageActionResult>
 }
 
 export interface AgentDomFormField {
@@ -101,12 +109,35 @@ export interface AgentFormPatchResult {
 
 export type AiAssistantMessageRole = 'user' | 'assistant'
 
+export type AiAssistantActivityKind = 'context' | 'model' | 'reasoning' | 'tool' | 'knowledge' | 'summary'
+
+export type AiAssistantActivityStatus = 'running' | 'complete' | 'error' | 'cancelled'
+
+export interface AiAssistantActivity {
+  id: string
+  kind: AiAssistantActivityKind
+  title: string
+  detail?: string
+  status: AiAssistantActivityStatus
+  startedAt: string
+  completedAt?: string
+}
+
+export interface AgentActivityUpdate {
+  id: string
+  kind: AiAssistantActivityKind
+  title: string
+  detail?: string
+  status: AiAssistantActivityStatus
+}
+
 export interface AiAssistantMessage {
   id: string
   role: AiAssistantMessageRole
   content: string
   createdAt: string
-  status: 'complete' | 'pending' | 'error'
+  status: 'complete' | 'pending' | 'error' | 'cancelled'
+  activities?: AiAssistantActivity[]
 }
 
 export interface RunBrowserPageAgentInput {
@@ -114,5 +145,5 @@ export interface RunBrowserPageAgentInput {
   prompt: string
   history: AiAssistantMessage[]
   signal?: AbortSignal
-  onActivity?: (message: string) => void
+  onActivity?: (activity: AgentActivityUpdate) => void
 }

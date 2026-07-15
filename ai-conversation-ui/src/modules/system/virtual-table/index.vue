@@ -5,7 +5,11 @@ import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppCodeEditor } from '../../../components'
 import { useAgentPageCapability } from '../../ai-assistant/composables/useAgentPageCapability'
-import type { AgentJsonPrimitive, AgentPageActionResult } from '../../ai-assistant/types'
+import type {
+  AgentJsonPrimitive,
+  AgentPageActionExecutionContext,
+  AgentPageActionResult,
+} from '../../ai-assistant/types'
 import { searchAiKbStores, type AiKbStoreItem } from '../api/aiPlatform'
 import { searchDbDataSources, type DbDataSourceItem, type DbTableMetaItem } from '../api/dataSources'
 import {
@@ -338,16 +342,24 @@ function getAgentPageSnapshot() {
 async function executeVirtualTableAgentAction(
   action: string,
   payload: Record<string, AgentJsonPrimitive>,
+  context: AgentPageActionExecutionContext,
 ): Promise<AgentPageActionResult> {
+  const throwIfAborted = () => {
+    if (context.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  }
+  throwIfAborted()
   if (action !== 'virtual-table.prefill-relation') {
     return { success: false, message: `虚拟表页面不支持动作 ${action}。` }
   }
 
   await switchView('relations')
+  throwIfAborted()
   await nextTick()
+  throwIfAborted()
   if (!relationCanvasRef.value) {
     return { success: false, message: '关系画布尚未准备完成，请稍后重试。' }
   }
+  throwIfAborted()
   return relationCanvasRef.value.prefillRelationFromAgent(payload)
 }
 

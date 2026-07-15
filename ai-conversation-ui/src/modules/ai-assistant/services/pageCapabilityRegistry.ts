@@ -1,6 +1,7 @@
 import { computed, shallowRef } from 'vue'
 import type {
   AgentJsonPrimitive,
+  AgentPageActionExecutionContext,
   AgentPageActionResult,
   AgentPageCapability,
 } from '../types'
@@ -22,7 +23,9 @@ export function registerAgentPageCapability(capability: AgentPageCapability) {
 export async function executeRegisteredPageAction(
   action: string,
   payload: Record<string, AgentJsonPrimitive>,
+  context: AgentPageActionExecutionContext = {},
 ): Promise<AgentPageActionResult> {
+  if (context.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
   const capability = activeAgentPageCapability.value
   if (!capability?.executeAction) {
     return { success: false, message: '当前页面没有提供可执行的画布或页面动作。' }
@@ -30,5 +33,7 @@ export async function executeRegisteredPageAction(
   if (!capability.actions?.some(item => item.name === action)) {
     return { success: false, message: `当前页面不支持动作 ${action}。` }
   }
-  return capability.executeAction(action, payload)
+  const result = await capability.executeAction(action, payload, context)
+  if (context.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
+  return result
 }

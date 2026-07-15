@@ -6,6 +6,7 @@ import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentCont
 import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentDTO;
 import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
 import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
+import ai.platform.aiassit.knowledge.manage.req.AiKbDocumentStatusUpdateRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentContentService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentService;
@@ -150,6 +151,23 @@ class AiKnowledgeManageDomainServiceImplTest {
         AiKbDocumentDTO finalDocument = documentCaptor.getAllValues().get(documentCaptor.getAllValues().size() - 1);
         assertEquals("old-doc", finalDocument.getProviderDocumentId());
         assertEquals(AiKbProviderSyncStatus.FAILED, finalDocument.getProviderSyncStatus());
+    }
+
+    @Test
+    void shouldUpdateStatusForSelectedDocuments() {
+        AiKbDocumentDTO document = document("provider-doc", AiKbProviderSyncStatus.SUCCESS);
+        AiKbDocumentStatusUpdateRequest request = new AiKbDocumentStatusUpdateRequest();
+        request.setKbCode("kb-1");
+        request.setDocumentCodes(List.of("doc-1"));
+        request.setEnabled(false);
+        when(documentService.listByQuery(any())).thenReturn(List.of(document));
+
+        int updatedCount = domainService.updateDocumentStatus(request);
+
+        assertEquals(1, updatedCount);
+        ArgumentCaptor<AiKbDocumentDTO> documentCaptor = ArgumentCaptor.forClass(AiKbDocumentDTO.class);
+        verify(documentService).update(eq(1L), documentCaptor.capture());
+        assertEquals(AiKbDocumentStatus.DISABLED, documentCaptor.getValue().getStatus());
     }
 
     private void mockSyncInputs(AiKbDocumentDTO document, AiKbDocumentContentDTO content) {
