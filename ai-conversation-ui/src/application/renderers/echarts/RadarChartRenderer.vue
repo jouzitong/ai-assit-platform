@@ -27,10 +27,10 @@ const chartOption = computed<EChartsOption>(() => {
     legend: createLegend(props.series.map((item) => item.name), props.legend),
     tooltip: {
       trigger: 'item',
-      backgroundColor: 'rgba(15, 23, 42, 0.9)',
+      backgroundColor: 'var(--app-chart-tooltip-bg)',
       borderWidth: 0,
       textStyle: {
-        color: '#f8fafc',
+        color: 'var(--app-chart-tooltip-text)',
       },
     },
     radar: {
@@ -39,22 +39,22 @@ const chartOption = computed<EChartsOption>(() => {
       indicator: props.indicators,
       splitNumber: 4,
       axisName: {
-        color: '#334155',
+        color: 'var(--app-chart-label)',
         fontSize: 12,
       },
       splitArea: {
         areaStyle: {
-          color: ['rgba(15, 23, 42, 0.015)', 'rgba(15, 23, 42, 0.04)'],
+          color: ['var(--app-chart-radar-area-soft)', 'var(--app-chart-radar-area)'],
         },
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(148, 163, 184, 0.24)',
+          color: 'var(--app-chart-grid-strong)',
         },
       },
       axisLine: {
         lineStyle: {
-          color: 'rgba(148, 163, 184, 0.24)',
+          color: 'var(--app-chart-grid-strong)',
         },
       },
     },

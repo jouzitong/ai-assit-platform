@@ -1,18 +1,45 @@
 import type { EChartsOption, SeriesOption } from 'echarts'
 
 export const DEFAULT_ECHART_COLORS = [
-  '#2563eb',
-  '#0f766e',
-  '#f97316',
-  '#7c3aed',
-  '#0891b2',
-  '#dc2626',
-  '#65a30d',
-  '#ea580c',
+  'var(--app-chart-color-1)',
+  'var(--app-chart-color-2)',
+  'var(--app-chart-color-3)',
+  'var(--app-chart-color-4)',
+  'var(--app-chart-color-5)',
+  'var(--app-chart-color-6)',
+  'var(--app-chart-color-7)',
+  'var(--app-chart-color-8)',
 ]
+
+const CSS_VARIABLE_PATTERN = /^var\((--[\w-]+)(?:,\s*(.+))?\)$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Object.prototype.toString.call(value) === '[object Object]'
+}
+
+export function resolveCssVariables<T>(value: T, element: Element): T {
+  if (typeof value === 'string') {
+    const match = value.match(CSS_VARIABLE_PATTERN)
+    if (!match) {
+      return value
+    }
+
+    const [, variableName, fallback = ''] = match
+    const resolvedValue = getComputedStyle(element).getPropertyValue(variableName).trim()
+    return (resolvedValue || fallback.trim() || value) as T
+  }
+
+  if (Array.isArray(value)) {
+    return value.map((item) => resolveCssVariables(item, element)) as T
+  }
+
+  if (isRecord(value)) {
+    return Object.fromEntries(
+      Object.entries(value).map(([key, item]) => [key, resolveCssVariables(item, element)]),
+    ) as T
+  }
+
+  return value
 }
 
 export function mergeOptions<T extends Record<string, unknown>>(base: T, extra?: Record<string, unknown>): T {
@@ -63,7 +90,7 @@ export function createLegend(names: string[], enabled = true) {
     itemWidth: 12,
     itemHeight: 12,
     textStyle: {
-      color: '#475569',
+      color: 'var(--app-chart-label)',
       fontSize: 12,
     },
     data: names,
@@ -73,15 +100,15 @@ export function createLegend(names: string[], enabled = true) {
 export function createTooltip(unit = '') {
   return {
     trigger: 'axis',
-    backgroundColor: 'rgba(15, 23, 42, 0.9)',
+    backgroundColor: 'var(--app-chart-tooltip-bg)',
     borderWidth: 0,
     textStyle: {
-      color: '#f8fafc',
+      color: 'var(--app-chart-tooltip-text)',
     },
     axisPointer: {
       type: 'line',
       lineStyle: {
-        color: 'rgba(148, 163, 184, 0.45)',
+        color: 'var(--app-chart-tooltip-axis)',
       },
     },
     valueFormatter: unit ? (value: number | string) => `${value}${unit}` : undefined,

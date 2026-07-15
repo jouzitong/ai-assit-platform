@@ -42,6 +42,7 @@
 - 布局组件只处理 DOM 编排、容器响应式和主题 token，不发起请求，也不维护页面级业务状态。
 - 表单字段优先使用 `LayoutFormGrid` 与 `LayoutFormGridItem` 声明列数和跨度；只读信息优先使用 `LayoutLabelValue`，避免每个页面重复实现 label-value 结构。
 - `src/application/layout/` 只保留需要 Render JSON、registry 或 runtime 动态解析的容器型布局；它可以复用 `src/components/layout/`，但不复制基础布局实现。
+- 公共组件的主题 Token、Container Query、单缩放宿主、浮层和坐标换算遵循 [前端主题与容器响应式开发规范](./responsive-theme.md)。
 
 ## 8. 维护要求
 

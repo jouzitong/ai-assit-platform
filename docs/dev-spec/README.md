@@ -12,6 +12,8 @@
   - 适用于样式文件组织、局部样式边界、命名方式、页面样式落点相关任务。
 - [主题规范](./detail/frontend/theme.md)
   - 适用于主题变量、配色体系、视觉风格统一和主题扩展相关任务。
+- [主题与容器响应式开发规范](./detail/frontend/responsive-theme.md)
+  - 适用于 `src/application`、`src/components` 的主题 Token、Container Query、有边界等比例缩放、全局预设和局部覆盖相关任务。
 - [组件规范](./detail/frontend/component.md)
   - 适用于通用组件封装、组件职责边界、组件复用方式相关任务。
 - [Application 开发规范](./detail/frontend/application.md)

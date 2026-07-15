@@ -25,35 +25,35 @@ defineProps<{
 .list-summary-bar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: 14px;
+  gap: var(--app-space-comfortable);
 }
 
 .list-summary-bar__card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--app-space-2);
   min-height: 110px;
-  padding: 18px 20px;
+  padding: var(--app-space-roomy) var(--app-space-5);
   border: 1px solid var(--workbench-summary-border);
-  border-radius: 22px;
+  border-radius: var(--app-radius-2xl);
   background: var(--workbench-summary-bg);
   box-shadow: var(--app-inset-highlight);
 }
 
 .list-summary-bar__label {
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   font-weight: 600;
   color: var(--workbench-text-soft);
 }
 
 .list-summary-bar__value {
-  font-size: 32px;
+  font-size: var(--app-font-size-display);
   line-height: 1;
   color: var(--summary-accent);
 }
 
 .list-summary-bar__hint {
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   color: var(--workbench-text-muted);
 }
 </style>

@@ -207,7 +207,7 @@ onBeforeUnmount(() => {
   left: 0;
   width: 9px;
   height: 1px;
-  border-radius: 999px;
+  border-radius: var(--app-radius-round);
   background: color-mix(in srgb, var(--chat-text-muted) 58%, transparent);
   transform: translateY(-50%);
 }
@@ -234,7 +234,7 @@ onBeforeUnmount(() => {
   width: 28px;
   height: var(--app-scroll-minimap-thumb-height);
   min-height: 1px;
-  border-radius: 999px;
+  border-radius: var(--app-radius-round);
   border-left: 2px solid var(--chat-text-secondary);
 }
 

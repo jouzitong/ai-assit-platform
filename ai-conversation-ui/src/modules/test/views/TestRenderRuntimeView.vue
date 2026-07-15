@@ -4,6 +4,7 @@ import { ElMessage } from 'element-plus'
 import { AppCodeEditor } from '../../../components'
 import { AppJsonTree } from '../../../components/basic'
 import { findApplicationRenderer } from '../../../application/registry'
+import { ResponsiveViewport } from '../../../application/layout'
 import {
   buildDbQueryListRequest,
   resolveListRendererStructure,
@@ -646,79 +647,84 @@ function stringifySchema(schema: ListRendererSchema) {
 </script>
 
 <template>
-  <RenderJsonRuntimeHost :document="runtimeDocument">
-    <section class="test-render-runtime-view">
-      <div v-if="runtimeErrorMessage" class="test-render-runtime-view__runtime-error">
-        {{ runtimeErrorMessage }}
-      </div>
-
-      <component
-        :is="rendererComponent"
-        v-else-if="rendererComponent"
-        :schema="runtimeRendererSchema"
-        :data="resolvedData"
-        :state="rendererState"
-        :records="resolvedData.records || []"
-        :total="resolvedData.total || 0"
-        @query-change="handleQueryChange"
-        @reload="handleReload"
-        @action="handleAction"
-        @item-action="handleItemAction"
-      />
-
-      <teleport to="body">
-        <div
-          v-if="contextPanelVisible"
-          class="test-render-runtime-view__context-layer"
-          @click.self="contextPanelVisible = false"
-        >
-          <aside class="test-render-runtime-view__context-panel">
-            <header class="test-render-runtime-view__context-header">
-              <h2>Runtime Context</h2>
-              <el-button text @click="contextPanelVisible = false">关闭</el-button>
-            </header>
-            <div class="test-render-runtime-view__context-body">
-              <div class="test-render-runtime-view__context-meta">
-                <span class="test-render-runtime-view__context-meta-label">核心组件</span>
-                <span class="test-render-runtime-view__context-meta-value">{{ normalizedSchema.component }}</span>
-              </div>
-              <AppJsonTree :value="runtimeContext" label="SCOPE" />
-            </div>
-          </aside>
-        </div>
-      </teleport>
-
-      <el-dialog
-        v-model="metadataDialogVisible"
-        title="Render JSON 元数据配置"
-        width="960px"
-        destroy-on-close
-        class="test-render-runtime-view__metadata-dialog"
-      >
-        <div class="test-render-runtime-view__metadata-toolbar">
-          <el-button @click="handleFormatMetadata">格式化 JSON</el-button>
-          <el-button @click="handleResetMetadata">恢复默认</el-button>
+  <ResponsiveViewport
+    preset="dashboard"
+    :config="{ maxScale: 1.15 }"
+  >
+    <RenderJsonRuntimeHost :document="runtimeDocument">
+      <section class="test-render-runtime-view">
+        <div v-if="runtimeErrorMessage" class="test-render-runtime-view__runtime-error">
+          {{ runtimeErrorMessage }}
         </div>
 
-        <AppCodeEditor
-          v-model="metadataDraft"
-          format="json"
-          height="520px"
-          min-height="520px"
-          toolbar-label="JSON"
-          :show-format-switcher="false"
-          class="test-render-runtime-view__metadata-input"
+        <component
+          :is="rendererComponent"
+          v-else-if="rendererComponent"
+          :schema="runtimeRendererSchema"
+          :data="resolvedData"
+          :state="rendererState"
+          :records="resolvedData.records || []"
+          :total="resolvedData.total || 0"
+          @query-change="handleQueryChange"
+          @reload="handleReload"
+          @action="handleAction"
+          @item-action="handleItemAction"
         />
 
-        <template #footer>
-          <div class="test-render-runtime-view__metadata-footer">
-            <el-button @click="metadataDialogVisible = false">取消</el-button>
-            <el-button type="primary" :loading="metadataSaving" @click="handleApplyMetadata">保存</el-button>
+        <teleport to="body">
+          <div
+            v-if="contextPanelVisible"
+            class="test-render-runtime-view__context-layer"
+            @click.self="contextPanelVisible = false"
+          >
+            <aside class="test-render-runtime-view__context-panel">
+              <header class="test-render-runtime-view__context-header">
+                <h2>Runtime Context</h2>
+                <el-button text @click="contextPanelVisible = false">关闭</el-button>
+              </header>
+              <div class="test-render-runtime-view__context-body">
+                <div class="test-render-runtime-view__context-meta">
+                  <span class="test-render-runtime-view__context-meta-label">核心组件</span>
+                  <span class="test-render-runtime-view__context-meta-value">{{ normalizedSchema.component }}</span>
+                </div>
+                <AppJsonTree :value="runtimeContext" label="SCOPE" />
+              </div>
+            </aside>
           </div>
-        </template>
-      </el-dialog>
-    </section>
-  </RenderJsonRuntimeHost>
+        </teleport>
+
+        <el-dialog
+          v-model="metadataDialogVisible"
+          title="Render JSON 元数据配置"
+          width="960px"
+          destroy-on-close
+          class="test-render-runtime-view__metadata-dialog"
+        >
+          <div class="test-render-runtime-view__metadata-toolbar">
+            <el-button @click="handleFormatMetadata">格式化 JSON</el-button>
+            <el-button @click="handleResetMetadata">恢复默认</el-button>
+          </div>
+
+          <AppCodeEditor
+            v-model="metadataDraft"
+            format="json"
+            height="520px"
+            min-height="520px"
+            toolbar-label="JSON"
+            :show-format-switcher="false"
+            class="test-render-runtime-view__metadata-input"
+          />
+
+          <template #footer>
+            <div class="test-render-runtime-view__metadata-footer">
+              <el-button @click="metadataDialogVisible = false">取消</el-button>
+              <el-button type="primary" :loading="metadataSaving" @click="handleApplyMetadata">保存</el-button>
+            </div>
+          </template>
+        </el-dialog>
+      </section>
+    </RenderJsonRuntimeHost>
+  </ResponsiveViewport>
 </template>
 
 <style scoped>

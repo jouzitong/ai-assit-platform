@@ -136,23 +136,23 @@ function handleChange(value: unknown) {
 .form-field-renderer__display {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--app-space-2);
   min-height: 100%;
-  padding: 16px 18px;
+  padding: var(--app-space-4) var(--app-space-roomy);
   border: 1px solid var(--app-border-subtle);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   background: var(--app-surface-muted);
 }
 
 .form-field-renderer__label {
   color: var(--app-text-muted);
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   font-weight: 600;
 }
 
 .form-field-renderer__value {
   color: var(--app-title);
-  font-size: 14px;
+  font-size: var(--app-font-size-body-lg);
   line-height: 1.6;
   word-break: break-word;
 }

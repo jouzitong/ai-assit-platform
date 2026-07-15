@@ -21,7 +21,7 @@ defineProps<{
   max-width: 100%;
   min-width: 0;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   overflow: hidden;
   background: var(--app-surface-solid);
 }
@@ -29,14 +29,14 @@ defineProps<{
 .app-table__head {
   display: grid;
   grid-auto-flow: column;
-  gap: 16px;
-  padding: 16px 20px;
+  gap: var(--app-space-4);
+  padding: var(--app-space-4) var(--app-space-5);
   background: var(--app-surface-muted);
   color: var(--app-title);
   font-weight: 600;
 }
 
 .app-table__body {
-  padding: 20px;
+  padding: var(--app-space-5);
 }
 </style>

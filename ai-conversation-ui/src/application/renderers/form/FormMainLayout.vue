@@ -79,7 +79,7 @@ function handleFieldChange(payload: { key: string; value: unknown }) {
 .form-main-layout {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--app-space-5);
   width: 100%;
   min-width: 0;
   min-height: 100%;
@@ -87,11 +87,11 @@ function handleFieldChange(payload: { key: string; value: unknown }) {
 }
 
 .form-main-layout--workbench {
-  padding: 8px;
+  padding: var(--app-space-2);
 }
 
 .form-main-layout__groups {
   display: grid;
-  gap: 18px;
+  gap: var(--app-space-roomy);
 }
 </style>

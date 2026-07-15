@@ -46,19 +46,19 @@ const toButtonType = (type?: FormRendererAction['type']) => type || 'default'
 .form-header-bar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--app-space-3);
 }
 
 .form-header-bar__main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--app-space-4);
 }
 
 .form-header-bar__title {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--app-font-size-title-lg);
   font-weight: 700;
   color: var(--app-title);
 }
@@ -66,14 +66,14 @@ const toButtonType = (type?: FormRendererAction['type']) => type || 'default'
 .form-header-bar__description {
   margin: 8px 0 0;
   color: var(--app-text-muted);
-  font-size: 13px;
+  font-size: var(--app-font-size-body);
   line-height: 1.55;
 }
 
 .form-header-bar__actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 12px;
+  gap: var(--app-space-3);
 }
 
 .form-header-bar__actions--left {

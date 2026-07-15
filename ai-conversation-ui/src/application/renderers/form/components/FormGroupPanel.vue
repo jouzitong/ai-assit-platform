@@ -53,10 +53,10 @@ const gridStyle = computed(() => ({
 .form-group-panel {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding: 20px 22px;
+  gap: var(--app-space-4);
+  padding: var(--app-space-5) var(--app-space-section);
   border: 1px solid var(--app-border-subtle);
-  border-radius: 24px;
+  border-radius: var(--app-radius-panel);
   background: var(--app-surface-gradient);
   box-shadow: var(--app-shadow-md);
 }
@@ -65,26 +65,26 @@ const gridStyle = computed(() => ({
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--app-space-4);
 }
 
 .form-group-panel__title {
   margin: 0;
   color: var(--app-title);
-  font-size: 18px;
+  font-size: var(--app-font-size-title-md);
   font-weight: 700;
 }
 
 .form-group-panel__description {
   margin: 6px 0 0;
   color: var(--app-text-muted);
-  font-size: 13px;
+  font-size: var(--app-font-size-body);
   line-height: 1.55;
 }
 
 .form-group-panel__grid {
   display: grid;
-  gap: 16px;
+  gap: var(--app-space-4);
 }
 
 @container application-form-layout (max-width: 960px) {

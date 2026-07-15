@@ -229,10 +229,10 @@ function createEditor() {
           lineHeight: '1.65',
         },
         '.cm-content': {
-          padding: '14px 0',
+          padding: 'var(--app-space-comfortable) 0',
         },
         '.cm-line': {
-          padding: '0 16px',
+          padding: '0 var(--app-space-4)',
         },
         '.cm-gutters': {
           backgroundColor: 'var(--app-code-editor-gutter-bg)',
@@ -418,7 +418,7 @@ watch(
   display: grid;
   grid-template-rows: auto minmax(0, 1fr);
   border: 1px solid var(--app-code-editor-border);
-  border-radius: 14px;
+  border-radius: var(--app-radius-comfortable);
   background: linear-gradient(180deg, var(--app-code-editor-surface-strong) 0%, var(--app-code-editor-surface) 100%);
   overflow: hidden;
   min-width: 0;
@@ -433,9 +433,9 @@ watch(
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--app-space-3);
   min-height: 46px;
-  padding: 0 12px;
+  padding: 0 var(--app-space-3);
   border-bottom: 1px solid var(--app-code-editor-border-soft);
   background: var(--app-code-editor-toolbar);
 }
@@ -444,7 +444,7 @@ watch(
 .app-code-editor__toolbar-right {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--app-space-2);
   min-width: 0;
 }
 
@@ -467,12 +467,12 @@ watch(
   display: inline-flex;
   align-items: center;
   min-height: 28px;
-  padding: 0 10px;
+  padding: 0 var(--app-space-compact);
   border: 1px solid var(--app-code-editor-border);
-  border-radius: 10px;
+  border-radius: var(--app-radius-control);
   background: var(--app-code-editor-surface);
   color: var(--app-code-editor-label);
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   line-height: 1;
 }
 
@@ -495,7 +495,7 @@ watch(
   .app-code-editor__toolbar {
     align-items: stretch;
     flex-direction: column;
-    padding: 8px 12px;
+    padding: var(--app-space-2) var(--app-space-3);
   }
 
   .app-code-editor__format,

@@ -19,17 +19,17 @@ defineProps<{
   max-width: 100%;
   min-width: 0;
   border: 1px solid var(--color-border);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   background: var(--app-surface-solid);
 }
 
 .app-dialog__header {
-  padding: 16px 20px 0;
+  padding: var(--app-space-4) var(--app-space-5) 0;
   font-weight: 600;
   color: var(--app-title);
 }
 
 .app-dialog__body {
-  padding: 20px;
+  padding: var(--app-space-5);
 }
 </style>

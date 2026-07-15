@@ -38,3 +38,21 @@
 - 主题变更需要评估全局影响，尤其是按钮、表单、卡片、导航等基础组件。
 - 删除主题变量前先确认没有引用。
 - 如果主题体系发生调整，相关样式规范和组件规范要同步更新。
+
+## 7. Application 与公共组件主题 Token
+
+- `ai-conversation-ui/src/styles/variables.scss` 是 `src/application` 和 `src/components` 的公共主题入口。
+- 字号、行高、间距、圆角、控件高度和常用宽度统一使用 `--app-*` Token；组件只消费 Token，不在自身重复声明同一语义的固定值。
+- Element Plus 的 `--el-*` 变量统一在公共主题入口映射，局部组件只有在确实存在组件私有语义时才覆盖。
+- ECharts 等 Canvas 渲染组件不能直接消费浏览器 CSS 变量时，由公共渲染宿主在绘制前解析变量，并在 `data-theme` 变化后重新渲染。
+- 页面局部主题差异通过容器上的 CSS 变量覆盖实现，不新增平行的颜色或尺寸体系。
+- Token 分类、允许的局部固定值、第三方组件适配和评审要求统一遵循 [前端主题与容器响应式开发规范](./responsive-theme.md)。
+
+## 8. 容器缩放配置
+
+- 连续缩放由 `src/application/layout/responsive/ResponsiveViewport.vue` 统一提供，组件自身不计算缩放比例。
+- 全局预设和默认边界统一维护在 `src/config/responsive.ts`，配置合并顺序固定为：内置默认值 `<` 全局默认 `<` 父预设 `<` 当前预设 `<` 当前宿主局部配置。
+- 预设可以通过 `extends` 继承，局部宿主通过 `preset` 选择预设，通过 `config` 只覆盖差异值；需要模块级扩展时使用 `extendResponsiveViewportOptions` 创建扩展配置。
+- 小于 `minScale` 后必须停止继续缩小。交互场景默认使用滚动保留完整内容，纯预览场景可以选择裁剪。
+- 嵌套组件继承已有响应式上下文，不应重复创建 `ResponsiveViewport`，避免二次缩放。
+- 缩放计算、配置层级、单宿主、浮层、坐标换算和验收矩阵统一遵循 [前端主题与容器响应式开发规范](./responsive-theme.md)。

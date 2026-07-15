@@ -49,19 +49,19 @@ const resolveActionIcon = (action: RendererAction) => {
 .list-header-bar {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--app-space-3);
 }
 
 .list-header-bar__main {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--app-space-4);
 }
 
 .list-header-bar__title {
   margin: 0;
-  font-size: 24px;
+  font-size: var(--app-font-size-title-lg);
   font-weight: 700;
   color: var(--app-title);
 }
@@ -70,7 +70,7 @@ const resolveActionIcon = (action: RendererAction) => {
   display: flex;
   flex-wrap: wrap;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--app-space-3);
 }
 
 @container application-list-layout (max-width: 768px) {

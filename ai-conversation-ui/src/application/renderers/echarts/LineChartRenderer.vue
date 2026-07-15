@@ -46,18 +46,18 @@ const chartOption = computed<EChartsOption>(() => {
       boundaryGap: false,
       data: props.categories,
       axisTick: { show: false },
-      axisLine: { lineStyle: { color: '#cbd5e1' } },
-      axisLabel: { color: '#64748b' },
+      axisLine: { lineStyle: { color: 'var(--app-chart-axis)' } },
+      axisLabel: { color: 'var(--app-chart-label)' },
     },
     yAxis: {
       type: 'value',
       axisLabel: {
-        color: '#64748b',
+        color: 'var(--app-chart-label)',
         formatter: createAxisLabelFormatter(props.unit),
       },
       splitLine: {
         lineStyle: {
-          color: 'rgba(148, 163, 184, 0.18)',
+          color: 'var(--app-chart-grid)',
         },
       },
     },

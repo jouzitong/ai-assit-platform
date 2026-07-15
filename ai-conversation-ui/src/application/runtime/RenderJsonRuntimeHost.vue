@@ -66,9 +66,9 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
 }
 
 .render-json-runtime-host__state {
-  padding: 20px 24px;
+  padding: var(--app-space-5) var(--app-space-6);
   border: 1px dashed var(--el-border-color);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   background: var(--el-bg-color-page);
   color: var(--el-text-color-regular);
 }

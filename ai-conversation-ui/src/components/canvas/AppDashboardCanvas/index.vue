@@ -190,7 +190,7 @@ onBeforeUnmount(stopInteraction)
   min-height: 0;
   overflow: hidden;
   border: 1px solid var(--chat-panel-border);
-  border-radius: 8px;
+  border-radius: var(--app-radius-md);
   background: var(--chat-panel-bg);
   box-shadow: var(--chat-composer-shadow);
 }
@@ -200,10 +200,10 @@ onBeforeUnmount(stopInteraction)
   align-items: center;
   min-width: 0;
   height: 34px;
-  padding: 0 12px;
+  padding: 0 var(--app-space-3);
   border-bottom: 1px solid var(--chat-followup-border);
   color: var(--chat-text-title);
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   font-weight: 700;
   cursor: grab;
   user-select: none;
@@ -217,7 +217,7 @@ onBeforeUnmount(stopInteraction)
   min-width: 0;
   min-height: 0;
   overflow: auto;
-  padding: 10px;
+  padding: var(--app-space-compact);
 }
 
 .app-dashboard-canvas__resize {

@@ -63,11 +63,11 @@ const emit = defineEmits<{
 .app-switch {
   display: inline-flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--app-space-compact);
 }
 
 .app-switch__text {
-  font-size: 13px;
+  font-size: var(--app-font-size-body);
   color: var(--app-text);
 }
 </style>

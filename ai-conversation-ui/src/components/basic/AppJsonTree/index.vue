@@ -87,7 +87,7 @@ function formatPrimitive(value: unknown) {
 .app-json-tree {
   min-width: 0;
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', monospace;
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   line-height: 1.6;
 }
 
@@ -99,7 +99,7 @@ function formatPrimitive(value: unknown) {
 .app-json-tree__summary,
 .app-json-tree__leaf {
   min-width: 0;
-  padding: 3px 0;
+  padding: var(--app-space-micro) 0;
 }
 
 .app-json-tree__summary {

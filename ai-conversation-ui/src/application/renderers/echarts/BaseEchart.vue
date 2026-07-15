@@ -2,7 +2,7 @@
 import * as echarts from 'echarts'
 import type { EChartsType } from 'echarts'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { hasSeriesData } from './utils'
+import { hasSeriesData, resolveCssVariables } from './utils'
 
 const props = withDefaults(defineProps<{
   option: Record<string, unknown>
@@ -20,6 +20,7 @@ const props = withDefaults(defineProps<{
 const chartRef = ref<HTMLDivElement | null>(null)
 let chartInstance: EChartsType | null = null
 let resizeObserver: ResizeObserver | null = null
+let themeObserver: MutationObserver | null = null
 
 const shellStyle = computed(() => ({
   width: typeof props.width === 'number' ? `${props.width}px` : props.width,
@@ -39,7 +40,10 @@ function renderChart() {
     chartInstance.hideLoading()
   }
 
-  chartInstance.setOption(props.option, true)
+  const resolvedOption = chartRef.value
+    ? resolveCssVariables(props.option, chartRef.value)
+    : props.option
+  chartInstance.setOption(resolvedOption, true)
   nextTick(() => {
     chartInstance?.resize()
   })
@@ -57,6 +61,8 @@ function initChart() {
 function destroyChart() {
   resizeObserver?.disconnect()
   resizeObserver = null
+  themeObserver?.disconnect()
+  themeObserver = null
   chartInstance?.dispose()
   chartInstance = null
 }
@@ -72,6 +78,14 @@ onMounted(() => {
       chartInstance?.resize()
     })
     resizeObserver.observe(chartRef.value)
+  }
+
+  if (typeof MutationObserver !== 'undefined') {
+    themeObserver = new MutationObserver(renderChart)
+    themeObserver.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ['data-theme', 'data-density', 'style'],
+    })
   }
 })
 
@@ -100,13 +114,10 @@ defineExpose({
   max-width: 100%;
   min-width: 0;
   min-height: 220px;
-  border-radius: 24px;
+  border-radius: var(--app-radius-panel);
   overflow: hidden;
-  border: 1px solid rgba(148, 163, 184, 0.18);
-  background:
-    radial-gradient(520px 220px at 0% 0%, rgba(37, 99, 235, 0.1), transparent 62%),
-    radial-gradient(420px 220px at 100% 0%, rgba(15, 118, 110, 0.1), transparent 60%),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  border: 1px solid var(--app-chart-border);
+  background: var(--app-chart-background);
 }
 
 .base-echart__canvas {
@@ -119,8 +130,8 @@ defineExpose({
   inset: 0;
   display: grid;
   place-items: center;
-  color: #64748b;
-  font-size: 14px;
-  background: rgba(248, 250, 252, 0.76);
+  color: var(--app-chart-label);
+  font-size: var(--app-font-size-body-lg);
+  background: var(--app-chart-empty-bg);
 }
 </style>

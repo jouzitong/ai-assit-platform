@@ -137,33 +137,33 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
 .list-data-view__cards {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
-  gap: 16px;
+  gap: var(--app-space-4);
 }
 
 .list-data-view__card {
-  border-radius: 24px;
+  border-radius: var(--app-radius-panel);
 }
 
 .list-data-view__card-content {
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: var(--app-space-comfortable);
 }
 
 .list-data-view__card-field {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: var(--app-space-tight);
 }
 
 .list-data-view__label {
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   color: var(--app-text-muted);
   text-transform: uppercase;
 }
 
 .list-data-view__value {
-  font-size: 14px;
+  font-size: var(--app-font-size-body-lg);
   color: var(--app-title);
   word-break: break-word;
 }
@@ -171,7 +171,7 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
 .list-data-view__card-actions {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
+  gap: var(--app-space-3);
   margin-top: 16px;
 }
 
@@ -196,7 +196,7 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
   width: 100%;
   height: 100%;
   min-height: 0;
-  border-radius: 24px;
+  border-radius: var(--app-radius-panel);
   overflow: hidden;
 }
 

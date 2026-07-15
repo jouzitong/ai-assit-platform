@@ -261,13 +261,13 @@ onBeforeUnmount(() => {
 }
 
 .app-filter-operator-input__popover {
-  padding: 2px 0;
+  padding: var(--app-space-hairline) 0;
 }
 
 .app-filter-operator-input__inline {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: var(--app-space-tight);
   min-width: 0;
 }
 

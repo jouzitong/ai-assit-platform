@@ -176,6 +176,10 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - Runtime 不负责定义具体视觉风格，不把业务布局样式硬编码在入口层；页面私有动作可以通过 action executor 回调接入 Runtime，但不要写进 renderer。
 - 容器节点优先交给 `layout/`，内容节点优先交给 `renderers/`，不要把两类职责混在同一个组件里。
 - 第一个 Layout 应优先从已有 renderer 中抽离“稳定的容器壳”，而不是新建一份平行的大组件。
+- 需要按宿主容器等比例缩放时，由页面或画布宿主组合 `ResponsiveViewport`；Runtime 和 Renderer 不单独测量浏览器视口。
+- `ResponsiveViewport` 的全局默认、预设继承和局部覆盖统一通过 `src/config/responsive.ts` 解析，Render JSON 只在确有持久化需求时保存稳定预设 key，不保存运行时测量结果。
+- 同一渲染树只设置一个连续缩放宿主；Select、Popover、DatePicker 等浮层和拖拽坐标通过响应式上下文继承 overlay target 与逻辑缩放比例。
+- Application 的主题 Token、缩放计算、配置扩展和验收要求统一遵循 [前端主题与容器响应式开发规范](./responsive-theme.md)。
 
 ## 9. 数据与动作
 

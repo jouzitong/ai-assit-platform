@@ -1,13 +1,51 @@
 :root {
+  --app-font-family:
+    'Helvetica Neue',
+    'PingFang SC',
+    'Hiragino Sans GB',
+    sans-serif;
   --app-space-1: 4px;
   --app-space-2: 8px;
   --app-space-3: 12px;
   --app-space-4: 16px;
   --app-space-5: 20px;
   --app-space-6: 24px;
+  --app-space-7: 28px;
+  --app-space-8: 32px;
+  --app-space-hairline: 2px;
+  --app-space-micro: 3px;
+  --app-space-tight: 6px;
+  --app-space-compact: 10px;
+  --app-space-comfortable: 14px;
+  --app-space-roomy: 18px;
+  --app-space-section: 22px;
   --app-font-size-caption: 12px;
   --app-font-size-body: 13px;
+  --app-font-size-body-lg: 14px;
+  --app-font-size-subtitle: 15px;
   --app-font-size-title-sm: 16px;
+  --app-font-size-title-md: 18px;
+  --app-font-size-title-lg: 24px;
+  --app-font-size-display: 32px;
+  --app-line-height-tight: 1.25;
+  --app-line-height-body: 1.5;
+  --app-line-height-loose: 1.6;
+  --app-radius-sm: 6px;
+  --app-radius-md: 8px;
+  --app-radius-control: 10px;
+  --app-radius-lg: 12px;
+  --app-radius-comfortable: 14px;
+  --app-radius-xl: 16px;
+  --app-radius-2xl: 20px;
+  --app-radius-panel: 24px;
+  --app-radius-shell: 28px;
+  --app-radius-round: 999px;
+  --app-control-height-sm: 32px;
+  --app-control-height-md: 36px;
+  --app-control-height-lg: 40px;
+  --app-field-width-min: 180px;
+  --app-field-width-max: 360px;
+  --app-dialog-width-md: 640px;
   --app-layout-header-height: 56px;
   --app-layout-action-min-width: 76px;
   --app-layout-dialog-body-max-height: min(60vh, 640px);
@@ -160,6 +198,30 @@
   --app-editor-label: #475569;
   --app-editor-focus: #0f766e;
 
+  --app-chart-color-1: #2563eb;
+  --app-chart-color-2: #0f766e;
+  --app-chart-color-3: #f97316;
+  --app-chart-color-4: #7c3aed;
+  --app-chart-color-5: #0891b2;
+  --app-chart-color-6: #dc2626;
+  --app-chart-color-7: #65a30d;
+  --app-chart-color-8: #ea580c;
+  --app-chart-label: #64748b;
+  --app-chart-axis: #cbd5e1;
+  --app-chart-grid: rgba(148, 163, 184, 0.18);
+  --app-chart-grid-strong: rgba(148, 163, 184, 0.24);
+  --app-chart-tooltip-bg: rgba(15, 23, 42, 0.9);
+  --app-chart-tooltip-text: #f8fafc;
+  --app-chart-tooltip-axis: rgba(148, 163, 184, 0.45);
+  --app-chart-radar-area-soft: rgba(15, 23, 42, 0.015);
+  --app-chart-radar-area: rgba(15, 23, 42, 0.04);
+  --app-chart-border: rgba(148, 163, 184, 0.18);
+  --app-chart-background:
+    radial-gradient(520px 220px at 0% 0%, rgba(37, 99, 235, 0.1), transparent 62%),
+    radial-gradient(420px 220px at 100% 0%, rgba(15, 118, 110, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.98), rgba(248, 250, 252, 0.98));
+  --app-chart-empty-bg: rgba(248, 250, 252, 0.76);
+
   --el-color-primary: var(--app-accent);
   --el-color-primary-light-3: var(--app-accent);
   --el-color-primary-light-5: var(--app-accent-bg-strong);
@@ -167,6 +229,22 @@
   --el-color-primary-light-8: var(--app-accent-bg);
   --el-color-primary-light-9: var(--app-accent-bg);
   --el-color-primary-dark-2: var(--app-accent);
+  --el-color-success: var(--app-success);
+  --el-color-warning: var(--app-warning);
+  --el-color-danger: var(--app-danger);
+  --el-font-family: var(--app-font-family);
+  --el-font-size-extra-small: var(--app-font-size-caption);
+  --el-font-size-small: var(--app-font-size-body);
+  --el-font-size-base: var(--app-font-size-body-lg);
+  --el-font-size-medium: var(--app-font-size-title-sm);
+  --el-font-size-large: var(--app-font-size-title-md);
+  --el-component-size-small: var(--app-control-height-sm);
+  --el-component-size: var(--app-control-height-md);
+  --el-component-size-large: var(--app-control-height-lg);
+  --el-border-radius-small: var(--app-radius-sm);
+  --el-border-radius-base: var(--app-radius-md);
+  --el-border-radius-round: var(--app-radius-2xl);
+  --el-border-radius-circle: 100%;
   --el-text-color-primary: var(--app-title);
   --el-text-color-regular: var(--app-text);
   --el-text-color-secondary: var(--app-text-soft);
@@ -179,6 +257,7 @@
   --el-fill-color-lighter: var(--app-surface);
   --el-fill-color-dark: var(--app-surface-raised);
   --el-bg-color: var(--app-surface-solid);
+  --el-bg-color-page: var(--app-surface-muted);
   --el-bg-color-overlay: var(--app-surface-solid);
   --el-mask-color: rgba(15, 23, 42, 0.42);
   --el-box-shadow-light: var(--app-shadow-md);
@@ -308,6 +387,30 @@
   --app-editor-placeholder: #64748b;
   --app-editor-label: #cbd5e1;
   --app-editor-focus: #7dd3fc;
+
+  --app-chart-color-1: #60a5fa;
+  --app-chart-color-2: #2dd4bf;
+  --app-chart-color-3: #fb923c;
+  --app-chart-color-4: #a78bfa;
+  --app-chart-color-5: #22d3ee;
+  --app-chart-color-6: #f87171;
+  --app-chart-color-7: #a3e635;
+  --app-chart-color-8: #f59e0b;
+  --app-chart-label: #cbd5e1;
+  --app-chart-axis: rgba(148, 163, 184, 0.42);
+  --app-chart-grid: rgba(148, 163, 184, 0.16);
+  --app-chart-grid-strong: rgba(148, 163, 184, 0.24);
+  --app-chart-tooltip-bg: rgba(2, 6, 23, 0.94);
+  --app-chart-tooltip-text: #f8fafc;
+  --app-chart-tooltip-axis: rgba(148, 163, 184, 0.45);
+  --app-chart-radar-area-soft: rgba(148, 163, 184, 0.03);
+  --app-chart-radar-area: rgba(148, 163, 184, 0.08);
+  --app-chart-border: rgba(148, 163, 184, 0.18);
+  --app-chart-background:
+    radial-gradient(520px 220px at 0% 0%, rgba(96, 165, 250, 0.12), transparent 62%),
+    radial-gradient(420px 220px at 100% 0%, rgba(45, 212, 191, 0.1), transparent 60%),
+    linear-gradient(180deg, rgba(30, 41, 59, 0.96), rgba(15, 23, 42, 0.98));
+  --app-chart-empty-bg: rgba(15, 23, 42, 0.78);
 
   --el-mask-color: rgba(2, 6, 23, 0.58);
 }

@@ -275,7 +275,7 @@ const handleReset = () => {
 
 <style scoped>
 .list-filter-bar {
-  border-radius: 20px;
+  border-radius: var(--app-radius-2xl);
 }
 
 .list-filter-bar__actions {

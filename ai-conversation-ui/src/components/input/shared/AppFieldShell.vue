@@ -17,8 +17,8 @@ const props = defineProps<{
     class="app-field-shell"
     :class="{ 'app-field-shell--block': block, 'app-field-shell--error': error }"
     :style="{
-      '--app-field-min-width': props.minWidth || '180px',
-      '--app-field-max-width': props.maxWidth || '360px',
+      '--app-field-min-width': props.minWidth || 'var(--app-field-width-min)',
+      '--app-field-max-width': props.maxWidth || 'var(--app-field-width-max)',
       '--app-field-inner-label-width':
         props.innerLabelWidth ||
         `${Math.max(String(props.label || '').length * 14 + 16, 44)}px`,
@@ -68,7 +68,7 @@ const props = defineProps<{
 .app-field-shell {
   display: inline-flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--app-space-2);
   width: 100%;
   min-width: min(var(--app-field-min-width), 100%);
   max-width: var(--app-field-max-width);
@@ -84,12 +84,12 @@ const props = defineProps<{
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--app-space-3);
   min-width: 0;
 }
 
 .app-field-shell__label {
-  font-size: 13px;
+  font-size: var(--app-font-size-body);
   font-weight: 600;
   color: var(--app-text);
 }
@@ -112,13 +112,13 @@ const props = defineProps<{
   top: 0;
   left: 12px;
   z-index: 2;
-  padding: 0 6px;
+  padding: 0 var(--app-space-tight);
   transform: translateY(-50%);
   white-space: nowrap;
   pointer-events: none;
   background: var(--app-surface-solid);
   line-height: 1;
-  border-radius: 999px;
+  border-radius: var(--app-radius-round);
 }
 
 .app-field-shell__control--inner :deep(.el-input__wrapper),
@@ -144,7 +144,7 @@ const props = defineProps<{
 }
 
 .app-field-shell__footer {
-  font-size: 12px;
+  font-size: var(--app-font-size-caption);
   line-height: 1.5;
 }
 

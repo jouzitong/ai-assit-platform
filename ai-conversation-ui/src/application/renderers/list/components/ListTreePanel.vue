@@ -66,7 +66,7 @@ const groupSections = computed(() =>
 <style scoped>
 .list-tree-panel {
   height: 100%;
-  border-radius: 24px;
+  border-radius: var(--app-radius-panel);
   border: 1px solid var(--workbench-side-border);
   background: var(--workbench-side-bg);
 }
@@ -79,18 +79,18 @@ const groupSections = computed(() =>
 .list-tree-panel__groups {
   display: flex;
   flex-direction: column;
-  gap: 24px;
+  gap: var(--app-space-6);
 }
 
 .list-tree-panel__group {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--app-space-2);
 }
 
 .list-tree-panel__group-title {
   margin: 0 0 6px;
-  font-size: 22px;
+  font-size: var(--app-font-size-title-lg);
   font-weight: 700;
   color: var(--workbench-title);
 }
@@ -99,11 +99,11 @@ const groupSections = computed(() =>
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
+  gap: var(--app-space-3);
   width: 100%;
-  padding: 10px 12px;
+  padding: var(--app-space-compact) var(--app-space-3);
   border: 0;
-  border-radius: 14px;
+  border-radius: var(--app-radius-comfortable);
   background: transparent;
   color: var(--workbench-text-soft);
   text-align: left;

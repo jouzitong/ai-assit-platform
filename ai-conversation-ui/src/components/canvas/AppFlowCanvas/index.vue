@@ -62,7 +62,7 @@ const props = withDefaults(defineProps<{
   fitViewOnInit: true,
   fitViewTrigger: undefined,
   fitViewPadding: 0.12,
-  backgroundPatternColor: 'rgba(148, 163, 184, 0.22)',
+  backgroundPatternColor: 'var(--app-chart-grid-strong)',
   backgroundGap: 24,
   showControls: false,
   controlsShowFitView: true,

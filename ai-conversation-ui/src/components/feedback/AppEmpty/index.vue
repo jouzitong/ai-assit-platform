@@ -20,7 +20,7 @@ defineProps<{
   min-width: 0;
   min-height: 160px;
   border: 1px dashed var(--app-border);
-  border-radius: 16px;
+  border-radius: var(--app-radius-xl);
   color: var(--app-text-soft);
   background: var(--app-surface-muted);
 }

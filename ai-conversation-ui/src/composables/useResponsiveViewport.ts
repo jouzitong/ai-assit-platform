@@ -4,7 +4,10 @@ import type { ResponsiveViewportConfig } from '../config/responsive'
 export interface ResponsiveViewportContext {
   containerWidth: Readonly<Ref<number>>
   containerHeight: Readonly<Ref<number>>
+  rawScale: Readonly<Ref<number>>
   scale: Readonly<Ref<number>>
+  isUnderflow: ComputedRef<boolean>
+  preset: ComputedRef<string>
   overlayTarget: Readonly<Ref<HTMLElement | null>>
   config: ComputedRef<ResponsiveViewportConfig>
 }

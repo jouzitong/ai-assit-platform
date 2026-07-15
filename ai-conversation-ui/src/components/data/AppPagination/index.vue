@@ -122,7 +122,7 @@ const handlePageSizeChange = (value: number) => {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--app-space-4);
   width: 100%;
   min-width: 0;
 }
@@ -143,13 +143,13 @@ const handlePageSizeChange = (value: number) => {
 .app-pagination__total {
   flex: 0 0 auto;
   color: var(--app-pagination-text-muted);
-  font-size: 13px;
+  font-size: var(--app-font-size-body);
 }
 
 .app-pagination__controls {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: var(--app-space-3);
   min-width: 0;
 }
 
@@ -172,7 +172,7 @@ const handlePageSizeChange = (value: number) => {
 .app-pagination :deep(.el-select__wrapper) {
   background: var(--app-pagination-surface);
   border: 1px solid var(--app-pagination-border);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   box-shadow: var(--app-pagination-shadow);
   min-height: 38px;
 }
@@ -198,7 +198,7 @@ const handlePageSizeChange = (value: number) => {
 .app-pagination :deep(.el-pager li) {
   background: var(--app-pagination-surface);
   border: 1px solid var(--app-pagination-border);
-  border-radius: 12px;
+  border-radius: var(--app-radius-lg);
   box-shadow: var(--app-pagination-shadow);
   color: var(--app-pagination-text);
   transition: background-color 0.2s ease, border-color 0.2s ease, color 0.2s ease;
@@ -225,7 +225,7 @@ const handlePageSizeChange = (value: number) => {
 }
 
 :global(.app-pagination__size-popper) {
-  border-radius: 14px;
+  border-radius: var(--app-radius-comfortable);
   border: 1px solid var(--system-border);
   background: var(--system-surface-solid);
   box-shadow: var(--system-shadow);

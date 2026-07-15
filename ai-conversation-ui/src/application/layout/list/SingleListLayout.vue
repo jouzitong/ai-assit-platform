@@ -45,13 +45,13 @@ withDefaults(
 .single-list-layout {
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--app-space-5);
   width: 100%;
   height: 100%;
   min-height: 0;
-  padding: 10px;
+  padding: var(--app-space-compact);
   background: var(--workbench-shell-bg);
-  border-radius: 28px;
+  border-radius: var(--app-radius-shell);
   container: application-list-layout / inline-size;
 }
 
@@ -70,7 +70,7 @@ withDefaults(
 .single-list-layout__body--tree {
   display: grid;
   grid-template-columns: 280px minmax(0, 1fr);
-  gap: 20px;
+  gap: var(--app-space-5);
 }
 
 .single-list-layout__tree,
@@ -83,10 +83,10 @@ withDefaults(
 .single-list-layout__content-card {
   width: 100%;
   height: 100%;
-  border-radius: 28px;
+  border-radius: var(--app-radius-shell);
   display: flex;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--app-space-5);
 }
 
 .single-list-layout--workbench .single-list-layout__content-card {
@@ -129,9 +129,9 @@ withDefaults(
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: 20px;
+  gap: var(--app-space-5);
   min-height: 0;
-  padding: 10px;
+  padding: var(--app-space-compact);
 }
 
 .single-list-layout__pagination {

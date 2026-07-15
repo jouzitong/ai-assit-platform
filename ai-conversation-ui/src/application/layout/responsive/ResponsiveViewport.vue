@@ -10,14 +10,17 @@ import {
   type CSSProperties,
 } from 'vue'
 import {
-  resolveResponsiveViewportConfig,
+  resolveResponsiveViewport,
   type ResponsiveViewportConfigOverrides,
   type ResponsiveViewportFit,
+  type ResponsiveViewportGlobalOptions,
 } from '../../../config/responsive'
 import { responsiveViewportKey } from '../../../composables/useResponsiveViewport'
 
 interface Props {
+  preset?: string
   config?: ResponsiveViewportConfigOverrides
+  options?: ResponsiveViewportGlobalOptions
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -28,8 +31,18 @@ const viewportRef = ref<HTMLElement | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
 const containerWidth = ref(0)
 const containerHeight = ref(0)
+const rawScale = ref(0)
 const scale = ref(0)
-const resolvedConfig = computed(() => resolveResponsiveViewportConfig(props.config))
+const resolvedViewport = computed(() => resolveResponsiveViewport({
+  preset: props.preset,
+  config: props.config,
+  options: props.options,
+}))
+const resolvedConfig = computed(() => resolvedViewport.value.config)
+const resolvedPreset = computed(() => resolvedViewport.value.preset)
+const isUnderflow = computed(() => (
+  rawScale.value > 0 && rawScale.value < resolvedConfig.value.minScale
+))
 
 let resizeObserver: ResizeObserver | null = null
 
@@ -55,18 +68,20 @@ const updateScale = (width: number, height: number) => {
   containerHeight.value = Math.max(0, height)
 
   if (width <= 0 || height <= 0) {
+    rawScale.value = 0
     scale.value = 0
     return
   }
 
   const config = resolvedConfig.value
-  const rawScale = calculateRawScale(
+  const nextRawScale = calculateRawScale(
     width / config.referenceSize.width,
     height / config.referenceSize.height,
     config.fit,
   )
 
-  scale.value = Math.min(config.maxScale, Math.max(config.minScale, rawScale))
+  rawScale.value = nextRawScale
+  scale.value = Math.min(config.maxScale, Math.max(config.minScale, nextRawScale))
 }
 
 const measureViewport = () => {
@@ -91,6 +106,7 @@ const canvasStyle = computed<CSSProperties>(() => ({
 
 const viewportStyle = computed<CSSProperties>(() => ({
   '--responsive-viewport-scale': String(scale.value),
+  '--responsive-viewport-raw-scale': String(rawScale.value),
   '--responsive-viewport-width': `${containerWidth.value}px`,
   '--responsive-viewport-height': `${containerHeight.value}px`,
   aspectRatio: `${resolvedConfig.value.referenceSize.width} / ${resolvedConfig.value.referenceSize.height}`,
@@ -99,7 +115,10 @@ const viewportStyle = computed<CSSProperties>(() => ({
 provide(responsiveViewportKey, {
   containerWidth: readonly(containerWidth),
   containerHeight: readonly(containerHeight),
+  rawScale: readonly(rawScale),
   scale: readonly(scale),
+  isUnderflow,
+  preset: resolvedPreset,
   overlayTarget: readonly(overlayRef),
   config: resolvedConfig,
 })
@@ -129,7 +148,11 @@ onBeforeUnmount(() => {
     ref="viewportRef"
     class="responsive-viewport"
     :style="viewportStyle"
+    :data-preset="resolvedPreset"
     :data-fit="resolvedConfig.fit"
+    :data-align="resolvedConfig.align"
+    :data-underflow="resolvedConfig.underflow"
+    :data-underflow-active="isUnderflow"
     :data-scale="scale"
   >
     <div class="responsive-viewport__stage" :style="stageStyle">
@@ -137,7 +160,10 @@ onBeforeUnmount(() => {
         <slot
           :container-width="containerWidth"
           :container-height="containerHeight"
+          :raw-scale="rawScale"
           :scale="scale"
+          :is-underflow="isUnderflow"
+          :preset="resolvedPreset"
           :config="resolvedConfig"
         />
         <div ref="overlayRef" class="responsive-viewport__overlay" />
@@ -156,6 +182,15 @@ onBeforeUnmount(() => {
   overflow: hidden;
   place-items: center;
   container-type: size;
+}
+
+.responsive-viewport[data-align='start'] {
+  place-items: start;
+}
+
+.responsive-viewport[data-underflow='scroll'][data-underflow-active='true'] {
+  overflow: auto;
+  place-items: start;
 }
 
 .responsive-viewport__stage {

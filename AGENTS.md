@@ -67,8 +67,10 @@ Do not commit `.codegraph/`.
   - `docs/dev-spec/detail/frontend/router.md`
   - `docs/dev-spec/detail/frontend/style.md`
   - `docs/dev-spec/detail/frontend/theme.md`
+  - `docs/dev-spec/detail/frontend/responsive-theme.md`
   - `docs/dev-spec/detail/frontend/component.md`
   - `docs/dev-spec/detail/frontend/application.md`
+- 任务涉及 `src/application`、`src/components` 的颜色、字号、间距、常用尺寸、Container Query、整体缩放、浮层或拖拽坐标时，必须读取 `docs/dev-spec/detail/frontend/responsive-theme.md`。
 - 后端任务按需读取：
   - `docs/dev-spec/detail/backend/service-module.md`
   - `docs/dev-spec/detail/backend/data-module.md`
