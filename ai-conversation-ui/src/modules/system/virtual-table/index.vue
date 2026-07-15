@@ -1,9 +1,11 @@
 <script setup lang="ts">
 import { Grid, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppCodeEditor } from '../../../components'
+import { useAgentPageCapability } from '../../ai-assistant/composables/useAgentPageCapability'
+import type { AgentJsonPrimitive, AgentPageActionResult } from '../../ai-assistant/types'
 import { searchAiKbStores, type AiKbStoreItem } from '../api/aiPlatform'
 import { searchDbDataSources, type DbDataSourceItem, type DbTableMetaItem } from '../api/dataSources'
 import {
@@ -60,6 +62,15 @@ import VirtualTableInitializeDialog from './views/VirtualTableInitializeDialog.v
 import VirtualTableModelDrawer from './views/VirtualTableModelDrawer.vue'
 
 type ActiveView = 'catalog' | 'relations'
+
+interface VirtualRelationCanvasExpose {
+  prefillRelationFromAgent: (payload: Record<string, AgentJsonPrimitive>) => AgentPageActionResult
+}
+
+const AGENT_SNAPSHOT_ENTITY_LIMIT = 30
+const AGENT_SNAPSHOT_FIELD_LIMIT = 400
+const AGENT_SNAPSHOT_FIELDS_PER_ENTITY_LIMIT = 40
+const AGENT_SNAPSHOT_RELATION_LIMIT = 120
 
 const emptyOverview = (): VirtualCatalogOverview => ({ entities: [], fields: [], bindings: [], relations: [] })
 const emptyWorkspace = (): VirtualTableWorkspace => ({ fields: [], bindings: [], rules: [], ports: [], physicalFields: [] })
@@ -157,6 +168,7 @@ const knowledgeSyncEntityIds = ref<VirtualDataId[]>([])
 const descriptionGenerating = ref(false)
 const relationBatchActive = ref(false)
 const relationBatchDirty = ref(false)
+const relationCanvasRef = ref<VirtualRelationCanvasExpose | null>(null)
 
 const knowledgeBaseOptions = computed(() => knowledgeBases.value
   .filter(item => item.enabled !== false && item.kbCode)
@@ -176,6 +188,192 @@ const summaries = computed<VirtualEntitySummary[]>(() => overview.value.entities
 }))
 
 const existingCodes = computed(() => overview.value.entities.map(entity => entity.entityCode || '').filter(Boolean))
+
+const catalogFilteredSummaries = computed(() => {
+  const keyword = catalogKeyword.value.trim().toLowerCase()
+  return summaries.value.filter((row) => {
+    const keywordMatched = !keyword
+      || `${row.entityName || ''} ${row.entityCode || ''} ${row.physicalTables.join(' ')}`.toLowerCase().includes(keyword)
+    const sourceMatched = !catalogSource.value || row.sources.includes(catalogSource.value)
+    const statusMatched = catalogStatus.value === '' || row.status === catalogStatus.value
+    return keywordMatched && sourceMatched && statusMatched
+  })
+})
+
+const catalogPagedSummaries = computed(() => {
+  const start = (catalogPage.value - 1) * catalogPageSize.value
+  return catalogFilteredSummaries.value.slice(start, start + catalogPageSize.value)
+})
+
+const relationFilteredEntities = computed(() => {
+  const keyword = relationKeyword.value.trim().toLowerCase()
+  return overview.value.entities.filter((entity) => {
+    const entityId = String(entity.id)
+    const bindings = overview.value.bindings.filter(binding => String(binding.entityId) === entityId)
+    const sourceMatched = !relationSources.value.length
+      || bindings.some(binding => relationSources.value.includes(binding.sourceKey || ''))
+    const entityMatched = !relationEntities.value.length
+      || relationEntities.value.some(id => String(id) === entityId)
+    const keywordMatched = !keyword
+      || `${entity.entityCode || ''} ${entity.entityName || ''} ${bindings.map(item => item.physicalTableName || '').join(' ')}`
+        .toLowerCase()
+        .includes(keyword)
+    return sourceMatched && entityMatched && keywordMatched
+  })
+})
+
+function getAgentPageSnapshot() {
+  const currentEntities = (activeView.value === 'catalog'
+    ? catalogPagedSummaries.value
+    : relationFilteredEntities.value.slice(0, AGENT_SNAPSHOT_ENTITY_LIMIT))
+    .slice(0, AGENT_SNAPSHOT_ENTITY_LIMIT)
+  const currentEntityIds = new Set(currentEntities.map(entity => String(entity.id)))
+  let remainingFieldCount = AGENT_SNAPSHOT_FIELD_LIMIT
+
+  const entities = currentEntities.map((entity) => {
+    const allFields = overview.value.fields
+      .filter(field => String(field.entityId) === String(entity.id) && field.enabled !== false)
+      .sort((left, right) => Number(left.ordinalPosition || 0) - Number(right.ordinalPosition || 0))
+    const visibleFields = allFields.slice(0, Math.min(AGENT_SNAPSHOT_FIELDS_PER_ENTITY_LIMIT, remainingFieldCount))
+    remainingFieldCount -= visibleFields.length
+    const bindings = overview.value.bindings
+      .filter(binding => String(binding.entityId) === String(entity.id))
+      .slice(0, 8)
+
+    return {
+      id: entity.id,
+      code: entity.entityCode || '',
+      name: entity.entityName || '',
+      description: entity.description || '',
+      status: entity.status ?? null,
+      enabled: entity.enabled !== false,
+      bindings: bindings.map(binding => ({
+        id: binding.id,
+        sourceKey: binding.sourceKey || '',
+        physicalTableName: binding.physicalTableName || '',
+        readable: binding.readable !== false,
+        writable: binding.writable !== false,
+      })),
+      fieldCount: allFields.length,
+      fieldsTruncated: visibleFields.length < allFields.length,
+      fields: visibleFields.map(field => ({
+        id: field.id,
+        code: field.fieldCode || '',
+        name: field.fieldName || '',
+        logicalType: field.logicalType ?? null,
+        nullable: field.nullable !== false,
+        primaryKey: field.primaryKey === true,
+        ordinalPosition: field.ordinalPosition ?? null,
+        remark: field.remark || '',
+      })),
+    }
+  })
+
+  const visibleRelations = overview.value.relations.filter(relation => (
+    currentEntityIds.has(String(relation.sourceEntityId))
+    && currentEntityIds.has(String(relation.targetEntityId))
+  ))
+
+  return {
+    pageId: 'virtual-table',
+    title: '虚拟表管理',
+    description: '查看虚拟表目录、字段以及关系画布；专用动作只会打开预填草稿，不会保存。',
+    state: {
+      activeView: activeView.value,
+      filters: {
+        catalog: {
+          keyword: catalogKeyword.value,
+          sourceKey: catalogSource.value,
+          status: catalogStatus.value,
+          knowledgeBaseCode: knowledgeBaseCode.value,
+        },
+        relations: {
+          keyword: relationKeyword.value,
+          sourceKeys: [...relationSources.value],
+          entityIds: [...relationEntities.value],
+          layoutMode: relationLayoutMode.value,
+          lineStyle: relationLineStyle.value,
+        },
+      },
+      pagination: {
+        page: catalogPage.value,
+        pageSize: catalogPageSize.value,
+        filteredTotal: catalogFilteredSummaries.value.length,
+      },
+      loading: {
+        catalog: loading.value,
+        workspace: workspaceLoading.value,
+        operation: operationLoading.value,
+      },
+      relationDraft: {
+        batchMode: relationBatchActive.value,
+        dirty: relationBatchDirty.value,
+      },
+      visibleData: {
+        entityTotalBeforeLimit: activeView.value === 'catalog'
+          ? catalogPagedSummaries.value.length
+          : relationFilteredEntities.value.length,
+        entityLimit: AGENT_SNAPSHOT_ENTITY_LIMIT,
+        fieldLimit: AGENT_SNAPSHOT_FIELD_LIMIT,
+        relationLimit: AGENT_SNAPSHOT_RELATION_LIMIT,
+        entities,
+        relationTotalBeforeLimit: visibleRelations.length,
+        relations: visibleRelations.slice(0, AGENT_SNAPSHOT_RELATION_LIMIT).map(relation => ({
+          id: relation.id,
+          code: relation.relationCode || '',
+          name: relation.relationName || '',
+          resultMode: relation.resultMode === 1 ? 1 : 0,
+          sourceEntityId: relation.sourceEntityId ?? null,
+          sourceFieldId: relation.sourceFieldId ?? null,
+          targetEntityId: relation.targetEntityId ?? null,
+          targetFieldId: relation.targetFieldId ?? null,
+          enabled: relation.enabled !== false,
+          remark: relation.remark || '',
+        })),
+      },
+    },
+  }
+}
+
+async function executeVirtualTableAgentAction(
+  action: string,
+  payload: Record<string, AgentJsonPrimitive>,
+): Promise<AgentPageActionResult> {
+  if (action !== 'virtual-table.prefill-relation') {
+    return { success: false, message: `虚拟表页面不支持动作 ${action}。` }
+  }
+
+  await switchView('relations')
+  await nextTick()
+  if (!relationCanvasRef.value) {
+    return { success: false, message: '关系画布尚未准备完成，请稍后重试。' }
+  }
+  return relationCanvasRef.value.prefillRelationFromAgent(payload)
+}
+
+useAgentPageCapability({
+  id: 'virtual-table',
+  title: '虚拟表管理',
+  description: '提供当前虚拟表、字段和关系画布的结构化数据，并允许预填一条关系草稿。',
+  actions: [{
+    name: 'virtual-table.prefill-relation',
+    toolName: 'prefill_virtual_table_relation',
+    description: '切换到关系画布，预填并打开一条字段关系草稿；不会加入批量变更，也不会保存。',
+    parameters: {
+      sourceEntityId: { description: '来源实体 ID。', types: ['string', 'number'], required: true },
+      sourceFieldId: { description: '来源字段 ID，必须属于来源实体。', types: ['string', 'number'], required: true },
+      targetEntityId: { description: '目标实体 ID。', types: ['string', 'number'], required: true },
+      targetFieldId: { description: '目标字段 ID，必须属于目标实体。', types: ['string', 'number'], required: true },
+      relationCode: { description: '可选关联编码；不填写时传 null。', types: ['string'] },
+      relationName: { description: '可选关联名称；不填写时传 null。', types: ['string'] },
+      resultMode: { description: '可选结果模式：0=单对象，1=对象集合；不填写时传 null。', types: ['number'], enum: [0, 1] },
+      enabled: { description: '可选启用状态；不填写时传 null。', types: ['boolean'] },
+      remark: { description: '可选备注；不填写时传 null。', types: ['string'] },
+    },
+  }],
+  getSnapshot: getAgentPageSnapshot,
+  executeAction: executeVirtualTableAgentAction,
+})
 
 function applyRouteState() {
   activeView.value = queryView(route.query.view)
@@ -741,6 +939,7 @@ onMounted(() => {
       />
       <VirtualRelationCanvas
         v-else
+        ref="relationCanvasRef"
         v-model:keyword="relationKeyword"
         v-model:selected-sources="relationSources"
         v-model:selected-entity-ids="relationEntities"

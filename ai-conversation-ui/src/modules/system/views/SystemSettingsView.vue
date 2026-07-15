@@ -2,6 +2,7 @@
 import { ArrowLeftBold, ArrowRightBold, Coin, Connection, Cpu, DataAnalysis, Grid, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AgentAssistantHost from '../../ai-assistant/components/AgentAssistantHost.vue'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
 import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
 import AiModelManagementSection from '../components/sections/AiModelManagementSection.vue'
@@ -231,6 +232,8 @@ onMounted(() => {
       <AiPlatformSection v-else-if="isAiPlatformSection" :active-tab="aiPlatformTab" />
       <component v-else :is="currentSection.component" />
     </main>
+
+    <AgentAssistantHost />
   </div>
 </template>
 

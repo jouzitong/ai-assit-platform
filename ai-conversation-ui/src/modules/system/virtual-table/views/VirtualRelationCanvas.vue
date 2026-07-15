@@ -18,6 +18,7 @@ import type { Connection, Edge, EdgeMouseEvent, Node } from '@vue-flow/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppFlowCanvas from '../../../../components/canvas/AppFlowCanvas/index.vue'
+import type { AgentJsonPrimitive, AgentPageActionResult } from '../../../ai-assistant/types'
 import type {
   RelationResultMode,
   VirtualBindingItem,
@@ -503,6 +504,166 @@ function isDuplicatePair(sourceFieldId: VirtualDataId, targetFieldId: VirtualDat
     && String(relation.targetFieldId) === String(targetFieldId))
 }
 
+function agentPayloadId(payload: Record<string, AgentJsonPrimitive>, key: string): VirtualDataId | null {
+  const value = payload[key]
+  if (typeof value === 'number' && Number.isFinite(value)) return value
+  if (typeof value === 'string' && value.trim()) return value.trim()
+  return null
+}
+
+function hasAgentPayloadValue(payload: Record<string, AgentJsonPrimitive>, key: string) {
+  return Object.prototype.hasOwnProperty.call(payload, key) && payload[key] !== null
+}
+
+function prefillRelationFromAgent(payload: Record<string, AgentJsonPrimitive>): AgentPageActionResult {
+  const requiredIds = {
+    sourceEntityId: agentPayloadId(payload, 'sourceEntityId'),
+    sourceFieldId: agentPayloadId(payload, 'sourceFieldId'),
+    targetEntityId: agentPayloadId(payload, 'targetEntityId'),
+    targetFieldId: agentPayloadId(payload, 'targetFieldId'),
+  }
+  const missingKey = Object.entries(requiredIds).find(([, value]) => value === null)?.[0]
+  if (missingKey) {
+    return {
+      success: false,
+      message: `关系草稿缺少有效的 ${missingKey}，请先从页面快照中确认实体和字段 ID。`,
+      details: { field: missingKey },
+    }
+  }
+
+  for (const key of ['relationCode', 'relationName', 'remark']) {
+    if (hasAgentPayloadValue(payload, key) && typeof payload[key] !== 'string') {
+      return { success: false, message: `${key} 必须是字符串。`, details: { field: key } }
+    }
+  }
+  if (hasAgentPayloadValue(payload, 'resultMode') && payload.resultMode !== 0 && payload.resultMode !== 1) {
+    return { success: false, message: 'resultMode 只能是 0（单对象）或 1（对象集合）。', details: { field: 'resultMode' } }
+  }
+  if (hasAgentPayloadValue(payload, 'enabled') && typeof payload.enabled !== 'boolean') {
+    return { success: false, message: 'enabled 必须是布尔值。', details: { field: 'enabled' } }
+  }
+
+  const sourceEntityId = requiredIds.sourceEntityId as VirtualDataId
+  const sourceFieldId = requiredIds.sourceFieldId as VirtualDataId
+  const targetEntityId = requiredIds.targetEntityId as VirtualDataId
+  const targetFieldId = requiredIds.targetFieldId as VirtualDataId
+  const sourceEntity = entityById(sourceEntityId)
+  const targetEntity = entityById(targetEntityId)
+  if (!sourceEntity || sourceEntity.enabled === false) {
+    return { success: false, message: `找不到可用的来源实体 ${sourceEntityId}。`, details: { sourceEntityId } }
+  }
+  if (!targetEntity || targetEntity.enabled === false) {
+    return { success: false, message: `找不到可用的目标实体 ${targetEntityId}。`, details: { targetEntityId } }
+  }
+
+  const sourceField = fieldById(sourceFieldId)
+  const targetField = fieldById(targetFieldId)
+  if (!sourceField || sourceField.enabled === false) {
+    return { success: false, message: `找不到可用的来源字段 ${sourceFieldId}。`, details: { sourceFieldId } }
+  }
+  if (!targetField || targetField.enabled === false) {
+    return { success: false, message: `找不到可用的目标字段 ${targetFieldId}。`, details: { targetFieldId } }
+  }
+  if (String(sourceField.entityId) !== String(sourceEntityId)) {
+    return {
+      success: false,
+      message: `来源字段 ${sourceFieldId} 不属于来源实体 ${sourceEntityId}。`,
+      details: { sourceEntityId, sourceFieldId, actualEntityId: sourceField.entityId ?? null },
+    }
+  }
+  if (String(targetField.entityId) !== String(targetEntityId)) {
+    return {
+      success: false,
+      message: `目标字段 ${targetFieldId} 不属于目标实体 ${targetEntityId}。`,
+      details: { targetEntityId, targetFieldId, actualEntityId: targetField.entityId ?? null },
+    }
+  }
+  if (String(sourceEntityId) === String(targetEntityId) && String(sourceFieldId) === String(targetFieldId)) {
+    return { success: false, message: '不能将字段关联到自身。', details: { sourceEntityId, sourceFieldId } }
+  }
+  if (sourceField.logicalType === undefined
+    || targetField.logicalType === undefined
+    || sourceField.logicalType !== targetField.logicalType) {
+    return {
+      success: false,
+      message: '来源字段与目标字段的逻辑类型不一致，无法预填关系草稿。',
+      details: {
+        sourceFieldId,
+        sourceLogicalType: sourceField.logicalType ?? null,
+        targetFieldId,
+        targetLogicalType: targetField.logicalType ?? null,
+      },
+    }
+  }
+
+  const duplicatePair = workingRelations.value.find(relation => relation.draftStatus !== 'deleted'
+    && String(relation.sourceFieldId) === String(sourceFieldId)
+    && String(relation.targetFieldId) === String(targetFieldId))
+  if (duplicatePair) {
+    return {
+      success: false,
+      message: '这两个字段之间已经存在关联或待新增关系。',
+      details: { relationId: duplicatePair.id, sourceFieldId, targetFieldId },
+    }
+  }
+
+  const providedCode = typeof payload.relationCode === 'string' ? payload.relationCode.trim() : ''
+  const relationCode = providedCode
+    ? normalizeRelationCode(providedCode)
+    : defaultRelationCode(sourceEntityId, sourceFieldId, targetEntityId, targetFieldId)
+  const duplicateCode = workingRelations.value.find(relation => relation.draftStatus !== 'deleted'
+    && relation.relationCode === relationCode)
+  if (duplicateCode) {
+    return {
+      success: false,
+      message: `关联编码 ${relationCode} 已被使用，请换一个编码后重试。`,
+      details: { relationId: duplicateCode.id, relationCode },
+    }
+  }
+
+  const defaultName = `${sourceField.fieldName || sourceField.fieldCode || sourceFieldId} → ${targetField.fieldName || targetField.fieldCode || targetFieldId}`
+  const relationName = (typeof payload.relationName === 'string' && payload.relationName.trim()
+    ? payload.relationName.trim()
+    : defaultName).slice(0, 128)
+  const resultMode: RelationResultMode = payload.resultMode === 1 ? 1 : 0
+  const enabled = typeof payload.enabled === 'boolean' ? payload.enabled : true
+  const remark = (typeof payload.remark === 'string' ? payload.remark : '').slice(0, 500)
+
+  if (!batchMode.value) enterBatchMode()
+  editingRelationId.value = null
+  resetRelationForm({
+    relationCode,
+    relationName,
+    resultMode,
+    sourceEntityId,
+    sourceFieldId,
+    targetEntityId,
+    targetFieldId,
+    enabled,
+    remark,
+  })
+  relationDialogVisible.value = true
+
+  return {
+    success: true,
+    message: '已预填并打开字段关系草稿，请人工确认后再加入批量变更；当前尚未保存。',
+    details: {
+      relationCode,
+      relationName,
+      resultMode,
+      sourceEntityId,
+      sourceFieldId,
+      targetEntityId,
+      targetFieldId,
+      enabled,
+      remark,
+      opened: true,
+      addedToBatch: false,
+      saved: false,
+    },
+  }
+}
+
 function payloadEquals(left: VirtualRelationPayload, right: VirtualRelationPayload) {
   return JSON.stringify(left) === JSON.stringify(right)
 }
@@ -734,6 +895,8 @@ function resetFilters() {
   selectedSources.value = []
   selectedEntityIds.value = []
 }
+
+defineExpose({ prefillRelationFromAgent })
 
 function handleBeforeUnload(event: BeforeUnloadEvent) {
   if (!hasChanges.value) return
