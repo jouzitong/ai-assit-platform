@@ -12,6 +12,7 @@ import type {
 const ASSISTANT_SELECTOR = '[data-ai-assistant-root], [data-ai-assistant-panel]'
 const SENSITIVE_FIELD_PATTERN = /(password|passwd|pwd|secret|token|api.?key|access.?key|密钥|密码|令牌)/i
 const MAX_VISIBLE_TEXT_LENGTH = 8_000
+const MAX_PAGE_BACKGROUND_TEXT_LENGTH = 2_000
 const MAX_FORM_COUNT = 12
 const MAX_FIELD_COUNT = 80
 const MAX_TABLE_COUNT = 6
@@ -58,6 +59,40 @@ function isVisible(element: Element) {
     && style.visibility !== 'hidden'
     && style.opacity !== '0'
     && target.getClientRects().length > 0
+}
+
+function activeDialogRoot() {
+  let activeDialog: HTMLElement | null = null
+  let activeZIndex = Number.NEGATIVE_INFINITY
+
+  document.querySelectorAll<HTMLElement>('.el-dialog').forEach((dialog) => {
+    if (!isVisible(dialog)) return
+    const overlayDialog = dialog.closest<HTMLElement>('.el-overlay-dialog')
+    if (overlayDialog?.classList.contains('is-closing')) return
+    const overlay = dialog.closest<HTMLElement>('.el-overlay')
+    const parsedZIndex = Number.parseInt(window.getComputedStyle(overlay || dialog).zIndex, 10)
+    const zIndex = Number.isFinite(parsedZIndex) ? parsedZIndex : 0
+    if (zIndex >= activeZIndex) {
+      activeDialog = dialog
+      activeZIndex = zIndex
+    }
+  })
+
+  return activeDialog
+}
+
+function resolveDialogTitle(dialog: Element) {
+  return normalizeText(dialog.querySelector('.el-dialog__title')?.textContent)
+    || normalizeText(dialog.closest('.el-overlay-dialog')?.getAttribute('aria-label'))
+    || normalizeText(dialog.querySelector('[role="heading"]')?.textContent)
+}
+
+function prioritizeActiveDialogElements<T extends Element>(elements: T[], activeDialog: HTMLElement | null) {
+  if (!activeDialog) return elements
+  return [
+    ...elements.filter(element => activeDialog.contains(element)),
+    ...elements.filter(element => !activeDialog.contains(element)),
+  ]
 }
 
 function associatedLabel(element: HTMLElement) {
@@ -129,16 +164,20 @@ function resolveFormRoot(element: Element) {
 }
 
 function resolveFormTitle(root: Element) {
-  const dialogTitle = normalizeText(root.querySelector('.el-dialog__title')?.textContent)
+  const dialog = root.matches('.el-dialog') ? root : root.closest('.el-dialog')
+  const dialogTitle = dialog ? resolveDialogTitle(dialog) : ''
   if (dialogTitle) return dialogTitle
   const heading = normalizeText(root.querySelector('h1, h2, h3, legend')?.textContent)
   return heading || '当前页面表单'
 }
 
-function captureForms() {
+function captureForms(activeDialog = activeDialogRoot()) {
   capturedFields.clear()
   const groups = new Map<Element, AgentDomFormField[]>()
-  const controls = [...document.querySelectorAll<HTMLElement>('input, textarea, select, [contenteditable="true"]')]
+  const controls = prioritizeActiveDialogElements(
+    [...document.querySelectorAll<HTMLElement>('input, textarea, select, [contenteditable="true"]')],
+    activeDialog,
+  )
     .filter((element) => {
       if (!isVisible(element)) return false
       if (element instanceof HTMLInputElement && element.type === 'hidden') return false
@@ -213,49 +252,86 @@ function tableFromNative(root: HTMLTableElement): AgentDomTableSnapshot | null {
   }
 }
 
-function captureTables() {
+function captureTables(activeDialog = activeDialogRoot()) {
   const tables: AgentDomTableSnapshot[] = []
-  document.querySelectorAll('.el-table').forEach((root) => {
+  const tableRoots = prioritizeActiveDialogElements(
+    [...document.querySelectorAll<Element>('.el-table, table')]
+      .filter(root => !(root instanceof HTMLTableElement && root.closest('.el-table'))),
+    activeDialog,
+  )
+
+  tableRoots.forEach((root) => {
     if (tables.length >= MAX_TABLE_COUNT || !isVisible(root)) return
-    const table = tableFromElementPlus(root)
-    if (table) tables.push(table)
-  })
-  document.querySelectorAll<HTMLTableElement>('table').forEach((root) => {
-    if (tables.length >= MAX_TABLE_COUNT || root.closest('.el-table') || !isVisible(root)) return
-    const table = tableFromNative(root)
+    const table = root instanceof HTMLTableElement
+      ? tableFromNative(root)
+      : tableFromElementPlus(root)
     if (table) tables.push(table)
   })
   return tables
 }
 
-function captureVisibleText() {
-  const root = document.querySelector('main') || document.body
-  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT)
+function captureTextFromRoot(root: Element, maxLength: number, excludedRoot?: Element | null) {
   const chunks: string[] = []
   let length = 0
-  let node = walker.nextNode()
-  while (node && length < MAX_VISIBLE_TEXT_LENGTH) {
-    const parent = node.parentElement
-    const tag = parent?.tagName
-    if (parent && !['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(tag || '') && isVisible(parent)) {
-      const text = normalizeText(node.textContent)
-      if (text) {
-        chunks.push(text)
-        length += text.length + 1
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+    acceptNode(node) {
+      const parent = node.parentElement
+      if (
+        !parent
+        || (excludedRoot && excludedRoot.contains(parent))
+        || !isVisible(parent)
+        || isAssistantElement(parent)
+      ) {
+        return NodeFilter.FILTER_REJECT
       }
+      if (['SCRIPT', 'STYLE', 'NOSCRIPT'].includes(parent.tagName)) return NodeFilter.FILTER_REJECT
+      return normalizeText(node.textContent) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT
     }
-    node = walker.nextNode()
+  })
+
+  while (length < maxLength) {
+    const node = walker.nextNode()
+    if (!node) break
+    const text = normalizeText(node.textContent)
+    if (!text) continue
+    chunks.push(text)
+    length += text.length + 1
   }
-  return chunks.join('\n').slice(0, MAX_VISIBLE_TEXT_LENGTH)
+
+  return chunks.join('\n').slice(0, maxLength)
+}
+
+function captureVisibleText(activeDialog = activeDialogRoot()) {
+  const pageRoot = document.querySelector('main') || document.body
+
+  if (!activeDialog) return captureTextFromRoot(pageRoot, MAX_VISIBLE_TEXT_LENGTH)
+
+  const dialogText = captureTextFromRoot(
+    activeDialog,
+    MAX_VISIBLE_TEXT_LENGTH - MAX_PAGE_BACKGROUND_TEXT_LENGTH,
+  )
+  const backgroundText = captureTextFromRoot(
+    pageRoot,
+    MAX_PAGE_BACKGROUND_TEXT_LENGTH,
+    activeDialog,
+  )
+
+  return [
+    dialogText ? `【当前弹窗】\n${dialogText}` : '',
+    backgroundText ? `【页面背景】\n${backgroundText}` : '',
+  ].filter(Boolean).join('\n')
 }
 
 export function captureDomPageSnapshot(): AgentDomPageSnapshot {
+  const activeDialog = activeDialogRoot()
+  const activeDialogTitle = activeDialog ? resolveDialogTitle(activeDialog) : ''
   return {
     route: `${window.location.pathname}${window.location.search}`,
-    title: normalizeText(document.querySelector('h1')?.textContent) || document.title || window.location.pathname,
-    visibleText: captureVisibleText(),
-    forms: captureForms(),
-    tables: captureTables(),
+    title: activeDialogTitle || normalizeText(document.querySelector('h1')?.textContent) || document.title || window.location.pathname,
+    ...(activeDialog ? { activeDialog: { title: activeDialogTitle || '当前弹窗' } } : {}),
+    visibleText: captureVisibleText(activeDialog),
+    forms: captureForms(activeDialog),
+    tables: captureTables(activeDialog),
   }
 }
 

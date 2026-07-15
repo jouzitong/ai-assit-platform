@@ -8,7 +8,8 @@ import {
   Promotion,
   RefreshRight,
 } from '@element-plus/icons-vue'
-import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { useZIndex, type InputInstance } from 'element-plus'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { activeAgentPageCapability } from '../services/pageCapabilityRegistry'
 import { useAiAssistantStore } from '../store/assistant'
@@ -16,8 +17,14 @@ import { useAiAssistantStore } from '../store/assistant'
 const route = useRoute()
 const router = useRouter()
 const assistant = useAiAssistantStore()
+const { currentZIndex } = useZIndex()
+const assistantHostRef = ref<HTMLElement | null>(null)
+const triggerRef = ref<HTMLButtonElement | null>(null)
+const composerRef = ref<InputInstance | null>(null)
 const messagesRef = ref<HTMLElement | null>(null)
+const lastExternalFocusRef = ref<HTMLElement | null>(null)
 
+const assistantZIndex = computed(() => currentZIndex.value + 1)
 const contextTitle = computed(() => activeAgentPageCapability.value?.title || String(route.meta.title || document.title || route.path))
 const canSend = computed(() => Boolean(
   assistant.state.draft.trim()
@@ -51,10 +58,33 @@ function handleComposerKeydown(event: KeyboardEvent) {
 
 function useQuickPrompt(prompt: string) {
   assistant.state.draft = prompt
+  void nextTick(() => composerRef.value?.focus())
+}
+
+function rememberExternalFocus() {
+  const target = document.activeElement
+  if (target instanceof HTMLElement && !assistantHostRef.value?.contains(target)) {
+    lastExternalFocusRef.value = target
+  }
+}
+
+async function openAssistant() {
+  assistant.openAssistant()
+  await nextTick()
+  composerRef.value?.focus()
+}
+
+async function closeAssistant() {
+  assistant.closeAssistant()
+  await nextTick()
+  const focusTarget = lastExternalFocusRef.value?.isConnected
+    ? lastExternalFocusRef.value
+    : triggerRef.value
+  focusTarget?.focus({ preventScroll: true })
 }
 
 async function openModelSettings() {
-  assistant.closeAssistant()
+  await closeAssistant()
   await router.push('/settings/system/ai-platform/model')
 }
 
@@ -62,7 +92,16 @@ watch(
   () => [assistant.state.messages.length, assistant.state.activity, assistant.state.messages.at(-1)?.content],
   scrollToLatest,
 )
+function handleDocumentFocusIn(event: FocusEvent) {
+  const target = event.target
+  if (target instanceof HTMLElement && !assistantHostRef.value?.contains(target)) {
+    lastExternalFocusRef.value = target
+  }
+}
+
+onMounted(() => document.addEventListener('focusin', handleDocumentFocusIn))
 onBeforeUnmount(() => {
+  document.removeEventListener('focusin', handleDocumentFocusIn)
   assistant.stopRun()
   assistant.closeAssistant()
 })
@@ -70,15 +109,22 @@ onBeforeUnmount(() => {
 
 <template>
   <Teleport to="body">
-    <div class="assistant-host" data-ai-assistant-root>
+    <div
+      ref="assistantHostRef"
+      class="assistant-host"
+      data-ai-assistant-root
+      :style="{ zIndex: assistantZIndex }"
+    >
       <button
         v-if="!assistant.state.open"
+        ref="triggerRef"
         class="assistant-trigger"
         type="button"
         aria-label="打开 AI 页面助手"
         :aria-expanded="assistant.state.open"
         title="AI 页面助手"
-        @click="assistant.openAssistant"
+        @pointerdown="rememberExternalFocus"
+        @click="openAssistant"
       >
         <el-icon><Cpu /></el-icon>
         <span class="assistant-trigger__status" aria-hidden="true" />
@@ -91,6 +137,7 @@ onBeforeUnmount(() => {
           role="complementary"
           aria-label="AI 页面助手"
           data-ai-assistant-panel
+          @keydown.esc.stop="closeAssistant"
         >
           <section class="assistant-panel">
       <header class="assistant-panel__header">
@@ -117,7 +164,7 @@ onBeforeUnmount(() => {
             :icon="CloseBold"
             aria-label="关闭 AI 页面助手"
             title="关闭"
-            @click="assistant.closeAssistant"
+            @click="closeAssistant"
           />
         </div>
       </header>
@@ -128,6 +175,8 @@ onBeforeUnmount(() => {
           :loading="assistant.state.modelsLoading"
           :disabled="assistant.state.running"
           filterable
+          :append-to="assistantHostRef || 'body'"
+          :popper-style="{ pointerEvents: 'auto' }"
           placeholder="选择本地模型"
           aria-label="选择本地模型"
           @update:model-value="assistant.setSelectedModel"
@@ -206,6 +255,7 @@ onBeforeUnmount(() => {
         />
         <div class="assistant-composer__box">
           <el-input
+            ref="composerRef"
             v-model="assistant.state.draft"
             type="textarea"
             :autosize="{ minRows: 2, maxRows: 6 }"
@@ -249,7 +299,6 @@ onBeforeUnmount(() => {
 .assistant-host {
   position: fixed;
   inset: 0;
-  z-index: 1900;
   pointer-events: none;
 }
 

@@ -76,6 +76,7 @@ export interface AgentDomTableSnapshot {
 export interface AgentDomPageSnapshot {
   route: string
   title: string
+  activeDialog?: { title: string }
   visibleText: string
   forms: AgentDomFormSnapshot[]
   tables: AgentDomTableSnapshot[]
