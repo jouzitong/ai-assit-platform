@@ -1,0 +1,134 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <title>Colorful black spirit pet</title>
+  <desc>A mystical black spirit pet with iridescent neon highlights, glowing eyes, curled tail, and floating aura sparks.</desc>
+  <defs>
+    <radialGradient id="bgGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(512 512) rotate(90) scale(448)">
+      <stop offset="0" stop-color="#242244"/>
+      <stop offset="0.42" stop-color="#0C1022"/>
+      <stop offset="1" stop-color="#03040A"/>
+    </radialGradient>
+    <radialGradient id="bodyBlack" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(496 504) rotate(78.6901) scale(318 272)">
+      <stop offset="0" stop-color="#252536"/>
+      <stop offset="0.36" stop-color="#10111D"/>
+      <stop offset="0.78" stop-color="#05060C"/>
+      <stop offset="1" stop-color="#000105"/>
+    </radialGradient>
+    <linearGradient id="rainbowEdge" x1="234" y1="230" x2="794" y2="782" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00E5FF"/>
+      <stop offset="0.18" stop-color="#52FF7A"/>
+      <stop offset="0.36" stop-color="#FFF15C"/>
+      <stop offset="0.52" stop-color="#FF7A45"/>
+      <stop offset="0.7" stop-color="#FF4FD8"/>
+      <stop offset="0.86" stop-color="#7A5CFF"/>
+      <stop offset="1" stop-color="#00E5FF"/>
+    </linearGradient>
+    <linearGradient id="hornGlow" x1="341" y1="156" x2="683" y2="324" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00E5FF"/>
+      <stop offset="0.28" stop-color="#8BFF6A"/>
+      <stop offset="0.52" stop-color="#FFE95A"/>
+      <stop offset="0.76" stop-color="#FF57C7"/>
+      <stop offset="1" stop-color="#7E6CFF"/>
+    </linearGradient>
+    <linearGradient id="eyeGlow" x1="393" y1="442" x2="640" y2="442" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00F5FF"/>
+      <stop offset="0.5" stop-color="#86FF5C"/>
+      <stop offset="1" stop-color="#FF4FDB"/>
+    </linearGradient>
+    <linearGradient id="tailGlow" x1="664" y1="465" x2="884" y2="683" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#00E5FF"/>
+      <stop offset="0.3" stop-color="#42FF86"/>
+      <stop offset="0.56" stop-color="#FFE45C"/>
+      <stop offset="0.78" stop-color="#FF4FD8"/>
+      <stop offset="1" stop-color="#786BFF"/>
+    </linearGradient>
+    <filter id="softGlow" x="-30%" y="-30%" width="160%" height="160%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="15" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.22 0 0 0 0 0.8 0 0 0 0 1 0 0 0 0.7 0" result="glow"/>
+      <feMerge>
+        <feMergeNode in="glow"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="brightGlow" x="-50%" y="-50%" width="200%" height="200%" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="8" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="150%" color-interpolation-filters="sRGB">
+      <feDropShadow dx="0" dy="28" stdDeviation="30" flood-color="#000000" flood-opacity="0.62"/>
+    </filter>
+    <clipPath id="bodyClip">
+      <path d="M270 580C242 456 301 331 408 288C478 260 564 267 632 304C725 354 779 462 761 576C743 696 652 776 519 788C388 800 296 697 270 580Z"/>
+    </clipPath>
+  </defs>
+
+  <rect width="1024" height="1024" rx="192" fill="url(#bgGlow)"/>
+  <circle cx="512" cy="512" r="392" fill="#070914" opacity="0.78"/>
+  <circle cx="512" cy="512" r="326" stroke="url(#rainbowEdge)" stroke-width="3" opacity="0.24"/>
+  <circle cx="512" cy="512" r="258" stroke="url(#rainbowEdge)" stroke-width="2" opacity="0.16"/>
+
+  <g opacity="0.95" filter="url(#brightGlow)">
+    <path d="M214 263L231 300L270 307L242 336L249 376L214 356L178 376L185 336L157 307L196 300L214 263Z" fill="#00E5FF" opacity="0.48"/>
+    <path d="M826 202L842 236L878 242L852 268L858 304L826 287L793 304L799 268L773 242L810 236L826 202Z" fill="#FF4FD8" opacity="0.46"/>
+    <path d="M186 720L199 748L230 753L208 775L213 806L186 791L158 806L163 775L141 753L172 748L186 720Z" fill="#8BFF6A" opacity="0.42"/>
+    <path d="M814 770L826 796L854 801L834 821L839 849L814 836L789 849L794 821L773 801L802 796L814 770Z" fill="#FFE95A" opacity="0.42"/>
+    <circle cx="725" cy="154" r="10" fill="#52FF7A" opacity="0.65"/>
+    <circle cx="319" cy="160" r="8" fill="#FF6ECF" opacity="0.68"/>
+    <circle cx="875" cy="592" r="7" fill="#00E5FF" opacity="0.58"/>
+    <circle cx="162" cy="534" r="6" fill="#FFE45C" opacity="0.56"/>
+  </g>
+
+  <g filter="url(#shadow)">
+    <path d="M392 326C337 276 317 203 331 142C385 159 440 215 454 294L392 326Z" fill="#05060C"/>
+    <path d="M633 326C688 276 708 203 694 142C640 159 585 215 571 294L633 326Z" fill="#05060C"/>
+    <path d="M383 296C350 262 341 220 346 182C380 201 414 243 424 287L383 296Z" fill="url(#hornGlow)" opacity="0.54"/>
+    <path d="M642 296C675 262 684 220 679 182C645 201 611 243 601 287L642 296Z" fill="url(#hornGlow)" opacity="0.54"/>
+
+    <path d="M270 580C242 456 301 331 408 288C478 260 564 267 632 304C725 354 779 462 761 576C743 696 652 776 519 788C388 800 296 697 270 580Z" fill="url(#bodyBlack)"/>
+    <path d="M270 580C242 456 301 331 408 288C478 260 564 267 632 304C725 354 779 462 761 576C743 696 652 776 519 788C388 800 296 697 270 580Z" stroke="url(#rainbowEdge)" stroke-width="10" opacity="0.8"/>
+    <path d="M298 562C279 471 322 371 415 331C480 304 557 310 620 342C692 379 733 469 719 561C703 665 627 731 516 741C404 750 317 657 298 562Z" stroke="#FFFFFF" stroke-width="2" opacity="0.08"/>
+
+    <g clip-path="url(#bodyClip)" opacity="0.74">
+      <path d="M242 557C328 533 398 522 472 534C577 551 653 614 766 595" stroke="#00E5FF" stroke-width="8" stroke-linecap="round" opacity="0.24"/>
+      <path d="M265 642C354 602 458 600 547 638C612 665 681 664 742 625" stroke="#52FF7A" stroke-width="7" stroke-linecap="round" opacity="0.2"/>
+      <path d="M335 351C417 416 527 425 645 367" stroke="#FF4FD8" stroke-width="7" stroke-linecap="round" opacity="0.18"/>
+      <path d="M388 756C391 653 383 518 336 332" stroke="#FFE95A" stroke-width="6" stroke-linecap="round" opacity="0.12"/>
+      <path d="M612 754C623 633 622 486 675 352" stroke="#7A5CFF" stroke-width="6" stroke-linecap="round" opacity="0.18"/>
+    </g>
+
+    <path d="M332 392C298 374 275 339 272 302C313 302 353 323 377 358C361 366 345 377 332 392Z" fill="#03040A"/>
+    <path d="M692 392C726 374 749 339 752 302C711 302 671 323 647 358C663 366 679 377 692 392Z" fill="#03040A"/>
+    <path d="M315 333C339 341 361 357 377 380" stroke="url(#rainbowEdge)" stroke-width="7" stroke-linecap="round" opacity="0.72"/>
+    <path d="M709 333C685 341 663 357 647 380" stroke="url(#rainbowEdge)" stroke-width="7" stroke-linecap="round" opacity="0.72"/>
+
+    <path d="M666 586C724 556 784 568 810 610C833 647 814 694 771 711C731 727 690 710 676 674C667 652 676 624 701 612C718 604 737 607 749 620" stroke="url(#tailGlow)" stroke-width="42" stroke-linecap="round"/>
+    <path d="M666 586C724 556 784 568 810 610C833 647 814 694 771 711C731 727 690 710 676 674C667 652 676 624 701 612C718 604 737 607 749 620" stroke="#02030A" stroke-width="24" stroke-linecap="round"/>
+
+    <path d="M405 438C435 414 475 413 503 439C476 475 431 475 405 438Z" fill="url(#eyeGlow)" filter="url(#brightGlow)"/>
+    <path d="M621 438C591 414 551 413 523 439C550 475 595 475 621 438Z" fill="url(#eyeGlow)" filter="url(#brightGlow)"/>
+    <ellipse cx="455" cy="440" rx="12" ry="20" fill="#03040A"/>
+    <ellipse cx="571" cy="440" rx="12" ry="20" fill="#03040A"/>
+    <circle cx="450" cy="431" r="5" fill="#FFFFFF" opacity="0.9"/>
+    <circle cx="566" cy="431" r="5" fill="#FFFFFF" opacity="0.9"/>
+
+    <path d="M493 503C501 512 522 512 531 503" stroke="#A9B3FF" stroke-width="8" stroke-linecap="round"/>
+    <path d="M459 561C489 589 537 589 567 561" stroke="url(#rainbowEdge)" stroke-width="10" stroke-linecap="round"/>
+    <path d="M466 555C491 572 535 572 558 555" stroke="#04050C" stroke-width="6" stroke-linecap="round"/>
+
+    <path d="M343 496C296 482 260 463 223 431" stroke="url(#rainbowEdge)" stroke-width="8" stroke-linecap="round" opacity="0.7"/>
+    <path d="M344 538C286 542 244 536 196 518" stroke="url(#rainbowEdge)" stroke-width="8" stroke-linecap="round" opacity="0.62"/>
+    <path d="M345 581C296 604 258 617 214 625" stroke="url(#rainbowEdge)" stroke-width="8" stroke-linecap="round" opacity="0.54"/>
+    <path d="M681 496C728 482 764 463 801 431" stroke="url(#rainbowEdge)" stroke-width="8" stroke-linecap="round" opacity="0.7"/>
+    <path d="M680 538C738 542 780 536 828 518" stroke="url(#rainbowEdge)" stroke-width="8" stroke-linecap="round" opacity="0.62"/>
+    <path d="M679 581C728 604 766 617 810 625" stroke="url(#rainbowEdge)" stroke-width="8" stroke-linecap="round" opacity="0.54"/>
+  </g>
+
+  <g filter="url(#softGlow)" opacity="0.86">
+    <path d="M350 240C395 208 445 193 512 194C579 193 629 208 674 240" stroke="url(#hornGlow)" stroke-width="9" stroke-linecap="round" opacity="0.58"/>
+    <path d="M279 706C335 803 432 848 523 845C612 842 699 797 745 717" stroke="url(#rainbowEdge)" stroke-width="7" stroke-linecap="round" opacity="0.45"/>
+    <path d="M236 442C204 500 202 574 232 635" stroke="#00E5FF" stroke-width="4" stroke-linecap="round" opacity="0.36"/>
+    <path d="M789 442C821 500 823 574 793 635" stroke="#FF4FD8" stroke-width="4" stroke-linecap="round" opacity="0.36"/>
+  </g>
+</svg>
