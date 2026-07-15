@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Connection, Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { CircleCheck, CircleClose, Connection, Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import { AppPagination } from '../../../../components'
@@ -35,6 +35,8 @@ const editingClientId = ref<string | number | null>(null)
 const remoteModels = ref<AiProviderModelItem[]>([])
 const selectedModels = ref<string[]>([])
 const remoteKeyword = ref('')
+const selectedModelIdKeys = ref<Set<string>>(new Set())
+const batchAction = ref<'enable' | 'disable' | 'delete' | null>(null)
 
 const clientForm = reactive({
   clientCode: '',
@@ -56,6 +58,9 @@ const filteredRemoteModels = computed(() => {
   if (!search) return remoteModels.value
   return remoteModels.value.filter(item => `${item.id} ${item.ownedBy || ''}`.toLowerCase().includes(search))
 })
+const selectedModelIds = computed(() => [...selectedModelIdKeys.value])
+const allPageModelsSelected = computed(() => models.value.length > 0 && models.value.every(model => selectedModelIdKeys.value.has(String(model.id))))
+const somePageModelsSelected = computed(() => models.value.some(model => selectedModelIdKeys.value.has(String(model.id))))
 
 function clientTypeName(type?: number) {
   return clientTypeOptions.find(item => item.value === type)?.label || '未知客户端'
@@ -220,10 +225,105 @@ async function toggleModel(model: AiModelManageItem, enabled: boolean) {
   }
 }
 
+function isModelSelected(model: AiModelManageItem) {
+  return selectedModelIdKeys.value.has(String(model.id))
+}
+
+function setModelSelected(model: AiModelManageItem, selected: boolean) {
+  const next = new Set(selectedModelIdKeys.value)
+  if (selected) next.add(String(model.id))
+  else next.delete(String(model.id))
+  selectedModelIdKeys.value = next
+}
+
+function togglePageModels(selected: boolean) {
+  const next = new Set(selectedModelIdKeys.value)
+  models.value.forEach((model) => {
+    if (selected) next.add(String(model.id))
+    else next.delete(String(model.id))
+  })
+  selectedModelIdKeys.value = next
+}
+
+function clearModelSelection() {
+  selectedModelIdKeys.value = new Set()
+}
+
+async function handleBatchAction(action: 'enable' | 'disable' | 'delete') {
+  const ids = selectedModelIds.value
+  if (!ids.length || batchAction.value) return
+
+  const actionLabel = action === 'enable' ? '启用' : action === 'disable' ? '禁用' : '删除'
+  try {
+    await ElMessageBox.confirm(
+      `确认批量${actionLabel}已选择的 ${ids.length} 个模型吗？${action === 'delete' ? '删除后不可恢复。' : ''}`,
+      `批量${actionLabel}模型`,
+      {
+        type: action === 'delete' ? 'warning' : 'info',
+        confirmButtonText: `确认${actionLabel}`,
+        cancelButtonText: '取消',
+      },
+    )
+  }
+  catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error(error instanceof Error ? error.message : `批量${actionLabel}确认失败`)
+    }
+    return
+  }
+
+  batchAction.value = action
+  try {
+    const results = await Promise.allSettled(ids.map(async (id) => {
+      if (action === 'delete') {
+        const deleted = await deleteAiModelManage(id)
+        if (!deleted) throw new Error(`模型 ${id} 删除失败`)
+        return
+      }
+      await editAiModelManage(id, { enabled: action === 'enable' })
+    }))
+    const successfulIds = ids.filter((_, index) => results[index]?.status === 'fulfilled')
+    const failedCount = ids.length - successfulIds.length
+    const nextSelection = new Set(selectedModelIdKeys.value)
+    successfulIds.forEach(id => nextSelection.delete(String(id)))
+    selectedModelIdKeys.value = nextSelection
+
+    if (action === 'delete' && successfulIds.length) {
+      const remainingTotal = Math.max(0, total.value - successfulIds.length)
+      const lastPage = Math.max(1, Math.ceil(remainingTotal / pageSize.value))
+      currentPage.value = Math.min(currentPage.value, lastPage)
+    }
+
+    let refreshFailed = false
+    try {
+      await Promise.all([loadModels(), loadClients()])
+    }
+    catch {
+      refreshFailed = true
+    }
+    if (refreshFailed) {
+      ElMessage.warning(`批量${actionLabel}完成：成功 ${successfulIds.length} 个，失败 ${failedCount} 个；列表刷新失败，请手动刷新`)
+    } else if (failedCount) {
+      ElMessage.warning(`已${actionLabel} ${successfulIds.length} 个模型，${failedCount} 个操作失败；失败项已保留选中，可重试`)
+    } else {
+      ElMessage.success(`已批量${actionLabel} ${successfulIds.length} 个模型`)
+    }
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : `批量${actionLabel}失败`)
+  }
+  finally {
+    batchAction.value = null
+  }
+}
+
 async function deleteModel(model: AiModelManageItem) {
   try {
     await ElMessageBox.confirm(`确认删除模型「${model.modelName || model.modelCode}」吗？`, '删除模型', { type: 'warning' })
     await deleteAiModelManage(model.id)
+    const nextSelection = new Set(selectedModelIdKeys.value)
+    nextSelection.delete(String(model.id))
+    selectedModelIdKeys.value = nextSelection
     ElMessage.success('模型已删除')
     await loadModels()
     await loadClients()
@@ -290,11 +390,50 @@ onMounted(loadAll)
           <el-button plain @click="loadAll"><el-icon><RefreshRight /></el-icon>刷新</el-button>
         </div>
       </header>
+      <div v-if="models.length || selectedModelIds.length" class="model-bulkbar">
+        <div class="model-bulkbar__selection">
+          <el-checkbox
+            :model-value="allPageModelsSelected"
+            :indeterminate="somePageModelsSelected && !allPageModelsSelected"
+            :disabled="Boolean(batchAction) || !models.length"
+            @change="value => togglePageModels(Boolean(value))"
+          >
+            全选本页
+          </el-checkbox>
+          <span>已选择 <strong>{{ selectedModelIds.length }}</strong> 个模型</span>
+          <el-button text :disabled="Boolean(batchAction) || !selectedModelIds.length" @click="clearModelSelection">清空</el-button>
+        </div>
+        <div class="model-bulkbar__actions">
+          <el-button
+            type="success"
+            plain
+            :icon="CircleCheck"
+            :loading="batchAction === 'enable'"
+            :disabled="Boolean(batchAction) || !selectedModelIds.length"
+            @click="handleBatchAction('enable')"
+          >批量启用</el-button>
+          <el-button
+            plain
+            :icon="CircleClose"
+            :loading="batchAction === 'disable'"
+            :disabled="Boolean(batchAction) || !selectedModelIds.length"
+            @click="handleBatchAction('disable')"
+          >批量禁用</el-button>
+          <el-button
+            type="danger"
+            plain
+            :icon="Delete"
+            :loading="batchAction === 'delete'"
+            :disabled="Boolean(batchAction) || !selectedModelIds.length"
+            @click="handleBatchAction('delete')"
+          >批量删除</el-button>
+        </div>
+      </div>
       <div v-if="models.length" class="model-grid">
-        <article v-for="model in models" :key="model.id" class="model-card">
-          <div class="model-card__head"><div class="model-card__identity"><strong>{{ model.modelName || model.apiModel }}</strong><span>{{ model.modelCode }}</span></div><el-switch class="model-card__status-switch" size="small" :model-value="model.enabled !== false" inline-prompt active-text="启用" inactive-text="停用" @change="value => toggleModel(model, value)" /></div>
+        <article v-for="model in models" :key="model.id" :class="['model-card', { 'model-card--selected': isModelSelected(model) }]">
+          <div class="model-card__head"><el-checkbox :model-value="isModelSelected(model)" :disabled="Boolean(batchAction)" :aria-label="`选择模型 ${model.modelName || model.apiModel || model.modelCode}`" @change="value => setModelSelected(model, Boolean(value))" /><div class="model-card__identity"><strong>{{ model.modelName || model.apiModel }}</strong><span>{{ model.modelCode }}</span></div><el-switch class="model-card__status-switch" size="small" :model-value="model.enabled !== false" :disabled="Boolean(batchAction)" inline-prompt active-text="启用" inactive-text="停用" @change="value => toggleModel(model, value)" /></div>
           <div class="model-card__remote">{{ model.apiModel }}</div>
-          <div class="model-card__foot"><span>{{ model.clientName || clientTypeName(model.clientType) }}</span><span>{{ formatTime(model.updateTime) }}</span><el-button text type="danger" @click="deleteModel(model)"><el-icon><Delete /></el-icon></el-button></div>
+          <div class="model-card__foot"><span>{{ model.clientName || clientTypeName(model.clientType) }}</span><span>{{ formatTime(model.updateTime) }}</span><el-button text type="danger" :disabled="Boolean(batchAction)" @click="deleteModel(model)"><el-icon><Delete /></el-icon></el-button></div>
         </article>
       </div>
       <el-empty v-else description="尚未启用任何模型" :image-size="72" />
@@ -326,5 +465,5 @@ onMounted(loadAll)
 </template>
 
 <style scoped>
-.model-page{display:grid;gap:16px;min-height:0;overflow:auto}.client-panel,.model-panel{border:1px solid var(--system-border);border-radius:16px;background:var(--system-surface-strong);box-shadow:var(--system-shadow)}.section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid var(--system-border-subtle)}.section-head h2{margin:0;color:var(--system-title);font-size:16px}.section-head p{margin:5px 0 0;color:var(--system-text-muted);font-size:12px}.client-grid,.model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;padding:14px}.client-card,.model-card{display:grid;gap:11px;padding:14px;border:1px solid var(--system-border);border-radius:13px;background:var(--system-surface-solid)}.client-card__top,.model-card__head,.client-card__actions,.model-card__foot,.client-card__meta,.model-picker__toolbar{display:flex;align-items:center;gap:10px}.client-card__icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--system-accent-bg-strong);color:var(--system-accent-text)}.client-card__identity,.model-card__identity{display:grid;gap:3px;min-width:0;flex:1}.model-card__status-switch{flex:0 0 auto}.client-card__identity strong,.model-card strong{color:var(--system-title)}.client-card__identity span,.model-card__head span,.client-card__url,.model-card__remote{color:var(--system-text-soft);font-size:12px;overflow-wrap:anywhere}.client-card__meta{flex-wrap:wrap;color:var(--system-text-muted);font-size:11px}.client-card__meta span{padding:3px 7px;border-radius:999px;background:var(--system-surface-muted)}.client-card__actions{justify-content:flex-end}.model-tools{display:flex;gap:8px}.model-tools :deep(.el-input){width:240px}.model-card__remote{padding:9px 10px;border-radius:9px;background:var(--system-surface-muted)}.model-card__foot{color:var(--system-text-muted);font-size:11px}.model-card__foot span:first-child{flex:1}.model-panel :deep(.app-pagination){padding:0 14px 14px}.wizard-steps{margin:4px 0 24px}.client-form :deep(.el-select){width:100%}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.model-picker{display:grid;gap:14px}.model-picker__toolbar :deep(.el-input){flex:1}.model-picker__toolbar>span{color:var(--system-text-muted);font-size:12px;white-space:nowrap}.model-picker__list{min-height:250px;max-height:380px;overflow:auto;border:1px solid var(--system-border);border-radius:12px}.model-option{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--system-border-subtle);cursor:pointer}.model-option:hover{background:var(--system-surface-muted)}.model-option__id{color:var(--system-title);font-size:13px;overflow-wrap:anywhere}.model-option>span:last-child{color:var(--system-text-muted);font-size:11px}.dialog-footer{display:flex;justify-content:flex-end;gap:8px}@media(max-width:720px){.section-head,.section-head--models{align-items:stretch;flex-direction:column}.model-tools,.form-grid{display:grid;grid-template-columns:1fr}.model-tools :deep(.el-input){width:100%}.client-grid,.model-grid{grid-template-columns:1fr}}
+.model-page{display:grid;gap:16px;min-height:0;overflow:auto}.client-panel,.model-panel{border:1px solid var(--system-border);border-radius:16px;background:var(--system-surface-strong);box-shadow:var(--system-shadow)}.section-head{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:16px 18px;border-bottom:1px solid var(--system-border-subtle)}.section-head h2{margin:0;color:var(--system-title);font-size:16px}.section-head p{margin:5px 0 0;color:var(--system-text-muted);font-size:12px}.client-grid,.model-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px;padding:14px}.client-card,.model-card{display:grid;gap:11px;padding:14px;border:1px solid var(--system-border);border-radius:13px;background:var(--system-surface-solid)}.model-card--selected{border-color:var(--system-accent-border);box-shadow:var(--system-accent-shadow)}.client-card__top,.model-card__head,.client-card__actions,.model-card__foot,.client-card__meta,.model-picker__toolbar{display:flex;align-items:center;gap:10px}.client-card__icon{display:grid;place-items:center;width:36px;height:36px;border-radius:10px;background:var(--system-accent-bg-strong);color:var(--system-accent-text)}.client-card__identity,.model-card__identity{display:grid;gap:3px;min-width:0;flex:1}.model-card__status-switch{flex:0 0 auto}.client-card__identity strong,.model-card strong{color:var(--system-title)}.client-card__identity span,.model-card__head span,.client-card__url,.model-card__remote{color:var(--system-text-soft);font-size:12px;overflow-wrap:anywhere}.client-card__meta{flex-wrap:wrap;color:var(--system-text-muted);font-size:11px}.client-card__meta span{padding:3px 7px;border-radius:999px;background:var(--system-surface-muted)}.client-card__actions{justify-content:flex-end}.model-tools{display:flex;gap:8px}.model-tools :deep(.el-input){width:240px}.model-bulkbar{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 14px;border-bottom:1px solid var(--system-border-subtle);background:var(--system-surface-muted)}.model-bulkbar__selection,.model-bulkbar__actions{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.model-bulkbar__selection>span{color:var(--system-text-muted);font-size:12px}.model-bulkbar__selection strong{color:var(--system-accent-text)}.model-card__remote{padding:9px 10px;border-radius:9px;background:var(--system-surface-muted)}.model-card__foot{color:var(--system-text-muted);font-size:11px}.model-card__foot span:first-child{flex:1}.model-panel :deep(.app-pagination){padding:0 14px 14px}.wizard-steps{margin:4px 0 24px}.client-form :deep(.el-select){width:100%}.form-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}.model-picker{display:grid;gap:14px}.model-picker__toolbar :deep(.el-input){flex:1}.model-picker__toolbar>span{color:var(--system-text-muted);font-size:12px;white-space:nowrap}.model-picker__list{min-height:250px;max-height:380px;overflow:auto;border:1px solid var(--system-border);border-radius:12px}.model-option{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;gap:10px;padding:10px 12px;border-bottom:1px solid var(--system-border-subtle);cursor:pointer}.model-option:hover{background:var(--system-surface-muted)}.model-option__id{color:var(--system-title);font-size:13px;overflow-wrap:anywhere}.model-option>span:last-child{color:var(--system-text-muted);font-size:11px}.dialog-footer{display:flex;justify-content:flex-end;gap:8px}@media(max-width:720px){.section-head,.section-head--models,.model-bulkbar{align-items:stretch;flex-direction:column}.model-tools,.form-grid{display:grid;grid-template-columns:1fr}.model-tools :deep(.el-input){width:100%}.client-grid,.model-grid{grid-template-columns:1fr}.model-bulkbar__actions :deep(.el-button){flex:1}}
 </style>
