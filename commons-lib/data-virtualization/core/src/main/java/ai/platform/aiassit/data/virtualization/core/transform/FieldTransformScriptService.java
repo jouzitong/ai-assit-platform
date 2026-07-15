@@ -68,9 +68,7 @@ public class FieldTransformScriptService {
         TextGenerationResult result = textGenerationPort.generate(new TextGenerationCommand(
                 SYSTEM_PROMPT,
                 buildContext(entity, binding, request),
-                "virtual-table-field-transform-script",
-                2400,
-                0.1D
+                "virtual-table-field-transform-script"
         ));
         if (result == null || !StringUtils.hasText(result.text())) {
             throw new VirtualDataException("AI_FIELD_SCRIPT_GENERATE_FAILED", "AI 未返回转换脚本，请检查模型配置后重试");

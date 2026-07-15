@@ -7,7 +7,6 @@ import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
-import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import org.arthena.framework.common.exception.BizException;
 import org.slf4j.Logger;
@@ -44,13 +43,20 @@ public class AiTextGenerationService {
                     textLength(request == null ? null : request.getUserPrompt()));
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
         }
+        if (!StringUtils.hasText(request.getModelCode())) {
+            LOGGER.warn("内部文本生成参数校验失败, scene={}, modelCodeMissing=true",
+                    safeScene(resolveScene(request)));
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MODEL_CODE);
+        }
 
         String scene = resolveScene(request);
         String logScene = safeScene(scene);
+        String modelCode = request.getModelCode().trim();
         int maxTokens = resolveMaxTokens(request.getMaxTokens());
         double temperature = resolveTemperature(request.getTemperature());
-        LOGGER.info("开始执行内部文本生成, scene={}, hasSystemPrompt={}, systemPromptLength={}, userPromptLength={}, maxTokens={}, temperature={}",
+        LOGGER.info("开始执行内部文本生成, scene={}, modelCode={}, hasSystemPrompt={}, systemPromptLength={}, userPromptLength={}, maxTokens={}, temperature={}",
                 logScene,
+                modelCode,
                 StringUtils.hasText(request.getSystemPrompt()),
                 textLength(request.getSystemPrompt()),
                 textLength(request.getUserPrompt()),
@@ -58,7 +64,7 @@ public class AiTextGenerationService {
                 temperature);
 
         ChatRequest chatRequest = new ChatRequest();
-        chatRequest.setClientType(AiChatClientType.SPRING_AI);
+        chatRequest.setModelCode(modelCode);
         chatRequest.setMessages(messages(request));
         chatRequest.getOptions().setTemperature(temperature);
         chatRequest.getOptions().setMaxTokens(maxTokens);

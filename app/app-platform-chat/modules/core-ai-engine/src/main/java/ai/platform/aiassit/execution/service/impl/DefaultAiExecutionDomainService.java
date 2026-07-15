@@ -16,6 +16,7 @@ import org.arthena.framework.common.exception.BizException;
 import org.springframework.beans.factory.ObjectProvider;
 import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.EnumMap;
 import java.util.List;
@@ -107,10 +108,9 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     private ResolvedChatRequest resolveChatRequest(ChatRequest request) {
         String modelCode = request.getModelCode();
         AiModelConfigDTO modelConfig = modelConfigService.getByModelCode(modelCode);
-        if (modelConfig != null) {
-            if (!Boolean.TRUE.equals(modelConfig.getEnabled())) {
-                throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, modelCode);
-            }
+        if (StringUtils.hasText(modelCode)
+                && (modelConfig == null || !Boolean.TRUE.equals(modelConfig.getEnabled()))) {
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, modelCode.trim());
         }
 
         AiChatClientType clientType = request.getClientType();

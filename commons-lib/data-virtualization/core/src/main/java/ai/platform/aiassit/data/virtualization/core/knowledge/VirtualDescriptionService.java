@@ -57,9 +57,7 @@ public class VirtualDescriptionService {
         TextGenerationCommand command = new TextGenerationCommand(
                 SYSTEM_PROMPT,
                 buildVirtualContext(entity, input.getCurrentDescription()),
-                "virtual-table-knowledge-description",
-                600,
-                0.2D
+                "virtual-table-knowledge-description"
         );
         TextGenerationResult result = textGenerationPort.generate(command);
         if (result == null || !StringUtils.hasText(result.text())) {

@@ -151,7 +151,7 @@ public class VirtualRelationManagementService {
 
         String context = buildContext(entities, fields, existingRelations);
         TextGenerationResult generated = textGenerationPort.generate(new TextGenerationCommand(
-                SYSTEM_PROMPT, context, "virtual-table-relation-suggest", 3600, 0.1D));
+                SYSTEM_PROMPT, context, "virtual-table-relation-suggest"));
         if (generated == null || !StringUtils.hasText(generated.text())) {
             throw new VirtualDataException("AI_RELATION_SUGGEST_FAILED", "AI 未返回关系建议，请检查模型配置后重试");
         }
