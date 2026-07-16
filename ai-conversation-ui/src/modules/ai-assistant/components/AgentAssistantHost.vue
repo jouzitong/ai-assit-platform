@@ -15,6 +15,7 @@ import { useZIndex, type InputInstance } from 'element-plus'
 import { focusableStack, type FocusLayer } from 'element-plus/es/components/focus-trap/src/utils'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { renderMarkdown } from '../../ai-chat/utils/markdown'
 import { useAssistantFloatingLayout } from '../composables/useAssistantFloatingLayout'
 import { activeAgentPageCapability } from '../services/pageCapabilityRegistry'
 import { useAiAssistantStore } from '../store/assistant'
@@ -47,6 +48,8 @@ const {
   panelStyle,
   panelSizeLabel,
   panelMaximized,
+  panelAnchorSide,
+  anchorPanelToLauncher,
   startLauncherDrag,
   startPanelDrag,
   startPanelResize,
@@ -125,8 +128,14 @@ function handleTriggerPointerDown(event: PointerEvent) {
 
 function handleTriggerClick(event: MouseEvent) {
   if (consumeLauncherClick(event)) {
-    deactivateAssistantFocusLayer()
-    lastExternalFocusRef.value?.focus({ preventScroll: true })
+    if (!assistant.state.open) {
+      deactivateAssistantFocusLayer()
+      lastExternalFocusRef.value?.focus({ preventScroll: true })
+    }
+    return
+  }
+  if (assistant.state.open) {
+    void closeAssistant(true)
     return
   }
   void openAssistant()
@@ -139,17 +148,22 @@ function assistantResultLabel(status: AiAssistantMessage['status']) {
 }
 
 async function openAssistant() {
+  const shouldAnchor = !assistant.state.open
   activateAssistantFocusLayer()
+  if (shouldAnchor) anchorPanelToLauncher()
   assistant.openAssistant()
   await nextTick()
+  if (shouldAnchor) anchorPanelToLauncher()
   composerRef.value?.focus()
 }
 
-async function closeAssistant() {
+async function closeAssistant(focusTrigger = false) {
   assistant.closeAssistant()
   deactivateAssistantFocusLayer()
   await nextTick()
-  const focusTarget = lastExternalFocusRef.value?.isConnected
+  const focusTarget = focusTrigger
+    ? triggerRef.value
+    : lastExternalFocusRef.value?.isConnected
     ? lastExternalFocusRef.value
     : triggerRef.value
   focusTarget?.focus({ preventScroll: true })
@@ -227,16 +241,21 @@ onBeforeUnmount(() => {
       :style="{ zIndex: assistantZIndex }"
     >
       <button
-        v-if="!assistant.state.open"
         ref="triggerRef"
         class="assistant-trigger"
-        :class="{ 'is-dragging': isLauncherDragging }"
+        :class="{
+          'is-dragging': isLauncherDragging,
+          'is-open': assistant.state.open,
+        }"
         :style="launcherStyle"
         type="button"
-        aria-label="打开或拖动 AI 页面助手"
+        :aria-label="assistant.state.open ? '关闭或拖动 AI 页面助手' : '打开或拖动 AI 页面助手'"
         aria-keyshortcuts="Alt+Shift+A"
         :aria-controls="ASSISTANT_PANEL_ID"
-        title="AI 页面助手（可拖动；Alt + Shift + A 快速切换）"
+        :aria-expanded="assistant.state.open"
+        :title="assistant.state.open
+          ? '关闭 AI 页面助手（按钮可拖动）'
+          : '打开 AI 页面助手（按钮可拖动；Alt + Shift + A 快速切换）'"
         @pointerdown="handleTriggerPointerDown"
         @pointermove="handlePointerMove"
         @pointerup="finishPointerInteraction"
@@ -257,13 +276,15 @@ onBeforeUnmount(() => {
           :class="{
             'is-compact': isCompact,
             'is-interacting': isPanelInteracting,
+            'is-anchored-above': panelAnchorSide === 'above',
+            'is-anchored-below': panelAnchorSide === 'below',
           }"
           :style="panelStyle"
           role="complementary"
           aria-label="AI 页面助手"
           aria-keyshortcuts="Alt+Shift+A"
           data-ai-assistant-panel
-          @keydown.esc.stop="closeAssistant"
+          @keydown.esc.stop="closeAssistant()"
         >
           <section class="assistant-panel">
       <header class="assistant-panel__header">
@@ -313,7 +334,7 @@ onBeforeUnmount(() => {
             :icon="CloseBold"
             aria-label="关闭 AI 页面助手"
             title="关闭"
-            @click="closeAssistant"
+            @click="closeAssistant()"
           />
         </div>
       </header>
@@ -404,6 +425,11 @@ onBeforeUnmount(() => {
               <span v-if="message.status === 'pending' && !message.content" class="assistant-message__pending">
                 <i /><i /><i />
               </span>
+              <div
+                v-else-if="message.role === 'assistant'"
+                class="assistant-message__markdown"
+                v-html="renderMarkdown(message.content)"
+              />
               <p v-else>{{ message.content }}</p>
             </div>
           </div>
@@ -482,6 +508,7 @@ onBeforeUnmount(() => {
 
 .assistant-trigger {
   position: absolute;
+  z-index: 2;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -502,6 +529,10 @@ onBeforeUnmount(() => {
 
 .assistant-trigger.is-dragging {
   cursor: grabbing;
+}
+
+.assistant-trigger.is-open {
+  box-shadow: var(--app-shadow-md);
 }
 
 .assistant-trigger:hover {
@@ -531,9 +562,10 @@ onBeforeUnmount(() => {
 
 .assistant-flyout {
   position: absolute;
+  z-index: 1;
   max-width: calc(100% - var(--app-space-6));
   max-height: calc(100% - var(--app-space-6));
-  overflow: hidden;
+  overflow: visible;
   border: 1px solid var(--app-border);
   border-radius: var(--app-radius-xl);
   background: var(--app-surface-solid);
@@ -541,6 +573,39 @@ onBeforeUnmount(() => {
   pointer-events: auto;
   transform-origin: center;
   transition: box-shadow 0.2s ease;
+}
+
+.assistant-flyout::after {
+  position: absolute;
+  left: var(--assistant-anchor-x);
+  z-index: 0;
+  width: var(--app-space-3);
+  height: var(--app-space-3);
+  border-color: var(--app-border);
+  background: var(--app-surface-solid);
+  content: '';
+  pointer-events: none;
+  transform: translateX(-50%) rotate(45deg);
+}
+
+.assistant-flyout.is-anchored-above {
+  transform-origin: var(--assistant-anchor-x) 100%;
+}
+
+.assistant-flyout.is-anchored-above::after {
+  bottom: calc(var(--app-space-tight) * -1);
+  border-right: 1px solid var(--app-border);
+  border-bottom: 1px solid var(--app-border);
+}
+
+.assistant-flyout.is-anchored-below {
+  transform-origin: var(--assistant-anchor-x) 0;
+}
+
+.assistant-flyout.is-anchored-below::after {
+  top: calc(var(--app-space-tight) * -1);
+  border-top: 1px solid var(--app-border);
+  border-left: 1px solid var(--app-border);
 }
 
 .assistant-flyout.is-interacting {
@@ -553,6 +618,8 @@ onBeforeUnmount(() => {
 }
 
 .assistant-panel {
+  position: relative;
+  z-index: 1;
   container-type: inline-size;
   display: grid;
   grid-template-rows: auto auto minmax(0, 1fr) auto;
@@ -560,6 +627,8 @@ onBeforeUnmount(() => {
   height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: hidden;
+  border-radius: inherit;
   background: var(--app-surface-solid);
   color: var(--app-text);
 }
@@ -835,12 +904,69 @@ onBeforeUnmount(() => {
   color: var(--app-danger);
 }
 
-.assistant-message__bubble p {
-  margin: 0;
+.assistant-message__bubble > p,
+.assistant-message__markdown {
+  min-width: 0;
   font-size: var(--app-font-size-body-lg);
   line-height: var(--app-line-height-loose);
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
+}
+
+.assistant-message__bubble > p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.assistant-message__markdown :deep(h3) {
+  margin: 0 0 var(--app-space-2);
+  color: var(--app-title);
+  font-size: var(--app-font-size-subtitle);
+  line-height: var(--app-line-height-body);
+}
+
+.assistant-message__markdown :deep(p) {
+  margin: 0 0 var(--app-space-2);
+}
+
+.assistant-message__markdown :deep(ul),
+.assistant-message__markdown :deep(ol) {
+  display: grid;
+  gap: var(--app-space-tight);
+  margin: 0 0 var(--app-space-2);
+  padding-inline-start: var(--app-space-5);
+}
+
+.assistant-message__markdown :deep(li) {
+  padding-inline-start: var(--app-space-hairline);
+}
+
+.assistant-message__markdown :deep(strong) {
+  color: var(--app-title);
+  font-weight: 700;
+}
+
+.assistant-message__markdown :deep(code) {
+  padding: var(--app-space-hairline) var(--app-space-tight);
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-sm);
+  background: var(--app-surface-muted);
+  color: var(--app-accent);
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: var(--app-font-size-caption);
+  overflow-wrap: anywhere;
+}
+
+.assistant-message__markdown :deep(blockquote) {
+  margin: var(--app-space-2) 0;
+  padding: var(--app-space-2) var(--app-space-3);
+  border-inline-start: var(--app-space-micro) solid var(--app-accent-border);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-muted);
+  color: var(--app-text-muted);
+}
+
+.assistant-message__markdown :deep(> :last-child) {
+  margin-bottom: 0;
 }
 
 .assistant-message__pending {

@@ -37,13 +37,14 @@ import java.util.Map;
 /**
  * RAGFlow HTTP API 客户端。
  *
- * <p>统一 SPI 的文档写入会映射为：创建空 Document，再创建一个承载正文的 Chunk。
- * Chunk 创建成功后才返回新的 providerDocumentId；旧 Document 的清理由调用方在本地
- * providerDocumentId 持久化成功后执行，避免更新失败时丢失上一次可检索版本。</p>
+ * <p>统一 SPI 的文档写入会根据 providerDocumentId 选择新增或更新：首次同步时创建空
+ * Document 和正文 Chunk；再次同步时保留原 Document，并更新其正文 Chunk。</p>
  */
 @Slf4j
 @Component
 public class RagflowKnowledgeBaseClient {
+
+    private static final String PROVIDER_DOCUMENT_ID = "providerDocumentId";
 
     private final RagflowProperties properties;
     private final ObjectMapper objectMapper;
@@ -68,12 +69,18 @@ public class RagflowKnowledgeBaseClient {
                 if (document == null || !StringUtils.hasText(localDocumentId) || !StringUtils.hasText(document.getContent())) {
                     throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CONTENT);
                 }
-                String providerDocumentId = createEmptyDocument(datasetId, document, meta);
-                try {
-                    addChunk(datasetId, providerDocumentId, document, meta);
-                } catch (Exception ex) {
-                    deleteDocumentQuietly(datasetId, providerDocumentId, meta);
-                    throw ex;
+                String providerDocumentId = metadataText(document, PROVIDER_DOCUMENT_ID);
+                if (StringUtils.hasText(providerDocumentId)) {
+                    providerDocumentId = providerDocumentId.trim();
+                    updateDocument(datasetId, providerDocumentId, document, meta);
+                } else {
+                    providerDocumentId = createEmptyDocument(datasetId, document, meta);
+                    try {
+                        addChunk(datasetId, providerDocumentId, document, meta);
+                    } catch (Exception ex) {
+                        deleteDocumentQuietly(datasetId, providerDocumentId, meta);
+                        throw ex;
+                    }
                 }
                 documentIdMappings.put(localDocumentId, providerDocumentId);
                 accepted++;
@@ -274,14 +281,50 @@ public class RagflowKnowledgeBaseClient {
         return documentId;
     }
 
+    private void updateDocument(String datasetId, String documentId, KbDocument document, RequestMeta meta) throws Exception {
+        String documentPath = "/api/v1/datasets/" + encodePath(datasetId) + "/documents/" + encodePath(documentId);
+        request("PUT", documentPath, Map.of("name", documentName(document)), meta);
+
+        List<String> chunkIds = listChunkIds(documentPath, meta);
+        if (chunkIds.isEmpty()) {
+            addChunk(datasetId, documentId, document, meta);
+            return;
+        }
+        if (chunkIds.size() > 1) {
+            request("DELETE", documentPath + "/chunks",
+                    Map.of("chunk_ids", chunkIds.subList(1, chunkIds.size())), meta);
+        }
+        request("PATCH", documentPath + "/chunks/" + encodePath(chunkIds.get(0)), chunkPayload(document), meta);
+    }
+
+    private List<String> listChunkIds(String documentPath, RequestMeta meta) throws Exception {
+        JsonNode data = data(request("GET", documentPath + "/chunks?page=1&page_size=1000", null, meta));
+        JsonNode chunks = data.isArray() ? data : data.path("chunks");
+        if (!chunks.isArray()) {
+            return List.of();
+        }
+        List<String> result = new ArrayList<>();
+        for (JsonNode chunk : chunks) {
+            String chunkId = firstText(chunk, "id", "chunk_id", "chunkId");
+            if (StringUtils.hasText(chunkId) && !result.contains(chunkId.trim())) {
+                result.add(chunkId.trim());
+            }
+        }
+        return result;
+    }
+
     private void addChunk(String datasetId, String documentId, KbDocument document, RequestMeta meta) throws Exception {
+        request("POST", "/api/v1/datasets/" + encodePath(datasetId) + "/documents/"
+                + encodePath(documentId) + "/chunks", chunkPayload(document), meta);
+    }
+
+    private Map<String, Object> chunkPayload(KbDocument document) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("content", document.getContent());
         copyListMetadata(document, "importantKeywords", "important_keywords", body);
         copyListMetadata(document, "tagKeywords", "tag_kwd", body);
         copyListMetadata(document, "questions", "questions", body);
-        request("POST", "/api/v1/datasets/" + encodePath(datasetId) + "/documents/"
-                + encodePath(documentId) + "/chunks", body, meta);
+        return body;
     }
 
     private JsonNode request(String method, String path, Object body, RequestMeta meta) throws Exception {

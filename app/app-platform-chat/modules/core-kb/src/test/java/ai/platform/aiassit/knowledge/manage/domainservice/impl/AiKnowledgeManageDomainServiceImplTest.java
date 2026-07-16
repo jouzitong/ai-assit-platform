@@ -111,6 +111,22 @@ class AiKnowledgeManageDomainServiceImplTest {
     }
 
     @Test
+    void shouldKeepProviderDocumentIdWhenProviderUpdatesDocumentInPlace() {
+        AiKbDocumentDTO document = document("old-doc", AiKbProviderSyncStatus.PENDING);
+        mockSyncInputs(document, content("新版内容"));
+        when(aiKnowledgeExecutionService.kbUpsert(any())).thenReturn(upsertResponse("old-doc"));
+
+        domainService.syncDocument(syncRequest());
+
+        verify(aiKnowledgeExecutionService, never()).kbDelete(any());
+        ArgumentCaptor<AiKbDocumentDTO> documentCaptor = ArgumentCaptor.forClass(AiKbDocumentDTO.class);
+        verify(documentService, atLeastOnce()).update(eq(1L), documentCaptor.capture());
+        AiKbDocumentDTO finalDocument = documentCaptor.getAllValues().get(documentCaptor.getAllValues().size() - 1);
+        assertEquals("old-doc", finalDocument.getProviderDocumentId());
+        assertEquals(AiKbProviderSyncStatus.SUCCESS, finalDocument.getProviderSyncStatus());
+    }
+
+    @Test
     void shouldKeepOldProviderDocumentWhenRemoteChunkFails() {
         AiKbDocumentDTO document = document("old-doc", AiKbProviderSyncStatus.PENDING);
         mockSyncInputs(document, content("新版内容"));

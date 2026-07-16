@@ -36,6 +36,8 @@ class RagflowKnowledgeBaseClientTest {
     private final AtomicInteger createCalls = new AtomicInteger();
     private final AtomicInteger chunkCalls = new AtomicInteger();
     private final AtomicInteger deleteCalls = new AtomicInteger();
+    private final AtomicInteger updateDocumentCalls = new AtomicInteger();
+    private final AtomicInteger updateChunkCalls = new AtomicInteger();
     private volatile boolean chunkShouldFail;
     private volatile JsonNode retrievalRequestBody;
 
@@ -44,6 +46,7 @@ class RagflowKnowledgeBaseClientTest {
         server = HttpServer.create(new InetSocketAddress(0), 0);
         server.createContext("/api/v1/datasets/dataset-1/documents", this::handleDocuments);
         server.createContext("/api/v1/datasets/dataset-1/documents/doc-1/chunks", this::handleChunks);
+        server.createContext("/api/v1/datasets/dataset-1/documents/doc-old", this::handleExistingDocument);
         server.createContext("/api/v1/datasets", this::handleDatasets);
         server.createContext("/api/v1/models", this::handleModels);
         server.createContext("/api/v1/retrieval", this::handleRetrieval);
@@ -87,19 +90,22 @@ class RagflowKnowledgeBaseClientTest {
     }
 
     @Test
-    void shouldNotDeletePreviousDocumentBeforeNewChunkSucceeds() throws Exception {
+    void shouldUpdateExistingDocumentWhenProviderDocumentIdExists() throws Exception {
         KbDocument document = new KbDocument();
         document.setDocumentId("local-doc-1");
         document.setContent("新的销售额定义");
+        document.getMetadata().put("documentName", "updated-metric.md");
         document.getMetadata().put("providerDocumentId", "doc-old");
 
         RagflowKnowledgeBaseClient.UpsertResult result = client.upsert("dataset-1", List.of(document), new RequestMeta());
 
         assertEquals(1, result.accepted());
-        assertEquals("doc-1", result.documentIdMappings().get("local-doc-1"));
-        assertEquals(1, createCalls.get());
-        assertEquals(1, chunkCalls.get());
+        assertEquals("doc-old", result.documentIdMappings().get("local-doc-1"));
+        assertEquals(0, createCalls.get());
+        assertEquals(0, chunkCalls.get());
         assertEquals(0, deleteCalls.get());
+        assertEquals(1, updateDocumentCalls.get());
+        assertEquals(1, updateChunkCalls.get());
     }
 
     @Test
@@ -255,6 +261,32 @@ class RagflowKnowledgeBaseClientTest {
             return;
         }
         respond(exchange, 200, "{\"code\":\"0\",\"data\":{\"id\":\"chunk-1\"}}");
+    }
+
+    private void handleExistingDocument(HttpExchange exchange) throws IOException {
+        assertEquals("Bearer test-key", exchange.getRequestHeaders().getFirst("Authorization"));
+        String path = exchange.getRequestURI().getPath();
+        if ("/api/v1/datasets/dataset-1/documents/doc-old".equals(path)
+                && "PUT".equals(exchange.getRequestMethod())) {
+            updateDocumentCalls.incrementAndGet();
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("\"name\":\"updated-metric.md\""));
+            respond(exchange, 200, "{\"code\":0,\"data\":true}");
+            return;
+        }
+        if (path.endsWith("/chunks") && "GET".equals(exchange.getRequestMethod())) {
+            assertTrue(exchange.getRequestURI().getRawQuery().contains("page_size=1000"));
+            respond(exchange, 200, "{\"code\":0,\"data\":{\"chunks\":[{\"id\":\"chunk-old\"}],\"total\":1}}");
+            return;
+        }
+        if (path.endsWith("/chunks/chunk-old") && "PATCH".equals(exchange.getRequestMethod())) {
+            updateChunkCalls.incrementAndGet();
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("\"content\":\"新的销售额定义\""));
+            respond(exchange, 200, "{\"code\":0}");
+            return;
+        }
+        respond(exchange, 405, "{}");
     }
 
     private void handleRetrieval(HttpExchange exchange) throws IOException {

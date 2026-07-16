@@ -20,6 +20,8 @@ interface Size {
 
 interface Rect extends Point, Size {}
 
+type PanelAnchorSide = 'above' | 'below'
+
 interface PersistedLayout {
   launcher?: Point
   panel?: Rect
@@ -47,6 +49,8 @@ const PANEL_MAX_HEIGHT = 900
 const COMPACT_WIDTH = 520
 const COMPACT_HEIGHT = 560
 const DRAG_THRESHOLD = 5
+const PANEL_ANCHOR_GAP = EDGE_GAP
+const PANEL_ARROW_EDGE_GAP = 24
 
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), Math.max(min, max))
@@ -102,6 +106,10 @@ export function useAssistantFloatingLayout(
   const panelRestoreRect = ref<Rect | null>(null)
   const preferredPanelRect = ref<Rect | null>(null)
   const panelMaximized = ref(false)
+  const panelAnchorSide = ref<PanelAnchorSide | null>(null)
+  const panelAnchorX = ref(PANEL_DEFAULT_WIDTH / 2)
+  const panelAnchorPreferredSize = ref<Size | null>(null)
+  const restorePanelAnchor = ref(false)
   const interaction = ref<PointerInteraction | null>(null)
   const suppressNextLauncherClick = ref(false)
   const initialized = ref(false)
@@ -170,6 +178,11 @@ export function useAssistantFloatingLayout(
       && rect.y + rect.height <= hostSize.value.height - EDGE_GAP
   }
 
+  function panelSizeFits(rect: Rect) {
+    const constraints = panelConstraints.value
+    return rect.width <= constraints.maxWidth && rect.height <= constraints.maxHeight
+  }
+
   function defaultPanelRect(): Rect {
     const constraints = panelConstraints.value
     const width = clamp(PANEL_DEFAULT_WIDTH, constraints.minWidth, constraints.maxWidth)
@@ -201,6 +214,7 @@ export function useAssistantFloatingLayout(
     top: `${resolvedPanelRect.value.y}px`,
     width: `${resolvedPanelRect.value.width}px`,
     height: `${resolvedPanelRect.value.height}px`,
+    '--assistant-anchor-x': `${panelAnchorX.value}px`,
   }))
 
   const panelSizeLabel = computed(() => (
@@ -210,11 +224,101 @@ export function useAssistantFloatingLayout(
   function persistLayout() {
     writePersistedLayout({
       ...(launcherPosition.value ? { launcher: launcherPosition.value } : {}),
-      panel: preferredPanelRect.value
-        || (panelMaximized.value && panelRestoreRect.value
-          ? panelRestoreRect.value
-          : panelRect.value),
+      panel: panelAnchorPreferredSize.value && (panelAnchorSide.value || restorePanelAnchor.value)
+        ? {
+            ...(preferredPanelRect.value || panelRestoreRect.value || panelRect.value),
+            ...panelAnchorPreferredSize.value,
+          }
+        : preferredPanelRect.value
+          || (panelMaximized.value && panelRestoreRect.value
+            ? panelRestoreRect.value
+            : panelRect.value),
     })
+  }
+
+  function ensureLauncherPosition() {
+    if (!launcherPosition.value) launcherPosition.value = defaultLauncherPosition()
+  }
+
+  function positionPanelNearLauncher() {
+    ensureLauncherPosition()
+    const launcherPositionValue = launcherPosition.value
+    if (!launcherPositionValue || hostSize.value.width <= 0 || hostSize.value.height <= 0) return
+
+    const launcher = launcherDimensions()
+    const preferredRect = preferredPanelRect.value
+    const currentPanel = resolvedPanelRect.value
+    const desiredSize = panelAnchorPreferredSize.value
+      || (preferredRect
+        ? { width: preferredRect.width, height: preferredRect.height }
+        : { width: currentPanel.width, height: currentPanel.height })
+    panelAnchorPreferredSize.value ||= { ...desiredSize }
+    if (preferredRect && panelSizeFits(preferredRect)) preferredPanelRect.value = null
+    const constraints = panelConstraints.value
+    const width = clamp(desiredSize.width, constraints.minWidth, constraints.maxWidth)
+    const desiredHeight = clamp(desiredSize.height, constraints.minHeight, constraints.maxHeight)
+    const launcherCenterX = launcherPositionValue.x + launcher.width / 2
+    const launcherCenterY = launcherPositionValue.y + launcher.height / 2
+    const spaceAbove = launcherPositionValue.y - EDGE_GAP - PANEL_ANCHOR_GAP
+    const spaceBelow = hostSize.value.height
+      - EDGE_GAP
+      - launcherPositionValue.y
+      - launcher.height
+      - PANEL_ANCHOR_GAP
+    const preferredSide: PanelAnchorSide = launcherCenterY >= hostSize.value.height / 2
+      ? 'above'
+      : 'below'
+    const preferredSpace = preferredSide === 'above' ? spaceAbove : spaceBelow
+    const alternateSide: PanelAnchorSide = preferredSide === 'above' ? 'below' : 'above'
+    const alternateSpace = alternateSide === 'above' ? spaceAbove : spaceBelow
+    const side = preferredSpace >= desiredHeight
+      ? preferredSide
+      : alternateSpace >= desiredHeight
+        ? alternateSide
+        : spaceAbove >= spaceBelow ? 'above' : 'below'
+    const availableHeight = side === 'above' ? spaceAbove : spaceBelow
+    const height = availableHeight < desiredHeight
+      ? Math.max(constraints.minHeight, availableHeight)
+      : desiredHeight
+    const x = clamp(
+      launcherCenterX - width / 2,
+      EDGE_GAP,
+      hostSize.value.width - width - EDGE_GAP,
+    )
+    const idealY = side === 'above'
+      ? launcherPositionValue.y - height - PANEL_ANCHOR_GAP
+      : launcherPositionValue.y + launcher.height + PANEL_ANCHOR_GAP
+    const y = clamp(idealY, EDGE_GAP, hostSize.value.height - height - EDGE_GAP)
+
+    panelRect.value = { x, y, width, height }
+    panelAnchorSide.value = side
+    panelAnchorX.value = clamp(
+      launcherCenterX - x,
+      PANEL_ARROW_EDGE_GAP,
+      width - PANEL_ARROW_EDGE_GAP,
+    )
+  }
+
+  function anchorPanelToLauncher() {
+    if (panelMaximized.value) {
+      panelRect.value = clampPanel(
+        preferredPanelRect.value || panelRestoreRect.value || defaultPanelRect(),
+      )
+      panelRestoreRect.value = null
+      panelMaximized.value = false
+    }
+    panelAnchorPreferredSize.value ||= {
+      width: preferredPanelRect.value?.width || resolvedPanelRect.value.width,
+      height: preferredPanelRect.value?.height || resolvedPanelRect.value.height,
+    }
+    restorePanelAnchor.value = false
+    positionPanelNearLauncher()
+  }
+
+  function detachPanelAnchor() {
+    panelAnchorSide.value = null
+    panelAnchorPreferredSize.value = null
+    restorePanelAnchor.value = false
   }
 
   function measureHost() {
@@ -280,10 +384,7 @@ export function useAssistantFloatingLayout(
       }
       panelRect.value = clampPanel(nextPanelRect)
     }
-  }
-
-  function ensureLauncherPosition() {
-    if (!launcherPosition.value) launcherPosition.value = defaultLauncherPosition()
+    if (panelAnchorSide.value && !panelMaximized.value) positionPanelNearLauncher()
   }
 
   function beginPointerInteraction(event: PointerEvent, nextInteraction: PointerInteraction) {
@@ -339,7 +440,10 @@ export function useAssistantFloatingLayout(
     const deltaY = event.clientY - current.startClientY
     if (!current.moved && Math.hypot(deltaX, deltaY) < DRAG_THRESHOLD) return
     current.moved = true
-    if (current.type !== 'launcher' && !isCompact.value) preferredPanelRect.value = null
+    if (current.type !== 'launcher') {
+      detachPanelAnchor()
+      if (!isCompact.value) preferredPanelRect.value = null
+    }
     event.preventDefault()
 
     if (current.type === 'launcher' && current.originPoint) {
@@ -347,6 +451,7 @@ export function useAssistantFloatingLayout(
         x: current.originPoint.x + deltaX,
         y: current.originPoint.y + deltaY,
       })
+      if (panelAnchorSide.value) positionPanelNearLauncher()
       return
     }
 
@@ -415,6 +520,7 @@ export function useAssistantFloatingLayout(
       x: launcherPosition.value.x + delta.x * scale,
       y: launcherPosition.value.y + delta.y * scale,
     })
+    if (panelAnchorSide.value) positionPanelNearLauncher()
     persistLayout()
   }
 
@@ -429,6 +535,7 @@ export function useAssistantFloatingLayout(
     const delta = deltaByKey[event.key]
     if (!delta) return
     event.preventDefault()
+    detachPanelAnchor()
     if (!isCompact.value) preferredPanelRect.value = null
     const scale = event.shiftKey ? 0.25 : 1
     panelRect.value = clampPanel({
@@ -450,6 +557,7 @@ export function useAssistantFloatingLayout(
     const delta = deltaByKey[event.key]
     if (!delta) return
     event.preventDefault()
+    detachPanelAnchor()
     if (!isCompact.value) preferredPanelRect.value = null
     const scale = event.shiftKey ? 0.25 : 1
     const origin = resolvedPanelRect.value
@@ -468,6 +576,7 @@ export function useAssistantFloatingLayout(
 
   function togglePanelMaximize() {
     if (panelMaximized.value) {
+      const shouldRestoreAnchor = restorePanelAnchor.value
       const restoreRect = preferredPanelRect.value || panelRestoreRect.value || defaultPanelRect()
       const restoreFits = panelRectFits(restoreRect)
       if (!restoreFits) preferredPanelRect.value ||= { ...restoreRect }
@@ -485,10 +594,14 @@ export function useAssistantFloatingLayout(
       if (restoreFits) preferredPanelRect.value = null
       panelRestoreRect.value = null
       panelMaximized.value = false
+      restorePanelAnchor.value = false
+      if (shouldRestoreAnchor) positionPanelNearLauncher()
       persistLayout()
       return
     }
 
+    restorePanelAnchor.value = Boolean(panelAnchorSide.value)
+    panelAnchorSide.value = null
     panelRestoreRect.value = { ...resolvedPanelRect.value }
     const constraints = panelConstraints.value
     panelRect.value = {
@@ -523,6 +636,8 @@ export function useAssistantFloatingLayout(
     panelStyle,
     panelSizeLabel,
     panelMaximized,
+    panelAnchorSide,
+    anchorPanelToLauncher,
     startLauncherDrag,
     startPanelDrag,
     startPanelResize,
