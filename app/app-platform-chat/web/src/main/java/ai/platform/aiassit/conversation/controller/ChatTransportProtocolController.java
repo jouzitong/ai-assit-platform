@@ -70,6 +70,27 @@ public class ChatTransportProtocolController {
         return sseTransport.start(command);
     }
 
+    @PostMapping(value = "/settings-assistant/sessions/{sessionCode}/rounds/stream",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamSettingsAssistant(@PathVariable String sessionCode,
+                                              @RequestBody ChatTransportRequest request) {
+        ConversationQueryCommand command = commandFactory.fromSettingsAssistantProtocol(
+                request, sessionCode, contextResolver.currentUserId(), contextResolver.traceId(),
+                contextResolver.canOverrideModel());
+        return sseTransport.start(command);
+    }
+
+    @PostMapping(value = "/settings-assistant/rounds/stream",
+            consumes = MediaType.APPLICATION_JSON_VALUE,
+            produces = MediaType.TEXT_EVENT_STREAM_VALUE)
+    public SseEmitter streamNewSettingsAssistantSession(@RequestBody ChatTransportRequest request) {
+        ConversationQueryCommand command = commandFactory.fromSettingsAssistantProtocol(
+                request, null, contextResolver.currentUserId(), contextResolver.traceId(),
+                contextResolver.canOverrideModel());
+        return sseTransport.start(command);
+    }
+
     @PostMapping(value = "/stream/reconnect", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter reconnect(@RequestBody ChatTransportRequest request,
                                 @RequestHeader(value = "Last-Event-ID", required = false) String headerLastEventId) {

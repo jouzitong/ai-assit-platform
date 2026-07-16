@@ -2,6 +2,7 @@
 import { ArrowLeftBold, ArrowRightBold, Coin, Connection, Cpu, DataAnalysis, Grid, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import AgentAssistantHost from '../../ai-assistant/components/AgentAssistantHost.vue'
 import AgentEditorView from '../agent-management/views/AgentEditorView.vue'
 import AgentListView from '../agent-management/views/AgentListView.vue'
 import SkillEditorView from '../agent-management/views/SkillEditorView.vue'
@@ -303,6 +304,7 @@ onMounted(() => {
         :key="`${routeSection}:${routeSourceKey}`"
       />
     </main>
+    <AgentAssistantHost />
   </div>
 </template>
 

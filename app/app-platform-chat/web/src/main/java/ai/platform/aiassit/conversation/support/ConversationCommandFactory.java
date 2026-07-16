@@ -1,5 +1,6 @@
 package ai.platform.aiassit.conversation.support;
 
+import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import ai.platform.aiassit.conversation.dto.chat.ConversationQueryRequest;
 import ai.platform.aiassit.conversation.protocol.dto.ChatTransportRequest;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
@@ -18,6 +19,9 @@ import java.util.Map;
 public class ConversationCommandFactory {
 
     private static final String DEFAULT_SCENE = "ai-chat-query";
+    private static final String HOME_CHAT_ENTRY = "HOME_CHAT";
+    private static final String SETTINGS_ASSISTANT_SCENE = "SETTINGS_ASSISTANT";
+    private static final String SETTINGS_ASSISTANT_ENTRY = "SETTINGS_ASSISTANT";
 
     private final AiModelConfigService modelConfigService;
 
@@ -29,7 +33,7 @@ public class ConversationCommandFactory {
         ConversationQueryCommand command = base(userId, traceId);
         command.setSessionCode(request == null ? null : request.getSessionCode());
         applyModel(command, request == null ? null : request.getModelId());
-        command.setAgentEntryCode("HOME_CHAT");
+        command.setAgentEntryCode(HOME_CHAT_ENTRY);
         command.setMessage(request == null ? null : request.getMessage());
         command.setAttachments(request == null || request.getAttachments() == null ? List.of() : request.getAttachments());
         command.setTools(request == null || request.getTools() == null ? List.of() : request.getTools());
@@ -41,7 +45,6 @@ public class ConversationCommandFactory {
     }
 
     private void applyAgentTarget(ConversationQueryCommand command, ChatTransportRequest.Target target) {
-        command.setAgentEntryCode("HOME_CHAT");
         if (target == null) {
             return;
         }
@@ -59,6 +62,28 @@ public class ConversationCommandFactory {
                                                  Long userId,
                                                  String fallbackTraceId) {
         return fromProtocol(request, pathSessionCode, userId, fallbackTraceId, false);
+    }
+
+    /**
+     * Builds a command for the system-settings floating assistant.
+     *
+     * <p>The channel, Agent entry and session business type are server-owned. A caller cannot
+     * pin an arbitrary Agent through this endpoint.</p>
+     */
+    public ConversationQueryCommand fromSettingsAssistantProtocol(ChatTransportRequest request,
+                                                                   String pathSessionCode,
+                                                                   Long userId,
+                                                                   String fallbackTraceId,
+                                                                   boolean allowModelOverride) {
+        if (request != null && request.getTarget() != null) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
+        }
+        ConversationQueryCommand command = fromProtocol(
+                request, pathSessionCode, userId, fallbackTraceId, allowModelOverride);
+        command.setScene(SETTINGS_ASSISTANT_SCENE);
+        command.setAgentEntryCode(SETTINGS_ASSISTANT_ENTRY);
+        command.setBusinessType(AiChatBusinessType.PAGE_ASSISTANT);
+        return command;
     }
 
     public ConversationQueryCommand fromProtocol(ChatTransportRequest request,
@@ -115,6 +140,8 @@ public class ConversationCommandFactory {
     private ConversationQueryCommand base(Long userId, String traceId) {
         ConversationQueryCommand command = new ConversationQueryCommand();
         command.setScene(DEFAULT_SCENE);
+        command.setAgentEntryCode(HOME_CHAT_ENTRY);
+        command.setBusinessType(AiChatBusinessType.CUSTOM);
         command.setTraceId(traceId);
         command.setUserId(userId);
         return command;

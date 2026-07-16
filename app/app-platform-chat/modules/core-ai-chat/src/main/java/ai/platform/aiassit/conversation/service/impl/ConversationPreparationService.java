@@ -85,6 +85,7 @@ public class ConversationPreparationService {
             if (session == null) {
                 throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND, sessionCode);
             }
+            validateSessionBusinessType(session, command);
             sessionMessages = loadSessionMessages(sessionCode, userId);
             sessionArtifacts = loadSessionArtifacts(sessionCode, userId);
         }
@@ -136,6 +137,7 @@ public class ConversationPreparationService {
     private List<AiChatMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(sessionCode);
+        query.setUserId(userId);
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
@@ -172,6 +174,23 @@ public class ConversationPreparationService {
 
     private AiChatBusinessType resolveBusinessType(AiChatBusinessType businessType) {
         return businessType == null ? AiChatBusinessType.CUSTOM : businessType;
+    }
+
+    void validateSessionBusinessType(AiChatSessionDTO session, ConversationQueryCommand command) {
+        AiChatBusinessType expected = resolveBusinessType(command.getBusinessType());
+        AiChatBusinessType persisted = session.getBusinessType();
+        boolean matches = expected == AiChatBusinessType.PAGE_ASSISTANT
+                ? persisted == AiChatBusinessType.PAGE_ASSISTANT
+                : persisted == null
+                || persisted == AiChatBusinessType.GENERAL
+                || persisted == AiChatBusinessType.CUSTOM;
+        if (matches) {
+            return;
+        }
+        log.warn("会话业务类型不匹配，sessionCode={}, persistedBusinessType={}, requestedBusinessType={}",
+                session.getSessionCode(), persisted, expected);
+        // Return the same public error as an inaccessible session to avoid leaking cross-channel state.
+        throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND, session.getSessionCode());
     }
 
     private String resolveSessionName(ConversationQueryCommand command) {

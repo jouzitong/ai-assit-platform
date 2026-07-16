@@ -23,11 +23,17 @@ import type {
 } from '../types'
 
 const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
+export const PAGE_ASSISTANT_BUSINESS_TYPE = 3
 
 export function fetchConversationList(payload: ChatConversationQueryPayload = {}) {
   return request<ChatSessionItem[]>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/list`, {
     method: 'POST',
     body: JSON.stringify(payload),
+  }).then((sessions) => {
+    const items = Array.isArray(sessions) ? sessions : []
+    return payload.businessType === PAGE_ASSISTANT_BUSINESS_TYPE
+      ? items
+      : items.filter(session => session.businessType !== PAGE_ASSISTANT_BUSINESS_TYPE)
   })
 }
 
@@ -103,7 +109,7 @@ function parseSseChunk(chunk: string) {
   }
 }
 
-type ChatTransportStreamEvent = { id: string; event: string; data: ChatTransportEvent }
+export type ChatTransportStreamEvent = { id: string; event: string; data: ChatTransportEvent }
 
 const CHAT_TRANSPORT_TERMINAL_EVENTS = new Set<ChatTransportTerminalEventName>([
   'round.completed',
@@ -126,7 +132,7 @@ function resolveEventId(event: ChatTransportStreamEvent) {
   return event.data.eventId || event.id || ''
 }
 
-async function consumeChatTransportStream(
+export async function consumeChatTransportStream(
   response: Response,
   onEvent: (event: ChatTransportStreamEvent) => void,
   options: ChatTransportStreamOptions = {},

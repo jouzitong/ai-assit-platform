@@ -3,7 +3,7 @@ import {
   ChatDotRound,
   CloseBold,
   Cpu,
-  Delete,
+  EditPen,
   FullScreen,
   MagicStick,
   Promotion,
@@ -15,11 +15,13 @@ import { useZIndex, type InputInstance } from 'element-plus'
 import { focusableStack, type FocusLayer } from 'element-plus/es/components/focus-trap/src/utils'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import ChatArtifactList from '../../ai-chat/components/ChatArtifactList.vue'
+import ChatMessageErrorCard from '../../ai-chat/components/ChatMessageErrorCard.vue'
+import type { ChatUiMessage } from '../../ai-chat/types'
 import { renderMarkdown } from '../../ai-chat/utils/markdown'
 import { useAssistantFloatingLayout } from '../composables/useAssistantFloatingLayout'
 import { activeAgentPageCapability } from '../services/pageCapabilityRegistry'
 import { useAiAssistantStore } from '../store/assistant'
-import type { AiAssistantMessage } from '../types'
 import AgentActivityTimeline from './AgentActivityTimeline.vue'
 
 const ASSISTANT_PANEL_ID = 'ai-page-assistant-panel'
@@ -67,18 +69,19 @@ const contextTitle = computed(() => activeAgentPageCapability.value?.title || St
 const canSend = computed(() => Boolean(
   assistant.state.draft.trim()
   && assistant.selectedModel.value
-  && !assistant.state.running,
+  && !assistant.state.running
+  && !assistant.state.historyLoading,
 ))
 const emptyDescription = computed(() => {
   if (assistant.state.modelLoadError) return `模型加载失败：${assistant.state.modelLoadError}`
-  if (assistant.state.modelsLoaded && !assistant.state.models.length) return '暂无可用于浏览器 Agent 的已启用模型'
-  return '选择本地模型后，可以分析当前页面，或按你的要求回填当前表单。'
+  if (assistant.state.modelsLoaded && !assistant.state.models.length) return '系统暂无可用于页面助手的已启用模型'
+  return '选择系统模型后，助手可以读取当前页面上下文并给出分析或字段级建议，不会直接修改或提交页面。'
 })
 
 const quickPrompts = [
   '分析当前页面的数据结构、筛选条件和异常点',
   '总结当前页面最值得关注的信息',
-  '根据我的要求填写当前打开的表单，但不要提交',
+  '检查当前表单字段，给出逐字段填写建议，不要直接修改页面',
 ]
 
 function scrollToLatest() {
@@ -141,9 +144,29 @@ function handleTriggerClick(event: MouseEvent) {
   void openAssistant()
 }
 
-function assistantResultLabel(status: AiAssistantMessage['status']) {
-  if (status === 'complete') return '最终总结'
-  if (status === 'pending') return '正在生成总结'
+function normalizedStatus(status?: string) {
+  return status?.trim().toUpperCase() || ''
+}
+
+function isRunningMessage(message: ChatUiMessage) {
+  return ['RUNNING', 'ACCEPTED', 'STARTED'].includes(normalizedStatus(message.status))
+}
+
+function isErrorMessage(message: ChatUiMessage) {
+  return normalizedStatus(message.status) === 'FAILED' || Boolean(message.error)
+}
+
+function isCancelledMessage(message: ChatUiMessage) {
+  return ['CANCELLED', 'CANCELED'].includes(normalizedStatus(message.status))
+}
+
+function assistantResultLabel(status?: string) {
+  const value = normalizedStatus(status)
+  if (value === 'COMPLETED') return '页面分析结果'
+  if (value === 'WAITING_INPUT') return '等待补充信息'
+  if (value === 'FAILED') return '处理失败'
+  if (value === 'CANCELLED' || value === 'CANCELED') return '任务已取消'
+  if (value === 'RUNNING') return '正在分析'
   return '处理结果'
 }
 
@@ -322,10 +345,10 @@ onBeforeUnmount(() => {
           <el-button
             text
             circle
-            :icon="Delete"
+            :icon="EditPen"
             :disabled="assistant.state.running || !assistant.state.messages.length"
-            aria-label="清空对话"
-            title="清空对话"
+            aria-label="开始新会话"
+            title="开始新会话"
             @click="assistant.clearMessages"
           />
           <el-button
@@ -341,25 +364,25 @@ onBeforeUnmount(() => {
 
       <div class="assistant-panel__model-row">
         <el-select
-          :model-value="assistant.state.selectedModelCode"
+          :model-value="assistant.state.selectedModelId"
           :loading="assistant.state.modelsLoading"
           :disabled="assistant.state.running"
           filterable
           :append-to="assistantHostRef || 'body'"
           :popper-style="{ pointerEvents: 'auto' }"
-          placeholder="选择本地模型"
-          aria-label="选择本地模型"
+          placeholder="选择系统模型"
+          aria-label="选择系统模型"
           @update:model-value="assistant.setSelectedModel"
         >
           <el-option
             v-for="model in assistant.state.models"
             :key="model.id"
-            :label="model.modelName || model.modelCode"
-            :value="model.modelCode"
+            :label="model.modelName || model.modelCode || model.apiModel"
+            :value="model.id"
           >
             <div class="assistant-model-option">
-              <strong>{{ model.modelName || model.modelCode }}</strong>
-              <span>{{ model.apiModel }} · {{ model.baseUrl || 'OpenAI 默认地址' }}</span>
+              <strong>{{ model.modelName || model.modelCode || model.apiModel }}</strong>
+              <span>{{ model.apiModel || model.modelCode || '系统已启用模型' }}</span>
             </div>
           </el-option>
         </el-select>
@@ -381,10 +404,22 @@ onBeforeUnmount(() => {
         aria-relevant="additions"
         aria-label="AI 助手对话记录"
       >
-        <section v-if="!assistant.state.messages.length" class="assistant-empty">
+        <el-alert
+          v-if="assistant.state.historyError"
+          :title="assistant.state.historyError"
+          type="warning"
+          :closable="false"
+          show-icon
+        />
+        <el-skeleton
+          v-if="assistant.state.historyLoading && !assistant.state.messages.length"
+          :rows="4"
+          animated
+        />
+        <section v-else-if="!assistant.state.messages.length" class="assistant-empty">
           <span class="assistant-empty__icon"><el-icon><MagicStick /></el-icon></span>
           <div>
-            <strong>分析页面，也能填写草稿</strong>
+            <strong>理解当前页面，给出可执行建议</strong>
             <p>{{ emptyDescription }}</p>
           </div>
           <el-button
@@ -405,7 +440,11 @@ onBeforeUnmount(() => {
         <article
           v-for="message in assistant.state.messages"
           :key="message.id"
-          :class="['assistant-message', `is-${message.role}`, { 'is-error': message.status === 'error' }]"
+          :class="[
+            'assistant-message',
+            `is-${message.role}`,
+            { 'is-error': isErrorMessage(message), 'is-cancelled': isCancelledMessage(message) },
+          ]"
         >
           <span v-if="message.role === 'assistant'" class="assistant-message__avatar"><el-icon><Cpu /></el-icon></span>
           <div class="assistant-message__content">
@@ -422,7 +461,7 @@ onBeforeUnmount(() => {
                 v-if="message.role === 'assistant'"
                 class="assistant-message__result-label"
               >{{ assistantResultLabel(message.status) }}</span>
-              <span v-if="message.status === 'pending' && !message.content" class="assistant-message__pending">
+              <span v-if="isRunningMessage(message) && !message.content" class="assistant-message__pending">
                 <i /><i /><i />
               </span>
               <div
@@ -432,6 +471,15 @@ onBeforeUnmount(() => {
               />
               <p v-else>{{ message.content }}</p>
             </div>
+            <ChatArtifactList
+              v-if="message.role === 'assistant' && message.artifacts?.length"
+              :artifacts="message.artifacts"
+            />
+            <ChatMessageErrorCard
+              v-if="message.role === 'assistant' && message.error"
+              :error="message.error"
+              :retry-available="false"
+            />
           </div>
         </article>
       </main>
@@ -453,7 +501,7 @@ onBeforeUnmount(() => {
             resize="none"
             :disabled="assistant.state.running"
             placeholder="例如：分析当前关系图，找出可能遗漏的关联"
-            aria-label="输入页面分析或表单填写要求"
+            aria-label="输入页面分析或字段建议要求"
             @keydown="handleComposerKeydown"
           />
           <el-button
@@ -461,6 +509,8 @@ onBeforeUnmount(() => {
             class="assistant-composer__send"
             circle
             :icon="CloseBold"
+            :loading="assistant.state.stopping"
+            :disabled="assistant.state.stopping"
             aria-label="停止生成"
             title="停止生成"
             @click="assistant.stopRun"
@@ -477,7 +527,7 @@ onBeforeUnmount(() => {
             @click="assistant.sendMessage()"
           />
         </div>
-        <span>Enter 发送；Alt + Shift + A 可在弹窗与助手间切换。AI 只回填草稿，不会主动提交。</span>
+        <span>Enter 发送；Alt + Shift + A 可在弹窗与助手间切换。助手不会直接修改或提交页面。</span>
       </footer>
           </section>
           <button

@@ -65,7 +65,7 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
   }));
   const result: any = await sdk.run(
     root,
-    buildApplicationInput(graph.payload.messages, graph.payload.run.input),
+    buildApplicationInput(graph.payload.messages, graph.payload.run.input, graph.payload.run.context),
     { stream: true, maxTurns: graph.maxTurns },
   );
   for await (const event of result) {

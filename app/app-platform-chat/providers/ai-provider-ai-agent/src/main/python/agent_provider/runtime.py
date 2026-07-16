@@ -119,6 +119,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         build_application_input(
             graph.payload.get("messages"),
             graph.payload["run"].get("input"),
+            graph.payload["run"].get("context"),
         ),
         max_turns=graph.max_turns,
     )

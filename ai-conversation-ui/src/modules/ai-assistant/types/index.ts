@@ -5,14 +5,6 @@ export type AgentJsonValue =
   | AgentJsonValue[]
   | { [key: string]: AgentJsonValue }
 
-export interface BrowserAgentModel {
-  id: number
-  modelCode: string
-  modelName?: string
-  apiModel: string
-  clientType?: number
-}
-
 export interface AgentPageActionDefinition {
   name: string
   toolName: string
@@ -103,37 +95,4 @@ export interface AgentFormPatchChange {
 export interface AgentFormPatchResult {
   applied: Array<{ fieldId: string; label: string }>
   rejected: Array<{ fieldId: string; reason: string }>
-}
-
-export type AiAssistantMessageRole = 'user' | 'assistant'
-
-export type AiAssistantActivityKind = 'context' | 'model' | 'reasoning' | 'tool' | 'knowledge' | 'summary'
-
-export type AiAssistantActivityStatus = 'running' | 'complete' | 'error' | 'cancelled'
-
-export interface AiAssistantActivity {
-  id: string
-  kind: AiAssistantActivityKind
-  title: string
-  detail?: string
-  status: AiAssistantActivityStatus
-  startedAt: string
-  completedAt?: string
-}
-
-export interface AgentActivityUpdate {
-  id: string
-  kind: AiAssistantActivityKind
-  title: string
-  detail?: string
-  status: AiAssistantActivityStatus
-}
-
-export interface AiAssistantMessage {
-  id: string
-  role: AiAssistantMessageRole
-  content: string
-  createdAt: string
-  status: 'complete' | 'pending' | 'error' | 'cancelled'
-  activities?: AiAssistantActivity[]
 }

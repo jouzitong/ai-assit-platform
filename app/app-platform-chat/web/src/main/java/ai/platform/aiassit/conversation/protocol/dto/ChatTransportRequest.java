@@ -30,7 +30,7 @@ public class ChatTransportRequest {
     /** Optional privileged development override; normal clients must use modelId. */
     private Long modelOverrideId;
 
-    /** Optional Agent target; omitted requests resolve the HOME_CHAT entry binding. */
+    /** Optional Agent target for the home chat channel. Dedicated assistant channels reject it. */
     private Target target;
 
     private Message message;

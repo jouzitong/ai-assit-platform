@@ -64,7 +64,13 @@ public class DefaultConversationServiceImpl implements ConversationService {
             query.setSessionCode(request.getSessionCode());
             query.setBusinessType(request.getBusinessType());
         }
-        return sessionService.queryAll(query);
+        List<AiChatSessionDTO> sessions = sessionService.queryAll(query);
+        if (request != null && request.getBusinessType() != null) {
+            return sessions;
+        }
+        return sessions.stream()
+                .filter(session -> session.getBusinessType() != AiChatBusinessType.PAGE_ASSISTANT)
+                .toList();
     }
 
     @Override
