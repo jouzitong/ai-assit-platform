@@ -38,7 +38,10 @@ class RagflowKnowledgeBaseClientTest {
     private final AtomicInteger deleteCalls = new AtomicInteger();
     private final AtomicInteger updateDocumentCalls = new AtomicInteger();
     private final AtomicInteger updateChunkCalls = new AtomicInteger();
+    private final AtomicInteger listChunkCalls = new AtomicInteger();
+    private final AtomicInteger deleteChunkCalls = new AtomicInteger();
     private volatile boolean chunkShouldFail;
+    private volatile boolean multipleChunkPages;
     private volatile JsonNode retrievalRequestBody;
 
     @BeforeEach
@@ -91,6 +94,7 @@ class RagflowKnowledgeBaseClientTest {
 
     @Test
     void shouldUpdateExistingDocumentWhenProviderDocumentIdExists() throws Exception {
+        multipleChunkPages = true;
         KbDocument document = new KbDocument();
         document.setDocumentId("local-doc-1");
         document.setContent("新的销售额定义");
@@ -106,6 +110,8 @@ class RagflowKnowledgeBaseClientTest {
         assertEquals(0, deleteCalls.get());
         assertEquals(1, updateDocumentCalls.get());
         assertEquals(1, updateChunkCalls.get());
+        assertEquals(2, listChunkCalls.get());
+        assertEquals(1, deleteChunkCalls.get());
     }
 
     @Test
@@ -275,8 +281,26 @@ class RagflowKnowledgeBaseClientTest {
             return;
         }
         if (path.endsWith("/chunks") && "GET".equals(exchange.getRequestMethod())) {
-            assertTrue(exchange.getRequestURI().getRawQuery().contains("page_size=1000"));
-            respond(exchange, 200, "{\"code\":0,\"data\":{\"chunks\":[{\"id\":\"chunk-old\"}],\"total\":1}}");
+            listChunkCalls.incrementAndGet();
+            String query = exchange.getRequestURI().getRawQuery();
+            if (multipleChunkPages) {
+                if ("page=1&page_size=100".equals(query)) {
+                    respond(exchange, 200, chunkListResponse(0, 100, 101));
+                    return;
+                }
+                assertEquals("page=2&page_size=100", query);
+                respond(exchange, 200, chunkListResponse(100, 1, 101));
+                return;
+            }
+            assertEquals("page=1&page_size=100", query);
+            respond(exchange, 200, chunkListResponse(0, 1, 1));
+            return;
+        }
+        if (path.endsWith("/chunks") && "DELETE".equals(exchange.getRequestMethod())) {
+            deleteChunkCalls.incrementAndGet();
+            String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
+            assertTrue(body.contains("\"chunk-100\""));
+            respond(exchange, 200, "{\"code\":0,\"data\":true}");
             return;
         }
         if (path.endsWith("/chunks/chunk-old") && "PATCH".equals(exchange.getRequestMethod())) {
@@ -287,6 +311,18 @@ class RagflowKnowledgeBaseClientTest {
             return;
         }
         respond(exchange, 405, "{}");
+    }
+
+    private String chunkListResponse(int start, int count, int total) {
+        StringBuilder chunks = new StringBuilder();
+        for (int index = start; index < start + count; index++) {
+            if (!chunks.isEmpty()) {
+                chunks.append(',');
+            }
+            String chunkId = index == 0 ? "chunk-old" : "chunk-" + index;
+            chunks.append("{\"id\":\"").append(chunkId).append("\"}");
+        }
+        return "{\"code\":0,\"data\":{\"chunks\":[" + chunks + "],\"total\":" + total + "}}";
     }
 
     private void handleRetrieval(HttpExchange exchange) throws IOException {

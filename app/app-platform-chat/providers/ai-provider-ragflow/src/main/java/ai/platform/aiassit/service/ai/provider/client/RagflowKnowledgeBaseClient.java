@@ -45,6 +45,7 @@ import java.util.Map;
 public class RagflowKnowledgeBaseClient {
 
     private static final String PROVIDER_DOCUMENT_ID = "providerDocumentId";
+    private static final int CHUNK_PAGE_SIZE = 100;
 
     private final RagflowProperties properties;
     private final ObjectMapper objectMapper;
@@ -298,17 +299,29 @@ public class RagflowKnowledgeBaseClient {
     }
 
     private List<String> listChunkIds(String documentPath, RequestMeta meta) throws Exception {
-        JsonNode data = data(request("GET", documentPath + "/chunks?page=1&page_size=1000", null, meta));
-        JsonNode chunks = data.isArray() ? data : data.path("chunks");
-        if (!chunks.isArray()) {
-            return List.of();
-        }
         List<String> result = new ArrayList<>();
-        for (JsonNode chunk : chunks) {
-            String chunkId = firstText(chunk, "id", "chunk_id", "chunkId");
-            if (StringUtils.hasText(chunkId) && !result.contains(chunkId.trim())) {
-                result.add(chunkId.trim());
+        int page = 1;
+        while (true) {
+            JsonNode data = data(request("GET", documentPath + "/chunks?page=" + page
+                    + "&page_size=" + CHUNK_PAGE_SIZE, null, meta));
+            JsonNode chunks = data.isArray() ? data : data.path("chunks");
+            if (!chunks.isArray() || chunks.isEmpty()) {
+                break;
             }
+            int previousSize = result.size();
+            for (JsonNode chunk : chunks) {
+                String chunkId = firstText(chunk, "id", "chunk_id", "chunkId");
+                if (StringUtils.hasText(chunkId) && !result.contains(chunkId.trim())) {
+                    result.add(chunkId.trim());
+                }
+            }
+            int total = data.path("total").asInt(-1);
+            if (chunks.size() < CHUNK_PAGE_SIZE
+                    || (total >= 0 && result.size() >= total)
+                    || result.size() == previousSize) {
+                break;
+            }
+            page++;
         }
         return result;
     }
