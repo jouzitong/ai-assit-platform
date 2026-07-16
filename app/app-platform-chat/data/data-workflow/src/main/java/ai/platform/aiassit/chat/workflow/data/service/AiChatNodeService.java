@@ -1,7 +1,0 @@
-package ai.platform.aiassit.chat.workflow.data.service;
-
-import ai.platform.aiassit.chat.workflow.data.entity.dto.AiChatNodeDTO;
-import org.athena.framework.data.jdbc.serivce.IMapperService;
-
-public interface AiChatNodeService extends IMapperService<AiChatNodeDTO> {
-}

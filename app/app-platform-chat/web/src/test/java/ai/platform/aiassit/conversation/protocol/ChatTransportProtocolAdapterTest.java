@@ -79,7 +79,7 @@ class ChatTransportProtocolAdapterTest {
         event.setStatus("RUNNING");
         event.setMessage("AI Agent 正在调用工具");
         event.setExt(new LinkedHashMap<>(Map.of(
-                "nodeCode", "render",
+                "agentCode", "render-agent",
                 "activity", "tool_called",
                 "activityType", "TOOL_CALL",
                 "toolName", "render_json_validate_tool",

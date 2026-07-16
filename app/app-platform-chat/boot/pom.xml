@@ -30,6 +30,10 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-agent-runtime</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-core-workflow</artifactId>
         </dependency>
         <dependency>
@@ -163,8 +167,11 @@
 
                                 <copy todir="${project.build.directory}/app-platform-chat/python" overwrite="true">
                                     <fileset dir="../providers/ai-provider-ai-agent/src/main/python" erroronmissingdir="false">
+                                        <exclude name=".venv/**"/>
                                         <exclude name="**/__pycache__/**"/>
                                         <exclude name="**/*.pyc"/>
+                                        <exclude name="**/*.egg-info/**"/>
+                                        <exclude name=".pytest_cache/**"/>
                                     </fileset>
                                 </copy>
 

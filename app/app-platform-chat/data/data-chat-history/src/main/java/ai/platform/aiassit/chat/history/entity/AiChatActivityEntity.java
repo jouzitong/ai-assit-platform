@@ -29,9 +29,9 @@ public class AiChatActivityEntity extends AuditableEntity {
     @TableField("user_id")
     private Long userId;
 
-    @JdbcColumn(name = "node_code", dataType = "VARCHAR(64)", length = 64, nullable = true, comment = "工作流节点编码")
-    @TableField("node_code")
-    private String nodeCode;
+    @JdbcColumn(name = "agent_code", dataType = "VARCHAR(64)", length = 64, nullable = true, comment = "执行 Agent 编码")
+    @TableField("agent_code")
+    private String agentCode;
 
     @JdbcColumn(name = "correlation_code", dataType = "VARCHAR(128)", length = 128, nullable = true, comment = "同一活动生命周期关联编码")
     @TableField("correlation_code")

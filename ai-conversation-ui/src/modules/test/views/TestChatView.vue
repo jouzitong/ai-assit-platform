@@ -23,14 +23,15 @@ import brandMark from '../../../assets/icons/brand-mark.svg'
 import DashboardCanvasPreview from '../components/DashboardCanvasPreview.vue'
 import {
   createChatTransportRequest,
+  fetchAvailableHomeAgents,
   fetchChatRunStatus,
-  fetchEnabledModels,
   fetchRoundThinking,
   reconnectChatTransport,
   stopChatRun,
   streamChatTransport,
 } from '../../ai-chat/api'
-import type { ChatEnabledModel, ChatTransportEvent, ChatTransportRequest } from '../../ai-chat/types'
+import type { ChatAvailableAgent, ChatTransportEvent, ChatTransportRequest } from '../../ai-chat/types'
+import { activityFromTransportEvent } from '../../ai-chat/composables/useChatRun'
 import { renderMarkdown } from '../../ai-chat/utils/markdown'
 
 type ChatRole = 'assistant' | 'user'
@@ -255,17 +256,17 @@ const initialSessions: StaticSession[] = [
             description: '接入真实接口后可查询组件规范，补充消息状态、工具调用和错误态展示规则。',
           },
         ],
-        content: '清单包含：左侧会话切换、顶部模型状态、中部消息流、底部输入框、快捷问题填充、模拟回复生成。',
+        content: '清单包含：左侧会话切换、顶部 Agent 状态、中部消息流、底部输入框、快捷问题填充、模拟回复生成。',
       },
     ],
   },
 ]
 
 const prompt = ref('')
-const selectedModelId = ref<number | undefined>()
-const modelOptions = ref<ChatEnabledModel[]>([])
-const isLoadingModels = ref(false)
-const modelLoadError = ref('')
+const selectedAgentCode = ref('')
+const agentOptions = ref<ChatAvailableAgent[]>([])
+const isLoadingAgents = ref(false)
+const agentLoadError = ref('')
 const activeSessionId = ref(initialSessions[0]?.id || '')
 const sidebarExpanded = ref(true)
 const isStreaming = ref(false)
@@ -313,14 +314,13 @@ const activeSession = computed(() => sessions.value.find((session) => session.id
 const chatMessages = computed(() => activeSession.value?.messages || [])
 const isConversationMode = computed(() => Boolean(activeSessionId.value))
 const currentSessionName = computed(() => activeSession.value?.title || '静态测试会话')
-const selectedModelLabel = computed(() => {
-  const model = modelOptions.value.find((item) => item.id === selectedModelId.value)
-  return model?.modelName || model?.modelCode || model?.apiModel || '选择模型'
+const selectedAgent = computed(() => agentOptions.value.find(item => item.code === selectedAgentCode.value))
+const selectedAgentLabel = computed(() => {
+  return selectedAgent.value?.name || selectedAgent.value?.code || '首页默认 Agent'
 })
-const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
+const agentSelectEmptyText = computed(() => agentLoadError.value || '暂无可选 Agent，将使用首页默认 Agent')
 const canSubmit = computed(() => (
   Boolean(prompt.value.trim())
-  && Boolean(selectedModelId.value)
   && !isStreaming.value
   && !isSimulationRunning.value
 ))
@@ -343,7 +343,7 @@ const shouldReserveThinkingDrawer = computed(() => thinkingDrawerVisible.value |
 const lastAssistantMessageId = computed(() => {
   return [...chatMessages.value].reverse().find((message) => message.role === 'assistant' && message.status === 'completed')?.id
 })
-const thinkingTaskNodes = computed(() =>
+const thinkingAgents = computed(() =>
   activeThinking.value.map((activity, index) => ({
     id: activity.id,
     title: activity.title,
@@ -647,18 +647,18 @@ function resolveSimulationAssistant(session: StaticSession, assistantId?: string
   return message
 }
 
-function applyThinkingNodes(nodes?: Array<Record<string, any>>) {
-  if (!nodes?.length) {
+function applyThinkingAgents(agents?: Array<Record<string, any>>) {
+  if (!agents?.length) {
     return
   }
 
   const nextActivities = [...activeThinking.value]
-  for (const node of nodes) {
+  for (const agent of agents) {
     const activity: ThinkingActivity = {
-      id: node.id,
-      title: node.title,
-      status: normalizeProtocolStatus(node.status),
-      description: node.description || '',
+      id: agent.id,
+      title: agent.title,
+      status: normalizeProtocolStatus(agent.status),
+      description: agent.description || '',
     }
     const index = nextActivities.findIndex((item) => item.id === activity.id)
     if (index >= 0) {
@@ -714,6 +714,25 @@ function applyThinkingActivity(payload: Record<string, any>, eventId: string) {
   }
 }
 
+function applySharedRunActivity(eventName: string, payload: Record<string, any>, eventId: string) {
+  if (eventName === 'thinking.updated') return false
+  const shared = activityFromTransportEvent(eventName, payload, eventId)
+  if (!shared) return false
+  const activity: ThinkingActivity = {
+    id: shared.id,
+    title: shared.title,
+    status: normalizeProtocolStatus(shared.status),
+    description: shared.detail || shared.agentCode || '正在处理',
+    sources: shared.agentCode
+      ? [{ id: `${shared.id}-agent`, label: shared.agentCode, icon: 'ai' }]
+      : undefined,
+  }
+  const index = activeThinking.value.findIndex(item => item.id === activity.id)
+  if (index >= 0) activeThinking.value[index] = { ...activeThinking.value[index], ...activity }
+  else activeThinking.value.push(activity)
+  return true
+}
+
 function showThinkingDrawer() {
   thinkingDrawerTransitioning.value = true
   thinkingDrawerVisible.value = true
@@ -747,6 +766,9 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
   }
 
   const session = ensureSession()
+  if (applySharedRunActivity(protocolEvent.event, payload, protocolEvent.id)) {
+    resolveSimulationAssistant(session).thinking = activeThinking.value
+  }
 
   if (protocolEvent.event === 'round.initialized') {
     const userMessage = payload.round?.userMessage
@@ -798,7 +820,7 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
 
   if (protocolEvent.event === 'thinking.updated') {
     const assistantMessage = resolveSimulationAssistant(session)
-    applyThinkingNodes(payload.nodes)
+    applyThinkingAgents(payload.agents || payload.nodes)
     applyThinkingActivity(payload, protocolEvent.id)
     assistantMessage.thinking = activeThinking.value
     return
@@ -822,7 +844,7 @@ function applySimulationEvent(protocolEvent: ProtocolEvent) {
   }
 
   if (protocolEvent.event === 'thinking.completed') {
-    applyThinkingNodes(payload.nodes)
+    applyThinkingAgents(payload.agents || payload.nodes)
     const assistantMessage = resolveSimulationAssistant(session)
     assistantMessage.thinking = activeThinking.value
     completeThinkingClock(assistantMessage)
@@ -905,22 +927,22 @@ function applyTransportEvent(event: { id: string; event: string; data: ChatTrans
   })
 }
 
-async function loadEnabledModelList() {
-  isLoadingModels.value = true
-  modelLoadError.value = ''
+async function loadAvailableAgentList() {
+  isLoadingAgents.value = true
+  agentLoadError.value = ''
   try {
-    const models = await fetchEnabledModels()
-    modelOptions.value = (Array.isArray(models) ? models : [])
-      .filter((model) => typeof model.id === 'number' && Number.isSafeInteger(model.id) && model.id > 0)
-    if (!modelOptions.value.some((model) => model.id === selectedModelId.value)) {
-      selectedModelId.value = modelOptions.value[0]?.id
+    const agents = await fetchAvailableHomeAgents()
+    agentOptions.value = (Array.isArray(agents) ? agents : [])
+      .filter(agent => typeof agent.code === 'string' && agent.code.trim())
+    if (!agentOptions.value.some(agent => agent.code === selectedAgentCode.value)) {
+      selectedAgentCode.value = ''
     }
   } catch (error) {
-    modelOptions.value = []
-    selectedModelId.value = undefined
-    modelLoadError.value = error instanceof Error ? error.message : '模型列表加载失败'
+    agentOptions.value = []
+    selectedAgentCode.value = ''
+    agentLoadError.value = error instanceof Error ? error.message : 'Agent 列表加载失败'
   } finally {
-    isLoadingModels.value = false
+    isLoadingAgents.value = false
   }
 }
 
@@ -1116,11 +1138,11 @@ async function hydratePersistedThinking(session: StaticSession, assistantMessage
   }
   try {
     const detail = await fetchRoundThinking(session.serverSessionCode, session.currentRoundCode)
-    if (!detail.nodes?.length && !detail.activities?.length) {
+    if (!detail.agents?.length && !detail.nodes?.length && !detail.activities?.length) {
       return
     }
     activeThinking.value = []
-    applyThinkingNodes(detail.nodes as Array<Record<string, any>> | undefined)
+    applyThinkingAgents((detail.agents || detail.nodes) as Array<Record<string, any>> | undefined)
     for (const activity of detail.activities || []) {
       applyThinkingActivity({
         progressType: 'ACTIVITY',
@@ -1233,16 +1255,16 @@ async function handlePrimaryAction() {
   if (!message || isStreaming.value || isSimulationRunning.value) {
     return
   }
-  if (!selectedModelId.value) {
-    runPhase.value = 'failed'
-    streamNotice.value = modelLoadError.value || '请先选择一个可用模型。'
-    return
-  }
-
   const session = ensureSession()
   const request = createChatTransportRequest({
     sessionCode: session.serverSessionCode,
-    modelId: selectedModelId.value,
+    target: selectedAgent.value
+      ? {
+          type: 'AGENT',
+          agentCode: selectedAgent.value.code,
+          agentVersion: selectedAgent.value.version,
+        }
+      : undefined,
     message,
   }, '/test/chat')
   const userMessage = createMessage('user', message)
@@ -1352,7 +1374,7 @@ watch(isConversationMode, () => {
 }, { immediate: true })
 
 onMounted(() => {
-  void loadEnabledModelList()
+  void loadAvailableAgentList()
 })
 
 onBeforeUnmount(() => {
@@ -1409,11 +1431,11 @@ onBeforeUnmount(() => {
 
       <div v-if="sidebarExpanded" class="chat-home-sidebar__section chat-home-sidebar__section--models">
         <div class="chat-home-sidebar__header">
-          <span>模型</span>
+          <span>Agent</span>
         </div>
         <div class="chat-home-model-inline">
           <span class="chat-home-model-inline__dot"></span>
-          <span>{{ selectedModelLabel }}</span>
+          <span>{{ selectedAgentLabel }}</span>
         </div>
       </div>
 
@@ -1477,25 +1499,26 @@ onBeforeUnmount(() => {
         <div class="chat-home-topbar__left">
           <div class="test-chat-model-controls">
             <el-select
-              v-model="selectedModelId"
+              v-model="selectedAgentCode"
               class="chat-home-model-switcher"
-              :loading="isLoadingModels"
-              :disabled="isLoadingModels || isStreaming"
-              :no-data-text="modelSelectEmptyText"
-              placeholder="选择模型"
+              :loading="isLoadingAgents"
+              :disabled="isLoadingAgents || isStreaming"
+              :no-data-text="agentSelectEmptyText"
+              placeholder="选择 Agent"
               filterable
               fit-input-width
-              aria-label="选择测试对话模型"
+              aria-label="选择测试对话 Agent"
             >
+              <el-option label="首页默认 Agent" value="" />
               <el-option
-                v-for="model in modelOptions"
-                :key="model.id"
-                :label="model.modelName || model.modelCode || model.apiModel"
-                :value="model.id"
+                v-for="agent in agentOptions"
+                :key="agent.code"
+                :label="agent.name || agent.code"
+                :value="agent.code"
               >
                 <div class="chat-home-model-option">
-                  <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
-                  <small v-if="model.apiModel && model.apiModel !== model.modelName">{{ model.apiModel }}</small>
+                  <span>{{ agent.name || agent.code }}</span>
+                  <small>{{ agent.code }}<template v-if="agent.version"> · v{{ agent.version }}</template></small>
                 </div>
               </el-option>
             </el-select>
@@ -1517,9 +1540,9 @@ onBeforeUnmount(() => {
                 重新开始
               </button>
             </div>
-            <div v-if="modelLoadError" class="test-chat-model-error" role="alert">
-              <span>{{ modelLoadError }}</span>
-              <button type="button" :disabled="isLoadingModels" @click="loadEnabledModelList">
+            <div v-if="agentLoadError" class="test-chat-model-error" role="alert">
+              <span>Agent 列表加载失败，将使用 HOME_CHAT 默认绑定：{{ agentLoadError }}</span>
+              <button type="button" :disabled="isLoadingAgents" @click="loadAvailableAgentList">
                 重新加载
               </button>
             </div>
@@ -1540,7 +1563,7 @@ onBeforeUnmount(() => {
           <div class="chat-home-welcome-stage">
             <div class="chat-home-welcome-model">
               <div class="chat-home-welcome-model__avatar">oi</div>
-              <div class="chat-home-welcome-model__name">{{ selectedModelLabel }}</div>
+              <div class="chat-home-welcome-model__name">{{ selectedAgentLabel }}</div>
             </div>
             <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome">
               <textarea
@@ -1610,7 +1633,7 @@ onBeforeUnmount(() => {
             <div v-if="chatMessages.length === 0" class="chat-home-assistant">
               <div class="chat-home-assistant__avatar">pr</div>
               <div class="chat-home-assistant__body">
-                <div class="chat-home-assistant__title">{{ selectedModelLabel }}</div>
+                <div class="chat-home-assistant__title">{{ selectedAgentLabel }}</div>
                 <div class="chat-home-assistant__meta">{{ currentSessionName }}</div>
                 <div class="chat-home-assistant__text">你好！这是静态数据测试会话。</div>
                 <div class="chat-home-assistant__actions">
@@ -1636,7 +1659,7 @@ onBeforeUnmount(() => {
                   <div class="chat-home-message__assistant-row">
                     <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">pr</div>
                     <div class="chat-home-message__assistant-copy">
-                      <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
+                      <div class="chat-home-message__assistant-name">{{ selectedAgentLabel }}</div>
                       <div
                         v-if="message.thinking?.length"
                         class="chat-home-thinking"
@@ -1770,22 +1793,22 @@ onBeforeUnmount(() => {
             </header>
 
             <div class="chat-home-thinking-drawer__body">
-            <section class="chat-home-thinking-task-nodes" aria-label="任务节点">
-              <div class="chat-home-thinking-task-nodes__title">
-                <span>任务节点</span>
+            <section class="chat-home-thinking-agents" aria-label="协作 Agent">
+              <div class="chat-home-thinking-agents__title">
+                <span>协作 Agent</span>
                 <strong>智能问数</strong>
               </div>
-              <div class="chat-home-thinking-task-nodes__grid">
+              <div class="chat-home-thinking-agents__grid">
                 <div
-                  v-for="node in thinkingTaskNodes"
-                  :key="node.id"
-                  :class="['chat-home-thinking-task-node', `is-${node.status}`]"
-                  :title="node.description"
+                  v-for="agent in thinkingAgents"
+                  :key="agent.id"
+                  :class="['chat-home-thinking-agent', `is-${agent.status}`]"
+                  :title="agent.description"
                 >
-                  <span class="chat-home-thinking-task-node__status" aria-hidden="true"></span>
-                  <div class="chat-home-thinking-task-node__copy">
-                    <strong><span>{{ node.step }}</span>{{ node.title }}</strong>
-                    <p>{{ node.description }}</p>
+                  <span class="chat-home-thinking-agent__status" aria-hidden="true"></span>
+                  <div class="chat-home-thinking-agent__copy">
+                    <strong><span>{{ agent.step }}</span>{{ agent.title }}</strong>
+                    <p>{{ agent.description }}</p>
                   </div>
                 </div>
               </div>

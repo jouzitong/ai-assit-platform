@@ -1,334 +1,52 @@
+from __future__ import annotations
+
 import asyncio
 import json
-import os
+import re
 import sys
-import uuid
+from pathlib import Path
 from typing import Any
 
-from agents import Agent, Runner
 
-from tools import (
-    data_format_validate_tool,
-    knowledge_base_search_tool,
-    render_json_validate_tool,
-    web_search_tool,
-)
+if __package__ in {None, ""}:
+    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-
-TOOL_REGISTRY = {
-    "data_format_validate_tool": data_format_validate_tool,
-    "knowledge_base_search_tool": knowledge_base_search_tool,
-    "render_json_validate_tool": render_json_validate_tool,
-    "web_search_tool": web_search_tool,
-}
-
-
-def _emit(frame: dict[str, Any]) -> None:
-    sys.stdout.write(json.dumps(frame, ensure_ascii=False) + "\n")
-    sys.stdout.flush()
-
-
-def _item_ext(item: Any, event_name: str) -> dict[str, Any]:
-    raw_item = getattr(item, "raw_item", None)
-    tool_name = (
-        getattr(raw_item, "name", None)
-        or getattr(item, "name", None)
-        or getattr(raw_item, "type", None)
-    )
-    call_id = getattr(raw_item, "call_id", None) or getattr(item, "call_id", None)
-    ext = {
-        "activity": event_name,
-        "activityCode": call_id or f"{event_name}:{tool_name or 'agent'}",
-        "activityType": "TOOL_CALL" if "tool" in event_name else "AGENT_HANDOFF",
-        "activityName": tool_name or event_name,
-        "toolName": tool_name,
-        "callId": call_id,
-        "itemType": getattr(item, "type", None),
-    }
-    input_summary = _summary(raw_item, "arguments", "input")
-    output_summary = _summary(item, "output", "result") or _summary(raw_item, "output", "result")
-    if input_summary:
-        ext["inputSummary"] = input_summary
-    if output_summary:
-        ext["outputSummary"] = output_summary
-    return ext
-
-
-def _summary(value: Any, *attributes: str) -> str | None:
-    for attribute in attributes:
-        candidate = getattr(value, attribute, None)
-        if candidate is None:
-            continue
-        if isinstance(candidate, str):
-            text = candidate.strip()
-        else:
-            try:
-                text = json.dumps(candidate, ensure_ascii=False, default=str)
-            except TypeError:
-                text = str(candidate)
-        if text:
-            return text[:1000]
-    return None
-
-
-def _emit_run_item_event(event: Any) -> None:
-    name = str(getattr(event, "name", "") or "")
-    if name in {"tool_called", "tool_search_called"}:
-        _emit({
-            "type": "activity",
-            "source": "AI_AGENT",
-            "phase": "RUNNING",
-            "status": "RUNNING",
-            "message": "AI Agent 正在调用工具",
-            "ext": _item_ext(event.item, name),
-        })
-    elif name in {"tool_output", "tool_search_output_created"}:
-        _emit({
-            "type": "activity",
-            "source": "AI_AGENT",
-            "phase": "COMPLETED",
-            "status": "SUCCESS",
-            "message": "AI Agent 工具调用完成",
-            "ext": _item_ext(event.item, name),
-        })
-    elif name == "handoff_requested":
-        _emit({
-            "type": "activity",
-            "source": "AI_AGENT",
-            "phase": "RUNNING",
-            "status": "RUNNING",
-            "message": "AI Agent 正在切换执行角色",
-            "ext": _item_ext(event.item, name),
-        })
-    elif name == "handoff_occured":
-        _emit({
-            "type": "activity",
-            "source": "AI_AGENT",
-            "phase": "COMPLETED",
-            "status": "SUCCESS",
-            "message": "AI Agent 执行角色切换完成",
-            "ext": _item_ext(event.item, name),
-        })
-
-
-def _build_transcript(messages: list[dict[str, Any]]) -> tuple[str, str]:
-    system_parts: list[str] = []
-    conversation_parts: list[str] = []
-    for item in messages or []:
-        if not isinstance(item, dict):
-            continue
-        role = str(item.get("role") or "USER").upper()
-        content = item.get("content")
-        if content is None:
-            continue
-        text = str(content).strip()
-        if not text:
-            continue
-        if role == "SYSTEM":
-            system_parts.append(text)
-        else:
-            conversation_parts.append(f"{role}: {text}")
-    return "\n\n".join(system_parts).strip(), "\n".join(conversation_parts).strip()
-
-
-def _append_json_instruction(instructions: str, response_format: dict[str, Any] | None) -> str:
-    if not isinstance(response_format, dict):
-        return instructions
-    format_type = response_format.get("type")
-    schema = response_format.get("schema")
-    if str(format_type or "").upper() != "JSON_SCHEMA" or not schema:
-        return instructions
-    extra = (
-        "Return strictly valid JSON that matches this schema. "
-        "Do not wrap it in markdown.\n"
-        f"{json.dumps(schema, ensure_ascii=False)}"
-    )
-    if instructions:
-        return instructions + "\n\n" + extra
-    return extra
-
-
-def _resolve_enabled_tool_names(payload: dict[str, Any]) -> list[str]:
-    resolved: list[str] = []
-    seen: set[str] = set()
-
-    for item in payload.get("tools") or []:
-        if not isinstance(item, dict):
-            continue
-        name = str(item.get("name") or "").strip()
-        if name and name in TOOL_REGISTRY and name not in seen:
-            resolved.append(name)
-            seen.add(name)
-
-    ext = payload.get("ext")
-    if isinstance(ext, dict):
-        for key in ("enabledTools", "toolNames", "aiAgentTools"):
-            values = ext.get(key)
-            if not isinstance(values, list):
-                continue
-            for value in values:
-                name = str(value or "").strip()
-                if name and name in TOOL_REGISTRY and name not in seen:
-                    resolved.append(name)
-                    seen.add(name)
-    return resolved
-
-
-def _resolve_enabled_tools(payload: dict[str, Any]) -> tuple[list[str], list[Any]]:
-    tool_names = _resolve_enabled_tool_names(payload)
-    return tool_names, [TOOL_REGISTRY[name] for name in tool_names]
-
-
-def _normalize_json_output(final_output: Any) -> tuple[dict[str, Any] | list[Any] | None, str | None]:
-    if isinstance(final_output, (dict, list)):
-        return final_output, json.dumps(final_output, ensure_ascii=False)
-    if isinstance(final_output, str):
-        text = final_output.strip()
-        if not text:
-            return None, ""
-        try:
-            normalized = json.loads(text)
-        except json.JSONDecodeError:
-            return None, text
-        if isinstance(normalized, (dict, list)):
-            return normalized, json.dumps(normalized, ensure_ascii=False)
-        return None, text
-    return None, json.dumps(final_output, ensure_ascii=False)
-
-
-def _build_outputs(final_output: Any, response_format: dict[str, Any] | None) -> list[dict[str, Any]]:
-    format_type = str((response_format or {}).get("type") or "").upper()
-    normalized_json, text_output = _normalize_json_output(final_output)
-    if format_type == "JSON_SCHEMA" and isinstance(normalized_json, (dict, list)):
-        return [{
-            "type": "JSON",
-            "text": text_output or "",
-            "json": normalized_json,
-        }]
-    return [{
-        "type": "TEXT",
-        "text": text_output or "",
-        "json": {},
-    }]
-
-
-async def _run(payload: dict[str, Any]) -> dict[str, Any]:
-    messages = payload.get("messages") or []
-    instructions, transcript = _build_transcript(messages)
-    instructions = _append_json_instruction(instructions, payload.get("responseFormat"))
-    model = payload.get("model") or os.getenv("OPENAI_MODEL") or "gpt-5.5"
-    enabled_tool_names, enabled_tools = _resolve_enabled_tools(payload)
-    _emit({
-        "type": "activity",
-        "source": "AI_AGENT",
-        "phase": "STARTED",
-        "status": "RUNNING",
-        "message": "AI Agent 已开始执行",
-        "ext": {
-            "activity": "agent_run",
-            "activityCode": "agent_run",
-            "activityType": "AI_AGENT_EXECUTION",
-            "activityName": "AI Agent 执行",
-            "enabledTools": enabled_tool_names,
-        },
-    })
-    agent = Agent(
-        name="AI Agent Provider",
-        instructions=instructions or "Answer the user's request clearly and concisely.",
-        model=model,
-        tools=enabled_tools,
-    )
-    _emit({
-        "type": "activity",
-        "source": "AI_AGENT",
-        "phase": "RUNNING",
-        "status": "RUNNING",
-        "message": "AI Agent 正在推理并调用工具",
-        "ext": {
-            "activity": "agent_run",
-            "activityCode": "agent_run",
-            "activityType": "AI_AGENT_EXECUTION",
-            "activityName": "AI Agent 执行",
-            "enabledTools": enabled_tool_names,
-        },
-    })
-    result = Runner.run_streamed(agent, transcript or "USER: ")
-    async for event in result.stream_events():
-        event_type = getattr(event, "type", None)
-        if event_type == "raw_response_event":
-            data = getattr(event, "data", None)
-            if getattr(data, "type", None) == "response.output_text.delta":
-                delta = getattr(data, "delta", None)
-                if delta:
-                    _emit({"type": "delta", "delta": delta})
-        elif event_type == "run_item_stream_event":
-            _emit_run_item_event(event)
-        elif event_type == "agent_updated_stream_event":
-            agent_name = getattr(getattr(event, "new_agent", None), "name", None)
-            _emit({
-                "type": "activity",
-                "source": "AI_AGENT",
-                "phase": "RUNNING",
-                "status": "RUNNING",
-                "message": "AI Agent 已切换执行角色",
-                "ext": {
-                    "activity": "agent_updated",
-                    "activityCode": f"agent_updated:{agent_name or 'unknown'}",
-                    "activityType": "AGENT_HANDOFF",
-                    "activityName": agent_name or "AI Agent 角色切换",
-                    "agentName": agent_name,
-                },
-            })
-    final_output = result.final_output
-    outputs = _build_outputs(final_output, payload.get("responseFormat"))
-    provider_meta = {
-        "last_agent": getattr(getattr(result, "last_agent", None), "name", None),
-        "raw_type": type(final_output).__name__,
-        "enabled_tools": enabled_tool_names,
-    }
-    response = {
-        "requestId": str(uuid.uuid4()),
-        "model": model,
-        "finishReason": "STOP",
-        "outputs": outputs,
-        "usage": {
-            "inputTokens": 0,
-            "outputTokens": 0,
-            "totalTokens": 0,
-        },
-        "providerMeta": provider_meta,
-    }
-    _emit({
-        "type": "activity",
-        "source": "AI_AGENT",
-        "phase": "COMPLETED",
-        "status": "SUCCESS",
-        "message": "AI Agent 执行完成",
-        "ext": {
-            "activity": "agent_run",
-            "activityCode": "agent_run",
-            "activityType": "AI_AGENT_EXECUTION",
-            "activityName": "AI Agent 执行",
-            "enabledTools": enabled_tool_names,
-        },
-    })
-    return response
+from agent_provider.compiler import compile_snapshot
+from agent_provider.events import EventEmitter
+from agent_provider.protocol import normalize_payload
+from agent_provider.runtime import run_graph
 
 
 def main() -> None:
+    emitter: EventEmitter | None = None
     try:
-        payload = json.load(sys.stdin)
-        result = asyncio.run(_run(payload))
-        _emit({"type": "result", "data": result})
+        raw_payload = json.load(sys.stdin)
+        if not isinstance(raw_payload, dict):
+            raise ValueError("Worker input must be a JSON object")
+        payload = normalize_payload(raw_payload)
+        emitter = EventEmitter(payload)
+        graph = compile_snapshot(payload)
+        result = asyncio.run(run_graph(graph, emitter))
+        emitter.result(result)
     except Exception as exc:
-        _emit({
-            "type": "error",
-            "source": "AI_AGENT",
-            "phase": "FAILED",
-            "status": "FAILED",
-            "message": str(exc),
-        })
-        raise
+        safe_message = _safe_message(exc)
+        if emitter is None:
+            emitter = EventEmitter(normalize_payload({}))
+        emitter.event(
+            "round.failed",
+            status="FAILED",
+            message=safe_message,
+            ext={"errorType": type(exc).__name__},
+            frame_type="error",
+        )
+        raise SystemExit(1) from None
+
+
+def _safe_message(error: BaseException) -> str:
+    message = str(error).strip() or type(error).__name__
+    message = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer [REDACTED]", message)
+    message = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}\b", "[REDACTED_OPENAI_KEY]", message)
+    return message[:1000]
 
 
 if __name__ == "__main__":

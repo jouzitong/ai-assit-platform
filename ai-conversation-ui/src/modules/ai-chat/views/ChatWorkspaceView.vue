@@ -33,8 +33,19 @@ import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
 import { clearSession, getStoredUser } from '../../../utils/session'
 import ChatMessageErrorCard from '../components/ChatMessageErrorCard.vue'
+import ChatArtifactList from '../components/ChatArtifactList.vue'
+import RunActivityTimeline from '../components/RunActivityTimeline.vue'
+import {
+  activityFromTransportEvent,
+  artifactsFromTransportEvent,
+  normalizeHistoricalActivities,
+  normalizeHistoricalArtifacts,
+  upsertArtifact,
+  upsertRunActivity,
+} from '../composables/useChatRun'
 import { renderMarkdown } from '../utils/markdown'
 import {
+  fetchAvailableHomeAgents,
   fetchConversationDetail,
   fetchConversationList,
   fetchEnabledModels,
@@ -49,6 +60,7 @@ import {
   streamChatTransport,
 } from '../api'
 import type {
+  ChatAvailableAgent,
   ChatConversationRound,
   ChatEnabledModel,
   ChatSessionItem,
@@ -68,9 +80,26 @@ type CurrentUserProfile = {
   username?: string
   avatarUrl?: string
   profileImageUrl?: string
+  permissionCodes?: string[]
+  roleCodes?: string[]
+  roles?: string[]
+  permissions?: string[] | {
+    permissionCodes?: string[]
+    permission_codes?: string[]
+    roleCodes?: string[]
+    role_codes?: string[]
+  }
+  authorization?: {
+    permissions?: string[]
+    roles?: string[]
+  }
 }
 
 const prompt = ref('')
+const selectedAgentCode = ref('')
+const agentOptions = ref<ChatAvailableAgent[]>([])
+const isLoadingAgents = ref(false)
+const agentLoadError = ref('')
 const selectedModel = ref<number | undefined>()
 const modelOptions = ref<ChatEnabledModel[]>([])
 const isLoadingModels = ref(false)
@@ -169,19 +198,54 @@ const currentUserAvatarUrl = computed(() =>
     .find((value) => typeof value === 'string' && value.trim())?.trim() || '',
 )
 const currentUserAvatarText = computed(() => Array.from(currentUserName.value)[0]?.toLocaleUpperCase() || '?')
-const selectedModelLabel = computed(() => {
-  const matchedModel = modelOptions.value.find((item) => item.id === selectedModel.value)
-  return matchedModel?.modelName || matchedModel?.modelCode || matchedModel?.apiModel || '选择模型'
+const selectedAgent = computed(() => agentOptions.value.find(item => item.code === selectedAgentCode.value))
+function normalizedStringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string').map(item => item.trim()).filter(Boolean)
+    : []
+}
+const currentUserPermissionCodes = computed(() => {
+  const nested = currentUserProfile.permissions && !Array.isArray(currentUserProfile.permissions)
+    ? currentUserProfile.permissions
+    : undefined
+  return new Set([
+    ...normalizedStringList(currentUserProfile.permissionCodes),
+    ...normalizedStringList(Array.isArray(currentUserProfile.permissions) ? currentUserProfile.permissions : undefined),
+    ...normalizedStringList(nested?.permissionCodes),
+    ...normalizedStringList(nested?.permission_codes),
+    ...normalizedStringList(currentUserProfile.authorization?.permissions),
+  ].map(value => value.toLowerCase()))
 })
+const currentUserRoleCodes = computed(() => {
+  const nested = currentUserProfile.permissions && !Array.isArray(currentUserProfile.permissions)
+    ? currentUserProfile.permissions
+    : undefined
+  return new Set([
+    ...normalizedStringList(currentUserProfile.roleCodes),
+    ...normalizedStringList(currentUserProfile.roles),
+    ...normalizedStringList(nested?.roleCodes),
+    ...normalizedStringList(nested?.role_codes),
+    ...normalizedStringList(currentUserProfile.authorization?.roles),
+  ].map(value => value.toLowerCase()))
+})
+const canUseModelOverride = computed(() => (
+  currentUserRoleCodes.value.has('admin')
+  || currentUserRoleCodes.value.has('administrator')
+  || ['ai:chat:model-override', 'ai_chat_model_override', 'chat:model:override']
+    .some(permission => currentUserPermissionCodes.value.has(permission))
+))
+const selectedAgentLabel = computed(() => {
+  if (selectedAgent.value) {
+    return selectedAgent.value.name || selectedAgent.value.code
+  }
+  return '首页默认 Agent'
+})
+const agentSelectEmptyText = computed(() => agentLoadError.value || '暂无可选 Agent，将使用首页默认 Agent')
 const modelSelectEmptyText = computed(() => modelLoadError.value || '暂无已启用模型')
 const modelAvailabilityMessage = computed(() => {
-  if (modelLoadError.value) {
-    return `模型列表加载失败：${modelLoadError.value}`
-  }
-  if (!isLoadingModels.value && modelOptions.value.length === 0) {
-    return '当前没有可用模型，暂时无法开始对话。'
-  }
-  return ''
+  return agentLoadError.value
+    ? `Agent 列表加载失败，将继续使用 HOME_CHAT 默认绑定：${agentLoadError.value}`
+    : ''
 })
 const interactionStatusText = computed(() => {
   switch (interactionState.value) {
@@ -210,7 +274,7 @@ const isPrimaryActionDisabled = computed(() => {
   if (isStreaming.value) {
     return interactionState.value === 'stopping'
   }
-  return isLoadingModels.value || !selectedModel.value || !prompt.value.trim()
+  return !prompt.value.trim()
 })
 const pinnedConversations = computed(() =>
   [...conversationList.value]
@@ -328,13 +392,34 @@ function flattenRoundsToMessages(rounds: ChatConversationRound[]) {
   return rounds.flatMap((round) => {
     const messages: ChatUiMessage[] = (round.messages || [])
       .filter((message) => typeof message.content === 'string' && message.content.trim())
-      .map((message) => ({
-        id: message.messageCode || `${round.round?.roundCode || 'round'}-${message.sortNo || 0}`,
-        role: normalizeRole(message.role),
-        content: message.content,
-        roundCode: message.roundCode,
-        status: message.status || round.round?.status || undefined,
-      }))
+      .map((message) => {
+        const ext = parseExtJson(message.extJson)
+        return {
+          id: message.messageCode || `${round.round?.roundCode || 'round'}-${message.sortNo || 0}`,
+          role: normalizeRole(message.role),
+          content: message.content,
+          roundCode: message.roundCode,
+          status: message.status || round.round?.status || undefined,
+          actorName: textValue(ext?.agentName) || textValue(ext?.agentCode),
+        }
+      })
+    const artifacts = normalizeHistoricalArtifacts(round.artifacts)
+    const activities = normalizeHistoricalActivities(round.activities)
+    let runOwner = [...messages].reverse().find(message => message.role === 'assistant')
+    if (!runOwner && (artifacts.length || activities.length)) {
+      runOwner = {
+        id: `${round.round?.roundCode || 'round'}-assistant-run`,
+        role: 'assistant',
+        content: '',
+        roundCode: round.round?.roundCode,
+        status: round.round?.status || undefined,
+      }
+      messages.push(runOwner)
+    }
+    if (runOwner) {
+      if (artifacts.length) runOwner.artifacts = artifacts
+      if (activities.length) runOwner.activities = activities
+    }
     const failed = round.round?.status?.toUpperCase() === 'FAILED'
       || (round.messages || []).some((message) => message.status?.toUpperCase() === 'FAILED')
     if (!failed) {
@@ -375,6 +460,15 @@ function upsertAssistantMessage(messageId: string, payload: Partial<ChatUiMessag
   }
   if (payload.status !== undefined) {
     target.status = payload.status
+  }
+  if (payload.actorName !== undefined) {
+    target.actorName = payload.actorName
+  }
+  if (payload.activities !== undefined) {
+    target.activities = payload.activities
+  }
+  if (payload.artifacts !== undefined) {
+    target.artifacts = payload.artifacts
   }
   if (Object.prototype.hasOwnProperty.call(payload, 'error')) {
     target.error = payload.error
@@ -576,9 +670,34 @@ async function loadEnabledModelList() {
   }
 }
 
+async function loadAvailableAgentList() {
+  isLoadingAgents.value = true
+  agentLoadError.value = ''
+  try {
+    const agents = await fetchAvailableHomeAgents()
+    agentOptions.value = (Array.isArray(agents) ? agents : [])
+      .filter(agent => typeof agent.code === 'string' && agent.code.trim())
+    if (!agentOptions.value.some(agent => agent.code === selectedAgentCode.value)) {
+      selectedAgentCode.value = ''
+    }
+  } catch (error) {
+    agentOptions.value = []
+    selectedAgentCode.value = ''
+    agentLoadError.value = error instanceof Error ? error.message : 'Agent 列表加载失败'
+  } finally {
+    isLoadingAgents.value = false
+  }
+}
+
 function handleModelDropdownVisible(visible: boolean) {
   if (visible && !modelOptions.value.length && !isLoadingModels.value) {
     void loadEnabledModelList()
+  }
+}
+
+function handleAgentDropdownVisible(visible: boolean) {
+  if (visible && !agentOptions.value.length && !isLoadingAgents.value) {
+    void loadAvailableAgentList()
   }
 }
 
@@ -633,6 +752,28 @@ function handleStreamEvent(
   }
   if (data.roundCode) {
     currentRoundCode.value = data.roundCode
+  }
+
+  const assistantMessage = findAssistantMessage(assistantMessageId)
+  const activity = activityFromTransportEvent(
+    eventName,
+    payload,
+    data.eventId || event.id,
+    data.timestamp,
+  )
+  if (activity) {
+    upsertAssistantMessage(assistantMessageId, {
+      activities: upsertRunActivity(assistantMessage?.activities || [], activity),
+      actorName: textValue(payload.agentName) || assistantMessage?.actorName,
+    })
+  }
+  const eventArtifacts = artifactsFromTransportEvent(eventName, payload)
+  if (eventArtifacts.length) {
+    const artifacts = eventArtifacts.reduce(
+      (items, artifact) => upsertArtifact(items, artifact),
+      assistantMessage?.artifacts || [],
+    )
+    upsertAssistantMessage(assistantMessageId, { artifacts })
   }
 
   if (eventName === 'run.accepted') {
@@ -895,6 +1036,9 @@ async function submitChatMessage(message: string) {
     role: 'assistant',
     content: '正在连接 AI...',
     status: 'RUNNING',
+    actorName: selectedAgentLabel.value,
+    activities: [],
+    artifacts: [],
   })
 
   conversationError.value = ''
@@ -906,7 +1050,16 @@ async function submitChatMessage(message: string) {
     const result = await streamWithRecovery(
       createChatTransportRequest({
         sessionCode: currentSessionCode.value || undefined,
-        modelId: selectedModel.value,
+        target: selectedAgent.value
+          ? {
+              type: 'AGENT',
+              agentCode: selectedAgent.value.code,
+              agentVersion: selectedAgent.value.version,
+            }
+          : undefined,
+        modelOverrideId: developerModeEnabled.value && canUseModelOverride.value
+          ? selectedModel.value
+          : undefined,
         message,
       }, route.path),
       assistantMessageId,
@@ -954,13 +1107,6 @@ async function handlePrimaryAction() {
   if (!message) {
     return
   }
-  if (!selectedModel.value) {
-    const errorMessage = modelAvailabilityMessage.value || '请先选择一个可用模型。'
-    conversationError.value = errorMessage
-    ElMessage.error(errorMessage)
-    return
-  }
-
   prompt.value = ''
   await submitChatMessage(message)
 }
@@ -1056,8 +1202,15 @@ function syncDeveloperModeStorage() {
 }
 
 function toggleDeveloperMode() {
+  if (!canUseModelOverride.value) {
+    ElMessage.warning('当前账号没有模型覆盖权限')
+    return
+  }
   developerModeEnabled.value = !developerModeEnabled.value
   syncDeveloperModeStorage()
+  if (developerModeEnabled.value && !modelOptions.value.length && !isLoadingModels.value) {
+    void loadEnabledModelList()
+  }
 }
 
 async function handleUserMenuAction(key: string) {
@@ -1102,9 +1255,13 @@ function handleDocumentClick(event: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
-  developerModeEnabled.value = window.localStorage.getItem(DEVELOPER_MODE_STORAGE_KEY) === '1'
+  developerModeEnabled.value = canUseModelOverride.value
+    && window.localStorage.getItem(DEVELOPER_MODE_STORAGE_KEY) === '1'
   activeTheme.value = getSavedTheme()
-  void loadEnabledModelList()
+  void loadAvailableAgentList()
+  if (developerModeEnabled.value) {
+    void loadEnabledModelList()
+  }
   void loadConversationList()
 })
 
@@ -1188,11 +1345,11 @@ watch(route, () => {
 
       <div v-if="sidebarExpanded" class="chat-home-sidebar__section chat-home-sidebar__section--models">
         <div v-if="sidebarExpanded" class="chat-home-sidebar__header">
-          <span>模型</span>
+          <span>Agent</span>
         </div>
         <div class="chat-home-model-inline">
           <span class="chat-home-model-inline__dot"></span>
-          <span>{{ selectedModelLabel }}</span>
+          <span>{{ selectedAgentLabel }}</span>
         </div>
       </div>
 
@@ -1304,7 +1461,7 @@ watch(route, () => {
             </div>
 
             <div class="chat-home-user-menu__list">
-              <button class="chat-home-user-menu__item" type="button" @click="toggleDeveloperMode">
+              <button v-if="canUseModelOverride" class="chat-home-user-menu__item" type="button" @click="toggleDeveloperMode">
                 <el-icon><Setting /></el-icon>
                 <span>{{ developerModeEnabled ? '退出开发者模式' : '进入开发者模式' }}</span>
               </button>
@@ -1346,15 +1503,42 @@ watch(route, () => {
       <header class="chat-home-topbar">
         <div class="chat-home-topbar__left">
           <el-select
+            v-model="selectedAgentCode"
+            class="chat-home-model-switcher"
+            :loading="isLoadingAgents"
+            :disabled="isLoadingAgents || isStreaming"
+            :no-data-text="agentSelectEmptyText"
+            placeholder="选择 Agent"
+            filterable
+            fit-input-width
+            aria-label="选择对话 Agent"
+            @visible-change="handleAgentDropdownVisible"
+          >
+            <el-option label="首页默认 Agent" value="" />
+            <el-option
+              v-for="agent in agentOptions"
+              :key="agent.code"
+              :label="agent.name || agent.code"
+              :value="agent.code"
+            >
+              <div class="chat-home-model-option">
+                <span>{{ agent.name || agent.code }}</span>
+                <small>{{ agent.code }}<template v-if="agent.version"> · v{{ agent.version }}</template></small>
+              </div>
+            </el-option>
+          </el-select>
+          <el-select
+            v-if="developerModeEnabled && canUseModelOverride"
             v-model="selectedModel"
             class="chat-home-model-switcher"
             :loading="isLoadingModels"
             :disabled="isLoadingModels || isStreaming"
             :no-data-text="modelSelectEmptyText"
-            placeholder="选择模型"
+            placeholder="模型覆盖（可选）"
+            clearable
             filterable
             fit-input-width
-            aria-label="选择对话模型"
+            aria-label="开发者模型覆盖"
             @visible-change="handleModelDropdownVisible"
           >
             <el-option
@@ -1362,12 +1546,7 @@ watch(route, () => {
               :key="model.id"
               :label="model.modelName || model.modelCode || model.apiModel"
               :value="model.id"
-            >
-              <div class="chat-home-model-option">
-                <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
-                <small v-if="model.apiModel && model.apiModel !== model.modelName">{{ model.apiModel }}</small>
-              </div>
-            </el-option>
+            />
           </el-select>
         </div>
 
@@ -1424,7 +1603,7 @@ watch(route, () => {
               </div>
 
               <div class="chat-home-user-menu__list">
-                <button class="chat-home-user-menu__item" type="button" @click="toggleDeveloperMode">
+                <button v-if="canUseModelOverride" class="chat-home-user-menu__item" type="button" @click="toggleDeveloperMode">
                   <el-icon><Setting /></el-icon>
                   <span>{{ developerModeEnabled ? '退出开发者模式' : '进入开发者模式' }}</span>
                 </button>
@@ -1453,11 +1632,11 @@ watch(route, () => {
         <div class="chat-home-welcome-stage">
           <div class="chat-home-welcome-model">
             <div class="chat-home-welcome-model__avatar">oi</div>
-            <div class="chat-home-welcome-model__name">{{ selectedModelLabel }}</div>
+            <div class="chat-home-welcome-model__name">{{ selectedAgentLabel }}</div>
           </div>
           <div v-if="modelAvailabilityMessage" class="chat-workspace-alert" role="alert">
             <span>{{ modelAvailabilityMessage }}</span>
-            <button type="button" @click="loadEnabledModelList">重新加载模型</button>
+            <button type="button" @click="loadAvailableAgentList">重新加载 Agent</button>
           </div>
           <div v-if="interactionStatusText" class="chat-workspace-status" aria-live="polite">
             <el-icon v-if="isInteractionBusy" class="is-loading"><Loading /></el-icon>
@@ -1516,7 +1695,7 @@ watch(route, () => {
           <div v-if="chatMessages.length === 0 && !isLoadingDetail" class="chat-home-assistant">
             <div class="chat-home-assistant__avatar">AI</div>
             <div class="chat-home-assistant__body">
-              <div class="chat-home-assistant__title">{{ selectedModelLabel }}</div>
+              <div class="chat-home-assistant__title">{{ selectedAgentLabel }}</div>
               <div class="chat-home-assistant__meta">{{ currentSessionName || '新会话' }}</div>
               <div class="chat-home-assistant__text">你好！有什么我可以帮你的吗？</div>
               <div class="chat-home-assistant__actions">
@@ -1549,7 +1728,7 @@ watch(route, () => {
 
           <div v-if="modelAvailabilityMessage" class="chat-workspace-alert" role="alert">
             <span>{{ modelAvailabilityMessage }}</span>
-            <button type="button" @click="loadEnabledModelList">重新加载模型</button>
+            <button type="button" @click="loadAvailableAgentList">重新加载 Agent</button>
           </div>
           <div v-if="conversationError" class="chat-home-feedback chat-workspace-alert" role="alert">
             <span>{{ conversationError }}</span>
@@ -1570,12 +1749,20 @@ watch(route, () => {
                 <div class="chat-home-message__assistant-row">
                   <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">AI</div>
                   <div class="chat-home-message__assistant-copy">
-                    <div class="chat-home-message__assistant-name">{{ selectedModelLabel }}</div>
+                    <div class="chat-home-message__assistant-name">{{ message.actorName || selectedAgentLabel }}</div>
                     <div
                       v-if="message.content"
                       class="chat-home-message__assistant-text"
                       v-html="renderMarkdown(message.content)"
                     ></div>
+                    <RunActivityTimeline
+                      v-if="message.activities?.length"
+                      :activities="message.activities"
+                    />
+                    <ChatArtifactList
+                      v-if="message.artifacts?.length"
+                      :artifacts="message.artifacts"
+                    />
                     <ChatMessageErrorCard
                       v-if="message.error"
                       :error="message.error"

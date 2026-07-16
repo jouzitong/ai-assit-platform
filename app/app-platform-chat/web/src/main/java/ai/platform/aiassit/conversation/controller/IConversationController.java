@@ -5,7 +5,6 @@ import ai.platform.aiassit.conversation.dto.chat.ConversationQueryRequest;
 import ai.platform.aiassit.conversation.dto.chat.ConversationQueryResponse;
 import ai.platform.aiassit.conversation.dto.chat.ConversationStreamReconnectRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDetailRequest;
-import ai.platform.aiassit.service.ai.api.dto.AiBrowserAgentModelDTO;
 import ai.platform.aiassit.service.ai.api.dto.AiEnabledModelDTO;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.http.MediaType;
@@ -29,14 +28,6 @@ public interface IConversationController {
      */
     @GetMapping("/models/enable")
     List<AiEnabledModelDTO> enabledModels();
-
-    /**
-     * 查询浏览器 Agent 可直接使用的模型运行时配置。
-     *
-     * @return 启用的 Spring AI 模型及其连接配置
-     */
-    @GetMapping("/models/browser-agent")
-    List<AiBrowserAgentModelDTO> browserAgentModels();
 
     /**
      * 查询会话详情。

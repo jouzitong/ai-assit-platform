@@ -23,5 +23,17 @@ public class AiChatRoundDTO extends BaseDTO {
 
     private String actualModel;
 
+    private String agentRunId;
+
+    private String rootAgentCode;
+
+    private Integer rootAgentVersion;
+
+    private String agentRuntimeType;
+
+    private String agentSdkVersion;
+
+    private String agentSnapshotHash;
+
     private String status;
 }

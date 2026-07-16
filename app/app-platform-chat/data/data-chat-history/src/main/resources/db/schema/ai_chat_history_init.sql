@@ -24,6 +24,12 @@ CREATE TABLE IF NOT EXISTS ai_chat_round (
     user_id BIGINT NOT NULL DEFAULT 0 COMMENT '用户ID',
     model_code VARCHAR(64) DEFAULT NULL COMMENT '模型编码',
     actual_model VARCHAR(128) DEFAULT NULL COMMENT '实际调用模型',
+    agent_run_id VARCHAR(64) DEFAULT NULL COMMENT 'Agent运行ID',
+    root_agent_code VARCHAR(64) DEFAULT NULL COMMENT '根Agent编码',
+    root_agent_version INT DEFAULT NULL COMMENT '根Agent版本',
+    agent_runtime_type VARCHAR(32) DEFAULT NULL COMMENT 'Agent运行时类型',
+    agent_sdk_version VARCHAR(64) DEFAULT NULL COMMENT 'Agent SDK版本',
+    agent_snapshot_hash VARCHAR(80) DEFAULT NULL COMMENT 'Agent快照哈希',
     status VARCHAR(32) NOT NULL DEFAULT 'SUCCESS' COMMENT '状态',
     create_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     update_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
@@ -33,7 +39,8 @@ CREATE TABLE IF NOT EXISTS ai_chat_round (
     deleted TINYINT NOT NULL DEFAULT 0 COMMENT '软删除标记',
     UNIQUE KEY uk_round_code (round_code),
     KEY idx_session_code (session_code),
-    KEY idx_user_id (user_id)
+    KEY idx_user_id (user_id),
+    KEY idx_round_agent_run (agent_run_id)
 ) COMMENT='AI聊天轮次表';
 
 CREATE TABLE IF NOT EXISTS ai_chat_message (
@@ -98,7 +105,7 @@ CREATE TABLE IF NOT EXISTS ai_chat_activity (
     session_code VARCHAR(64) NOT NULL COMMENT '会话编码',
     round_code VARCHAR(64) NOT NULL COMMENT '轮次编码',
     user_id BIGINT NOT NULL DEFAULT 0 COMMENT '用户ID',
-    node_code VARCHAR(64) DEFAULT NULL COMMENT '工作流节点编码',
+    agent_code VARCHAR(64) DEFAULT NULL COMMENT '执行 Agent 编码',
     correlation_code VARCHAR(128) DEFAULT NULL COMMENT '同一活动生命周期关联编码',
     activity_type VARCHAR(32) NOT NULL COMMENT '活动类型',
     activity_name VARCHAR(128) NOT NULL COMMENT '活动名称',

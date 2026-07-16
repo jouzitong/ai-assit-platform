@@ -1,0 +1,20 @@
+{
+  "name": "@ai-assit-platform/openai-agent-worker",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "compile": "tsc -p tsconfig.json",
+    "bundle": "esbuild dist/src/worker.js --bundle --minify --platform=node --format=esm --target=node20 --banner:js=\"import { createRequire } from 'node:module';const require=createRequire(import.meta.url);\" --outfile=dist/worker.mjs",
+    "build": "npm run compile && npm run bundle",
+    "test": "npm run build && node --test dist/tests/*.test.js"
+  },
+  "dependencies": {
+    "@openai/agents": "0.13.4"
+  },
+  "devDependencies": {
+    "@types/node": "24.10.1",
+    "esbuild": "0.25.10",
+    "typescript": "5.9.3"
+  }
+}

@@ -22,6 +22,18 @@ ai:
       redis:
         key-prefix: ai:chat:runtime
   provider:
+    ai-agent:
+      enabled: ${AI_PROVIDER_AI_AGENT_ENABLED:true}
+      python-command: ${AI_PROVIDER_AI_AGENT_PYTHON_COMMAND:python3}
+      script-path: ${AI_PROVIDER_AI_AGENT_SCRIPT_PATH:}
+      working-directory: ${AI_PROVIDER_AI_AGENT_WORKING_DIRECTORY:}
+      node-command: ${AI_PROVIDER_AI_AGENT_NODE_COMMAND:node}
+      typescript-script-path: ${AI_PROVIDER_AI_AGENT_TYPESCRIPT_SCRIPT_PATH:}
+      typescript-working-directory: ${AI_PROVIDER_AI_AGENT_TYPESCRIPT_WORKING_DIRECTORY:}
+      timeout-ms: ${AI_PROVIDER_AI_AGENT_TIMEOUT_MS:120000}
+      knowledge-search-url: ${AI_PROVIDER_AI_AGENT_KNOWLEDGE_SEARCH_URL:http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search}
+      tool-gateway-url: ${AI_PROVIDER_AI_AGENT_TOOL_GATEWAY_URL:http://127.0.0.1:9764/chat}
+      skill-gateway-url: ${AI_PROVIDER_AI_AGENT_SKILL_GATEWAY_URL:http://127.0.0.1:9764/chat}
     ragflow:
       enabled: ${AI_PROVIDER_RAGFLOW_ENABLED:false}
       base-url: ${AI_PROVIDER_RAGFLOW_BASE_URL:${RAGFLOW_BASE_URL:}}

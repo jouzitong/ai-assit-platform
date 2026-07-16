@@ -16,9 +16,9 @@ import java.util.Map;
  * 与“服务端补齐参数”合并为一份稳定的内部执行模型，避免 service 直接依赖 Web 请求 DTO。</p>
  *
  * <p>参数来源大致分为三类：</p>
- * <p>1. 前端直传：如 message、sessionCode、apiModel、attachments、tools、ext。</p>
+ * <p>1. 前端直传：如 message、sessionCode、Agent target、attachments 和页面上下文。</p>
  * <p>2. controller 补齐：如 userId、traceId、scene、sessionName。</p>
- * <p>3. service 兜底或推导：如 businessType 为空时走默认值、apiModel 为空时走默认模型。</p>
+ * <p>3. service 兜底或推导：如 HOME_CHAT Entry、已发布 Agent Snapshot 和模型绑定。</p>
  */
 @Data
 public class ConversationQueryCommand {
@@ -64,10 +64,19 @@ public class ConversationQueryCommand {
     /** 前端选择的模型配置主键，仅用于审计和轮次快照。 */
     private Long modelId;
 
+    /** Product entry used when no explicit Agent is selected. */
+    private String agentEntryCode = "HOME_CHAT";
+
+    /** Explicit published Agent identity selected from the authorized entry list. */
+    private String agentCode;
+
+    /** Optional pinned published Agent version. */
+    private Integer agentVersion;
+
     /**
      * 服务端根据 modelId 解析得到的模型配置编码。
      *
-     * <p>该兼容字段仍供工作流节点定位模型配置，前端不得直接传入。</p>
+     * <p>该兼容字段由服务端解析模型覆盖时填写，前端不得直接传入。</p>
      */
     private String apiModel;
 
@@ -136,6 +145,9 @@ public class ConversationQueryCommand {
                 ", roundCode='" + roundCode + '\'' +
                 ", businessType=" + businessType +
                 ", modelId=" + modelId +
+                ", agentEntryCode='" + agentEntryCode + '\'' +
+                ", agentCode='" + agentCode + '\'' +
+                ", agentVersion=" + agentVersion +
                 ", apiModel='" + apiModel + '\'' +
                 ", actualModel='" + actualModel + '\'' +
                 ", scene='" + scene + '\'' +

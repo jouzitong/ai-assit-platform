@@ -13,6 +13,7 @@ import java.util.Locale;
 public enum AiChatRoundType implements IEnum {
     QUERY_RENDER(1, "用户智能问数"),
     SIMPLE_CHAT(2, "普通对话"),
+    AGENT_CHAT(3, "智能体对话"),
     ;
 
     @JsonValue
@@ -25,14 +26,20 @@ public enum AiChatRoundType implements IEnum {
         this.name = name;
     }
 
-    public static AiChatRoundType fromIntentType(String intentType) {
-        if (!org.springframework.util.StringUtils.hasText(intentType)) {
-            return SIMPLE_CHAT;
+    public static AiChatRoundType fromName(String value) {
+        if (!org.springframework.util.StringUtils.hasText(value)) {
+            return AGENT_CHAT;
         }
-        String normalized = intentType.trim().toUpperCase(Locale.ROOT);
+        String normalized = value.trim().toUpperCase(Locale.ROOT);
         if (SIMPLE_CHAT.name().equals(normalized)) {
             return SIMPLE_CHAT;
         }
-        return QUERY_RENDER;
+        if (AGENT_CHAT.name().equals(normalized)) {
+            return AGENT_CHAT;
+        }
+        if (QUERY_RENDER.name().equals(normalized)) {
+            return QUERY_RENDER;
+        }
+        return AGENT_CHAT;
     }
 }

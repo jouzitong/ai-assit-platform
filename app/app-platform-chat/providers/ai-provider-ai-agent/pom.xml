@@ -59,6 +59,11 @@
                                 <resource>
                                     <directory>src/main/python</directory>
                                     <filtering>false</filtering>
+                                    <excludes>
+                                        <exclude>.venv/**</exclude>
+                                        <exclude>**/__pycache__/**</exclude>
+                                        <exclude>*.egg-info/**</exclude>
+                                    </excludes>
                                 </resource>
                             </resources>
                         </configuration>
@@ -75,6 +80,57 @@
                                 <resource>
                                     <directory>src/main/python</directory>
                                     <filtering>false</filtering>
+                                    <excludes>
+                                        <exclude>.venv/**</exclude>
+                                        <exclude>**/__pycache__/**</exclude>
+                                        <exclude>*.egg-info/**</exclude>
+                                    </excludes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-typescript-project-to-target</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.directory}/typescript</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>src/main/typescript</directory>
+                                    <filtering>false</filtering>
+                                    <excludes>
+                                        <exclude>node_modules/**</exclude>
+                                        <exclude>dist/src/**</exclude>
+                                        <exclude>dist/tests/**</exclude>
+                                        <exclude>tests/**</exclude>
+                                        <exclude>.gitignore</exclude>
+                                    </excludes>
+                                </resource>
+                            </resources>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>copy-typescript-project-to-classes</id>
+                        <phase>process-resources</phase>
+                        <goals>
+                            <goal>copy-resources</goal>
+                        </goals>
+                        <configuration>
+                            <outputDirectory>${project.build.outputDirectory}/typescript</outputDirectory>
+                            <resources>
+                                <resource>
+                                    <directory>src/main/typescript</directory>
+                                    <filtering>false</filtering>
+                                    <excludes>
+                                        <exclude>node_modules/**</exclude>
+                                        <exclude>dist/src/**</exclude>
+                                        <exclude>dist/tests/**</exclude>
+                                        <exclude>tests/**</exclude>
+                                        <exclude>.gitignore</exclude>
+                                    </excludes>
                                 </resource>
                             </resources>
                         </configuration>

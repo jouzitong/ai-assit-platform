@@ -34,7 +34,7 @@ public class AiChatHistoryQueryRequest extends BaseRequest {
 
     private String activityCode;
 
-    private String nodeCode;
+    private String agentCode;
 
     private String activityType;
 

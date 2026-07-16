@@ -21,8 +21,8 @@ import java.util.Map;
  * <p>设计原则如下：</p>
  * <p>1. 前端只传“用户输入”和“用户显式选择”的内容。</p>
  * <p>2. 用户身份、traceId、scene、默认会话名等由 controller 或服务端自动补齐。</p>
- * <p>3. 模型参数只允许传 modelId，且允许为空；为空时后端自动选择默认模型。</p>
- * <p>4. 文件、工具等可扩展能力通过强类型列表与 ext 兜底扩展共同承载。</p>
+ * <p>3. 聊天始终路由到 HOME_CHAT Agent；modelId 仅作为旧接口的受权限控制开发覆盖参数。</p>
+ * <p>4. 文件、工具等请求信息不能扩大已发布 Agent Snapshot 授予的能力。</p>
  */
 @Data
 @EqualsAndHashCode(callSuper = true)
@@ -37,12 +37,11 @@ public class ConversationQueryRequest extends BaseRequest {
     private String sessionCode;
 
     /**
-     * 前端期望使用的模型配置 ID。
+     * 旧接口的模型覆盖 ID。
      *
-     * <p>该字段对应模型配置主键，是前端唯一允许直接指定的模型参数。</p>
-     * <p>可为空；为空时由后端自动选取默认模型。后端会根据该实体解析客户端类型、连接地址、凭据
-     * 与远端模型标识。</p>
+     * <p>正式页面不再发送该字段；只有服务端判定调用者具有模型覆盖权限时才会生效。</p>
      */
+    @Deprecated
     private Long modelId;
 
     /**
@@ -65,9 +64,8 @@ public class ConversationQueryRequest extends BaseRequest {
     /**
      * 工具列表。
      *
-     * <p>用于声明本次对话可使用或希望触发的工具能力，例如知识库检索、SQL 工具、插件等。</p>
-     * <p>该字段表达的是“请求侧声明”，并不等价于最终一定会执行；工具是否真正启用，
-     * 仍由后端根据场景、权限和路由规则决定。</p>
+     * <p>旧调用方可携带的工具提示；正式 Agent 运行只允许使用已发布 Snapshot 和本轮 Grant
+     * 同时授权的 Tool，该字段不能新增能力。</p>
      */
     private List<ConversationToolDTO> tools = new ArrayList<>();
 

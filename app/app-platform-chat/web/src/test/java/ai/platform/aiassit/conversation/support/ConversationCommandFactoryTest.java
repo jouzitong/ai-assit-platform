@@ -1,21 +1,20 @@
 package ai.platform.aiassit.conversation.support;
 
 import ai.platform.aiassit.conversation.dto.chat.ConversationQueryRequest;
+import ai.platform.aiassit.conversation.protocol.dto.ChatTransportRequest;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import org.arthena.framework.common.exception.BizException;
 import org.junit.jupiter.api.Test;
 
+import java.lang.reflect.Proxy;
+import java.util.List;
+import java.util.Map;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
-
 class ConversationCommandFactoryTest {
-
-    private final AiModelConfigService modelConfigService = mock(AiModelConfigService.class);
-    private final ConversationCommandFactory factory = new ConversationCommandFactory(modelConfigService);
 
     @Test
     void resolvesFrontendModelIdToInternalCodeAndActualModel() {
@@ -24,12 +23,12 @@ class ConversationCommandFactoryTest {
         config.setModelCode("qwen-primary");
         config.setApiModel("qwen-plus-2026-07");
         config.setEnabled(true);
-        when(modelConfigService.getResolvedById(42L)).thenReturn(config);
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of(42L, config)));
         ConversationQueryRequest request = new ConversationQueryRequest();
         request.setModelId(42L);
         request.setMessage("hello");
 
-        ConversationQueryCommand command = factory.fromLegacy(request, 7L, "trace-1");
+        ConversationQueryCommand command = factory.fromLegacy(request, 7L, "trace-1", true);
 
         assertThat(command.getModelId()).isEqualTo(42L);
         assertThat(command.getApiModel()).isEqualTo("qwen-primary");
@@ -38,12 +37,84 @@ class ConversationCommandFactoryTest {
 
     @Test
     void rejectsDisabledOrMissingModelId() {
-        when(modelConfigService.getResolvedById(99L)).thenReturn(null);
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of()));
         ConversationQueryRequest request = new ConversationQueryRequest();
         request.setModelId(99L);
         request.setMessage("hello");
 
+        assertThatThrownBy(() -> factory.fromLegacy(request, 7L, "trace-1", true))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void rejectsModelOverrideWithoutServerPermission() {
+        AiModelConfigDTO config = new AiModelConfigDTO();
+        config.setId(42L);
+        config.setModelCode("qwen-primary");
+        config.setApiModel("qwen-plus");
+        config.setEnabled(true);
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of(42L, config)));
+        ConversationQueryRequest request = new ConversationQueryRequest();
+        request.setModelId(42L);
+        request.setMessage("hello");
+
         assertThatThrownBy(() -> factory.fromLegacy(request, 7L, "trace-1"))
                 .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void mapsPinnedExplicitAgentTargetWithoutChangingDefaultEntry() {
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of()));
+        ChatTransportRequest.Content content = new ChatTransportRequest.Content();
+        content.setType("text");
+        content.setText("delegate this task");
+        ChatTransportRequest.Message message = new ChatTransportRequest.Message();
+        message.setContent(List.of(content));
+        ChatTransportRequest.Target target = new ChatTransportRequest.Target();
+        target.setAgentCode("sql-specialist");
+        target.setAgentVersion(4);
+        ChatTransportRequest request = new ChatTransportRequest();
+        request.setMessage(message);
+        request.setTarget(target);
+
+        ConversationQueryCommand command = factory.fromProtocol(request, null, 7L, "trace-2");
+
+        assertThat(command.getAgentEntryCode()).isEqualTo("HOME_CHAT");
+        assertThat(command.getAgentCode()).isEqualTo("sql-specialist");
+        assertThat(command.getAgentVersion()).isEqualTo(4);
+        assertThat(command.getMessage()).isEqualTo("delegate this task");
+    }
+
+    @Test
+    void rejectsNonAgentProtocolTarget() {
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of()));
+        ChatTransportRequest.Target target = new ChatTransportRequest.Target();
+        target.setType("WORKFLOW");
+        ChatTransportRequest request = new ChatTransportRequest();
+        request.setTarget(target);
+
+        assertThatThrownBy(() -> factory.fromProtocol(request, null, 7L, "trace-3"))
+                .isInstanceOf(BizException.class);
+    }
+
+    private AiModelConfigService modelService(Map<Long, AiModelConfigDTO> values) {
+        return (AiModelConfigService) Proxy.newProxyInstance(
+                AiModelConfigService.class.getClassLoader(),
+                new Class<?>[]{AiModelConfigService.class},
+                (proxy, method, args) -> {
+                    if ("getResolvedById".equals(method.getName())) {
+                        return values.get(args[0]);
+                    }
+                    if ("toString".equals(method.getName())) {
+                        return "AiModelConfigServiceStub";
+                    }
+                    if ("hashCode".equals(method.getName())) {
+                        return System.identityHashCode(proxy);
+                    }
+                    if ("equals".equals(method.getName())) {
+                        return proxy == args[0];
+                    }
+                    return null;
+                });
     }
 }

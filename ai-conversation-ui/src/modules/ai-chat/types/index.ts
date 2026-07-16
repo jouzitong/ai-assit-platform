@@ -38,7 +38,8 @@ export interface ChatConversationDetailResponse {
 export interface ChatConversationRound {
   round?: ChatRoundInfo | null
   messages: ChatMessageItem[]
-  artifacts?: unknown[]
+  artifacts?: ChatArtifact[]
+  activities?: Array<ChatRunActivity | Record<string, unknown>>
   renderType?: string | null
 }
 
@@ -74,7 +75,8 @@ export interface ChatMessageItem {
 
 export interface ChatQueryPayload {
   sessionCode?: string
-  modelId?: number
+  target?: ChatAgentTarget
+  modelOverrideId?: number
   message: string
   attachments?: unknown[]
   tools?: unknown[]
@@ -87,6 +89,19 @@ export interface ChatEnabledModel {
   modelName?: string
   apiModel?: string
   clientType?: number
+}
+
+export interface ChatAgentTarget {
+  type: 'AGENT'
+  agentCode: string
+  agentVersion?: number
+}
+
+export interface ChatAvailableAgent {
+  code: string
+  name: string
+  description?: string
+  version?: number
 }
 
 export interface ChatStreamEvent {
@@ -104,6 +119,32 @@ export type ChatTransportContentBlock = {
   type: 'text' | 'markdown' | 'render' | string
   text?: string
   markdown?: string
+}
+
+export type ChatRunActivityKind = 'agent' | 'handoff' | 'tool' | 'skill' | 'artifact' | 'check' | 'thinking'
+
+export interface ChatRunActivity {
+  id: string
+  kind: ChatRunActivityKind
+  title: string
+  detail?: string
+  status?: 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | string
+  agentCode?: string
+  agentVersion?: number
+  timestamp?: string
+  metadata?: Record<string, unknown>
+}
+
+export interface ChatArtifact {
+  artifactCode?: string
+  codeRef?: string
+  artifactType?: string
+  title?: string
+  content?: unknown
+  contentFormat?: string
+  status?: string
+  stage?: string
+  extJson?: string | null
 }
 
 export interface ChatTransportEvent {
@@ -131,7 +172,8 @@ export interface ChatTransportRequest {
   requestId: string
   sessionCode?: string
   roundCode?: string
-  modelId?: number
+  target?: ChatAgentTarget
+  modelOverrideId?: number
   message: ChatTransportMessage
   clientContext: {
     timezone: string
@@ -201,6 +243,8 @@ export interface ChatRoundThinkingDetail {
   roundCode?: string
   status?: string
   summary?: string
+  agents?: Array<Record<string, unknown>>
+  /** @deprecated Migration-only compatibility with round-thinking.v1. */
   nodes?: Array<Record<string, unknown>>
   activities?: Array<Record<string, unknown>>
   ext?: Record<string, unknown>
@@ -213,4 +257,7 @@ export interface ChatUiMessage {
   roundCode?: string
   status?: string
   error?: ChatUiError
+  actorName?: string
+  activities?: ChatRunActivity[]
+  artifacts?: ChatArtifact[]
 }

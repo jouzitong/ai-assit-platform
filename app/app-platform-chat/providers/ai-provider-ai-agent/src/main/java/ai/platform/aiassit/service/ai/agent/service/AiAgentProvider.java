@@ -11,9 +11,19 @@ import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import ai.platform.aiassit.service.ai.api.stream.ChatChunk;
 import ai.platform.aiassit.service.ai.api.stream.ChatStreamObserver;
 import ai.platform.aiassit.service.ai.spi.AiChatService;
+import ai.platform.aiassit.service.ai.spi.agent.AgentCancellation;
+import ai.platform.aiassit.service.ai.spi.agent.AgentDefinitionSnapshot;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRunCommand;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRunEvent;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRunObserver;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRunResult;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRuntime;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRuntimeCapabilities;
+import ai.platform.aiassit.service.ai.spi.agent.AgentRuntimeType;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderModel;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderModelListRequest;
+import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -31,12 +41,17 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.format.DateTimeParseException;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Slf4j
 @Component
 @ConditionalOnProperty(prefix = "ai.provider.ai-agent", name = "enabled", havingValue = "true")
-public class AiAgentProvider implements AiChatService {
+public class AiAgentProvider implements AiChatService, AgentRuntime {
+
+    private static final String PYTHON_SDK_VERSION = "0.18.2";
 
     private final AiAgentProperties properties;
     private final AiAgentProcessExecutor processExecutor;
@@ -88,9 +103,65 @@ public class AiAgentProvider implements AiChatService {
 
     @Override
     public ChatResponse chat(ProviderChatRequest request) {
-        log.debug("ai agent chat request: {}", request);
+        log.debug("ai agent chat request, model={}, messageCount={}",
+                request == null ? null : request.getModel(),
+                request == null || request.getMessages() == null ? 0 : request.getMessages().size());
         JsonNode responseNode = processExecutor.execute(properties, request);
         return toChatResponse(responseNode);
+    }
+
+    @Override
+    public AgentRuntimeCapabilities capabilities() {
+        return AgentRuntimeCapabilities.builder()
+                .runtimeType(AgentRuntimeType.OPENAI_AGENTS_PYTHON)
+                .sdkVersion(PYTHON_SDK_VERSION)
+                .features(Set.of(
+                        "protocol-v2",
+                        "function-tools",
+                        "agent-as-tool",
+                        "handoffs",
+                        "skill-on-demand",
+                        "platform-events",
+                        "actual-usage",
+                        "cancellation"
+                ))
+                .build();
+    }
+
+    @Override
+    public AgentRunResult run(AgentDefinitionSnapshot snapshot,
+                              AgentRunCommand command,
+                              AgentRunObserver observer,
+                              AgentCancellation cancellation) {
+        AgentRunObserver targetObserver = observer == null ? AgentRunObserver.NOOP : observer;
+        AgentCancellation targetCancellation = cancellation == null ? AgentCancellation.NONE : cancellation;
+        AtomicBoolean failureEventReceived = new AtomicBoolean(false);
+        try {
+            JsonNode result = processExecutor.executeAgent(
+                    properties,
+                    snapshot,
+                    command,
+                    frame -> {
+                        AgentRunEvent event = toAgentRunEvent(frame);
+                        if ("round.failed".equals(event.getEventType())
+                                || "round.cancelled".equals(event.getEventType())) {
+                            failureEventReceived.set(true);
+                        }
+                        targetObserver.onEvent(event);
+                    },
+                    targetCancellation
+            );
+            return toAgentRunResult(result, command);
+        } catch (RuntimeException ex) {
+            if (failureEventReceived.compareAndSet(false, true)) {
+                try {
+                    targetObserver.onEvent(fallbackAgentFailure(command, targetCancellation, ex));
+                } catch (RuntimeException callbackError) {
+                    log.warn("ai agent runtime failure event callback failed", callbackError);
+                }
+            }
+            throw ex;
+        }
     }
 
     @Override
@@ -161,6 +232,9 @@ public class AiAgentProvider implements AiChatService {
             if (normalized.contains("interrupt")) {
                 return "AI Agent 执行已中断";
             }
+            if (normalized.contains("cancel")) {
+                return "AI Agent 执行已取消";
+            }
             if (normalized.contains("empty output")) {
                 return "AI Agent 未返回有效结果";
             }
@@ -172,6 +246,36 @@ public class AiAgentProvider implements AiChatService {
         ChatChunk chunk = new ChatChunk();
         chunk.setRequestId(text(frame, "requestId"));
         String type = text(frame, "type");
+        String platformEventType = text(frame, "eventType");
+        if (("event".equalsIgnoreCase(type) || "error".equalsIgnoreCase(type))
+                && StringUtils.hasText(platformEventType)) {
+            if ("assistant.message.delta".equalsIgnoreCase(platformEventType)) {
+                chunk.setEventType("answer_delta");
+                chunk.setOutputType(OutputType.TEXT);
+                chunk.setDelta(text(frame, "delta"));
+                chunk.getExt().put("platformEventType", platformEventType);
+                return chunk;
+            }
+            String status = StringUtils.hasText(text(frame, "status"))
+                    ? text(frame, "status")
+                    : "error".equalsIgnoreCase(type) ? "FAILED" : null;
+            chunk.setEventType("progress");
+            chunk.setProgressType("ACTIVITY");
+            chunk.setSource(StringUtils.hasText(text(frame, "source"))
+                    ? text(frame, "source")
+                    : "AI_AGENT");
+            chunk.setPhase(resolvePhase(status));
+            chunk.setStatus(status);
+            chunk.setMessage(StringUtils.hasText(text(frame, "message"))
+                    ? text(frame, "message")
+                    : platformEventType);
+            copyObject(frame.get("ext"), chunk.getExt());
+            chunk.getExt().put("platformEventType", platformEventType);
+            copyIfPresent(frame, chunk.getExt(), "agentCode", "agentVersion", "agentName", "traceId",
+                    "sessionCode", "roundCode", "timestamp");
+            chunk.getExt().putIfAbsent("activityType", activityType(platformEventType));
+            return chunk;
+        }
         if ("activity".equalsIgnoreCase(type) || "error".equalsIgnoreCase(type)) {
             chunk.setEventType("progress");
             chunk.setProgressType("ACTIVITY");
@@ -197,6 +301,161 @@ public class AiAgentProvider implements AiChatService {
             chunk.setDelta(text(frame, "delta"));
         }
         return chunk;
+    }
+
+    AgentRunEvent toAgentRunEvent(JsonNode frame) {
+        AgentRunEvent event = new AgentRunEvent();
+        String type = text(frame, "type");
+        String eventType = text(frame, "eventType");
+        if (!StringUtils.hasText(eventType)) {
+            if ("delta".equalsIgnoreCase(type)) {
+                eventType = "assistant.message.delta";
+            } else if ("error".equalsIgnoreCase(type)) {
+                eventType = "round.failed";
+            } else {
+                eventType = "agent.activity";
+            }
+        }
+        event.setEventType(eventType);
+        event.setRunId(text(frame, "runId"));
+        event.setRequestId(text(frame, "requestId"));
+        event.setTraceId(text(frame, "traceId"));
+        event.setSessionCode(text(frame, "sessionCode"));
+        event.setRoundCode(text(frame, "roundCode"));
+        event.setAgentCode(text(frame, "agentCode"));
+        event.setAgentVersion(nullableInt(frame.get("agentVersion")));
+        event.setAgentName(text(frame, "agentName"));
+        event.setStatus(StringUtils.hasText(text(frame, "status"))
+                ? text(frame, "status")
+                : "error".equalsIgnoreCase(type) ? "FAILED" : null);
+        event.setDelta(text(frame, "delta"));
+        event.setMessage(text(frame, "message"));
+        event.setTimestamp(parseInstant(text(frame, "timestamp")));
+        copyObject(frame.get("ext"), event.getExt());
+        copyIfPresent(frame, event.getExt(), "source", "activityCode", "activityType", "toolCode", "callId",
+                "artifactCode", "artifactType", "summary");
+        return event;
+    }
+
+    private AgentRunResult toAgentRunResult(JsonNode node, AgentRunCommand command) {
+        AgentRunResult result = new AgentRunResult();
+        result.setRunId(StringUtils.hasText(text(node, "runId"))
+                ? text(node, "runId")
+                : command == null ? null : command.getRunId());
+        result.setFinalOutput(StringUtils.hasText(text(node, "finalOutput"))
+                ? text(node, "finalOutput")
+                : firstOutputText(node));
+        result.setFinalAgentCode(text(node, "finalAgentCode"));
+        result.setStatus(StringUtils.hasText(text(node, "status")) ? text(node, "status") : "SUCCESS");
+        JsonNode usageNode = node == null ? null : node.get("usage");
+        if (usageNode != null && usageNode.isObject()) {
+            Usage usage = new Usage();
+            usage.setInputTokens(intValue(usageNode.get("inputTokens")));
+            usage.setOutputTokens(intValue(usageNode.get("outputTokens")));
+            usage.setTotalTokens(intValue(usageNode.get("totalTokens")));
+            result.setUsage(usage);
+        }
+        JsonNode artifacts = node == null ? null : node.get("artifacts");
+        if (artifacts != null && artifacts.isArray()) {
+            for (JsonNode artifact : artifacts) {
+                if (artifact.isObject()) {
+                    result.getArtifacts().add(objectMapper.convertValue(
+                            artifact,
+                            new TypeReference<Map<String, Object>>() { }
+                    ));
+                }
+            }
+        }
+        copyObject(node == null ? null : node.get("providerMeta"), result.getProviderMeta());
+        return result;
+    }
+
+    private AgentRunEvent fallbackAgentFailure(AgentRunCommand command,
+                                               AgentCancellation cancellation,
+                                               Throwable error) {
+        AgentRunEvent event = new AgentRunEvent();
+        boolean cancelled = cancellation != null && cancellation.isCancellationRequested();
+        event.setEventType(cancelled ? "round.cancelled" : "round.failed");
+        event.setRunId(command == null ? null : command.getRunId());
+        event.setRequestId(command == null ? null : command.getRequestId());
+        event.setTraceId(command == null ? null : command.getTraceId());
+        event.setSessionCode(command == null ? null : command.getSessionCode());
+        event.setRoundCode(command == null ? null : command.getRoundCode());
+        event.setStatus(cancelled ? "CANCELLED" : "FAILED");
+        event.setMessage(failureMessage(error));
+        event.getExt().put("source", "OPENAI_AGENTS_PYTHON");
+        return event;
+    }
+
+    private String firstOutputText(JsonNode node) {
+        JsonNode outputs = node == null ? null : node.get("outputs");
+        if (outputs == null || !outputs.isArray()) {
+            return null;
+        }
+        for (JsonNode output : outputs) {
+            if (StringUtils.hasText(text(output, "text"))) {
+                return text(output, "text");
+            }
+        }
+        return null;
+    }
+
+    private String resolvePhase(String status) {
+        if (!StringUtils.hasText(status)) {
+            return null;
+        }
+        return switch (status.toUpperCase()) {
+            case "SUCCESS", "COMPLETED" -> "COMPLETED";
+            case "FAILED", "CANCELLED" -> status.toUpperCase();
+            default -> "RUNNING";
+        };
+    }
+
+    private String activityType(String eventType) {
+        if (eventType.startsWith("tool.")) {
+            return "TOOL_CALL";
+        }
+        if (eventType.startsWith("handoff.")) {
+            return "AGENT_HANDOFF";
+        }
+        if (eventType.startsWith("skill.")) {
+            return "SKILL_LOAD";
+        }
+        return "AI_AGENT_EXECUTION";
+    }
+
+    private void copyObject(JsonNode node, Map<String, Object> target) {
+        if (node == null || !node.isObject()) {
+            return;
+        }
+        node.fields().forEachRemaining(entry -> target.put(entry.getKey(), simpleValue(entry.getValue())));
+    }
+
+    private void copyIfPresent(JsonNode source, Map<String, Object> target, String... fields) {
+        if (source == null) {
+            return;
+        }
+        for (String field : fields) {
+            JsonNode value = source.get(field);
+            if (value != null && !value.isNull()) {
+                target.put(field, simpleValue(value));
+            }
+        }
+    }
+
+    private Instant parseInstant(String value) {
+        if (!StringUtils.hasText(value)) {
+            return Instant.now();
+        }
+        try {
+            return Instant.parse(value);
+        } catch (DateTimeParseException ignored) {
+            return Instant.now();
+        }
+    }
+
+    private Integer nullableInt(JsonNode node) {
+        return node == null || node.isNull() ? null : node.asInt();
     }
 
     private ChatResponse toChatResponse(JsonNode node) {
@@ -295,7 +554,7 @@ public class AiAgentProvider implements AiChatService {
             return node.asDouble();
         }
         if (node.isObject() || node.isArray()) {
-            return node;
+            return objectMapper.convertValue(node, Object.class);
         }
         return node.asText();
     }

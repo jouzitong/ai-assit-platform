@@ -4,6 +4,6 @@ version = "0.1.0"
 description = "Python runtime for the ai-provider-ai-agent module"
 requires-python = ">=3.11"
 dependencies = [
-  "openai-agents",
-  "quickjs",
+  "openai-agents==0.18.2",
+  "quickjs==1.19.4",
 ]

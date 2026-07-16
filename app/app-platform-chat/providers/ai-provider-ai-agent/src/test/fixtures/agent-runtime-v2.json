@@ -1,0 +1,136 @@
+{
+  "protocolVersion": "2.0",
+  "snapshotHash": "sha256:fixture",
+  "run": {
+    "runId": "run-fixture-1",
+    "requestId": "request-fixture-1",
+    "traceId": "trace-fixture-1",
+    "sessionCode": "session-fixture-1",
+    "roundCode": "round-fixture-1",
+    "input": "Review the requirement and return a checked result.",
+    "maxTurns": 9
+  },
+  "model": "gpt-test",
+  "messages": [
+    {
+      "role": "user",
+      "content": "Draft an initial requirement."
+    },
+    {
+      "role": "assistant",
+      "content": "The initial requirement needs an explicit acceptance criterion."
+    },
+    {
+      "role": "user",
+      "content": "Review the requirement and return a checked result."
+    }
+  ],
+  "rootAgent": {
+    "metadata": {
+      "code": "requirement-manager",
+      "version": 2,
+      "name": "Requirement Manager",
+      "description": "Owns the requirement analysis task."
+    },
+    "spec": {
+      "instructions": {
+        "type": "inline",
+        "text": "Analyze requirements and delegate independent review work."
+      },
+      "model": {
+        "ref": "model://primary",
+        "settings": {
+          "temperature": 0.2
+        }
+      },
+      "toolRefs": [
+        {
+          "ref": "tool://render-validator",
+          "required": true
+        }
+      ],
+      "skillRefs": [
+        {
+          "ref": "skill://product-analysis/v3",
+          "contentHash": "sha256:skill",
+          "required": true
+        }
+      ],
+      "collaboration": {
+        "agentTools": [
+          {
+            "targetAgentRef": "agent://requirement-reviewer/v1",
+            "toolName": "ask_requirement_reviewer",
+            "description": "Ask the reviewer for an independent critique."
+          }
+        ],
+        "handoffs": [
+          {
+            "targetAgentRef": "agent://requirement-reviewer/v1",
+            "description": "Transfer ownership when the reviewer must finish the response."
+          }
+        ]
+      },
+      "runtimeDefaults": {
+        "maxTurns": 12,
+        "maxAgentDepth": 4
+      }
+    }
+  },
+  "agentGraph": [
+    {
+      "metadata": {
+        "code": "requirement-reviewer",
+        "version": 1,
+        "name": "Requirement Reviewer",
+        "description": "Checks requirement completeness."
+      },
+      "spec": {
+        "instructions": "Check completeness and identify concrete gaps.",
+        "model": {
+          "ref": "model://primary"
+        },
+        "toolRefs": [],
+        "skillRefs": [],
+        "collaboration": {
+          "agentTools": [],
+          "handoffs": []
+        }
+      }
+    }
+  ],
+  "resolvedCapabilities": {
+    "tools": [
+      {
+        "ref": "tool://render-validator",
+        "code": "render-validator",
+        "name": "Render Validator",
+        "binding": {
+          "runtimeName": "render_json_validate_tool"
+        }
+      }
+    ],
+    "skills": [
+      {
+        "ref": "skill://product-analysis/v3",
+        "name": "product-analysis",
+        "description": "Analyze a product requirement and its acceptance criteria.",
+        "contentHash": "sha256:skill",
+        "files": {
+          "SKILL.md": "# Product analysis\nUse the template only after reading this instruction.",
+          "templates/checklist.md": "- Goal\n- Scope\n- Acceptance criteria"
+        }
+      }
+    ]
+  },
+  "workflowSnapshot": {
+    "workflowCode": "requirement-check",
+    "requiredArtifacts": [
+      "requirement-analysis"
+    ],
+    "checks": [
+      "has-goal",
+      "has-acceptance-criteria"
+    ]
+  }
+}

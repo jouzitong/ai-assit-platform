@@ -24,11 +24,26 @@ public class ChatTransportRequest {
 
     private String roundCode;
 
+    /** Legacy wire alias. New clients must use modelOverrideId. */
+    @Deprecated
     private Long modelId;
+
+    /** Optional development-only model override. Formal routing is Agent-first. */
+    private Long modelOverrideId;
+
+    /** Optional Agent target; omitted requests resolve the HOME_CHAT entry binding. */
+    private Target target;
 
     private Message message;
 
     private Map<String, Object> clientContext = new LinkedHashMap<>();
+
+    @Data
+    public static class Target {
+        private String type = "AGENT";
+        private String agentCode;
+        private Integer agentVersion;
+    }
 
     @Data
     public static class Message {

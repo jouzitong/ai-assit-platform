@@ -1,6 +1,7 @@
 package ai.platform.aiassit.conversation.dto.conversation;
 
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import lombok.Data;
@@ -16,6 +17,9 @@ public class ConversationRoundDetailVO {
     private List<AiChatMessageDTO> messages = new ArrayList<>();
 
     private List<AiChatArtifactDTO> artifacts = new ArrayList<>();
+
+    /** Persisted Agent/tool/handoff/check activity timeline for history replay. */
+    private List<AiChatActivityDTO> activities = new ArrayList<>();
 
     /**
      * TODO: 后续在这里补充 artifact -> renderer 的聚合结果，

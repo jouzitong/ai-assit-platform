@@ -1,5 +1,7 @@
 package ai.platform.aiassit.execution.service;
 
+import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
+import ai.platform.aiassit.model.service.AiModelConfigService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.AiTextGenerationRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiTextGenerationResponse;
@@ -8,6 +10,7 @@ import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassit.service.ai.api.dto.ChatResponse;
 import ai.platform.aiassit.service.ai.api.dto.OutputItem;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
+import ai.platform.aiassit.service.ai.api.enums.AiChatClientType;
 import org.arthena.framework.common.exception.BizException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,9 +32,12 @@ public class AiTextGenerationService {
     private static final double DEFAULT_TEMPERATURE = 0.2D;
 
     private final AiExecutionDomainService executionDomainService;
+    private final AiModelConfigService modelConfigService;
 
-    public AiTextGenerationService(AiExecutionDomainService executionDomainService) {
+    public AiTextGenerationService(AiExecutionDomainService executionDomainService,
+                                   AiModelConfigService modelConfigService) {
         this.executionDomainService = executionDomainService;
+        this.modelConfigService = modelConfigService;
     }
 
     public AiTextGenerationResponse generate(AiTextGenerationRequest request) {
@@ -52,6 +58,12 @@ public class AiTextGenerationService {
         String scene = resolveScene(request);
         String logScene = safeScene(scene);
         String modelCode = request.getModelCode().trim();
+        AiModelConfigDTO modelConfig = modelConfigService.getByModelCode(modelCode);
+        if (modelConfig == null || !Boolean.TRUE.equals(modelConfig.getEnabled())
+                || modelConfig.getClientType() != AiChatClientType.SPRING_AI) {
+            LOGGER.warn("内部文本生成拒绝非 Spring AI 模型, scene={}, modelCode={}", logScene, modelCode);
+            throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, modelCode);
+        }
         int maxTokens = resolveMaxTokens(request.getMaxTokens());
         double temperature = resolveTemperature(request.getTemperature());
         LOGGER.info("开始执行内部文本生成, scene={}, modelCode={}, hasSystemPrompt={}, systemPromptLength={}, userPromptLength={}, maxTokens={}, temperature={}",
@@ -64,6 +76,7 @@ public class AiTextGenerationService {
                 temperature);
 
         ChatRequest chatRequest = new ChatRequest();
+        chatRequest.setClientType(AiChatClientType.SPRING_AI);
         chatRequest.setModelCode(modelCode);
         chatRequest.setMessages(messages(request));
         chatRequest.getOptions().setTemperature(temperature);

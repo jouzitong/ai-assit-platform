@@ -11,8 +11,6 @@ export interface BrowserAgentModel {
   modelName?: string
   apiModel: string
   clientType?: number
-  baseUrl?: string
-  apiKey?: string
 }
 
 export interface AgentPageActionDefinition {
@@ -138,12 +136,4 @@ export interface AiAssistantMessage {
   createdAt: string
   status: 'complete' | 'pending' | 'error' | 'cancelled'
   activities?: AiAssistantActivity[]
-}
-
-export interface RunBrowserPageAgentInput {
-  model: BrowserAgentModel
-  prompt: string
-  history: AiAssistantMessage[]
-  signal?: AbortSignal
-  onActivity?: (activity: AgentActivityUpdate) => void
 }

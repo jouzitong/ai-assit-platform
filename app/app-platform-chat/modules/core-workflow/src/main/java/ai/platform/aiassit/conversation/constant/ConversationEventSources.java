@@ -16,38 +16,7 @@ public final class ConversationEventSources {
      */
     public static final String CONVERSATION = "CONVERSATION";
 
-    /**
-     * 工作流执行事件来源。
-     */
-    public static final String WORKFLOW = "WORKFLOW";
+    /** Server-side Agent runtime and its normalized collaboration events. */
+    public static final String AI_AGENT = "AI_AGENT";
 
-    /**
-     * 聊天消息事件来源。
-     */
-    public static final String CHAT_MESSAGE = "CHAT_MESSAGE";
-
-    /**
-     * 意图分析事件来源。
-     */
-    public static final String INTENT_ANALYZE = "INTENT_ANALYZE";
-
-    /**
-     * 查询计划事件来源。
-     */
-    public static final String QUERY_PLAN = "QUERY_PLAN";
-
-    /**
-     * 简单聊天事件来源。
-     */
-    public static final String SIMPLE_CHAT = "SIMPLE_CHAT";
-
-    /**
-     * 页面渲染事件来源。
-     */
-    public static final String RENDER = "RENDER";
-
-    /**
-     * 结果评估事件来源。
-     */
-    public static final String EVALUATION = "EVALUATION";
 }

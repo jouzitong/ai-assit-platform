@@ -9,6 +9,7 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 import java.util.UUID;
+import java.util.Set;
 
 @Component
 public class ConversationRequestContextResolver {
@@ -37,5 +38,25 @@ public class ConversationRequestContextResolver {
 
     public String newTraceId() {
         return UUID.randomUUID().toString().replace("-", "");
+    }
+
+    /** Model routing is Agent-owned; only administrators or an explicit permission may override it. */
+    public boolean canOverrideModel() {
+        UserContext userContext = SystemContext.getUserContext();
+        if (userContext == null || userContext.authorization() == null) {
+            return false;
+        }
+        Set<String> roles = userContext.authorization().roles();
+        if (containsIgnoreCase(roles, "admin")) {
+            return true;
+        }
+        Set<String> permissions = userContext.authorization().permissions();
+        return containsIgnoreCase(permissions, "ai:chat:model-override")
+                || containsIgnoreCase(permissions, "ai:agent:debug");
+    }
+
+    private boolean containsIgnoreCase(Set<String> values, String expected) {
+        return values != null && values.stream()
+                .anyMatch(value -> value != null && value.equalsIgnoreCase(expected));
     }
 }

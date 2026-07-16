@@ -1,0 +1,15 @@
+{
+  "artifacts": [
+    {
+      "code": "render-document",
+      "type": "RENDER_JSON",
+      "format": "JSON",
+      "content": {
+        "component": "Text",
+        "props": {
+          "value": "Checked requirement"
+        }
+      }
+    }
+  ]
+}

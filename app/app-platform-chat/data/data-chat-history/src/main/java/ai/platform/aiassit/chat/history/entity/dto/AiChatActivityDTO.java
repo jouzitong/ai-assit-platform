@@ -12,7 +12,7 @@ public class AiChatActivityDTO extends AuditableDTO {
     private String sessionCode;
     private String roundCode;
     private Long userId;
-    private String nodeCode;
+    private String agentCode;
     private String correlationCode;
     private String activityType;
     private String activityName;

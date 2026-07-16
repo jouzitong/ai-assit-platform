@@ -1433,12 +1433,12 @@
   cursor: pointer;
 }
 
-.chat-home-thinking-task-nodes {
+.chat-home-thinking-agents {
   padding: 14px 22px 16px;
   border-bottom: 1px solid var(--chat-followup-border);
 }
 
-.chat-home-thinking-task-nodes__title {
+.chat-home-thinking-agents__title {
   display: flex;
   align-items: center;
   gap: 10px;
@@ -1448,7 +1448,7 @@
   font-weight: 700;
 }
 
-.chat-home-thinking-task-nodes__title strong {
+.chat-home-thinking-agents__title strong {
   display: inline-flex;
   align-items: center;
   min-height: 22px;
@@ -1461,12 +1461,12 @@
   font-weight: 700;
 }
 
-.chat-home-thinking-task-nodes__grid {
+.chat-home-thinking-agents__grid {
   display: flex;
   flex-direction: column;
 }
 
-.chat-home-thinking-task-node {
+.chat-home-thinking-agent {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);
   gap: 8px;
@@ -1477,11 +1477,11 @@
   background: transparent;
 }
 
-.chat-home-thinking-task-node:last-child {
+.chat-home-thinking-agent:last-child {
   border-bottom: none;
 }
 
-.chat-home-thinking-task-node__status {
+.chat-home-thinking-agent__status {
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -1491,14 +1491,14 @@
   background: var(--chat-text-subtle);
 }
 
-.chat-home-thinking-task-node__copy {
+.chat-home-thinking-agent__copy {
   display: flex;
   align-items: baseline;
   gap: 8px;
   min-width: 0;
 }
 
-.chat-home-thinking-task-node__copy strong {
+.chat-home-thinking-agent__copy strong {
   display: inline-flex;
   flex: none;
   align-items: baseline;
@@ -1508,13 +1508,13 @@
   font-weight: 700;
 }
 
-.chat-home-thinking-task-node__copy strong span {
+.chat-home-thinking-agent__copy strong span {
   color: var(--chat-text-subtle);
   font-size: 11px;
   font-weight: 600;
 }
 
-.chat-home-thinking-task-node__copy p {
+.chat-home-thinking-agent__copy p {
   overflow: hidden;
   min-width: 0;
   margin: 0;
@@ -1525,31 +1525,31 @@
   white-space: nowrap;
 }
 
-.chat-home-thinking-task-node.is-done .chat-home-thinking-task-node__status {
+.chat-home-thinking-agent.is-done .chat-home-thinking-agent__status {
   background: var(--chat-status-online);
   color: var(--chat-shell-bg);
 }
 
-.chat-home-thinking-task-node.is-done .chat-home-thinking-task-node__status::before {
+.chat-home-thinking-agent.is-done .chat-home-thinking-agent__status::before {
   color: var(--chat-shell-bg);
   font-size: 10px;
   line-height: 1;
   content: '✓';
 }
 
-.chat-home-thinking-task-node.is-running .chat-home-thinking-task-node__status {
+.chat-home-thinking-agent.is-running .chat-home-thinking-agent__status {
   border: 2px solid rgba(59, 130, 246, 0.28);
   border-top-color: #3b82f6;
   background: transparent;
-  animation: chat-thinking-node-spin 0.9s linear infinite;
+  animation: chat-thinking-agent-spin 0.9s linear infinite;
 }
 
-.chat-home-thinking-task-node.is-pending .chat-home-thinking-task-node__status {
+.chat-home-thinking-agent.is-pending .chat-home-thinking-agent__status {
   background: var(--chat-text-subtle);
   opacity: 0.75;
 }
 
-@keyframes chat-thinking-node-spin {
+@keyframes chat-thinking-agent-spin {
   to {
     transform: rotate(360deg);
   }

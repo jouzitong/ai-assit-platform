@@ -80,7 +80,7 @@ public class AiChatMessageEntity extends LogicalDeleteEntity {
     private String role;
 
     /**
-     * 消息参与者类型，用于区分真实用户、AI、系统流程、工具节点等来源。
+     * 消息参与者类型，用于区分真实用户、Agent、系统流程、工具等来源。
      */
     @JdbcColumn(
             name = "actor_type",

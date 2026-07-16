@@ -55,7 +55,8 @@ public class ChatTransportProtocolController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter stream(@PathVariable String sessionCode, @RequestBody ChatTransportRequest request) {
         ConversationQueryCommand command = commandFactory.fromProtocol(
-                request, sessionCode, contextResolver.currentUserId(), contextResolver.traceId());
+                request, sessionCode, contextResolver.currentUserId(), contextResolver.traceId(),
+                contextResolver.canOverrideModel());
         return sseTransport.start(command);
     }
 
@@ -64,7 +65,8 @@ public class ChatTransportProtocolController {
             produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter streamNewSession(@RequestBody ChatTransportRequest request) {
         ConversationQueryCommand command = commandFactory.fromProtocol(
-                request, null, contextResolver.currentUserId(), contextResolver.traceId());
+                request, null, contextResolver.currentUserId(), contextResolver.traceId(),
+                contextResolver.canOverrideModel());
         return sseTransport.start(command);
     }
 

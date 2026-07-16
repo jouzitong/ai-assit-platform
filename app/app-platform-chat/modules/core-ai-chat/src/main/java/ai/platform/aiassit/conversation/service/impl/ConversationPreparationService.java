@@ -12,9 +12,8 @@ import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
 import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
-import ai.platform.aiassit.conversation.workflow.context.WorkflowNodeCodes;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
-import ai.platform.aiassit.conversation.workflow.support.WorkflowHistoryRecorder;
+import ai.platform.aiassit.conversation.workflow.support.AgentConversationHistoryRecorder;
 import ai.platform.aiassit.chat.history.enums.AiChatActorType;
 import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
 import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
@@ -41,29 +40,24 @@ public class ConversationPreparationService {
     private final AiChatMessageService messageService;
     private final AiChatArtifactService artifactService;
     private final AiChatRoundService roundService;
-    private final WorkflowHistoryRecorder historyRecorder;
-    private final ConversationIntentRouteService intentRouteService;
+    private final AgentConversationHistoryRecorder historyRecorder;
 
     public ConversationPreparationService(AiChatSessionService sessionService,
                                                 AiChatMessageService messageService,
                                                 AiChatArtifactService artifactService,
                                                 AiChatRoundService roundService,
-                                                WorkflowHistoryRecorder historyRecorder,
-                                                ConversationIntentRouteService intentRouteService) {
+                                                AgentConversationHistoryRecorder historyRecorder) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.artifactService = artifactService;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
-        this.intentRouteService = intentRouteService;
     }
 
     public void prepare(ConversationRuntimeContext context) {
         log.info("开始准备对话流上下文，context={}", context);
         prepareConversationRuntimeContext(context);
         log.info("会话与轮次准备完成，context={}", context);
-        intentRouteService.route(context);
-        log.info("对话流上下文路由完成，context={}", context);
     }
 
     private void prepareConversationRuntimeContext(ConversationRuntimeContext context) {
@@ -119,9 +113,6 @@ public class ConversationPreparationService {
         );
         context.getOrCreateUserMessageContext().setCurrentMessage(userMessage);
         context.refreshUserMessageContext();
-        context.getOrCreateNodeResult(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode()).setStatus(STATUS_SUCCESS);
-        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "session", session);
-        context.putNodeOutput(WorkflowNodeCodes.CHAT_MESSAGE.getNodeCode(), "currentMessage", userMessage);
         log.info("用户消息已写入当前对话轮次，context={}", context);
     }
 
@@ -197,9 +188,9 @@ public class ConversationPreparationService {
     private AiChatRoundType resolveRoundType(ConversationQueryCommand command) {
         String explicitRoundType = readExtText(command, "roundType");
         if (explicitRoundType != null) {
-            return AiChatRoundType.fromIntentType(explicitRoundType);
+            return AiChatRoundType.fromName(explicitRoundType);
         }
-        return AiChatRoundType.QUERY_RENDER;
+        return AiChatRoundType.AGENT_CHAT;
     }
 
     private String readExtText(ConversationQueryCommand command, String key) {

@@ -38,7 +38,7 @@ public class AiChatRoundEntity extends LogicalDeleteEntity {
     private String roundCode;
 
     /**
-     * 轮次类型，用于区分普通问答、重试、追问、工具执行、流程节点执行等不同轮次场景。
+     * 轮次类型，用于区分普通问答、重试、追问、Agent 协作和工具执行等不同轮次场景。
      */
     @JdbcColumn(
             name = "round_type",
@@ -114,6 +114,36 @@ public class AiChatRoundEntity extends LogicalDeleteEntity {
     )
     @TableField("actual_model")
     private String actualModel;
+
+    @JdbcColumn(name = "agent_run_id", dataType = "VARCHAR(64)", length = 64, nullable = true,
+            comment = "Agent运行ID")
+    @TableField("agent_run_id")
+    private String agentRunId;
+
+    @JdbcColumn(name = "root_agent_code", dataType = "VARCHAR(64)", length = 64, nullable = true,
+            comment = "根Agent编码")
+    @TableField("root_agent_code")
+    private String rootAgentCode;
+
+    @JdbcColumn(name = "root_agent_version", dataType = "INT", nullable = true,
+            comment = "根Agent版本")
+    @TableField("root_agent_version")
+    private Integer rootAgentVersion;
+
+    @JdbcColumn(name = "agent_runtime_type", dataType = "VARCHAR(32)", length = 32, nullable = true,
+            comment = "Agent运行时类型")
+    @TableField("agent_runtime_type")
+    private String agentRuntimeType;
+
+    @JdbcColumn(name = "agent_sdk_version", dataType = "VARCHAR(64)", length = 64, nullable = true,
+            comment = "Agent SDK版本")
+    @TableField("agent_sdk_version")
+    private String agentSdkVersion;
+
+    @JdbcColumn(name = "agent_snapshot_hash", dataType = "VARCHAR(80)", length = 80, nullable = true,
+            comment = "Agent快照哈希")
+    @TableField("agent_snapshot_hash")
+    private String agentSnapshotHash;
 
     /**
      * 轮次状态，例如处理中、成功、失败、取消。

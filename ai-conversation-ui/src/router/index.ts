@@ -32,6 +32,30 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../modules/system/views/SystemParamAddView.vue'),
       },
       {
+        path: 'system/workflow',
+        name: 'legacy-workflow-settings',
+        redirect: (to) => {
+          const legacyTab = Array.isArray(to.query.tab) ? to.query.tab[0] : to.query.tab
+          const sectionByTab: Record<string, string> = {
+            workflow: 'workflows',
+            node: 'agents',
+            skill: 'skills',
+            tool: 'tools',
+          }
+          const { tab: _tab, ...query } = to.query
+          return {
+            path: `/settings/system/${sectionByTab[legacyTab || 'workflow'] || 'workflows'}`,
+            query: legacyTab === 'node' ? { ...query, source: 'legacy-node' } : query,
+          }
+        },
+      },
+      {
+        path: 'system/:section(agents|workflows|skills|tools)/:sourceKey?',
+        name: 'agent-management-settings',
+        meta: { title: 'Agent 与能力管理' },
+        component: () => import('../modules/system/views/SystemSettingsView.vue'),
+      },
+      {
         path: 'system/:section?/:sourceKey?',
         name: 'system-settings',
         meta: { title: '系统设置' },

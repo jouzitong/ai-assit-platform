@@ -72,7 +72,7 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private void start(WebSocketSession session, ChatTransportRequest request) throws IOException {
         ConversationQueryCommand command = commandFactory.fromProtocol(
-                request, null, userId(session), contextResolver.newTraceId());
+                request, null, userId(session), contextResolver.newTraceId(), contextResolver.canOverrideModel());
         ConversationRunSnapshot run = runManager.start(command);
         subscribe(session, run.runId(), null);
     }

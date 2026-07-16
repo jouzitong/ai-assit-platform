@@ -2,7 +2,14 @@
 import { ArrowLeftBold, ArrowRightBold, Coin, Connection, Cpu, DataAnalysis, Grid, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import AgentAssistantHost from '../../ai-assistant/components/AgentAssistantHost.vue'
+import AgentEditorView from '../agent-management/views/AgentEditorView.vue'
+import AgentListView from '../agent-management/views/AgentListView.vue'
+import SkillEditorView from '../agent-management/views/SkillEditorView.vue'
+import SkillListView from '../agent-management/views/SkillListView.vue'
+import ToolEditorView from '../agent-management/views/ToolEditorView.vue'
+import ToolListView from '../agent-management/views/ToolListView.vue'
+import WorkflowEditorView from '../agent-management/views/WorkflowEditorView.vue'
+import WorkflowListView from '../agent-management/views/WorkflowListView.vue'
 import SystemSettingsSidebar from '../components/SystemSettingsSidebar.vue'
 import AiPlatformSection from '../components/sections/AiPlatformSection.vue'
 import AiModelManagementSection from '../components/sections/AiModelManagementSection.vue'
@@ -14,7 +21,6 @@ import KbDocumentManageSection from '../components/sections/KbDocumentManageSect
 import MetadataConfigSection from '../components/sections/MetadataConfigSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
 import UserManagementSection from '../components/sections/UserManagementSection.vue'
-import WorkflowSection from '../components/sections/WorkflowSection.vue'
 import VirtualTableManagement from '../virtual-table/index.vue'
 
 type SettingsSection = {
@@ -124,12 +130,45 @@ const sections: SettingsSection[] = [
     ],
   },
   {
-    key: 'workflow',
-    label: '智能体配置',
+    key: 'agent-runtime',
+    label: 'Agent 与能力',
     icon: Share,
-    title: '流程配置',
-    description: '配置工作流节点、执行链路和流程编排策略。',
-    component: WorkflowSection,
+    title: 'Agent 与能力管理',
+    description: '统一管理 Agent、产物流程、Skill 与 Tool。',
+    children: [
+      {
+        key: 'agents',
+        label: 'Agent 管理',
+        icon: Cpu,
+        title: 'Agent 管理',
+        description: '配置可版本化、可协作并可绑定 Skill 与 Tool 的 Agent。',
+        component: AgentListView,
+      },
+      {
+        key: 'workflows',
+        label: '产物流程',
+        icon: Share,
+        title: '产物流程',
+        description: '定义产物契约、检查规则和完成标准，由 Agent 自主协作完成任务。',
+        component: WorkflowListView,
+      },
+      {
+        key: 'skills',
+        label: 'Skill 管理',
+        icon: Tickets,
+        title: 'Skill 管理',
+        description: '管理表单 Skill 与通用 Skill 压缩包。',
+        component: SkillListView,
+      },
+      {
+        key: 'tools',
+        label: 'Tool 管理',
+        icon: Connection,
+        title: 'Tool 管理',
+        description: '管理工具契约、权限策略与不同运行时绑定。',
+        component: ToolListView,
+      },
+    ],
   },
 ]
 
@@ -154,6 +193,19 @@ const activeSection = computed(() => {
 const hasDataSourceDetail = computed(() => routeSection.value === 'data-source' && routeSourceKey.value.trim().length > 0)
 const hasAiPlatformKbDetail = computed(() => isAiPlatformSection.value && !['model', 'kb'].includes(routeSourceKey.value) && routeSourceKey.value.trim().length > 0)
 const currentSection = computed(() => navigableSections.value.find(item => item.key === routeSection.value) || navigableSections.value[0])
+const managementEditors: Record<string, unknown> = {
+  agents: AgentEditorView,
+  workflows: WorkflowEditorView,
+  skills: SkillEditorView,
+  tools: ToolEditorView,
+}
+const currentContentComponent = computed(() => {
+  const editor = managementEditors[routeSection.value]
+  if (editor && routeSourceKey.value) {
+    return editor
+  }
+  return currentSection.value.component
+})
 
 async function navigateToSection(sectionKey: string) {
   if (activeSection.value === sectionKey) {
@@ -179,6 +231,21 @@ function toggleSidebar() {
 }
 
 onMounted(() => {
+  const legacyTab = Array.isArray(route.query.tab) ? route.query.tab[0] : route.query.tab
+  const legacySectionByTab: Record<string, string> = {
+    workflow: 'workflows',
+    node: 'agents',
+    skill: 'skills',
+    tool: 'tools',
+  }
+  if (!routeSection.value && legacyTab && legacySectionByTab[legacyTab]) {
+    const { tab: _tab, ...query } = route.query
+    void router.replace({
+      path: `/settings/system/${legacySectionByTab[legacyTab]}`,
+      query: legacyTab === 'node' ? { ...query, source: 'legacy-node' } : query,
+    })
+    return
+  }
   if (!isAiPlatformSection.value && !navigableSections.value.some(item => item.key === routeSection.value)) {
     void router.replace(`/settings/system/${navigableSections.value[0].key}`)
     return
@@ -230,10 +297,12 @@ onMounted(() => {
       <KbDocumentManageSection v-else-if="hasAiPlatformKbDetail" />
       <AiModelManagementSection v-else-if="isAiPlatformSection && aiPlatformTab === 'model'" />
       <AiPlatformSection v-else-if="isAiPlatformSection" :active-tab="aiPlatformTab" />
-      <component v-else :is="currentSection.component" />
+      <component
+        v-else
+        :is="currentContentComponent"
+        :key="`${routeSection}:${routeSourceKey}`"
+      />
     </main>
-
-    <AgentAssistantHost />
   </div>
 </template>
 

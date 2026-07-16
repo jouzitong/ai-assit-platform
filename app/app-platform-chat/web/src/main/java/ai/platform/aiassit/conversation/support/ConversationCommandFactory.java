@@ -26,21 +26,54 @@ public class ConversationCommandFactory {
     }
 
     public ConversationQueryCommand fromLegacy(ConversationQueryRequest request, Long userId, String traceId) {
+        return fromLegacy(request, userId, traceId, false);
+    }
+
+    public ConversationQueryCommand fromLegacy(ConversationQueryRequest request,
+                                                Long userId,
+                                                String traceId,
+                                                boolean allowModelOverride) {
         ConversationQueryCommand command = base(userId, traceId);
         command.setSessionCode(request == null ? null : request.getSessionCode());
-        applyModel(command, request == null ? null : request.getModelId());
+        applyModel(command, request == null ? null : request.getModelId(), allowModelOverride);
+        command.setAgentEntryCode("HOME_CHAT");
         command.setMessage(request == null ? null : request.getMessage());
         command.setAttachments(request == null || request.getAttachments() == null ? List.of() : request.getAttachments());
         command.setTools(request == null || request.getTools() == null ? List.of() : request.getTools());
-        command.setExt(request == null || request.getExt() == null ? Map.of() : request.getExt());
+        Map<String, Object> ext = new LinkedHashMap<>(
+                request == null || request.getExt() == null ? Map.of() : request.getExt());
+        ext.put("allowModelOverride", allowModelOverride);
+        command.setExt(ext);
         command.setSessionName(resolveSessionName(command.getMessage()));
         return command;
+    }
+
+    private void applyAgentTarget(ConversationQueryCommand command, ChatTransportRequest.Target target) {
+        command.setAgentEntryCode("HOME_CHAT");
+        if (target == null) {
+            return;
+        }
+        if (StringUtils.hasText(target.getType()) && !"AGENT".equalsIgnoreCase(target.getType().trim())) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
+        }
+        if (StringUtils.hasText(target.getAgentCode())) {
+            command.setAgentCode(target.getAgentCode().trim());
+            command.setAgentVersion(target.getAgentVersion());
+        }
     }
 
     public ConversationQueryCommand fromProtocol(ChatTransportRequest request,
                                                  String pathSessionCode,
                                                  Long userId,
                                                  String fallbackTraceId) {
+        return fromProtocol(request, pathSessionCode, userId, fallbackTraceId, false);
+    }
+
+    public ConversationQueryCommand fromProtocol(ChatTransportRequest request,
+                                                  String pathSessionCode,
+                                                  Long userId,
+                                                  String fallbackTraceId,
+                                                  boolean allowModelOverride) {
         ConversationQueryCommand command = base(userId,
                 request != null && StringUtils.hasText(request.getRequestId())
                         ? request.getRequestId()
@@ -49,7 +82,11 @@ public class ConversationCommandFactory {
                 ? pathSessionCode
                 : request == null ? null : request.getSessionCode());
         command.setRoundCode(request == null ? null : request.getRoundCode());
-        applyModel(command, request == null ? null : request.getModelId());
+        Long modelOverrideId = request == null ? null : request.getModelOverrideId();
+        applyModel(command,
+                modelOverrideId == null && request != null ? request.getModelId() : modelOverrideId,
+                allowModelOverride);
+        applyAgentTarget(command, request == null ? null : request.getTarget());
         command.setMessage(request == null || request.getMessage() == null ? null : request.getMessage().text());
         Map<String, Object> ext = new LinkedHashMap<>();
         if (request != null && request.getClientContext() != null) {
@@ -59,15 +96,20 @@ public class ConversationCommandFactory {
             ext.put("clientMessageId", request.getMessage().getId());
             ext.put("clientMessageCreatedAt", request.getMessage().getCreatedAt());
         }
+        ext.put("allowModelOverride", allowModelOverride);
         command.setExt(ext);
         command.setSessionName(resolveSessionName(command.getMessage()));
         return command;
     }
 
-    private void applyModel(ConversationQueryCommand command, Long modelId) {
+    private void applyModel(ConversationQueryCommand command, Long modelId, boolean allowModelOverride) {
         command.setModelId(modelId);
         if (modelId == null) {
             return;
+        }
+        if (!allowModelOverride) {
+            throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
+                    "Model override is not permitted for this Agent conversation");
         }
         AiModelConfigDTO config = modelConfigService.getResolvedById(modelId);
         if (config == null || !Boolean.TRUE.equals(config.getEnabled()) || !StringUtils.hasText(config.getModelCode())) {

@@ -5,7 +5,6 @@ import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.dto.ChatRequest;
 import ai.platform.aiassit.service.ai.api.dto.EmbedRequest;
 import ai.platform.aiassit.service.ai.api.dto.HybridSearchRequest;
-import ai.platform.aiassit.service.ai.api.dto.IntentAnalyzeRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.KbSearchRequest;
@@ -102,19 +101,6 @@ public class AiRequestValidator {
         }
         if (request.getTopK() != null && request.getTopK() <= 0) {
             throw BizException.illegalParam(ParamBizCodeConstant.INVALID_TOP_K);
-        }
-    }
-
-    public void validateIntentAnalyze(IntentAnalyzeRequest request) {
-        if (request == null || !StringUtils.hasText(request.getQuery())) {
-            throw BizException.illegalParam(ParamBizCodeConstant.REQUIRED_QUERY_OR_CANDIDATES);
-        }
-        if (!CollectionUtils.isEmpty(request.getHistory())) {
-            for (ChatMessage message : request.getHistory()) {
-                if (message == null || message.getRole() == null || !StringUtils.hasText(message.getContent())) {
-                    throw BizException.illegalParam(ParamBizCodeConstant.INVALID_MESSAGES_ITEM);
-                }
-            }
         }
     }
 

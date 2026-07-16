@@ -7,6 +7,7 @@ import type {
   ChatConversationPinPayload,
   ChatConversationQueryPayload,
   ChatConversationRenamePayload,
+  ChatAvailableAgent,
   ChatEnabledModel,
   ChatQueryPayload,
   ChatRoundThinkingDetail,
@@ -60,6 +61,12 @@ export function fetchConversationDetail(payload: ChatConversationDetailPayload) 
 
 export function fetchEnabledModels() {
   return request<ChatEnabledModel[]>(`${CHAT_API_PREFIX}/api/v1/chat/models/enable`, {
+    method: 'GET',
+  })
+}
+
+export function fetchAvailableHomeAgents() {
+  return request<ChatAvailableAgent[]>(`${CHAT_API_PREFIX}/api/v1/ai/agent-entries/HOME_CHAT/available-agents`, {
     method: 'GET',
   })
 }
@@ -215,7 +222,8 @@ export function createChatTransportRequest(payload: ChatQueryPayload, route: str
     type: 'chat.user_message',
     requestId,
     sessionCode: payload.sessionCode,
-    modelId: payload.modelId,
+    target: payload.target,
+    modelOverrideId: payload.modelOverrideId,
     message: {
       id: `user-${requestId}`,
       role: 'user',

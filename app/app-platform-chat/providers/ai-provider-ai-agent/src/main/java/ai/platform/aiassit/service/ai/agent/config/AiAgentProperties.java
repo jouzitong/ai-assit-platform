@@ -31,8 +31,26 @@ public class AiAgentProperties {
     /** Python 执行工作目录，留空时使用应用当前目录 */
     private String workingDirectory = "";
 
+    /** Node.js 命令，用于 OPENAI_AGENTS_TYPESCRIPT runtime */
+    private String nodeCommand = "node";
+
+    /** 自定义 TypeScript worker bundle 路径 */
+    private String typescriptScriptPath = "";
+
+    /** TypeScript worker 执行工作目录，留空时复用应用当前目录 */
+    private String typescriptWorkingDirectory = "";
+
+    /** 仅用于部署探针和离线验证；启用后 worker 只编译 Snapshot，不请求模型 */
+    private boolean typescriptDryRun = false;
+
     /** Python tool 调用知识库搜索接口的完整地址 */
-    private String knowledgeSearchUrl = "http://127.0.0.1:13101/aiEngine/api/v1/ai/execution/kb/search";
+    private String knowledgeSearchUrl = "http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search";
+
+    /** Python/TypeScript 动态 Tool 调用 Java Tool Gateway 的服务基址 */
+    private String toolGatewayUrl = "http://127.0.0.1:9764/chat";
+
+    /** Python/TypeScript 按需读取已发布 Skill Resource 的 Java Gateway 服务基址 */
+    private String skillGatewayUrl = "http://127.0.0.1:9764/chat";
 
     /** 数据格式校验器默认 content type */
     private String validateContentType = "json";

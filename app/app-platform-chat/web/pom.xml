@@ -46,6 +46,10 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-chat-core-agent-runtime</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-core-conversation-runtime</artifactId>
         </dependency>
         <dependency>

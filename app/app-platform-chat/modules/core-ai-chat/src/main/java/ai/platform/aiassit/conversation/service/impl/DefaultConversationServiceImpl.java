@@ -10,12 +10,14 @@ import ai.platform.aiassit.conversation.dto.conversation.ConversationCreateReque
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDeleteRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDetailRequest;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
+import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
 import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
 import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
 import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
 import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
+import ai.platform.aiassit.chat.history.service.AiChatActivityService;
 import ai.platform.aiassit.chat.history.service.AiChatMessageService;
 import ai.platform.aiassit.chat.history.service.AiChatRoundService;
 import ai.platform.aiassit.chat.history.service.AiChatSessionService;
@@ -40,15 +42,18 @@ public class DefaultConversationServiceImpl implements ConversationService {
     private final AiChatRoundService roundService;
     private final AiChatMessageService messageService;
     private final AiChatArtifactService artifactService;
+    private final AiChatActivityService activityService;
 
     public DefaultConversationServiceImpl(AiChatSessionService sessionService,
                                          AiChatRoundService roundService,
                                          AiChatMessageService messageService,
-                                         AiChatArtifactService artifactService) {
+                                         AiChatArtifactService artifactService,
+                                         AiChatActivityService activityService) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
         this.artifactService = artifactService;
+        this.activityService = activityService;
     }
 
     @Override
@@ -71,13 +76,18 @@ public class DefaultConversationServiceImpl implements ConversationService {
         ConversationDetailResponse response = new ConversationDetailResponse();
         AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
         query.setSessionCode(request.getSessionCode());
-//        query.setCreatedBy(request.getUserId());
+        query.setUserId(request.getUserId());
 
-        response.setSession(sessionService.get(query));
+        AiChatSessionDTO session = sessionService.get(query);
+        if (session == null) {
+            throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
+        }
+        response.setSession(session);
         response.setRounds(buildRoundDetails(
                 roundService.queryAll(query),
                 messageService.queryAll(query),
-                artifactService.queryAll(query)
+                artifactService.queryAll(query),
+                activityService.queryAll(query)
         ));
         return response;
     }
@@ -151,6 +161,11 @@ public class DefaultConversationServiceImpl implements ConversationService {
                 artifactService.delete(artifact.getId());
             }
         });
+        activityService.queryAll(query).forEach(activity -> {
+            if (activity.getId() != null) {
+                activityService.delete(activity.getId());
+            }
+        });
         for (AiChatRoundDTO round : roundService.queryAll(query)) {
             if (round.getId() != null) {
                 roundService.delete(round.getId());
@@ -189,7 +204,8 @@ public class DefaultConversationServiceImpl implements ConversationService {
 
     private List<ConversationRoundDetailVO> buildRoundDetails(List<AiChatRoundDTO> rounds,
                                                                     List<AiChatMessageDTO> messages,
-                                                                    List<AiChatArtifactDTO> artifacts) {
+                                                                    List<AiChatArtifactDTO> artifacts,
+                                                                    List<AiChatActivityDTO> activities) {
         Map<String, ConversationRoundDetailVO> detailMap = new LinkedHashMap<>();
 
         rounds.stream()
@@ -213,6 +229,13 @@ public class DefaultConversationServiceImpl implements ConversationService {
                         .computeIfAbsent(artifact.getRoundCode(), key -> new ConversationRoundDetailVO())
                         .getArtifacts()
                         .add(artifact));
+
+        activities.stream()
+                .sorted(Comparator.comparing(AiChatActivityDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .forEach(activity -> detailMap
+                        .computeIfAbsent(activity.getRoundCode(), key -> new ConversationRoundDetailVO())
+                        .getActivities()
+                        .add(activity));
 
         return detailMap.values().stream()
                 .peek(this::markPendingRenderType)

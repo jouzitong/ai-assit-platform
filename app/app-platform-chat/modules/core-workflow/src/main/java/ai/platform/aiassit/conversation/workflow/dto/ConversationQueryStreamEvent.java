@@ -35,9 +35,9 @@ public class ConversationQueryStreamEvent {
      * 推荐取值：</p>
      *
      * <ul>
-     *     <li>PLAN：计划进度，声明本轮意图、工作流和计划执行节点。</li>
-     *     <li>NODE：节点进度，更新某个 workflow 节点的生命周期状态。</li>
-     *     <li>ACTIVITY：活动进度，更新某个节点内部具体活动的执行状态。</li>
+     *     <li>PLAN：计划进度，声明本轮目标、Artifact Workflow 和 Agent 协作计划。</li>
+     *     <li>AGENT：Agent 协作进度，更新某个 Agent 的生命周期状态。</li>
+     *     <li>ACTIVITY：活动进度，更新某个 Agent 内部具体活动的执行状态。</li>
      * </ul>
      */
     private String progressType;
@@ -45,8 +45,7 @@ public class ConversationQueryStreamEvent {
     /**
      * 事件来源。
      *
-     * <p>表示产生该事件的业务域、工作流节点或处理阶段，例如：
-     * CONVERSATION、WORKFLOW、INTENT_ANALYZE、QUERY_PLAN、SIMPLE_CHAT、RENDER、EVALUATION。</p>
+     * <p>表示产生该事件的业务域或 Agent Runtime，例如 CONVERSATION、AI_AGENT。</p>
      *
      * <p>前端不应只依赖 source 判断事件大类，一级分发仍应以 {@link #eventType} 为准。</p>
      */
@@ -105,8 +104,8 @@ public class ConversationQueryStreamEvent {
     /**
      * 当前事件状态。
      *
-     * <p>表示该事件对应对象的状态，例如 RUNNING、SUCCESS、FAILED。progressType=NODE 时表示节点状态，
-     * progressType=ACTIVITY 时表示节点内活动状态，complete 时表示整轮状态。</p>
+     * <p>表示该事件对应对象的状态，例如 RUNNING、SUCCESS、FAILED。progressType=AGENT 时表示 Agent 状态，
+     * progressType=ACTIVITY 时表示 Agent 内活动状态，complete 时表示整轮状态。</p>
      */
     private String status;
 
@@ -123,9 +122,8 @@ public class ConversationQueryStreamEvent {
      * <p>用于承载不同事件类型的结构化业务数据。常见内容包括：</p>
      *
      * <ul>
-     *     <li>progressType=PLAN：intent、workflow、nodes 等计划信息。</li>
-     *     <li>progressType=NODE：nodeCode、nodeName、order、durationMs、error 等节点信息。</li>
-     *     <li>progressType=ACTIVITY：nodeCode、activity、artifacts、usage、durationMs 等活动信息。</li>
+     *     <li>progressType=AGENT：agentCode、agentName、durationMs、error 等协作信息。</li>
+     *     <li>progressType=ACTIVITY：agentCode、activity、artifacts、usage、durationMs 等活动信息。</li>
      *     <li>eventType=answer：contentFormat、artifactType、renderPageCode 等回答产物信息。</li>
      * </ul>
      *
