@@ -5,7 +5,6 @@ import CatalogListView from '../components/CatalogListView.vue'
 import {
   deleteAgent,
   listAgentEntries,
-  listAgentOptions,
   listAgents,
   listHomeAvailableAgents,
   publishAgent,
@@ -28,26 +27,16 @@ async function loadHomeEntry() {
   entryLoading.value = true
   entryError.value = ''
   try {
-    const [entries, boundAgents, catalogResult] = await Promise.all([
+    const [entries, entryCandidates] = await Promise.all([
       listAgentEntries(),
       listHomeAvailableAgents(),
-      listAgentOptions(),
     ])
-    const catalogAgents = (Array.isArray(catalogResult) ? catalogResult : catalogResult.list || [])
-      .filter(agent => agent.enabled !== false && Number(agent.currentPublishedVersion || 0) > 0)
-      .map(agent => ({
-        code: agent.code,
-        name: agent.name,
-        description: agent.description,
-        version: agent.currentPublishedVersion,
-      }))
-    const merged = new Map<string, AvailableAgent>()
-    for (const agent of [...(Array.isArray(boundAgents) ? boundAgents : []), ...catalogAgents]) {
-      if (agent.code && !merged.has(agent.code)) merged.set(agent.code, agent)
-    }
-    availableAgents.value = [...merged.values()]
+    availableAgents.value = (Array.isArray(entryCandidates) ? entryCandidates : [])
+      .filter(agent => typeof agent.code === 'string' && agent.code.trim())
     const binding = (Array.isArray(entries) ? entries : []).find(item => item.entryCode === 'HOME_CHAT')
-    selectedAgentCode.value = binding?.agentCode || availableAgents.value[0]?.code || ''
+    selectedAgentCode.value = availableAgents.value.some(agent => agent.code === binding?.agentCode)
+      ? binding?.agentCode || ''
+      : availableAgents.value[0]?.code || ''
     versionStrategy.value = binding?.versionStrategy === 'PINNED' ? 'PINNED' : 'LATEST_PUBLISHED'
     pinnedVersion.value = binding?.pinnedVersion || selectedAgent.value?.version
   }
@@ -116,7 +105,7 @@ watch([selectedAgentCode, versionStrategy], ([, strategy]) => {
         <el-select
           v-model="selectedAgentCode"
           filterable
-          placeholder="选择已发布 Agent"
+          placeholder="选择可用于首页的 Agent"
           :disabled="entryLoading || entrySaving"
         >
           <el-option

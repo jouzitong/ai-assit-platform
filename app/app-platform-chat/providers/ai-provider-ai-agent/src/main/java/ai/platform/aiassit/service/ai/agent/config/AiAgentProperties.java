@@ -22,8 +22,8 @@ public class AiAgentProperties {
     /** 默认模型 */
     private String defaultModel = "gpt-5.5";
 
-    /** Python 命令 */
-    private String pythonCommand = "python3";
+    /** Python 命令；留空时优先使用 Worker 项目的 .venv，找不到再回退到 python3 */
+    private String pythonCommand = "";
 
     /** 自定义 Python 脚本路径，建议在部署时指向外部 Python 项目入口 */
     private String scriptPath = "";

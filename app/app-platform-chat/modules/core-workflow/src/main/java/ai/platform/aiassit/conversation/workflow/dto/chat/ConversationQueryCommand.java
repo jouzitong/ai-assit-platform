@@ -61,7 +61,7 @@ public class ConversationQueryCommand {
      */
     private AiChatBusinessType businessType;
 
-    /** 前端选择的模型配置主键，仅用于审计和轮次快照。 */
+    /** 用户选择的模型配置主键；运行时据此解析模型连接，并用于轮次审计。 */
     private Long modelId;
 
     /** Product entry used when no explicit Agent is selected. */
@@ -76,7 +76,7 @@ public class ConversationQueryCommand {
     /**
      * 服务端根据 modelId 解析得到的模型配置编码。
      *
-     * <p>该兼容字段由服务端解析模型覆盖时填写，前端不得直接传入。</p>
+     * <p>该字段由服务端解析用户选择的模型时填写，前端不得直接传入。</p>
      */
     private String apiModel;
 

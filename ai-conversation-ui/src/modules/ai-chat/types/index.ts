@@ -76,6 +76,9 @@ export interface ChatMessageItem {
 export interface ChatQueryPayload {
   sessionCode?: string
   target?: ChatAgentTarget
+  /** User-selected enabled model. Agent routing remains server-owned. */
+  modelId?: number
+  /** Development-only privileged model override. */
   modelOverrideId?: number
   message: string
   attachments?: unknown[]
@@ -144,6 +147,8 @@ export interface ChatArtifact {
   contentFormat?: string
   status?: string
   stage?: string
+  visibleFlag?: boolean | null
+  visible?: boolean | null
   extJson?: string | null
 }
 
@@ -173,6 +178,7 @@ export interface ChatTransportRequest {
   sessionCode?: string
   roundCode?: string
   target?: ChatAgentTarget
+  modelId?: number
   modelOverrideId?: number
   message: ChatTransportMessage
   clientContext: {

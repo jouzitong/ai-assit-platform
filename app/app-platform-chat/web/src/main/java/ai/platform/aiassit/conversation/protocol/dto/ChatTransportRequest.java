@@ -24,11 +24,10 @@ public class ChatTransportRequest {
 
     private String roundCode;
 
-    /** Legacy wire alias. New clients must use modelOverrideId. */
-    @Deprecated
+    /** User-selected enabled model. The server resolves connection details by this ID. */
     private Long modelId;
 
-    /** Optional development-only model override. Formal routing is Agent-first. */
+    /** Optional privileged development override; normal clients must use modelId. */
     private Long modelOverrideId;
 
     /** Optional Agent target; omitted requests resolve the HOME_CHAT entry binding. */

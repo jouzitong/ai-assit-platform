@@ -44,6 +44,7 @@ import java.util.regex.Pattern;
 public class AiAgentProcessExecutor {
 
     private static final String PROTOCOL_VERSION = "2.0";
+    private static final String DEFAULT_PYTHON_COMMAND = "python3";
     private static final Pattern BEARER_TOKEN = Pattern.compile("(?i)bearer\\s+[^\\s,;]+");
     private static final Pattern OPENAI_KEY = Pattern.compile("\\bsk-[A-Za-z0-9_-]{8,}\\b");
     private static final Set<String> RUNTIME_EXTENSION_KEYS = Set.of(
@@ -99,13 +100,14 @@ public class AiAgentProcessExecutor {
     public JsonNode executeStream(AiAgentProperties properties,
                                   ProviderChatRequest request,
                                   Consumer<JsonNode> frameConsumer) {
+        Path scriptPath = resolveScriptPath(properties);
         return executeStream(
                 properties,
                 request,
                 frameConsumer,
                 AgentCancellation.NONE,
-                properties.getPythonCommand(),
-                resolveScriptPath(properties),
+                resolvePythonCommand(properties, scriptPath),
+                scriptPath,
                 properties.getWorkingDirectory(),
                 Map.of()
         );
@@ -123,13 +125,14 @@ public class AiAgentProcessExecutor {
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "agent run command is required");
         }
         ProviderChatRequest request = toProviderRequest(snapshot, command);
+        Path scriptPath = resolveScriptPath(properties);
         return executeStream(
                 properties,
                 request,
                 frameConsumer == null ? frame -> { } : frameConsumer,
                 cancellation == null ? AgentCancellation.NONE : cancellation,
-                properties.getPythonCommand(),
-                resolveScriptPath(properties),
+                resolvePythonCommand(properties, scriptPath),
+                scriptPath,
                 properties.getWorkingDirectory(),
                 Map.of()
         );
@@ -298,7 +301,7 @@ public class AiAgentProcessExecutor {
                 } else if ("error".equalsIgnoreCase(type)) {
                     frameConsumer.accept(frame);
                     throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
-                            frame.path("message").asText("ai agent execution failed"));
+                            enrichWorkerError(frame.path("message").asText("ai agent execution failed")));
                 } else {
                     frameConsumer.accept(frame);
                 }
@@ -592,23 +595,49 @@ public class AiAgentProcessExecutor {
         return StringUtils.hasText(requestValue) ? requestValue.trim() : fallback;
     }
 
-    private Path resolveScriptPath(AiAgentProperties properties) {
+    Path resolveScriptPath(AiAgentProperties properties) {
+        return resolveScriptPath(properties, Path.of(""));
+    }
+
+    Path resolveScriptPath(AiAgentProperties properties, Path startDirectory) {
         if (StringUtils.hasText(properties.getScriptPath())) {
             Path configuredPath = Path.of(properties.getScriptPath()).toAbsolutePath().normalize();
             log.debug("ai agent script path resolved from configuration, scriptPath={}", configuredPath);
             return configuredPath;
         }
-        Path deployedPath = DEPLOYED_SCRIPT_PATH.toAbsolutePath().normalize();
-        if (Files.exists(deployedPath)) {
+        Path deployedPath = AgentWorkerPathResolver.findFromCurrentOrAncestor(startDirectory, DEPLOYED_SCRIPT_PATH);
+        if (deployedPath != null) {
             log.debug("ai agent script path resolved from deployed path, scriptPath={}", deployedPath);
             return deployedPath;
         }
-        Path developmentPath = DEV_SCRIPT_PATH.toAbsolutePath().normalize();
-        if (Files.exists(developmentPath)) {
+        Path developmentPath = AgentWorkerPathResolver.findFromCurrentOrAncestor(startDirectory, DEV_SCRIPT_PATH);
+        if (developmentPath != null) {
             log.debug("ai agent script path resolved from development path, scriptPath={}", developmentPath);
             return developmentPath;
         }
         throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_AI_AGENT_SCRIPT_PATH);
+    }
+
+    String resolvePythonCommand(AiAgentProperties properties, Path scriptPath) {
+        if (StringUtils.hasText(properties.getPythonCommand())) {
+            return properties.getPythonCommand().trim();
+        }
+        Path projectDirectory = scriptPath == null || scriptPath.getParent() == null
+                ? null
+                : scriptPath.getParent().getParent();
+        if (projectDirectory != null) {
+            for (Path relativePath : List.of(
+                    Path.of(".venv", "bin", "python"),
+                    Path.of(".venv", "Scripts", "python.exe")
+            )) {
+                Path localPython = projectDirectory.resolve(relativePath).toAbsolutePath().normalize();
+                if (Files.isRegularFile(localPython)) {
+                    log.info("ai agent python resolved from local virtual environment, pythonCommand={}", localPython);
+                    return localPython.toString();
+                }
+            }
+        }
+        return DEFAULT_PYTHON_COMMAND;
     }
 
     private String safeError(String stderr, String credential) {
@@ -621,9 +650,19 @@ public class AiAgentProcessExecutor {
         }
         normalized = BEARER_TOKEN.matcher(normalized).replaceAll("Bearer [REDACTED]");
         normalized = OPENAI_KEY.matcher(normalized).replaceAll("[REDACTED_OPENAI_KEY]");
+        normalized = enrichWorkerError(normalized);
         if (normalized.length() > 500) {
             return normalized.substring(0, 500);
         }
         return normalized;
+    }
+
+    private String enrichWorkerError(String message) {
+        if (message != null && message.contains("No module named 'agents'")) {
+            return "Python worker 缺少 openai-agents==0.18.2（导入模块 agents）；"
+                    + "请设置 AI_PROVIDER_AI_AGENT_PYTHON_COMMAND 指向已安装依赖的 Python，"
+                    + "或安装 src/main/python/pyproject.toml 中声明的依赖";
+        }
+        return message;
     }
 }

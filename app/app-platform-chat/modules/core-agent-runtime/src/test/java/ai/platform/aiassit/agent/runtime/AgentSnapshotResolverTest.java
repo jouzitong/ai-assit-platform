@@ -124,6 +124,7 @@ class AgentSnapshotResolverTest {
     private Map<String, Object> ref(String code, int version, String toolName) {
         return Map.of(
                 "targetAgentRef", "agent://" + code + "/v" + version,
+                "mode", "AS_TOOL",
                 "toolName", toolName
         );
     }

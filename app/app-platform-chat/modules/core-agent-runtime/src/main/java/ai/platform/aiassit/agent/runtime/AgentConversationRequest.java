@@ -17,7 +17,7 @@ public class AgentConversationRequest {
     private String sessionCode;
     private String roundCode;
     private Long userId;
-    private Long modelOverrideId;
+    private Long modelId;
     private String input;
     private AgentTarget target = AgentTarget.homeChat();
     private List<ChatMessage> messages = new ArrayList<>();

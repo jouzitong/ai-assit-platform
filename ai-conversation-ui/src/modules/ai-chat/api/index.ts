@@ -223,6 +223,7 @@ export function createChatTransportRequest(payload: ChatQueryPayload, route: str
     requestId,
     sessionCode: payload.sessionCode,
     target: payload.target,
+    modelId: payload.modelId,
     modelOverrideId: payload.modelOverrideId,
     message: {
       id: `user-${requestId}`,

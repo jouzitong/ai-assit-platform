@@ -149,7 +149,9 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
             finalArtifact.put("artifactType", "TEXT");
             finalArtifact.put("contentFormat", "MARKDOWN");
             finalArtifact.put("required", true);
-            finalArtifact.put("visible", true);
+            // The assistant message is the user-facing final answer. Keep this synthetic Artifact
+            // for deterministic Workflow acceptance, but do not render the same content twice.
+            finalArtifact.put("visible", false);
             finalArtifact.put("content", finalAnswer);
             result.add(finalArtifact);
         }

@@ -40,7 +40,7 @@ public class ConversationRequestContextResolver {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
-    /** Model routing is Agent-owned; only administrators or an explicit permission may override it. */
+    /** Privileged protocol model overrides are limited to administrators or an explicit permission. */
     public boolean canOverrideModel() {
         UserContext userContext = SystemContext.getUserContext();
         if (userContext == null || userContext.authorization() == null) {

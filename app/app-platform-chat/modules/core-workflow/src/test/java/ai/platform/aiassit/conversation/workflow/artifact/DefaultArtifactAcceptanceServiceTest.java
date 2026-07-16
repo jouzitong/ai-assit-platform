@@ -22,7 +22,52 @@ class DefaultArtifactAcceptanceServiceTest {
                 .singleElement()
                 .satisfies(artifact -> assertThat(artifact)
                         .containsEntry("artifactCode", "final-answer")
+                        .containsEntry("visible", false)
                         .containsEntry("content", "Completed result"));
+    }
+
+    @Test
+    void preservesVisibilityOfProducedArtifactsWhileSyntheticFinalAnswerStaysHidden() {
+        List<Map<String, Object>> artifacts = List.of(Map.of(
+                "artifactCode", "render-document",
+                "artifactType", "DOCUMENT",
+                "visible", true,
+                "content", "Rendered document"
+        ));
+
+        ArtifactAcceptanceResult result = service.accept(Map.of(), artifacts, "Completed result");
+
+        assertThat(result.isAccepted()).isTrue();
+        assertThat(result.getArtifacts())
+                .filteredOn(artifact -> "render-document".equals(artifact.get("artifactCode")))
+                .singleElement()
+                .satisfies(artifact -> assertThat(artifact).containsEntry("visible", true));
+        assertThat(result.getArtifacts())
+                .filteredOn(artifact -> "final-answer".equals(artifact.get("artifactCode")))
+                .singleElement()
+                .satisfies(artifact -> assertThat(artifact).containsEntry("visible", false));
+    }
+
+    @Test
+    void validatesHiddenSyntheticFinalAnswerAgainstWorkflowContract() {
+        Map<String, Object> workflow = Map.of("artifacts", List.of(Map.of(
+                "code", "final-answer",
+                "required", true,
+                "inlineSchema", Map.of("type", "string")
+        )));
+
+        ArtifactAcceptanceResult result = service.accept(workflow, List.of(), "Completed result");
+
+        assertThat(result.isAccepted()).isTrue();
+        assertThat(result.getChecks())
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.getTargetArtifact()).isEqualTo("final-answer");
+                    assertThat(check.isPassed()).isTrue();
+                });
+        assertThat(result.getArtifacts())
+                .singleElement()
+                .satisfies(artifact -> assertThat(artifact).containsEntry("visible", false));
     }
 
     @Test

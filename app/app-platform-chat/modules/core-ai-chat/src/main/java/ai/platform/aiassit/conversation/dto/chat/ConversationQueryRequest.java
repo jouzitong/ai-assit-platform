@@ -21,7 +21,7 @@ import java.util.Map;
  * <p>设计原则如下：</p>
  * <p>1. 前端只传“用户输入”和“用户显式选择”的内容。</p>
  * <p>2. 用户身份、traceId、scene、默认会话名等由 controller 或服务端自动补齐。</p>
- * <p>3. 聊天始终路由到 HOME_CHAT Agent；modelId 仅作为旧接口的受权限控制开发覆盖参数。</p>
+ * <p>3. 聊天始终路由到 HOME_CHAT Agent；modelId 表示用户从系统已启用模型中作出的选择。</p>
  * <p>4. 文件、工具等请求信息不能扩大已发布 Agent Snapshot 授予的能力。</p>
  */
 @Data
@@ -36,12 +36,7 @@ public class ConversationQueryRequest extends BaseRequest {
      */
     private String sessionCode;
 
-    /**
-     * 旧接口的模型覆盖 ID。
-     *
-     * <p>正式页面不再发送该字段；只有服务端判定调用者具有模型覆盖权限时才会生效。</p>
-     */
-    @Deprecated
+    /** 用户从系统已启用模型中选择的配置 ID，连接信息始终由服务端解析。 */
     private Long modelId;
 
     /**

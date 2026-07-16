@@ -40,6 +40,7 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 @Service
@@ -189,7 +190,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         request.setSessionCode(context.getSession().getSessionCode());
         request.setRoundCode(context.getRound().getRoundCode());
         request.setUserId(context.getSession().getUserId());
-        request.setModelOverrideId(command.getModelId());
+        request.setModelId(command.getModelId());
         request.setInput(command.getMessage());
         request.setTarget(StringUtils.hasText(command.getAgentCode())
                 ? AgentTarget.explicit(command.getAgentCode(), command.getAgentVersion())
@@ -204,8 +205,6 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         Map<String, Object> runContext = new LinkedHashMap<>();
         runContext.put("scene", command.getScene());
         runContext.put("userId", context.getSession().getUserId());
-        runContext.put("allowModelOverride", command.getExt() != null
-                && Boolean.TRUE.equals(command.getExt().get("allowModelOverride")));
         if (command.getExt() != null && command.getExt().get("clientContext") instanceof Map<?, ?> clientContext) {
             runContext.put("clientContext", clientContext);
         }
@@ -343,8 +342,12 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
             }
             String artifactType = text(artifact.get("artifactType"), artifact.get("type"), "AGENT_OUTPUT");
             String contentFormat = text(artifact.get("contentFormat"), artifact.get("format"), "JSON");
-            boolean visible = !Boolean.FALSE.equals(artifact.get("visible"));
             Object content = artifact.containsKey("content") ? artifact.get("content") : artifact;
+            boolean visible = persistedArtifactVisible(
+                    artifact,
+                    content,
+                    assistant == null ? null : assistant.getContent()
+            );
             historyRecorder.saveArtifact(
                     context,
                     artifactType,
@@ -358,6 +361,49 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                     agentTrace(outcome)
             );
         }
+    }
+
+    static boolean persistedArtifactVisible(Map<String, Object> artifact,
+                                            Object content,
+                                            String assistantAnswer) {
+        return !Boolean.FALSE.equals(artifact.get("visible"))
+                && !duplicatesAssistantFinalAnswer(artifact, content, assistantAnswer);
+    }
+
+    private static boolean duplicatesAssistantFinalAnswer(Map<String, Object> artifact,
+                                                           Object content,
+                                                           String assistantAnswer) {
+        String logicalCode = text(
+                artifact.get("artifactCode"),
+                artifact.get("code"),
+                artifact.get("title")
+        );
+        if (!isFinalAnswerCode(logicalCode)) {
+            return false;
+        }
+        String artifactContent = comparableText(content);
+        String assistantContent = comparableText(assistantAnswer);
+        return StringUtils.hasText(artifactContent)
+                && StringUtils.hasText(assistantContent)
+                && artifactContent.equals(assistantContent);
+    }
+
+    private static boolean isFinalAnswerCode(String value) {
+        if (!StringUtils.hasText(value)) {
+            return false;
+        }
+        String canonical = value.trim()
+                .toLowerCase(Locale.ROOT)
+                .replace('_', '-')
+                .replace(' ', '-');
+        return "final-answer".equals(canonical);
+    }
+
+    private static String comparableText(Object value) {
+        if (!(value instanceof CharSequence content)) {
+            return null;
+        }
+        return content.toString().replace("\r\n", "\n").trim();
     }
 
     private void updateRoundAgentSnapshot(ConversationRuntimeContext context, AgentConversationOutcome outcome) {
@@ -420,7 +466,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         return trace;
     }
 
-    private String text(Object... values) {
+    private static String text(Object... values) {
         for (Object value : values) {
             if (value != null && StringUtils.hasText(String.valueOf(value))) {
                 return String.valueOf(value).trim();

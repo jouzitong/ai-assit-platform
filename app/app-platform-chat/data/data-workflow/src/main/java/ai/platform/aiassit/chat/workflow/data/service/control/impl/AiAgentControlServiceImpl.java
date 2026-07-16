@@ -18,6 +18,7 @@ import ai.platform.aiassit.chat.workflow.data.mapper.AiChatSkillVersionMapper;
 import ai.platform.aiassit.chat.workflow.data.mapper.AiChatToolVersionMapper;
 import ai.platform.aiassit.chat.workflow.data.mapper.AiChatWorkflowVersionMapper;
 import ai.platform.aiassit.chat.workflow.data.service.control.AiAgentControlService;
+import ai.platform.aiassit.chat.workflow.data.service.control.AgentEntryEligibilityPolicy;
 import ai.platform.aiassit.chat.workflow.data.support.ControlPlaneJsonSupport;
 import ai.platform.aiassit.chat.workflow.data.support.ControlPlaneReferenceParser;
 import ai.platform.aiassit.chat.workflow.data.validator.AgentGraphValidator;
@@ -65,6 +66,7 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
     private final AiChatWorkflowVersionMapper workflowVersionMapper;
     private final AgentGraphValidator graphValidator;
     private final AgentManifestValidator validator;
+    private final AgentEntryEligibilityPolicy entryEligibility;
     private final ControlPlaneJsonSupport json;
     private final ControlPlaneReferenceParser references;
 
@@ -77,6 +79,7 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
                                      AiChatWorkflowVersionMapper workflowVersionMapper,
                                      AgentGraphValidator graphValidator,
                                      AgentManifestValidator validator,
+                                     AgentEntryEligibilityPolicy entryEligibility,
                                      ControlPlaneJsonSupport json,
                                      ControlPlaneReferenceParser references) {
         this.agentMapper = agentMapper;
@@ -88,6 +91,7 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
         this.workflowVersionMapper = workflowVersionMapper;
         this.graphValidator = graphValidator;
         this.validator = validator;
+        this.entryEligibility = entryEligibility;
         this.json = json;
         this.references = references;
     }
@@ -335,7 +339,8 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
             throw BizException.of(ErrCodeConstant.ILLEGAL_PARAMETER_ERROR);
         }
         String agentCode = normalizeCode(request.getAgentCode());
-        requirePublishedVersion(agentCode, request.getAgentVersion());
+        AiAgentVersionEntity published = requirePublishedVersion(agentCode, request.getAgentVersion());
+        requireEntryEligibility(normalizedEntry, agentCode, published);
         Map<String, Object> config = request.getConfig() == null ? Map.of() : request.getConfig();
         if (containsSensitiveKey(config)) {
             log.warn("Agent entry binding rejected because config contains a credential-like key: entryCode={}, agentCode={}",
@@ -414,7 +419,8 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
         } else {
             throw BizException.of(ErrCodeConstant.ILLEGAL_PARAMETER_ERROR);
         }
-        requirePublishedVersion(agentCode, selectedVersion);
+        AiAgentVersionEntity published = requirePublishedVersion(agentCode, selectedVersion);
+        requireEntryEligibility(normalizedEntry, agentCode, published);
         List<AiAgentEntryBindingEntity> existing = bindingMapper.selectList(
                 Wrappers.<AiAgentEntryBindingEntity>lambdaQuery()
                         .eq(AiAgentEntryBindingEntity::getEntryCode, normalizedEntry)
@@ -500,7 +506,8 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
         for (AiAgentEntryBindingEntity binding : bindings) {
             AiAgentEntity agent = findAgent(binding.getAgentCode());
             AiAgentVersionEntity version = findPublishedVersion(binding.getAgentCode(), binding.getAgentVersion());
-            if (agent != null && Boolean.TRUE.equals(agent.getEnabled()) && version != null) {
+            if (agent != null && Boolean.TRUE.equals(agent.getEnabled())
+                    && entryEligibility.supports(entryCode, version)) {
                 return Optional.of(toStoredDefinition(agent, version, binding));
             }
         }
@@ -512,16 +519,15 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
         if (!StringUtils.hasText(entryCode)) {
             return List.of();
         }
+        String normalizedEntry = normalizeEntryCode(entryCode);
         List<AgentEntrySummary> available = new ArrayList<>();
-        Set<String> seen = new HashSet<>();
-        for (AiAgentEntryBindingEntity binding : enabledEntryBindings(normalizeEntryCode(entryCode))) {
-            String key = binding.getAgentCode() + ":" + binding.getAgentVersion();
-            if (!seen.add(key)) {
-                continue;
-            }
-            AiAgentEntity agent = findAgent(binding.getAgentCode());
-            AiAgentVersionEntity version = findPublishedVersion(binding.getAgentCode(), binding.getAgentVersion());
-            if (agent == null || !Boolean.TRUE.equals(agent.getEnabled()) || version == null) {
+        List<AiAgentEntity> agents = agentMapper.selectList(Wrappers.<AiAgentEntity>lambdaQuery()
+                .eq(AiAgentEntity::getEnabled, Boolean.TRUE)
+                .orderByDesc(AiAgentEntity::getUpdateTime)
+                .orderByDesc(AiAgentEntity::getId));
+        for (AiAgentEntity agent : agents) {
+            AiAgentVersionEntity version = findPublishedVersion(agent.getCode(), agent.getCurrentVersion());
+            if (!entryEligibility.supports(normalizedEntry, version)) {
                 continue;
             }
             available.add(AgentEntrySummary.builder()
@@ -532,6 +538,17 @@ public class AiAgentControlServiceImpl implements AiAgentControlService, AgentDe
                     .build());
         }
         return available;
+    }
+
+    private void requireEntryEligibility(String entryCode,
+                                         String agentCode,
+                                         AiAgentVersionEntity version) {
+        if (entryEligibility.supports(entryCode, version)) {
+            return;
+        }
+        log.warn("Agent entry binding rejected because manifest does not declare the entry: entryCode={}, agentCode={}, agentVersion={}",
+                entryCode, agentCode, version == null ? null : version.getVersionNo());
+        throw BizException.of(ErrCodeConstant.ILLEGAL_PARAMETER_ERROR);
     }
 
     private AiAgentVersionEntity persistDraft(AiAgentEntity agent, AgentControlDTOs.Manifest manifest) {

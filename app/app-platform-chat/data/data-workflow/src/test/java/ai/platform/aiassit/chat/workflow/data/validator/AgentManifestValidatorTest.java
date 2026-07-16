@@ -4,6 +4,7 @@ import ai.platform.aiassit.chat.workflow.data.entity.dto.control.AgentControlDTO
 import ai.platform.aiassit.chat.workflow.data.entity.dto.control.ValidationReportDTO;
 import org.junit.jupiter.api.Test;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -30,6 +31,43 @@ class AgentManifestValidatorTest {
         assertThat(report.isValid()).isFalse();
         assertThat(report.getErrors()).anyMatch(message -> message.contains("maxAgentDepth"));
         assertThat(report.getErrors()).anyMatch(message -> message.contains("secret field"));
+    }
+
+    @Test
+    void rejectsHandoffModeInsideAgentTools() {
+        AgentControlDTOs.CollaboratorRef collaborator = collaborator("HANDOFF", "review_result");
+
+        ValidationReportDTO report = validator.validate("home-assistant", manifestWithAgentTools(collaborator));
+
+        assertThat(report.isValid()).isFalse();
+        assertThat(report.getErrors())
+                .contains("spec.collaboration.agentTools[0].mode must be AS_TOOL");
+    }
+
+    @Test
+    void rejectsAsToolModeInsideHandoffs() {
+        AgentControlDTOs.Manifest manifest = manifest();
+        manifest.getSpec().getCollaboration().setHandoffs(List.of(collaborator("AS_TOOL", null)));
+
+        ValidationReportDTO report = validator.validate("home-assistant", manifest);
+
+        assertThat(report.isValid()).isFalse();
+        assertThat(report.getErrors())
+                .contains("spec.collaboration.handoffs[0].mode must be HANDOFF");
+    }
+
+    private AgentControlDTOs.Manifest manifestWithAgentTools(AgentControlDTOs.CollaboratorRef collaborator) {
+        AgentControlDTOs.Manifest manifest = manifest();
+        manifest.getSpec().getCollaboration().setAgentTools(List.of(collaborator));
+        return manifest;
+    }
+
+    private AgentControlDTOs.CollaboratorRef collaborator(String mode, String toolName) {
+        AgentControlDTOs.CollaboratorRef collaborator = new AgentControlDTOs.CollaboratorRef();
+        collaborator.setTargetAgentRef("agent://result-reviewer/v1");
+        collaborator.setMode(mode);
+        collaborator.setToolName(toolName);
+        return collaborator;
     }
 
     private AgentControlDTOs.Manifest manifest() {

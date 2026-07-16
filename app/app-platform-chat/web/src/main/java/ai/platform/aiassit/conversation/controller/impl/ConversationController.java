@@ -68,8 +68,7 @@ public class ConversationController implements IConversationController {
     }
 
     private ConversationQueryCommand buildCommand(ConversationQueryRequest request) {
-        return commandFactory.fromLegacy(request, contextResolver.currentUserId(), contextResolver.traceId(),
-                contextResolver.canOverrideModel());
+        return commandFactory.fromLegacy(request, contextResolver.currentUserId(), contextResolver.traceId());
     }
 
 }

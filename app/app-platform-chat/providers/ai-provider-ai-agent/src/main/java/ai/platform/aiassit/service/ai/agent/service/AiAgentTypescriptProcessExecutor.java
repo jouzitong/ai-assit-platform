@@ -71,6 +71,10 @@ public class AiAgentTypescriptProcessExecutor {
     }
 
     Path resolveScriptPath(AiAgentProperties properties) {
+        return resolveScriptPath(properties, Path.of(""));
+    }
+
+    Path resolveScriptPath(AiAgentProperties properties, Path startDirectory) {
         if (StringUtils.hasText(properties.getTypescriptScriptPath())) {
             Path configuredPath = Path.of(properties.getTypescriptScriptPath()).toAbsolutePath().normalize();
             if (Files.isRegularFile(configuredPath)) {
@@ -81,12 +85,12 @@ public class AiAgentTypescriptProcessExecutor {
                     "typescript worker bundle does not exist"
             );
         }
-        Path deployedPath = DEPLOYED_SCRIPT_PATH.toAbsolutePath().normalize();
-        if (Files.isRegularFile(deployedPath)) {
+        Path deployedPath = AgentWorkerPathResolver.findFromCurrentOrAncestor(startDirectory, DEPLOYED_SCRIPT_PATH);
+        if (deployedPath != null) {
             return deployedPath;
         }
-        Path developmentPath = DEV_SCRIPT_PATH.toAbsolutePath().normalize();
-        if (Files.isRegularFile(developmentPath)) {
+        Path developmentPath = AgentWorkerPathResolver.findFromCurrentOrAncestor(startDirectory, DEV_SCRIPT_PATH);
+        if (developmentPath != null) {
             return developmentPath;
         }
         Path classpathPath = extractClasspathWorker();

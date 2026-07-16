@@ -11,7 +11,7 @@ import java.util.Map;
 import java.util.Set;
 
 /** Strict validation for the portable subset accepted by both SDK adapters. */
-@Component
+@Component("agentManifestValidatorRuntime")
 public class AgentManifestValidator {
 
     private static final Set<String> FORBIDDEN_SECRET_KEYS = Set.of(
@@ -63,19 +63,30 @@ public class AgentManifestValidator {
             return;
         }
         Set<String> names = new HashSet<>();
-        validateCollaborators(collaboration.path("agentTools"), names, true);
-        validateCollaborators(collaboration.path("handoffs"), names, false);
+        validateCollaborators(collaboration.path("agentTools"), names,
+                "AS_TOOL", true, "spec.collaboration.agentTools");
+        validateCollaborators(collaboration.path("handoffs"), names,
+                "HANDOFF", false, "spec.collaboration.handoffs");
     }
 
-    private void validateCollaborators(JsonNode refs, Set<String> names, boolean requireToolName) {
+    private void validateCollaborators(JsonNode refs,
+                                       Set<String> names,
+                                       String requiredMode,
+                                       boolean requireToolName,
+                                       String field) {
         if (refs == null || refs.isMissingNode() || refs.isNull()) {
             return;
         }
         if (!refs.isArray()) {
             throw new IllegalArgumentException("Agent collaboration entries must be arrays");
         }
+        int index = 0;
         for (JsonNode ref : refs) {
             requireText(ref, "/targetAgentRef", "targetAgentRef");
+            String mode = requireText(ref, "/mode", field + "[" + index + "].mode");
+            if (!requiredMode.equalsIgnoreCase(mode)) {
+                throw new IllegalArgumentException(field + "[" + index + "].mode must be " + requiredMode);
+            }
             String toolName = ref.path("toolName").asText(null);
             if (requireToolName && !StringUtils.hasText(toolName)) {
                 throw new IllegalArgumentException("agent-as-tool requires toolName");
@@ -83,6 +94,7 @@ public class AgentManifestValidator {
             if (StringUtils.hasText(toolName) && !names.add(toolName)) {
                 throw new IllegalArgumentException("Duplicate collaboration toolName: " + toolName);
             }
+            index++;
         }
     }
 

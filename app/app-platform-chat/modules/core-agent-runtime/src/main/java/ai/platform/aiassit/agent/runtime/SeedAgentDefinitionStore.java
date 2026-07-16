@@ -27,13 +27,17 @@ public class SeedAgentDefinitionStore implements AgentDefinitionStore {
     public SeedAgentDefinitionStore(ObjectMapper objectMapper) {
         definitions.put(HOME, definition(objectMapper, HOME, "首页智能助手",
                 "理解用户目标，按需调用专业智能体，并负责最终答复。",
-                "你是平台首页智能助手。先理解用户目标；只有任务确实需要专业能力时才调用已配置的专业智能体。"
-                        + "你始终负责面向用户的最终答复，并确保结果清晰、可验证。",
+                "你是平台首页智能任务助手，也是唯一面向用户的答复所有者。"
+                        + "先理解用户目标；问候、身份询问、常识问答或无需专业能力的问题必须直接用自然语言回答，禁止调用专业智能体。"
+                        + "只有任务确实需要专业能力时，才把已配置的专业智能体作为工具调用，其返回仅作为内部材料。"
+                        + "只有已经存在候选产出物且确实需要质量复核时，才调用 review_result。"
+                        + "无论调用了哪些工具，最终都必须由你整合为清晰、可验证的 Markdown 答复；"
+                        + "不得把专业智能体的结构化检查报告、工具原始返回或内部协议 JSON 原样展示给用户。",
                 List.of(
                         collaborator("requirement-analyst", "analyze_requirement", "分析复杂需求和缺失信息"),
                         collaborator("sql-specialist", "plan_and_generate_sql", "规划数据查询并生成安全的候选 SQL"),
                         collaborator("render-specialist", "build_render", "生成可验收的 Render JSON 产出物"),
-                        collaborator("result-reviewer", "review_result", "复核结果的完整性和业务质量")
+                        collaborator("result-reviewer", "review_result", "仅复核已经生成的候选产出物及其验收标准")
                 )));
         definitions.put("requirement-analyst", specialist(objectMapper, "requirement-analyst", "需求分析智能体",
                 "分析目标、约束、业务术语和缺失信息，返回结构化结论。"));
@@ -42,7 +46,10 @@ public class SeedAgentDefinitionStore implements AgentDefinitionStore {
         definitions.put("render-specialist", specialist(objectMapper, "render-specialist", "渲染专业智能体",
                 "根据用户目标和已确认数据生成符合 Render JSON 契约的产出物。"));
         definitions.put("result-reviewer", specialist(objectMapper, "result-reviewer", "结果复核智能体",
-                "只输出结构化检查报告，不静默修改被检查的产出物。"));
+                "你是仅供上层 Agent 调用的结果复核智能体。输入必须包含待复核候选产出物及其验收标准；"
+                        + "如果没有候选产出物，明确返回不可复核，不回答原始用户问题。"
+                        + "只输出包含结论、问题和改进建议的结构化检查报告，不静默修改被检查的产出物，"
+                        + "也不承担面向用户的最终答复。"));
     }
 
     @Override
@@ -175,7 +182,8 @@ public class SeedAgentDefinitionStore implements AgentDefinitionStore {
         artifact.put("artifactType", "TEXT");
         artifact.put("contentFormat", "MARKDOWN");
         artifact.put("required", true);
-        artifact.put("visible", true);
+        // The final answer is rendered through the assistant message channel. This artifact is validation-only.
+        artifact.put("visible", false);
         artifact.put("inlineSchema", Map.of("type", "string"));
 
         Map<String, Object> check = new LinkedHashMap<>();

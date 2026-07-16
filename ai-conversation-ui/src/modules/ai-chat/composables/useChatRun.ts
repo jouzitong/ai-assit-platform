@@ -27,6 +27,17 @@ function numberValue(value: unknown) {
   return undefined
 }
 
+function booleanValue(value: unknown) {
+  if (typeof value === 'boolean') return value
+  if (typeof value === 'number') return value !== 0
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase()
+    if (normalized === 'true' || normalized === '1') return true
+    if (normalized === 'false' || normalized === '0') return false
+  }
+  return undefined
+}
+
 function safeDetail(value?: string) {
   if (!value) return undefined
   const redacted = value
@@ -144,7 +155,28 @@ function normalizeArtifact(value: unknown): ChatArtifact | undefined {
     contentFormat: text(source.contentFormat, source.format),
     status: text(source.status),
     stage: text(source.stage),
+    visibleFlag: booleanValue(source.visibleFlag),
+    visible: booleanValue(source.visible),
   }
+}
+
+function artifactKey(value?: string) {
+  return value?.trim()
+}
+
+function normalizedPrimaryAnswerIdentity(value?: string) {
+  return value?.trim().toLowerCase().replace(/[\s_]+/g, '-')
+}
+
+function isPrimaryAnswerArtifact(artifact: ChatArtifact) {
+  // final-answer is the acceptance/audit copy of the assistant message, not a secondary UI artifact.
+  return [artifact.artifactCode, artifact.codeRef, artifact.title]
+    .some(value => normalizedPrimaryAnswerIdentity(value) === 'final-answer')
+}
+
+export function isDisplayableArtifact(artifact: ChatArtifact) {
+  if (artifact.visibleFlag === false || artifact.visible === false) return false
+  return !isPrimaryAnswerArtifact(artifact)
 }
 
 export function artifactsFromTransportEvent(eventName: string, payloadValue: unknown): ChatArtifact[] {
@@ -155,6 +187,7 @@ export function artifactsFromTransportEvent(eventName: string, payloadValue: unk
     : Object.keys(asRecord(payload.artifact)).length
       ? [payload.artifact]
       : [payload]
+  // Keep hidden updates until upsert so a visibility change can evict an earlier visible version.
   return candidates.flatMap((candidate) => {
     const artifact = normalizeArtifact(candidate)
     return artifact ? [artifact] : []
@@ -174,10 +207,18 @@ export function upsertRunActivity(items: ChatRunActivity[], next: ChatRunActivit
 }
 
 export function upsertArtifact(items: ChatArtifact[], next: ChatArtifact) {
-  const nextCode = next.artifactCode || next.codeRef
-  const index = items.findIndex(item => (item.artifactCode || item.codeRef) === nextCode)
-  if (!nextCode || index < 0) return [...items, next]
-  const updated = [...items]
+  const displayableItems = items.filter(isDisplayableArtifact)
+  const nextCode = artifactKey(next.artifactCode || next.codeRef)
+  if (!isDisplayableArtifact(next)) {
+    return nextCode
+      ? displayableItems.filter(item => artifactKey(item.artifactCode || item.codeRef) !== nextCode)
+      : displayableItems
+  }
+  const index = displayableItems.findIndex(
+    item => artifactKey(item.artifactCode || item.codeRef) === nextCode,
+  )
+  if (!nextCode || index < 0) return [...displayableItems, next]
+  const updated = [...displayableItems]
   updated[index] = { ...updated[index], ...next }
   return updated
 }
@@ -187,7 +228,9 @@ export function normalizeHistoricalArtifacts(value: unknown): ChatArtifact[] {
   return value.flatMap((item) => {
     const source = asRecord(item)
     const artifact = normalizeArtifact(source)
-    return artifact ? [{ ...artifact, extJson: text(source.extJson) }] : []
+    return artifact && isDisplayableArtifact(artifact)
+      ? [{ ...artifact, extJson: text(source.extJson) }]
+      : []
   })
 }
 

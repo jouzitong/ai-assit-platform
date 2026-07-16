@@ -15,7 +15,6 @@ import java.util.Set;
 @Component
 public class AgentManifestValidator {
 
-    private static final Set<String> COLLABORATION_MODES = Set.of("AS_TOOL", "HANDOFF");
     private static final Set<String> FORBIDDEN_SECRET_KEYS = Set.of(
             "apikey", "token", "accesstoken", "refreshtoken", "password", "secret",
             "clientsecret", "authorization", "credential", "credentials", "cookie");
@@ -114,14 +113,26 @@ public class AgentManifestValidator {
         if (collaboration == null) {
             return;
         }
-        List<AgentControlDTOs.CollaboratorRef> refs = new java.util.ArrayList<>();
-        if (collaboration.getAgentTools() != null) refs.addAll(collaboration.getAgentTools());
-        if (collaboration.getHandoffs() != null) refs.addAll(collaboration.getHandoffs());
         Set<String> unique = new HashSet<>();
+        validateCollaboratorGroup(agentCode, "spec.collaboration.agentTools",
+                collaboration.getAgentTools(), "AS_TOOL", unique, report);
+        validateCollaboratorGroup(agentCode, "spec.collaboration.handoffs",
+                collaboration.getHandoffs(), "HANDOFF", unique, report);
+    }
+
+    private void validateCollaboratorGroup(String agentCode,
+                                           String field,
+                                           List<AgentControlDTOs.CollaboratorRef> refs,
+                                           String requiredMode,
+                                           Set<String> unique,
+                                           ValidationReportDTO report) {
+        if (refs == null) {
+            return;
+        }
         for (int index = 0; index < refs.size(); index++) {
             AgentControlDTOs.CollaboratorRef ref = refs.get(index);
             if (ref == null || !StringUtils.hasText(ref.getTargetAgentRef())) {
-                report.error("spec.collaboration reference targetAgentRef is required");
+                report.error(field + "[" + index + "].targetAgentRef is required");
                 continue;
             }
             String targetCode = referenceCode(ref.getTargetAgentRef());
@@ -129,14 +140,14 @@ public class AgentManifestValidator {
                 report.error("an Agent cannot directly collaborate with itself");
             }
             String mode = normalize(ref.getMode());
-            if (!COLLABORATION_MODES.contains(mode)) {
-                report.error("collaborators[" + index + "].mode must be AS_TOOL or HANDOFF");
+            if (!requiredMode.equals(mode)) {
+                report.error(field + "[" + index + "].mode must be " + requiredMode);
             }
             String key = ref.getTargetAgentRef().trim().toLowerCase(Locale.ROOT) + ":" + mode;
             if (!unique.add(key)) {
                 report.error("collaboration contains duplicate relationship: " + ref.getTargetAgentRef() + "/" + mode);
             }
-            if ("AS_TOOL".equals(mode) && !StringUtils.hasText(ref.getToolName())) {
+            if ("AS_TOOL".equals(requiredMode) && !StringUtils.hasText(ref.getToolName())) {
                 report.error("AS_TOOL collaborator requires toolName");
             }
         }

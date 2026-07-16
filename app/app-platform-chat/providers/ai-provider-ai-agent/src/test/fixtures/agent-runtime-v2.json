@@ -60,6 +60,7 @@
         "agentTools": [
           {
             "targetAgentRef": "agent://requirement-reviewer/v1",
+            "mode": "AS_TOOL",
             "toolName": "ask_requirement_reviewer",
             "description": "Ask the reviewer for an independent critique."
           }
@@ -67,6 +68,7 @@
         "handoffs": [
           {
             "targetAgentRef": "agent://requirement-reviewer/v1",
+            "mode": "HANDOFF",
             "description": "Transfer ownership when the reviewer must finish the response."
           }
         ]

@@ -28,7 +28,7 @@ class ConversationCommandFactoryTest {
         request.setModelId(42L);
         request.setMessage("hello");
 
-        ConversationQueryCommand command = factory.fromLegacy(request, 7L, "trace-1", true);
+        ConversationQueryCommand command = factory.fromLegacy(request, 7L, "trace-1");
 
         assertThat(command.getModelId()).isEqualTo(42L);
         assertThat(command.getApiModel()).isEqualTo("qwen-primary");
@@ -36,14 +36,48 @@ class ConversationCommandFactoryTest {
     }
 
     @Test
-    void rejectsDisabledOrMissingModelId() {
+    void rejectsMissingModelId() {
         ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of()));
         ConversationQueryRequest request = new ConversationQueryRequest();
         request.setModelId(99L);
         request.setMessage("hello");
 
-        assertThatThrownBy(() -> factory.fromLegacy(request, 7L, "trace-1", true))
+        assertThatThrownBy(() -> factory.fromLegacy(request, 7L, "trace-1"))
                 .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void rejectsDisabledModelId() {
+        AiModelConfigDTO config = new AiModelConfigDTO();
+        config.setId(42L);
+        config.setModelCode("qwen-primary");
+        config.setApiModel("qwen-plus");
+        config.setEnabled(false);
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of(42L, config)));
+        ConversationQueryRequest request = new ConversationQueryRequest();
+        request.setModelId(42L);
+        request.setMessage("hello");
+
+        assertThatThrownBy(() -> factory.fromLegacy(request, 7L, "trace-1"))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void acceptsProtocolModelSelectionWithoutOverridePermission() {
+        AiModelConfigDTO config = new AiModelConfigDTO();
+        config.setId(42L);
+        config.setModelCode("qwen-primary");
+        config.setApiModel("qwen-plus");
+        config.setEnabled(true);
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of(42L, config)));
+        ChatTransportRequest request = protocolRequest("hello");
+        request.setModelId(42L);
+
+        ConversationQueryCommand command = factory.fromProtocol(request, null, 7L, "trace-1");
+
+        assertThat(command.getModelId()).isEqualTo(42L);
+        assertThat(command.getApiModel()).isEqualTo("qwen-primary");
+        assertThat(command.getActualModel()).isEqualTo("qwen-plus");
     }
 
     @Test
@@ -54,12 +88,36 @@ class ConversationCommandFactoryTest {
         config.setApiModel("qwen-plus");
         config.setEnabled(true);
         ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of(42L, config)));
-        ConversationQueryRequest request = new ConversationQueryRequest();
-        request.setModelId(42L);
-        request.setMessage("hello");
+        ChatTransportRequest request = protocolRequest("hello");
+        request.setModelOverrideId(42L);
 
-        assertThatThrownBy(() -> factory.fromLegacy(request, 7L, "trace-1"))
+        assertThatThrownBy(() -> factory.fromProtocol(request, null, 7L, "trace-1"))
                 .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void privilegedModelOverrideTakesPriorityOverUserSelection() {
+        AiModelConfigDTO selected = new AiModelConfigDTO();
+        selected.setId(41L);
+        selected.setModelCode("qwen-default");
+        selected.setApiModel("qwen-turbo");
+        selected.setEnabled(true);
+        AiModelConfigDTO override = new AiModelConfigDTO();
+        override.setId(42L);
+        override.setModelCode("qwen-primary");
+        override.setApiModel("qwen-plus");
+        override.setEnabled(true);
+        ConversationCommandFactory factory = new ConversationCommandFactory(
+                modelService(Map.of(41L, selected, 42L, override)));
+        ChatTransportRequest request = protocolRequest("hello");
+        request.setModelId(41L);
+        request.setModelOverrideId(42L);
+
+        ConversationQueryCommand command = factory.fromProtocol(request, null, 7L, "trace-1", true);
+
+        assertThat(command.getModelId()).isEqualTo(42L);
+        assertThat(command.getApiModel()).isEqualTo("qwen-primary");
+        assertThat(command.getActualModel()).isEqualTo("qwen-plus");
     }
 
     @Test
@@ -95,6 +153,17 @@ class ConversationCommandFactoryTest {
 
         assertThatThrownBy(() -> factory.fromProtocol(request, null, 7L, "trace-3"))
                 .isInstanceOf(BizException.class);
+    }
+
+    private ChatTransportRequest protocolRequest(String text) {
+        ChatTransportRequest.Content content = new ChatTransportRequest.Content();
+        content.setType("text");
+        content.setText(text);
+        ChatTransportRequest.Message message = new ChatTransportRequest.Message();
+        message.setContent(List.of(content));
+        ChatTransportRequest request = new ChatTransportRequest();
+        request.setMessage(message);
+        return request;
     }
 
     private AiModelConfigService modelService(Map<Long, AiModelConfigDTO> values) {

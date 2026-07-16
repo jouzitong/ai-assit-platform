@@ -270,15 +270,14 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         return command;
     }
 
-    private AiModelConfigDTO resolveModel(AgentConversationRequest request, AgentDefinitionSnapshot snapshot) {
-        if (request.getModelOverrideId() != null
-                && (request.getContext() == null
-                || !Boolean.TRUE.equals(request.getContext().get("allowModelOverride")))) {
-            throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
-                    "Model override is not permitted for this Agent conversation");
+    AiModelConfigDTO resolveModel(AgentConversationRequest request, AgentDefinitionSnapshot snapshot) {
+        AiModelConfigDTO model = null;
+        if (request.getModelId() != null) {
+            model = modelConfigService.getResolvedById(request.getModelId());
+            if (model == null) {
+                throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, request.getModelId());
+            }
         }
-        AiModelConfigDTO model = request.getModelOverrideId() == null
-                ? null : modelConfigService.getResolvedById(request.getModelOverrideId());
         if (model == null) {
             String ref = textAt(snapshot.getRootAgent(), "spec", "model", "ref");
             if (StringUtils.hasText(ref) && ref.startsWith("model://") && !"model://default-quality".equals(ref)) {
@@ -294,7 +293,9 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         if (model == null || !Boolean.TRUE.equals(model.getEnabled())
                 || !StringUtils.hasText(model.getApiModel()) || !StringUtils.hasText(model.getBaseUrl())) {
             throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND,
-                    textAt(snapshot.getRootAgent(), "spec", "model", "ref"));
+                    request.getModelId() == null
+                            ? textAt(snapshot.getRootAgent(), "spec", "model", "ref")
+                            : request.getModelId());
         }
         return model;
     }

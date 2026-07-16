@@ -12,7 +12,8 @@
 
 1. 正式聊天统一走 Agent。
    - 首页聊天、历史会话续聊、系统设置页助手均由服务端 Agent Runtime 执行。
-   - 浏览器只提交消息、Agent 目标和页面上下文，不创建正式 Agent，不接触模型密钥。
+   - 正式首页只提交消息、用户选择的 modelId 和页面上下文，不展示或提交 Agent 目标，不创建正式 Agent，不接触模型密钥。
+   - 显式 target 仅保留给受控协议调用方，并受 Entry Binding 与服务端授权约束。
    - 首页默认入口通过 HOME_CHAT Entry Binding 绑定一个已发布的根 Agent。
 
 2. 删除 Node 概念，但不把每个旧 Node 机械替换为 Agent。
@@ -362,9 +363,11 @@ spec:
   collaboration:
     agentTools:
       - targetAgentRef: agent://requirement-analyst/v3
+        mode: AS_TOOL
         toolName: analyze_requirement
         description: 分析复杂需求并返回结构化目标、约束和缺失信息
       - targetAgentRef: agent://render-specialist/v5
+        mode: AS_TOOL
         toolName: build_render
         description: 根据已确认的数据和展示目标生成 Render Artifact
     handoffs: []
@@ -753,28 +756,26 @@ Reviewer Agent 只返回检查报告，不直接静默修改 Artifact。修复�
 
 ## 12. 正式聊天执行链
 
-### 12.1 请求目标
+### 12.1 模型选择与 Agent 目标
 
-现有 ChatTransportRequest 增加：
+正式首页请求只需携带用户选择的系统模型：
 
 ~~~json
 {
-  "target": {
-    "type": "AGENT",
-    "agentCode": "home-assistant",
-    "agentVersion": null
-  },
-  "modelOverrideId": null
+  "modelId": 42
 }
 ~~~
 
 规则：
 
-- target 可空；空时服务端按 entryCode=HOME_CHAT 解析。
-- 普通用户只能选择 Entry Binding 允许的 Agent。
+- modelId 是普通用户选择系统已启用模型的正式字段；连接地址、API 模型和密钥始终由服务端按 ID 解析。
+- 正式首页固定省略 target；服务端按 entryCode=HOME_CHAT 解析根 Agent，根 Agent 再按需求调用专业 Agent、Skill 和 Tool。
+- 协议调用方可显式携带 target，但只能选择 Entry Binding 允许的 Agent。
 - 前端不得传完整 Manifest、Runtime Binding、Tool 实现或 Secret。
 - agentVersion 为空时，在 Run 开始时解析当前发布版本并固定。
-- modelOverrideId 只在 Agent 策略允许且开发模式有权限时生效。
+- modelOverrideId 仅用于管理员或具有调试权限的调用方；存在时优先于 modelId。
+- 模型解析优先级为：已授权的 modelOverrideId、modelId、Manifest 模型引用、系统启用模型兜底。
+- 最终解析的模型连接应用于本轮根 Agent 及其调用的专业 Agent。
 
 ### 12.2 执行时序
 
@@ -788,11 +789,11 @@ sequenceDiagram
     participant W as Workflow Acceptance
     participant H as History
 
-    UI->>C: chat.user_message
+    UI->>C: chat.user_message(modelId, target omitted)
     C->>H: create/load session, create round, save user message
-    C->>E: resolve HOME_CHAT or explicit target
+    C->>E: resolve HOME_CHAT
     E-->>C: agentCode + published version
-    C->>A: AgentRunCommand + frozen snapshot
+    C->>A: AgentRunCommand + frozen snapshot + resolved model connection
     A-->>UI: run/agent/tool/handoff delta events
     A->>T: authorized tool and skill calls
     T-->>A: normalized results
@@ -1195,9 +1196,9 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 
 ### 17.5 首页聊天
 
-- 当前模型选择器改为 Agent 身份选择器。
-- 模型覆盖只在开发模式和有权限时显示。
-- target 缺省时不由前端硬编码版本，交给 HOME_CHAT Entry Binding。
+- 首页保留系统已启用模型选择器，正式提交 modelId。
+- 首页不展示 Agent selector，也不展示 modelOverrideId 调试入口。
+- 首页固定省略 target，由 HOME_CHAT 根 Agent 自动选择协作 Agent、Skill 和 Tool。
 - 会话详情保留并渲染 activities 和 artifacts，不再在 flattenRoundsToMessages 时丢弃。
 - 从 TestChatView 抽取统一 useChatRun 和 RunActivityTimeline，供正式首页复用。
 - 补齐 Agent、handoff、Tool、Skill、Artifact 和 Check 事件展示。
@@ -1277,7 +1278,7 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 - 旧 Skill 自动生成 FORM 标准包。
 - Tool 和 Workflow 版本化。
 - 上线 Agent、Workflow、Skill、Tool 独立页面。
-- 首页 Agent selector 和统一 Activity Timeline 上线。
+- 首页系统模型选择器、自动 Agent 路由和统一 Activity Timeline 上线。
 
 验收：
 
@@ -1333,7 +1334,7 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 ### 后端重点修改
 
 - web/.../ChatTransportProtocolController.java
-  - ChatTransportRequest 增加 target。
+  - ChatTransportRequest 增加正式 modelId，并保留可选 target 和特权 modelOverrideId。
 - web/.../ConversationController.java
   - 移除 browserAgentModels 及密钥 DTO。
 - core-ai-chat/.../DefaultConversationExecutionServiceImpl.java
@@ -1364,9 +1365,9 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 ### 前端重点修改
 
 - ai-conversation-ui/src/modules/ai-chat/api/index.ts
-  - 请求增加 target，响应和事件类型补齐 Agent/Artifact。
+  - 正式首页请求增加 modelId、固定省略 target，响应和事件类型补齐 Agent/Artifact。
 - ai-conversation-ui/src/modules/ai-chat/views/ChatWorkspaceView.vue
-  - 接入统一 Run Hook 和 Activity Timeline。
+  - 移除 Agent selector，接入系统模型选择、HOME_CHAT 自动路由、统一 Run Hook 和 Activity Timeline。
 - ai-conversation-ui/src/modules/test/views/TestChatView.vue
   - 抽取可复用事件处理，不再保留独立协议实现。
 - ai-conversation-ui/src/modules/system/components/sections/WorkflowSection.vue
@@ -1397,6 +1398,7 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 
 ### 21.2 契约测试
 
+- 普通 modelId 无需调试权限；modelOverrideId 必须鉴权且存在时优先。
 - 同一 Agent fixture 生成等价的 Python/TypeScript Agent Graph。
 - 同一 JSON Schema 在两端通过或以同一错误码拒绝。
 - Python/TypeScript 原始事件映射成同一平台事件。
@@ -1404,8 +1406,9 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 
 ### 21.3 集成测试
 
-- 首页默认 HOME_CHAT Agent。
-- 显式选择允许的 Agent。
+- 首页选择系统模型并默认路由 HOME_CHAT Agent。
+- 首页所选模型贯穿根 Agent 和协作 Agent；无效显式模型不静默回退。
+- 受控协议调用显式选择 Entry Binding 允许的 Agent。
 - 简单聊天不调用专业 Agent。
 - 查询任务调用 Requirement 和 SQL Agent。
 - Render 任务产生并持久化 Render Artifact。
@@ -1502,7 +1505,7 @@ npm run build
 |---|---|---|
 | Agent SPI | `spi` 中的 Agent Runtime、Definition Store、Tool/Skill Store 和事件契约 | 确认所有部署实例加载相同发布快照 |
 | Agent Runtime | `modules/core-agent-runtime` 中的 Manifest 校验、引用冻结、图环/深度/数量限制、snapshotHash、Run grant、Workflow 验收与有限修复 | 用真实发布 Agent 验证 Python/TypeScript Runtime 选择和取消/超时 |
-| 正式聊天 | `modules/core-ai-chat` 已由 `AgentConversationRunner` 驱动；缺省 target 解析 `HOME_CHAT`，显式 target 和模型覆盖在服务端鉴权 | 验证首页、历史续聊、SSE 重连、停止和审计字段 |
+| 正式聊天 | `modules/core-ai-chat` 已由 `AgentConversationRunner` 驱动；缺省 target 解析 `HOME_CHAT`；普通 modelId 由服务端校验，显式 target 和 modelOverrideId 分别按 Entry Binding/权限鉴权 | 验证首页、历史续聊、SSE 重连、停止和审计字段 |
 | Artifact Workflow | `modules/core-workflow` 已改为 Artifact Contract、确定性 Check、Repair/Input Required，不再执行 Node DAG | 验证阻断检查 fail-closed 和修复耗尽行为 |
 | 控制面 | 首期集中落在 `data/data-workflow`，提供 Agent、Entry、Skill、Tool、Artifact Workflow 的版本、校验和发布能力 | `test-runs` 当前是定义/Binding/兼容性 dry-run，不等同于真实模型端到端执行 |
 | Skill | FORM 和 ZIP Inspect/Import、不可变文件索引、原包 checksum、安全限制、按需 Resource Gateway | 验证大包容量、恶意 ZIP 拒绝、资源 checksum；首期不执行包内脚本 |
@@ -1510,7 +1513,7 @@ npm run build
 | OpenAI Agents Worker | `providers/ai-provider-ai-agent` 同时打包 Python 与 TypeScript Worker，支持 agent-as-tool、handoff、Tool/Skill Gateway 和统一事件 | Python >= 3.11、Node.js >= 20、SDK 依赖和模型网络必须在目标环境实测 |
 | Spring AI 简单任务 | `POST /internal/v1/ai/text/generate` 固定校验 `SPRING_AI`，不进入会话或 Agent 主链 | 验证非 `SPRING_AI` 模型被拒绝且不生成会话数据 |
 | 历史与审计 | Agent Run 表、Round Agent 快照字段、Activity 的 `agent_code` 已有 DDL/实体支持 | 抽查 runId、根 Agent、Runtime、SDK 和 snapshotHash 可关联 |
-| 前端 | 首页 Agent selector、Agent activity/artifact 展示，以及 Agent/Workflow/Skill/Tool 独立管理页已落地 | 用已部署后端执行浏览器验收；构建成功不能替代交互验收 |
+| 前端 | 首页系统模型 selector、HOME_CHAT 自动 Agent 路由、Agent activity/artifact 展示，以及 Agent/Workflow/Skill/Tool 独立管理页已落地 | 用已部署后端执行浏览器验收；构建成功不能替代交互验收 |
 | 旧 Node 体系 | Node Java Runtime、管理 API、页面和数据访问代码已从新版本移除 | 旧表仅作迁移/旧版本回滚档案，新二进制不会读取旧 Node 执行表 |
 
 首期有两个有意保留的物理边界：控制面继续位于 `data-workflow`，Python/TypeScript 继续位于同一个 Provider Maven 模块。它们不影响中立 Manifest 和 Agent Runtime SPI，暂不为目录纯度增加一次额外迁移。
@@ -1531,7 +1534,7 @@ GET  /api/chat/sessions/{sessionCode}/rounds/{roundCode}/thinking
 GET  /api/chat/render-artifacts/{codeRef}
 ~~~
 
-请求的 `target` 可省略；省略时解析 `HOME_CHAT`。`target.type` 只接受 `AGENT`。`modelOverrideId` 需要管理员角色、`ai:chat:model-override` 或 `ai:agent:debug` 权限；旧 `modelId` 仅用于兼容请求。`/api/v1/chat/completions`、`/api/v1/chat/completions/stream` 和 `/api/v1/chat/stream/reconnect` 暂时保留，但共用 Agent 执行链。
+正式首页携带用户选择的 `modelId` 并省略 `target`；省略时解析 `HOME_CHAT`。`modelId` 是普通用户选择已启用模型的正式字段，模型连接和密钥由服务端解析。`modelOverrideId` 是有权限的调试覆盖，存在时优先于 `modelId`，需要管理员角色、`ai:chat:model-override` 或 `ai:agent:debug` 权限。显式 `target` 的 `type` 只接受 `AGENT`，并继续按 Entry Binding 校验。`/api/v1/chat/completions`、`/api/v1/chat/completions/stream` 和 `/api/v1/chat/stream/reconnect` 暂时保留，但共用 Agent 执行链。
 
 简单任务：
 
@@ -1581,7 +1584,7 @@ POST /api/v1/ai/skill-gateway/{skillCode}/versions/{version}/resources/read
 | 环境变量/配置键 | 默认值 | 用途 |
 |---|---|---|
 | `AI_PROVIDER_AI_AGENT_ENABLED` | `true` | 启用 Agent Provider |
-| `AI_PROVIDER_AI_AGENT_PYTHON_COMMAND` | `python3` | Python Worker 命令 |
+| `AI_PROVIDER_AI_AGENT_PYTHON_COMMAND` | 留空自动探测 | Python Worker 命令；开发环境优先使用 Worker 项目的 `.venv`，否则回退到 `python3` |
 | `AI_PROVIDER_AI_AGENT_SCRIPT_PATH` | 空 | 可选外部 Python Worker 入口；空时使用打包资源 |
 | `AI_PROVIDER_AI_AGENT_WORKING_DIRECTORY` | 空 | Python Worker 工作目录 |
 | `AI_PROVIDER_AI_AGENT_NODE_COMMAND` | `node` | TypeScript Worker 的 Node.js 命令 |
@@ -1636,7 +1639,7 @@ codegraph sync
 codegraph status
 ~~~
 
-自动化通过后仍需在部署环境执行以下端到端用例：HOME_CHAT 缺省路由、显式 Agent、agent-as-tool、handoff、Python 与 TypeScript 各一次、Tool/Skill Gateway 各一次、Workflow 阻断与修复耗尽、SSE 断线重连、stop、历史回放，以及简单任务拒绝 `AI_AGENT` 模型。
+自动化通过后仍需在部署环境执行以下端到端用例：首页 modelId 选择与根/子 Agent 模型一致性、HOME_CHAT 缺省路由、受控显式 target、agent-as-tool、handoff、Python 与 TypeScript 各一次、Tool/Skill Gateway 各一次、Workflow 阻断与修复耗尽、SSE 断线重连、stop、历史回放，以及简单任务拒绝 `AI_AGENT` 模型。
 
 ### 26.6 已知部署约束
 
@@ -1661,7 +1664,7 @@ codegraph status
 - Tool/Skill Gateway 在目标负载均衡拓扑下命中同一 run grant，权限、审批、Secret、checksum 和幂等测试通过。
 - Round 与 Agent Run 可追溯 runId、rootAgentCode/version、runtime、sdkVersion、snapshotHash，Artifact/Activity 可回放。
 - Workflow 确定性检查失败不会放行，有限修复耗尽进入 `INPUT_REQUIRED` 或 `FAILED`。
-- 首页、历史续聊、SSE 重连、停止、前端管理页面和 Agent selector 通过浏览器验收，浏览器请求与 Bundle 中无模型 API Key。
+- 首页、历史续聊、SSE 重连、停止、前端管理页面、系统模型选择器和 HOME_CHAT 自动 Agent 路由通过浏览器验收，浏览器请求与 Bundle 中无模型 API Key。
 - `/internal/v1/ai/text/generate` 不创建会话数据，并能拒绝非 `SPRING_AI` 模型。
 
 在这些外部验收项完成前，仓库状态保持“已实施，待部署验收”。

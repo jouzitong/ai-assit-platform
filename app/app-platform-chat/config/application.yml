@@ -24,7 +24,7 @@ ai:
   provider:
     ai-agent:
       enabled: ${AI_PROVIDER_AI_AGENT_ENABLED:true}
-      python-command: ${AI_PROVIDER_AI_AGENT_PYTHON_COMMAND:python3}
+      python-command: ${AI_PROVIDER_AI_AGENT_PYTHON_COMMAND:}
       script-path: ${AI_PROVIDER_AI_AGENT_SCRIPT_PATH:}
       working-directory: ${AI_PROVIDER_AI_AGENT_WORKING_DIRECTORY:}
       node-command: ${AI_PROVIDER_AI_AGENT_NODE_COMMAND:node}
@@ -47,4 +47,4 @@ mybatis-plus:
     default-enum-type-handler: org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler
 
 database:
-  name: "ai_assist_chat"
+  name: "ai_assist_chat_v2"

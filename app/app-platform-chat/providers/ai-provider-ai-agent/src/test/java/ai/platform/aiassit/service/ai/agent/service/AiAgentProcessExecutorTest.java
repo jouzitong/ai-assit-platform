@@ -22,6 +22,68 @@ class AiAgentProcessExecutorTest {
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Test
+    void resolvesDevelopmentWorkerWhenApplicationStartsFromChatModuleDirectory() throws Exception {
+        Path repositoryRoot = tempDirectory.resolve("repository");
+        Path chatModuleDirectory = repositoryRoot.resolve("app/app-platform-chat");
+        Path worker = repositoryRoot.resolve(
+                "app/app-platform-chat/providers/ai-provider-ai-agent/src/main/python/agent_provider/main.py");
+        Files.createDirectories(worker.getParent());
+        Files.createFile(worker);
+
+        Path resolved = new AiAgentProcessExecutor(objectMapper)
+                .resolveScriptPath(new AiAgentProperties(), chatModuleDirectory);
+
+        assertThat(resolved).isEqualTo(worker.toAbsolutePath().normalize());
+    }
+
+    @Test
+    void prefersProjectVirtualEnvironmentForTheDefaultPythonCommand() throws Exception {
+        Path projectDirectory = tempDirectory.resolve("python-project");
+        Path worker = projectDirectory.resolve("agent_provider/main.py");
+        Path localPython = projectDirectory.resolve(".venv/bin/python");
+        Files.createDirectories(worker.getParent());
+        Files.createDirectories(localPython.getParent());
+        Files.createFile(worker);
+        Files.createFile(localPython);
+
+        String resolved = new AiAgentProcessExecutor(objectMapper)
+                .resolvePythonCommand(new AiAgentProperties(), worker);
+
+        assertThat(resolved).isEqualTo(localPython.toAbsolutePath().normalize().toString());
+    }
+
+    @Test
+    void keepsAnExplicitPythonCommand() {
+        AiAgentProperties properties = new AiAgentProperties();
+        properties.setPythonCommand("/opt/runtime/bin/python");
+
+        String resolved = new AiAgentProcessExecutor(objectMapper)
+                .resolvePythonCommand(properties, tempDirectory.resolve("agent_provider/main.py"));
+
+        assertThat(resolved).isEqualTo("/opt/runtime/bin/python");
+    }
+
+    @Test
+    void explainsHowToFixAMissingOpenAiAgentsDependency() throws Exception {
+        Path worker = shellWorker("printf '%s\\n' \"{\\\"type\\\":\\\"error\\\","
+                + "\\\"message\\\":\\\"No module named 'agents'\\\"}\"\n");
+
+        assertThatThrownBy(() -> new AiAgentProcessExecutor(objectMapper).executeAgentWithWorker(
+                properties(5000),
+                new AgentDefinitionSnapshot(),
+                command(),
+                frame -> { },
+                () -> false,
+                "/bin/sh",
+                worker,
+                "",
+                Map.of()
+        )).satisfies(error -> assertThat(error.toString())
+                .contains("AI_PROVIDER_AI_AGENT_PYTHON_COMMAND")
+                .contains("openai-agents==0.18.2"));
+    }
+
+    @Test
     void terminatesTheWorkerAtTheRunTimeout() throws Exception {
         Path worker = shellWorker("sleep 5\n");
         AiAgentProperties properties = properties(75);
