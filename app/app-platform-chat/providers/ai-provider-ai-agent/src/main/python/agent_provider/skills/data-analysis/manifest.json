@@ -1,0 +1,20 @@
+{
+  "code": "data-analysis",
+  "version": 1,
+  "name": "Data Analysis",
+  "description": "Local skeleton for data analysis skill resources.",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "references/business-rules.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "assets/output-schema.json",
+      "mediaType": "application/json"
+    }
+  ]
+}

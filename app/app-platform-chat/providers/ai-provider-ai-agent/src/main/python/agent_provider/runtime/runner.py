@@ -8,10 +8,11 @@ from dataclasses import asdict, is_dataclass
 from dataclasses import dataclass
 from typing import Any
 
-from .compiler import CompiledAgent, CompiledGraph
-from .events import EventEmitter, emit_sdk_event
-from .gateway import build_gateway_tool
-from .protocol import build_application_input
+from ..compiler import CompiledAgent, CompiledGraph
+from ..events import EventEmitter, emit_sdk_event
+from ..gateway import build_gateway_tool
+from ..protocol import build_application_input
+from ..skills import build_skill_tool
 
 
 @dataclass
@@ -35,7 +36,7 @@ def build_sdk_graph(graph: CompiledGraph, emitter: EventEmitter) -> SdkGraph:
 
     from agents import Agent, ModelSettings, function_tool
 
-    from .tools import (
+    from ..tools import (
         data_format_validate_tool,
         knowledge_base_search_tool,
         render_json_validate_tool,
@@ -78,7 +79,7 @@ def build_sdk_graph(graph: CompiledGraph, emitter: EventEmitter) -> SdkGraph:
             for name in spec.tool_names
         ]
         if graph.skill_catalog and spec.skill_refs:
-            tools.append(_build_skill_tool(graph, emitter, function_tool, spec.skill_refs))
+            tools.append(build_skill_tool(graph, emitter, function_tool, spec.skill_refs))
         tools.extend(child_tools)
 
         kwargs: dict[str, Any] = {
@@ -241,44 +242,6 @@ def _int_attr(value: Any, *names: str) -> int | None:
         except (TypeError, ValueError):
             continue
     return None
-
-
-def _build_skill_tool(
-    graph: CompiledGraph,
-    emitter: EventEmitter,
-    function_tool: Any,
-    allowed_refs: list[str],
-) -> Any:
-    def load_skill_resource(skill_ref: str, resource_path: str = "SKILL.md") -> dict[str, Any]:
-        """Load an approved skill resource only when the current task needs it."""
-
-        canonical = graph.skill_catalog.resolve(skill_ref).ref
-        if canonical not in allowed_refs:
-            raise ValueError(f"Skill is not assigned to this Agent: {skill_ref}")
-
-        def loaded(record: Any, relative: str) -> None:
-            emitter.event(
-                "skill.loaded",
-                status="SUCCESS",
-                message=f"Loaded {record.name}/{relative}",
-                ext={
-                    "skillRef": record.ref,
-                    "skillName": record.name,
-                    "resourcePath": relative,
-                    "contentHash": record.content_hash,
-                },
-            )
-
-        return graph.skill_catalog.read(canonical, resource_path, loaded)
-
-    decorator = function_tool(
-        name_override="load_skill_resource",
-        description_override=(
-            "Load SKILL.md, data, templates, or another resource from an approved skill package. "
-            "Call only after selecting a skill from the metadata in the Agent instructions."
-        ),
-    )
-    return decorator(load_skill_resource)
 
 
 def _model_settings(model_settings_type: Any, values: dict[str, Any]) -> Any | None:

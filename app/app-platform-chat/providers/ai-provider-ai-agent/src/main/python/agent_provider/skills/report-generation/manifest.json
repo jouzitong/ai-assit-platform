@@ -1,0 +1,12 @@
+{
+  "code": "report-generation",
+  "version": 1,
+  "name": "Report Generation",
+  "description": "Local skeleton for report generation skill resources.",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "mediaType": "text/markdown"
+    }
+  ]
+}

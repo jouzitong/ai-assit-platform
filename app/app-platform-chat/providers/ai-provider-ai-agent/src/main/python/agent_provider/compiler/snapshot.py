@@ -5,8 +5,8 @@ import re
 from dataclasses import dataclass, field
 from typing import Any
 
-from .protocol import normalize_payload
-from .skills import SkillCatalog
+from ..protocol import normalize_payload
+from ..skills import SkillCatalog
 
 
 MAX_AGENTS = 16

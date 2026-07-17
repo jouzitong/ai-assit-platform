@@ -1,14 +1,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 import re
-import base64
-import hashlib
-import json
-import os
 from typing import Any, Callable
-from urllib import error, parse, request
+
+from agent_provider.gateway.skill_gateway import read_skill_resource as read_gateway_skill_resource
+from agent_provider.gateway.skill_gateway import request
+from agent_provider.skills.validator import safe_relative_path
 
 
 MAX_RESOURCE_BYTES = 256 * 1024
@@ -133,7 +132,7 @@ class SkillCatalog:
         on_loaded: Callable[[SkillRecord, str], None] | None = None,
     ) -> dict[str, Any]:
         record = self.resolve(skill_ref)
-        relative = _safe_relative_path(resource_path)
+        relative = safe_relative_path(resource_path)
         content = record.inline_files.get(relative)
         gateway_metadata: dict[str, Any] = {}
         if content is None and record.root_path is not None:
@@ -164,96 +163,17 @@ class SkillCatalog:
         }
 
     def _read_gateway(self, record: SkillRecord, relative: str) -> tuple[str, dict[str, Any]]:
-        if not record.code or record.version is None:
-            raise ValueError(f"Skill resource not found: {relative}")
         expected = record.package_files.get(relative)
         if record.package_files and expected is None:
             raise ValueError(f"Skill resource is not part of the frozen package: {relative}")
-        base_url = (
-            os.getenv("AI_AGENT_SKILL_GATEWAY_URL")
-            or os.getenv("AI_AGENT_TOOL_GATEWAY_URL")
-            or ""
-        ).strip().rstrip("/")
-        token = (
-            os.getenv("AI_AGENT_SKILL_GATEWAY_TOKEN")
-            or os.getenv("AI_AGENT_TOOL_GATEWAY_TOKEN")
-            or ""
-        ).strip()
-        if not base_url:
-            raise ValueError("AI_AGENT_SKILL_GATEWAY_URL is required")
-        if not token:
-            raise ValueError("AI_AGENT_SKILL_GATEWAY_TOKEN is required")
-        run_id = _text(self._run.get("runId"))
-        if not run_id:
-            raise ValueError("Skill Gateway runId is required")
-        snapshot_hash = _text(self._snapshot_hash)
-        if not snapshot_hash:
-            raise ValueError("Skill Gateway snapshotHash is required")
-        url = (
-            f"{base_url}/api/v1/ai/skill-gateway/{parse.quote(record.code, safe='')}"
-            f"/versions/{record.version}/resources/read"
+        return read_gateway_skill_resource(
+            record,
+            relative,
+            self._run,
+            self._snapshot_hash,
+            expected,
+            MAX_RESOURCE_BYTES,
         )
-        body = json.dumps({
-            "path": relative,
-            "run": {
-                "runId": run_id,
-                "snapshotHash": snapshot_hash,
-            },
-        }, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
-        http_request = request.Request(
-            url,
-            data=body,
-            headers={
-                "Content-Type": "application/json; charset=utf-8",
-                "Authorization": token if token.lower().startswith("bearer ") else f"Bearer {token}",
-            },
-            method="POST",
-        )
-        try:
-            with request.urlopen(http_request, timeout=20) as response:
-                response_text = response.read().decode("utf-8", errors="replace")
-        except error.HTTPError as exc:
-            raise ValueError(f"Skill Gateway HTTP {exc.code}") from None
-        except error.URLError as exc:
-            raise ValueError(f"Skill Gateway request failed: {exc.reason}") from None
-        try:
-            decoded = json.loads(response_text) if response_text else {}
-        except json.JSONDecodeError:
-            raise ValueError("Skill Gateway returned non-JSON") from None
-        if not isinstance(decoded, dict):
-            raise ValueError("Skill Gateway response must be a JSON object")
-        if decoded.get("skillCode") != record.code or _optional_int(decoded.get("skillVersion")) != record.version:
-            raise ValueError("Skill Gateway response identity does not match the frozen Skill")
-        if decoded.get("path") != relative:
-            raise ValueError("Skill Gateway response path does not match the requested resource")
-        encoding = str(decoded.get("encoding") or "utf-8").lower()
-        raw_content = decoded.get("content")
-        if not isinstance(raw_content, str):
-            raise ValueError("Skill Gateway response content must be a string")
-        if encoding == "base64":
-            try:
-                content_bytes = base64.b64decode(raw_content, validate=True)
-            except ValueError:
-                raise ValueError("Skill Gateway returned invalid base64 content") from None
-            content = raw_content
-        elif encoding == "utf-8":
-            content = raw_content
-            content_bytes = raw_content.encode("utf-8")
-        else:
-            raise ValueError(f"Skill Gateway returned unsupported encoding: {encoding}")
-        if len(content_bytes) > MAX_RESOURCE_BYTES:
-            raise ValueError(f"Skill resource is larger than {MAX_RESOURCE_BYTES} bytes")
-        response_checksum = _text(decoded.get("checksum"))
-        expected_checksum = _text(expected.get("checksum")) if expected else None
-        if expected_checksum and response_checksum != expected_checksum:
-            raise ValueError("Skill Gateway checksum does not match the frozen package manifest")
-        if response_checksum and not _checksum_matches(response_checksum, content_bytes):
-            raise ValueError("Skill Gateway content checksum is invalid")
-        return content, {
-            "mediaType": decoded.get("mediaType"),
-            "checksum": response_checksum,
-            "encoding": encoding,
-        }
 
     def __bool__(self) -> bool:
         return bool(self._records)
@@ -274,7 +194,7 @@ def _inline_files(item: dict[str, Any]) -> dict[str, str]:
         for key, value in source.items():
             if not isinstance(value, str):
                 continue
-            files[_safe_relative_path(str(key))] = value
+            files[safe_relative_path(str(key))] = value
     skill_md = item.get("skillMd") or item.get("content")
     if isinstance(skill_md, str) and "SKILL.md" not in files:
         files["SKILL.md"] = skill_md
@@ -289,21 +209,8 @@ def _package_files(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
         path = value.get("path")
         if not isinstance(path, str):
             continue
-        files[_safe_relative_path(path)] = value
+        files[safe_relative_path(path)] = value
     return files
-
-
-def _checksum_matches(checksum: str, content: bytes) -> bool:
-    normalized = checksum.lower().removeprefix("sha256:")
-    return normalized == hashlib.sha256(content).hexdigest()
-
-
-def _safe_relative_path(value: str) -> str:
-    normalized = str(value or "SKILL.md").replace("\\", "/").strip() or "SKILL.md"
-    path = PurePosixPath(normalized)
-    if path.is_absolute() or any(part in {"", ".", ".."} for part in path.parts):
-        raise ValueError("Skill resource path must be a normalized relative path")
-    return str(path)
 
 
 def _terminal_ref(value: str) -> str:
