@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ArrowRight } from '@element-plus/icons-vue'
-import { computed, ref, watch } from 'vue'
+import { computed, ref } from 'vue'
 import type { ChatRunActivity } from '../types'
 
 const props = defineProps<{
@@ -8,7 +8,7 @@ const props = defineProps<{
   runStatus?: string
 }>()
 
-const isOpen = ref(true)
+const drawerVisible = ref(false)
 const normalizedRunStatus = computed(() => props.runStatus?.trim().toLowerCase() || '')
 const runCompleted = computed(() => ['success', 'succeeded', 'completed'].includes(normalizedRunStatus.value))
 const runFailed = computed(() => ['failed', 'error'].includes(normalizedRunStatus.value))
@@ -31,14 +31,6 @@ const summaryStatus = computed(() => {
   if (cancelledCount.value) return `${cancelledCount.value} 项已取消`
   return allCompleted.value ? '已完成' : '需要关注'
 })
-
-watch([runCompleted, runFailed, runCancelled, allCompleted], ([completed, failed, cancelled, activitiesCompleted]) => {
-  isOpen.value = failed || cancelled || !(completed || activitiesCompleted)
-}, { immediate: true })
-
-function handleToggle(event: Event) {
-  isOpen.value = (event.currentTarget as HTMLDetailsElement).open
-}
 
 const kindLabels: Record<ChatRunActivity['kind'], string> = {
   agent: 'Agent',
@@ -70,41 +62,55 @@ function displayedStatus(activity: ChatRunActivity) {
 </script>
 
 <template>
-  <details
-    class="run-activity-timeline"
-    :open="isOpen"
-    @toggle="handleToggle"
-  >
-    <summary class="run-activity-timeline__summary">
+  <div class="run-activity-timeline">
+    <button
+      class="run-activity-timeline__summary"
+      type="button"
+      :aria-label="`查看 AI 执行过程，共 ${activities.length} 项，${summaryStatus}`"
+      @click="drawerVisible = true"
+    >
       <span class="run-activity-timeline__summary-title">
         <el-icon class="run-activity-timeline__summary-icon" aria-hidden="true"><ArrowRight /></el-icon>
         <strong>执行过程</strong>
       </span>
       <span class="run-activity-timeline__summary-status">{{ activities.length }} 项 · {{ summaryStatus }}</span>
-    </summary>
-    <div class="run-activity-timeline__content" aria-label="Agent 运行活动">
-      <div
-        v-for="activity in activities"
-        :key="`${activity.kind}:${activity.id}`"
-        :class="['run-activity-timeline__item', `is-${displayedStatus(activity) || 'pending'}`]"
-      >
-        <span class="run-activity-timeline__dot" aria-hidden="true"></span>
-        <div class="run-activity-timeline__body">
-          <div class="run-activity-timeline__heading">
-            <span class="run-activity-timeline__kind">{{ kindLabels[activity.kind] }}</span>
-            <strong>{{ activity.title }}</strong>
-            <span v-if="displayedStatus(activity)" class="run-activity-timeline__status">
-              {{ statusLabel(displayedStatus(activity)) }}
-            </span>
+    </button>
+
+    <el-drawer
+      v-model="drawerVisible"
+      class="run-activity-drawer"
+      direction="rtl"
+      size="420px"
+      title="AI 执行过程"
+    >
+      <div class="run-activity-drawer__summary" aria-live="polite">
+        <strong>{{ activities.length }} 项活动</strong>
+        <span>{{ summaryStatus }}</span>
+      </div>
+      <div class="run-activity-timeline__content" aria-label="Agent 运行活动">
+        <div
+          v-for="activity in activities"
+          :key="`${activity.kind}:${activity.id}`"
+          :class="['run-activity-timeline__item', `is-${displayedStatus(activity) || 'pending'}`]"
+        >
+          <span class="run-activity-timeline__dot" aria-hidden="true"></span>
+          <div class="run-activity-timeline__body">
+            <div class="run-activity-timeline__heading">
+              <span class="run-activity-timeline__kind">{{ kindLabels[activity.kind] }}</span>
+              <strong>{{ activity.title }}</strong>
+              <span v-if="displayedStatus(activity)" class="run-activity-timeline__status">
+                {{ statusLabel(displayedStatus(activity)) }}
+              </span>
+            </div>
+            <div v-if="activity.agentCode" class="run-activity-timeline__meta">
+              {{ activity.agentCode }}<template v-if="activity.agentVersion"> · v{{ activity.agentVersion }}</template>
+            </div>
+            <p v-if="activity.detail">{{ activity.detail }}</p>
           </div>
-          <div v-if="activity.agentCode" class="run-activity-timeline__meta">
-            {{ activity.agentCode }}<template v-if="activity.agentVersion"> · v{{ activity.agentVersion }}</template>
-          </div>
-          <p v-if="activity.detail">{{ activity.detail }}</p>
         </div>
       </div>
-    </div>
-  </details>
+    </el-drawer>
+  </div>
 </template>
 
 <style scoped>
@@ -116,6 +122,9 @@ function displayedStatus(activity: ChatRunActivity) {
 }
 
 .run-activity-timeline__summary {
+  width: 100%;
+  border: 0;
+  background: transparent;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -123,12 +132,9 @@ function displayedStatus(activity: ChatRunActivity) {
   padding: 10px 12px;
   color: var(--chat-text-primary);
   cursor: pointer;
+  text-align: left;
   font-size: 12px;
   list-style: none;
-}
-
-.run-activity-timeline__summary::-webkit-details-marker {
-  display: none;
 }
 
 .run-activity-timeline__summary-title {
@@ -138,11 +144,7 @@ function displayedStatus(activity: ChatRunActivity) {
 }
 
 .run-activity-timeline__summary-icon {
-  transition: transform 0.2s ease;
-}
-
-.run-activity-timeline[open] .run-activity-timeline__summary-icon {
-  transform: rotate(90deg);
+  transform: rotate(0deg);
 }
 
 .run-activity-timeline__summary-status {
@@ -163,8 +165,21 @@ function displayedStatus(activity: ChatRunActivity) {
   padding: 0 12px 10px;
 }
 
-.run-activity-timeline:not([open]) .run-activity-timeline__content {
-  display: none;
+.run-activity-drawer__summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--chat-panel-border);
+  color: var(--chat-text-primary);
+  font-size: 13px;
+}
+
+.run-activity-drawer__summary span {
+  color: var(--chat-text-muted);
+  font-size: 12px;
 }
 
 .run-activity-timeline__item {
@@ -221,7 +236,15 @@ function displayedStatus(activity: ChatRunActivity) {
 
 @media (prefers-reduced-motion: reduce) {
   .run-activity-timeline__summary-icon {
-    transition: none;
+    transform: none;
   }
+}
+
+:deep(.run-activity-drawer) {
+  max-width: 100%;
+}
+
+:deep(.run-activity-drawer .el-drawer__body) {
+  padding-top: 0;
 }
 </style>

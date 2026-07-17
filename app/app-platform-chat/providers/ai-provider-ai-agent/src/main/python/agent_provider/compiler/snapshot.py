@@ -6,7 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..protocol import normalize_payload
-from ..agents.catalog import definition_for
+from ..agents.catalog import definition_for, local_agent_documents
 from ..skills import SkillCatalog
 
 
@@ -93,6 +93,8 @@ class CompiledGraph:
 
 def compile_snapshot(payload: dict[str, Any] | None) -> CompiledGraph:
     normalized = normalize_payload(payload)
+    if normalized.get("agentDefinitionSource") == "PYTHON_LOCAL":
+        normalized = _with_local_agent_definitions(normalized)
     root_value = normalized["rootAgent"]
     documents = list(normalized["agentGraph"])
     if _is_agent_definition(root_value):
@@ -141,6 +143,23 @@ def compile_snapshot(payload: dict[str, Any] | None) -> CompiledGraph:
         max_depth = DEFAULT_MAX_DEPTH
     _validate_graph(root_key, compiled, max_depth)
     return CompiledGraph(normalized, root_key, compiled, catalog, gateway_tools, max_turns, max_depth)
+
+
+def _with_local_agent_definitions(normalized: dict[str, Any]) -> dict[str, Any]:
+    """Replace all Java manifest fields with the Python-owned local catalog."""
+
+    local = dict(normalized)
+    run = _mapping(local.get("run"))
+    context = _mapping(run.get("context"))
+    root, graph = local_agent_documents(_text(context.get("agentEntry"), "HOME_CHAT"))
+    local["rootAgent"] = root
+    local["agentGraph"] = graph
+    # Runtime tools and skills are declared by local Agent definitions. The
+    # Java process deliberately cannot add capabilities to this graph.
+    local["resolvedCapabilities"] = {}
+    local["workflowSnapshot"] = {}
+    local["snapshotHash"] = "python-local"
+    return local
 
 
 def _compile_agent(

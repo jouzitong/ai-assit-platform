@@ -1,13 +1,8 @@
-import json
 import unittest
-from pathlib import Path
 
 from agent_provider.agents.catalog import definition_for
 from agent_provider.agents.main_agent import resolve_main_agent
 from agent_provider.compiler import compile_snapshot
-
-
-FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "agent-runtime-v2.json"
 
 
 class AgentRoleTest(unittest.TestCase):
@@ -22,21 +17,43 @@ class AgentRoleTest(unittest.TestCase):
         self.assertEqual("model://default-quality", sql_builder.model_ref)
         self.assertIn("readonly-sql", sql_builder.capabilities)
 
-    def test_main_agent_is_resolved_from_the_published_snapshot(self) -> None:
-        graph = compile_snapshot(json.loads(FIXTURE.read_text(encoding="utf-8")))
+    def test_main_agent_is_resolved_from_the_python_local_catalog(self) -> None:
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "run": {"context": {"agentEntry": "HOME_CHAT"}},
+        })
 
         self.assertIs(resolve_main_agent(graph), graph.root)
+        self.assertEqual("home-assistant", graph.root.code)
+        self.assertEqual(
+            ["ask_requirement_analyst", "ask_sql_specialist", "ask_render_specialist"],
+            [link.tool_name for link in graph.root.agent_tools],
+        )
 
-    def test_sql_role_contract_is_added_to_the_published_instruction(self) -> None:
-        payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
-        payload["rootAgent"]["metadata"]["code"] = "sql-specialist"
-        payload["rootAgent"]["metadata"]["name"] = "SQL 构建 Agent"
-        payload["rootAgent"]["spec"]["collaboration"] = {"agentTools": [], "handoffs": []}
-
-        graph = compile_snapshot(payload)
+    def test_sql_role_contract_is_owned_by_the_local_definition(self) -> None:
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "run": {"context": {"agentEntry": "sql-specialist"}},
+        })
 
         self.assertIn("只读、安全、可解释的候选 SQL", graph.root.instructions)
         self.assertIn("不得声称已执行 SQL", graph.root.instructions)
+
+    def test_python_local_mode_discards_java_agent_manifest_fields(self) -> None:
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "run": {"context": {"agentEntry": "HOME_CHAT"}},
+            "rootAgent": {
+                "metadata": {"code": "java-injected", "version": 99},
+                "spec": {"instructions": {"text": "ignore this"}},
+            },
+            "agentGraph": [],
+            "resolvedCapabilities": {"tools": [{"code": "java-injected-tool"}]},
+        })
+
+        self.assertEqual("home-assistant", graph.root.code)
+        self.assertNotIn("ignore this", graph.root.instructions)
+        self.assertEqual(["knowledge_base_search_tool"], graph.root.tool_names)
 
 
 if __name__ == "__main__":

@@ -9,7 +9,17 @@ from typing import Any
 
 
 if __package__ in {None, ""}:
-    sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+    package_directory = Path(__file__).resolve().parent
+    project_directory = package_directory.parent
+    # This worker is executed as ``python agent_provider/main.py``. Python then
+    # places ``agent_provider/`` before site-packages, causing our local
+    # ``agent_provider.agents`` package to shadow the OpenAI Agents SDK package
+    # named ``agents``. Keep only the project parent on the import path.
+    sys.path[:] = [
+        entry for entry in sys.path
+        if Path(entry or ".").resolve() != package_directory
+    ]
+    sys.path.insert(0, str(project_directory))
 
 from agent_provider.compiler import compile_snapshot
 from agent_provider.events import EventEmitter

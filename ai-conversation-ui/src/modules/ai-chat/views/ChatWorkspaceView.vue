@@ -341,6 +341,16 @@ function isMessageVisibleInTimeline(message: ChatConversationRound['messages'][n
   return textValue(message.displayLevel)?.toUpperCase() !== 'HIDDEN'
 }
 
+function isAssistantRoundEnded(message: ChatUiMessage) {
+  if (message.role !== 'assistant') return false
+  return ['COMPLETED', 'SUCCESS', 'SUCCEEDED', 'FAILED', 'CANCELLED', 'CANCELED']
+    .includes(message.status?.trim().toUpperCase() || '')
+}
+
+function showPlannedMessageAction(action: '点赞' | '反馈') {
+  ElMessage.info(`${action}功能待规划`)
+}
+
 function normalizeStructuredError(
   value: unknown,
   fallbackDetail?: string,
@@ -1679,16 +1689,16 @@ watch(route, () => {
                   <div class="chat-home-assistant__avatar chat-home-assistant__avatar--small">AI</div>
                   <div class="chat-home-message__assistant-copy">
                     <div class="chat-home-message__assistant-name">{{ message.actorName || ASSISTANT_DISPLAY_NAME }}</div>
-                    <div
-                      v-if="message.content"
-                      class="chat-home-message__assistant-text"
-                      v-html="renderMarkdown(message.content)"
-                    ></div>
                     <RunActivityTimeline
                       v-if="message.activities?.length"
                       :activities="message.activities"
                       :run-status="message.status"
                     />
+                    <div
+                      v-if="message.content"
+                      class="chat-home-message__assistant-text"
+                      v-html="renderMarkdown(message.content)"
+                    ></div>
                     <ChatArtifactList
                       v-if="message.artifacts?.length"
                       :artifacts="message.artifacts"
@@ -1700,6 +1710,31 @@ watch(route, () => {
                       :retry-disabled="isStreaming"
                       @retry="retryMessage(message)"
                     />
+                    <div
+                      v-if="isAssistantRoundEnded(message)"
+                      class="chat-home-feedback"
+                      aria-label="回复操作"
+                    >
+                      <button
+                        class="chat-home-feedback__button"
+                        type="button"
+                        @click="showPlannedMessageAction('点赞')"
+                      >
+                        <svg class="chat-home-feedback__icon" viewBox="0 0 16 16" aria-hidden="true">
+                          <path d="M6.2 6.3 7 2.5c.1-.5.5-.9 1-.9.7 0 1.2.5 1.2 1.2v2.5h3.1c.8 0 1.4.7 1.3 1.5l-.6 4.5c-.1.9-.9 1.5-1.8 1.5H6.2V6.3Z" />
+                          <path d="M2.3 6.4h2.4v6.4H2.3V6.4Z" />
+                        </svg>
+                        <span>点赞</span>
+                      </button>
+                      <button
+                        class="chat-home-feedback__button"
+                        type="button"
+                        @click="showPlannedMessageAction('反馈')"
+                      >
+                        <el-icon><ChatDotRound /></el-icon>
+                        <span>反馈</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </template>

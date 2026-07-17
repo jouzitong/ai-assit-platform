@@ -4,8 +4,17 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True)
+class AgentDelegation:
+    """A main-Agent tool that may lazily run another local Agent."""
+
+    target_code: str
+    tool_name: str
+    description: str
+
+
+@dataclass(frozen=True)
 class AgentDefinition:
-    """Stable role metadata supplemented by the published Agent snapshot at runtime."""
+    """Complete local Agent contract; Java never supplements this definition."""
 
     code: str
     version: int
@@ -15,3 +24,5 @@ class AgentDefinition:
     model_ref: str
     tool_refs: tuple[str, ...]
     capabilities: tuple[str, ...]
+    skill_refs: tuple[str, ...] = ()
+    agent_tools: tuple[AgentDelegation, ...] = ()

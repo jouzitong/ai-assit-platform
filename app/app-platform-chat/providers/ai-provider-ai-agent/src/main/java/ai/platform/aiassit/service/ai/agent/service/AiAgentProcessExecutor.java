@@ -57,7 +57,8 @@ public class AiAgentProcessExecutor {
             "resolvedCapabilities",
             "workflowSnapshot",
             "snapshotHash",
-            "modelSettings"
+            "modelSettings",
+            "agentDefinitionSource"
     );
     private static final Set<String> MODEL_SETTING_KEYS = Set.of(
             "temperature", "topP", "top_p", "maxTokens", "max_tokens",
@@ -362,6 +363,7 @@ public class AiAgentProcessExecutor {
         payload.put("resolvedCapabilities", runtime.get("resolvedCapabilities"));
         payload.put("workflowSnapshot", runtime.get("workflowSnapshot"));
         payload.put("snapshotHash", runtime.get("snapshotHash"));
+        payload.put("agentDefinitionSource", runtime.get("agentDefinitionSource"));
         Map<String, Object> options = new LinkedHashMap<>();
         options.put("temperature", request.getTemperature());
         options.put("topP", request.getTopP());
@@ -438,6 +440,9 @@ public class AiAgentProcessExecutor {
         runtime.put("resolvedCapabilities", snapshot.getResolvedCapabilities());
         runtime.put("workflowSnapshot", snapshot.getWorkflowSnapshot());
         runtime.put("snapshotHash", snapshot.getSnapshotHash());
+        // The process receives no Java Agent manifest. Python is the sole
+        // source of prompts, tool/skill bindings and collaboration topology.
+        runtime.put("agentDefinitionSource", "PYTHON_LOCAL");
         runtime.put("modelSettings", connection == null ? Map.of() : connection.getSettings());
         request.getExt().put("agentRuntime", runtime);
         return request;

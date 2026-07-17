@@ -29,38 +29,38 @@ import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.time.Instant;
-import java.time.Duration;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-/** Default control-plane/run-plane bridge for all formal conversations. */
+/**
+ * Conversation/run-plane bridge.
+ *
+ * <p>Agent prompts, tools, skills and collaboration are deliberately owned by
+ * the Python worker. Java only assembles a conversation command, resolves its
+ * model connection and relays the worker's stream.</p>
+ */
 @Service
 @Slf4j
 public class DefaultAgentConversationRunner implements AgentConversationRunner {
 
-    private final AgentSnapshotResolver snapshotResolver;
     private final AiModelConfigService modelConfigService;
     private final ArtifactAcceptanceService artifactAcceptanceService;
     private final List<AgentRuntime> runtimes;
     private final List<AgentRunAuditStore> auditStores;
     private final ObjectMapper objectMapper;
-    private final AgentCapabilityGrantService capabilityGrantService;
 
-    public DefaultAgentConversationRunner(AgentSnapshotResolver snapshotResolver,
-                                          AiModelConfigService modelConfigService,
+    public DefaultAgentConversationRunner(AiModelConfigService modelConfigService,
                                           ArtifactAcceptanceService artifactAcceptanceService,
                                           List<AgentRuntime> runtimes,
                                           List<AgentRunAuditStore> auditStores,
-                                          ObjectMapper objectMapper,
-                                          AgentCapabilityGrantService capabilityGrantService) {
-        this.snapshotResolver = snapshotResolver;
+                                          ObjectMapper objectMapper) {
         this.modelConfigService = modelConfigService;
         this.artifactAcceptanceService = artifactAcceptanceService;
         this.runtimes = runtimes == null ? List.of() : List.copyOf(runtimes);
         this.auditStores = auditStores == null ? List.of() : List.copyOf(auditStores);
         this.objectMapper = objectMapper;
-        this.capabilityGrantService = capabilityGrantService;
     }
 
     @Override
@@ -70,23 +70,18 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         if (request == null || !StringUtils.hasText(request.getInput())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
-        AgentTarget target = request.getTarget() == null ? AgentTarget.homeChat() : request.getTarget();
-        target = authorizeTarget(target, request.getContext());
-        AgentDefinitionSnapshot snapshot = snapshotResolver.resolve(target);
-        AgentRuntime runtime = resolveRuntime(snapshot.getRuntimeType());
-        AiModelConfigDTO model = resolveModel(request, snapshot);
+        AgentDefinitionSnapshot snapshot = pythonRuntimeSnapshot();
+        AgentRuntime runtime = resolveRuntime(AgentRuntimeType.OPENAI_AGENTS_PYTHON);
+        AiModelConfigDTO model = resolveModel(request);
 
         String runId = StringUtils.hasText(request.getRunId())
                 ? request.getRunId().trim() : "agent-run-" + UUID.randomUUID().toString().replace("-", "");
-        AgentRunCommand command = command(request, snapshot, model, runId);
+        AgentRunCommand command = command(request, model, runId);
         Instant startedAt = Instant.now();
         AgentRunObserver downstream = observer == null ? AgentRunObserver.NOOP : observer;
         AgentRunObserver enrichingObserver = event -> downstream.onEvent(enrich(event, snapshot, request, runId));
         AgentCancellation signal = cancellation == null ? AgentCancellation.NONE : cancellation;
         try {
-            capabilityGrantService.register(runId, request.getUserId(), snapshot,
-                    Duration.ofMillis(Math.max(1_000L, command.getTimeoutMs() == null
-                            ? 120_000L : command.getTimeoutMs()) + 60_000L));
             AgentRunAuditRecord started = audit(snapshot, request, runId,
                     "RUNNING", startedAt, null, null, null);
             auditStores.forEach(store -> store.create(started));
@@ -130,8 +125,6 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
                     null, safeError(ex));
             auditStores.forEach(store -> store.update(failed));
             throw ex;
-        } finally {
-            capabilityGrantService.revoke(runId);
         }
     }
 
@@ -222,29 +215,12 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
 
     @Override
     public List<AgentEntrySummary> availableAgents(String entryCode) {
-        return snapshotResolver.available(StringUtils.hasText(entryCode) ? entryCode.trim() : "HOME_CHAT");
-    }
-
-    AgentTarget authorizeTarget(AgentTarget target, Map<String, Object> context) {
-        if (target == null || !target.explicit()) {
-            return target == null ? AgentTarget.homeChat() : target;
-        }
-        boolean privileged = context != null && Boolean.TRUE.equals(context.get("allowExplicitAgent"));
-        if (privileged) {
-            return target;
-        }
-        AgentEntrySummary allowed = snapshotResolver.available("HOME_CHAT").stream()
-                .filter(item -> target.agentCode().equals(item.getCode()))
-                .filter(item -> target.agentVersion() == null || target.agentVersion().equals(item.getVersion()))
-                .findFirst()
-                .orElseThrow(() -> BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
-                        "Agent is not available for HOME_CHAT entry"));
-        // An omitted version must not escape the entry binding and resolve a newer, globally published version.
-        return AgentTarget.explicit(allowed.getCode(), allowed.getVersion());
+        // Python owns the entry catalog. This method is retained only for the
+        // existing SPI and must not recreate a Java-side Agent definition.
+        return List.of();
     }
 
     private AgentRunCommand command(AgentConversationRequest request,
-                                    AgentDefinitionSnapshot snapshot,
                                     AiModelConfigDTO model,
                                     String runId) {
         AgentRunCommand command = new AgentRunCommand();
@@ -256,32 +232,32 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         command.setUserId(request.getUserId());
         command.setInput(request.getInput());
         command.setMessages(request.getMessages());
-        command.setContext(request.getContext());
-        command.setMaxTurns(intAt(snapshot.getRootAgent(), 12, "spec", "runtimeDefaults", "maxTurns"));
-        command.setTimeoutMs(intAt(snapshot.getRootAgent(), 120_000, "spec", "runtimeDefaults", "timeoutMs"));
+        Map<String, Object> context = new LinkedHashMap<>();
+        if (request.getContext() != null) {
+            context.putAll(request.getContext());
+        }
+        AgentTarget target = request.getTarget() == null ? AgentTarget.homeChat() : request.getTarget();
+        context.put("agentEntry", target.explicit() ? target.agentCode() : target.entryCode());
+        command.setContext(context);
+        command.setMaxTurns(12);
+        command.setTimeoutMs(120_000);
 
         AgentModelConnection connection = new AgentModelConnection();
         connection.setModelCode(model.getModelCode());
         connection.setModel(model.getApiModel());
         connection.setBaseUrl(model.getBaseUrl());
         connection.setApiKey(model.getApiKey());
-        connection.setSettings(mapAt(snapshot.getRootAgent(), "spec", "model", "settings"));
+        connection.setSettings(Map.of());
         command.setModelConnection(connection);
         return command;
     }
 
-    AiModelConfigDTO resolveModel(AgentConversationRequest request, AgentDefinitionSnapshot snapshot) {
+    AiModelConfigDTO resolveModel(AgentConversationRequest request) {
         AiModelConfigDTO model = null;
         if (request.getModelId() != null) {
             model = modelConfigService.getResolvedById(request.getModelId());
             if (model == null) {
                 throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND, request.getModelId());
-            }
-        }
-        if (model == null) {
-            String ref = textAt(snapshot.getRootAgent(), "spec", "model", "ref");
-            if (StringUtils.hasText(ref) && ref.startsWith("model://") && !"model://default-quality".equals(ref)) {
-                model = modelConfigService.getByModelCode(ref.substring("model://".length()));
             }
         }
         if (model == null) {
@@ -293,9 +269,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         if (model == null || !Boolean.TRUE.equals(model.getEnabled())
                 || !StringUtils.hasText(model.getApiModel()) || !StringUtils.hasText(model.getBaseUrl())) {
             throw BizException.of(AiChatBizCodeConstant.MODEL_CONFIG_NOT_FOUND,
-                    request.getModelId() == null
-                            ? textAt(snapshot.getRootAgent(), "spec", "model", "ref")
-                            : request.getModelId());
+                    request.getModelId());
         }
         return model;
     }
@@ -402,38 +376,14 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         return message.length() <= 512 ? message : message.substring(0, 512);
     }
 
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> mapAt(Map<String, Object> root, String... path) {
-        Object current = root;
-        for (String key : path) {
-            if (!(current instanceof Map<?, ?> map)) {
-                return Map.of();
-            }
-            current = map.get(key);
-        }
-        return current instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
-    }
-
-    private String textAt(Map<String, Object> root, String... path) {
-        Object current = root;
-        for (String key : path) {
-            if (!(current instanceof Map<?, ?> map)) {
-                return null;
-            }
-            current = map.get(key);
-        }
-        return current instanceof String text && StringUtils.hasText(text) ? text.trim() : null;
-    }
-
-    private int intAt(Map<String, Object> root, int fallback, String... path) {
-        Object current = root;
-        for (String key : path) {
-            if (!(current instanceof Map<?, ?> map)) {
-                return fallback;
-            }
-            current = map.get(key);
-        }
-        return current instanceof Number number ? number.intValue() : fallback;
+    private AgentDefinitionSnapshot pythonRuntimeSnapshot() {
+        AgentDefinitionSnapshot snapshot = new AgentDefinitionSnapshot();
+        snapshot.setAgentCode("python-agent-runtime");
+        snapshot.setAgentVersion(1);
+        snapshot.setRuntimeType(AgentRuntimeType.OPENAI_AGENTS_PYTHON);
+        snapshot.setSdkVersion("python-local");
+        snapshot.setSnapshotHash("python-local");
+        return snapshot;
     }
 
     private record WorkflowRef(String code, Integer version) {
