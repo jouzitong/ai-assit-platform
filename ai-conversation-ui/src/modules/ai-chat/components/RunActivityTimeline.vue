@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { ArrowRight } from '@element-plus/icons-vue'
-import { computed, ref } from 'vue'
+import { ArrowRight, Close } from '@element-plus/icons-vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import type { ChatRunActivity } from '../types'
 
 const props = defineProps<{
@@ -9,18 +9,23 @@ const props = defineProps<{
 }>()
 
 const drawerVisible = ref(false)
+const now = ref(Date.now())
+let clock: number | undefined
+
+const visibleActivities = computed(() => props.activities.filter(isMeaningfulActivity))
 const normalizedRunStatus = computed(() => props.runStatus?.trim().toLowerCase() || '')
 const runCompleted = computed(() => ['success', 'succeeded', 'completed'].includes(normalizedRunStatus.value))
 const runFailed = computed(() => ['failed', 'error'].includes(normalizedRunStatus.value))
 const runCancelled = computed(() => ['cancelled', 'canceled'].includes(normalizedRunStatus.value))
-const failedCount = computed(() => props.activities.filter(activity => activity.status === 'failed').length)
-const cancelledCount = computed(() => props.activities.filter(activity => activity.status === 'cancelled').length)
-const runningCount = computed(() => props.activities.filter((activity) =>
+const runSettled = computed(() => runCompleted.value || runFailed.value || runCancelled.value)
+const failedCount = computed(() => visibleActivities.value.filter(activity => activity.status === 'failed').length)
+const cancelledCount = computed(() => visibleActivities.value.filter(activity => activity.status === 'cancelled').length)
+const runningCount = computed(() => visibleActivities.value.filter((activity) =>
   !activity.status || activity.status === 'pending' || activity.status === 'running',
 ).length)
 const allCompleted = computed(() => (
-  props.activities.length > 0
-  && props.activities.every(activity => activity.status === 'success')
+  visibleActivities.value.length > 0
+  && visibleActivities.value.every(activity => activity.status === 'success')
 ))
 const summaryStatus = computed(() => {
   if (runFailed.value) return '执行失败'
@@ -32,32 +37,67 @@ const summaryStatus = computed(() => {
   return allCompleted.value ? '已完成' : '需要关注'
 })
 
-const kindLabels: Record<ChatRunActivity['kind'], string> = {
-  agent: 'Agent',
-  handoff: '协作',
-  tool: 'Tool',
-  skill: 'Skill',
-  artifact: '产物',
-  check: '检查',
-  thinking: '分析',
-}
+const durationSeconds = computed(() => {
+  const timestamps = visibleActivities.value
+    .map(activity => Date.parse(activity.timestamp || ''))
+    .filter(timestamp => Number.isFinite(timestamp))
+  if (!timestamps.length) return undefined
+  const startedAt = Math.min(...timestamps)
+  const finishedAt = runSettled.value ? Math.max(...timestamps) : Math.max(now.value, ...timestamps)
+  return Math.max(0, Math.floor((finishedAt - startedAt) / 1000))
+})
+const durationText = computed(() => {
+  if (durationSeconds.value === undefined) return '时长待同步'
+  const minutes = Math.floor(durationSeconds.value / 60)
+  const seconds = durationSeconds.value % 60
+  return `已处理 ${minutes > 0 ? `${minutes}分${seconds}秒` : `${seconds}秒`}`
+})
+
+onMounted(() => {
+  clock = window.setInterval(() => {
+    if (!runSettled.value) now.value = Date.now()
+  }, 1000)
+})
+
+onBeforeUnmount(() => {
+  if (clock !== undefined) window.clearInterval(clock)
+})
 
 function statusLabel(status?: string) {
   const labels: Record<string, string> = {
-    pending: '等待中',
+    pending: '待处理',
     running: '进行中',
     success: '已完成',
     failed: '失败',
     cancelled: '已取消',
   }
-  return status ? labels[status] || status : ''
+  return status ? labels[status] || status : '待处理'
+}
+
+function isMeaningfulActivity(activity: ChatRunActivity) {
+  const eventType = String(activity.metadata?.platformEventType || '').toLowerCase()
+  if (['agent.started', 'agent.changed', 'agent.completed', 'round.completed'].includes(eventType)) {
+    return false
+  }
+  // Compatibility for activities persisted before platformEventType was added.
+  if (!eventType && activity.kind === 'agent') {
+    return !(/\bstarted$/i.test(activity.title)
+      || /\bcompleted$/i.test(activity.title)
+      || /^execution moved to\b/i.test(activity.title))
+  }
+  return true
 }
 
 function displayedStatus(activity: ChatRunActivity) {
   if (runCompleted.value && (!activity.status || activity.status === 'pending' || activity.status === 'running')) {
     return 'success'
   }
-  return activity.status
+  return activity.status || 'pending'
+}
+
+function timelineStatus(activity: ChatRunActivity) {
+  const status = displayedStatus(activity)
+  return status === 'success' ? 'done' : status
 }
 </script>
 
@@ -66,14 +106,14 @@ function displayedStatus(activity: ChatRunActivity) {
     <button
       class="run-activity-timeline__summary"
       type="button"
-      :aria-label="`查看 AI 执行过程，共 ${activities.length} 项，${summaryStatus}`"
+      :aria-label="`查看 AI 思考过程，${durationText}，共 ${visibleActivities.length} 项，${summaryStatus}`"
       @click="drawerVisible = true"
     >
       <span class="run-activity-timeline__summary-title">
-        <el-icon class="run-activity-timeline__summary-icon" aria-hidden="true"><ArrowRight /></el-icon>
+        <el-icon aria-hidden="true"><ArrowRight /></el-icon>
         <strong>执行过程</strong>
       </span>
-      <span class="run-activity-timeline__summary-status">{{ activities.length }} 项 · {{ summaryStatus }}</span>
+      <span class="run-activity-timeline__summary-status">{{ visibleActivities.length }} 项 · {{ summaryStatus }}</span>
     </button>
 
     <el-drawer
@@ -81,33 +121,40 @@ function displayedStatus(activity: ChatRunActivity) {
       class="run-activity-drawer"
       direction="rtl"
       size="420px"
-      title="AI 执行过程"
+      :show-close="false"
+      :with-header="false"
     >
-      <div class="run-activity-drawer__summary" aria-live="polite">
-        <strong>{{ activities.length }} 项活动</strong>
-        <span>{{ summaryStatus }}</span>
-      </div>
-      <div class="run-activity-timeline__content" aria-label="Agent 运行活动">
-        <div
-          v-for="activity in activities"
-          :key="`${activity.kind}:${activity.id}`"
-          :class="['run-activity-timeline__item', `is-${displayedStatus(activity) || 'pending'}`]"
-        >
-          <span class="run-activity-timeline__dot" aria-hidden="true"></span>
-          <div class="run-activity-timeline__body">
-            <div class="run-activity-timeline__heading">
-              <span class="run-activity-timeline__kind">{{ kindLabels[activity.kind] }}</span>
-              <strong>{{ activity.title }}</strong>
-              <span v-if="displayedStatus(activity)" class="run-activity-timeline__status">
-                {{ statusLabel(displayedStatus(activity)) }}
-              </span>
-            </div>
-            <div v-if="activity.agentCode" class="run-activity-timeline__meta">
-              {{ activity.agentCode }}<template v-if="activity.agentVersion"> · v{{ activity.agentVersion }}</template>
-            </div>
-            <p v-if="activity.detail">{{ activity.detail }}</p>
-          </div>
+      <header class="run-activity-drawer__header">
+        <div class="run-activity-drawer__header-copy">
+          <h2>思考过程</h2>
+          <p>{{ durationText }} · {{ visibleActivities.length }} 个活动</p>
         </div>
+        <button
+          class="run-activity-drawer__close"
+          type="button"
+          aria-label="关闭思考过程"
+          @click="drawerVisible = false"
+        >
+          <el-icon><Close /></el-icon>
+        </button>
+      </header>
+
+      <div class="run-activity-drawer__timeline" aria-label="AI 执行活动">
+        <div
+          v-for="activity in visibleActivities"
+          :key="`${activity.kind}:${activity.id}`"
+          :class="['run-activity-drawer__item', `is-${timelineStatus(activity)}`]"
+        >
+          <span class="run-activity-drawer__marker" aria-hidden="true"></span>
+          <div class="run-activity-drawer__item-header">
+            <strong>{{ activity.title }}</strong>
+            <span class="run-activity-drawer__status">{{ statusLabel(displayedStatus(activity)) }}</span>
+          </div>
+          <p v-if="activity.detail" class="run-activity-drawer__detail">{{ activity.detail }}</p>
+        </div>
+        <p v-if="!visibleActivities.length" class="run-activity-drawer__empty">
+          本轮未记录可展示的分析活动。
+        </p>
       </div>
     </el-drawer>
   </div>
@@ -122,29 +169,25 @@ function displayedStatus(activity: ChatRunActivity) {
 }
 
 .run-activity-timeline__summary {
-  width: 100%;
-  border: 0;
-  background: transparent;
   display: flex;
+  width: 100%;
   align-items: center;
   justify-content: space-between;
   gap: 8px;
+  border: 0;
+  border-radius: 12px;
   padding: 10px 12px;
+  background: transparent;
   color: var(--chat-text-primary);
   cursor: pointer;
-  text-align: left;
   font-size: 12px;
-  list-style: none;
+  text-align: left;
 }
 
 .run-activity-timeline__summary-title {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-}
-
-.run-activity-timeline__summary-icon {
-  transform: rotate(0deg);
 }
 
 .run-activity-timeline__summary-status {
@@ -154,90 +197,165 @@ function displayedStatus(activity: ChatRunActivity) {
 }
 
 .run-activity-timeline__summary:focus-visible {
-  border-radius: 12px;
   outline: 2px solid var(--app-accent);
   outline-offset: 2px;
 }
 
-.run-activity-timeline__content {
-  display: grid;
-  gap: 8px;
-  padding: 0 12px 10px;
-}
-
-.run-activity-drawer__summary {
+.run-activity-drawer__header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
-  margin-bottom: 16px;
-  padding-bottom: 12px;
+  gap: 12px;
+  min-height: 52px;
+  padding: 10px 14px;
   border-bottom: 1px solid var(--chat-panel-border);
-  color: var(--chat-text-primary);
-  font-size: 13px;
 }
 
-.run-activity-drawer__summary span {
-  color: var(--chat-text-muted);
-  font-size: 12px;
-}
-
-.run-activity-timeline__item {
-  display: grid;
-  grid-template-columns: 10px minmax(0, 1fr);
-  gap: 8px;
-}
-
-.run-activity-timeline__dot {
-  width: 8px;
-  height: 8px;
-  margin-top: 6px;
-  border-radius: 50%;
-  background: var(--chat-text-muted);
-}
-
-.run-activity-timeline__item.is-running .run-activity-timeline__dot {
-  background: var(--app-accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--app-accent) 16%, transparent);
-}
-
-.run-activity-timeline__item.is-success .run-activity-timeline__dot { background: var(--app-success); }
-.run-activity-timeline__item.is-failed .run-activity-timeline__dot { background: var(--app-danger); }
-
-.run-activity-timeline__heading {
+.run-activity-drawer__header-copy {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+}
+
+.run-activity-drawer__header h2 {
+  flex: none;
+  margin: 0;
   color: var(--chat-text-primary);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.run-activity-drawer__header p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--chat-text-muted);
   font-size: 12px;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.run-activity-timeline__kind,
-.run-activity-timeline__status {
+.run-activity-drawer__close {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
   color: var(--chat-text-muted);
-  font-size: 11px;
+  cursor: pointer;
+  background: var(--chat-soft-bg);
+  border: 0;
+  border-radius: 50%;
 }
 
-.run-activity-timeline__kind {
-  padding: 2px 6px;
-  border-radius: 999px;
-  background: var(--chat-bubble-bg);
+.run-activity-drawer__close:hover {
+  color: var(--chat-text-primary);
+  background: var(--chat-hover-bg);
 }
 
-.run-activity-timeline__meta,
-.run-activity-timeline p {
-  margin: 3px 0 0;
+.run-activity-drawer__timeline {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  padding: 18px 22px 24px;
+  overflow-y: auto;
+}
+
+.run-activity-drawer__item {
+  position: relative;
+  padding: 0 0 22px 32px;
+}
+
+.run-activity-drawer__item::before {
+  position: absolute;
+  top: 19px;
+  bottom: 0;
+  left: 8px;
+  width: 1px;
+  content: '';
+  background: var(--chat-panel-border);
+}
+
+.run-activity-drawer__item:last-child {
+  padding-bottom: 0;
+}
+
+.run-activity-drawer__item:last-child::before {
+  display: none;
+}
+
+.run-activity-drawer__marker {
+  position: absolute;
+  top: 5px;
+  left: 2px;
+  width: 13px;
+  height: 13px;
+  background: var(--chat-text-subtle);
+  border: 2px solid var(--chat-main-bg);
+  border-radius: 50%;
+}
+
+.run-activity-drawer__item-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 22px;
+}
+
+.run-activity-drawer__item-header strong {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--chat-text-primary);
+  font-size: 14px;
+  font-weight: 600;
+  line-height: 22px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.run-activity-drawer__status {
+  flex: none;
+  margin-left: auto;
   color: var(--chat-text-muted);
-  font-size: 11px;
-  line-height: 1.5;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.run-activity-drawer__detail {
+  margin: 4px 0 0;
+  color: var(--chat-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
   overflow-wrap: anywhere;
 }
 
-@media (prefers-reduced-motion: reduce) {
-  .run-activity-timeline__summary-icon {
-    transform: none;
-  }
+.run-activity-drawer__empty {
+  margin: 0;
+  color: var(--chat-text-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  text-align: center;
+}
+
+.run-activity-drawer__item.is-done .run-activity-drawer__marker {
+  background: var(--app-success);
+}
+
+.run-activity-drawer__item.is-running .run-activity-drawer__marker {
+  background: var(--app-accent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--app-accent) 16%, transparent);
+}
+
+.run-activity-drawer__item.is-failed .run-activity-drawer__marker {
+  background: var(--app-danger);
+}
+
+.run-activity-drawer__item.is-cancelled .run-activity-drawer__marker {
+  background: var(--chat-text-subtle);
 }
 
 :deep(.run-activity-drawer) {
@@ -245,6 +363,10 @@ function displayedStatus(activity: ChatRunActivity) {
 }
 
 :deep(.run-activity-drawer .el-drawer__body) {
-  padding-top: 0;
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  padding: 0;
 }
+
 </style>

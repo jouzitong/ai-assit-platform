@@ -24,12 +24,13 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
 
     sdk_graph = build_sdk_graph(graph, emitter)
     root = graph.root
-    emitter.event(
-        "agent.started",
+    _emit_execution_note(
+        emitter,
+        event_type="thinking.analysis.started",
         status="RUNNING",
-        message=f"{root.name} started",
-        agent=root,
-        ext={"enabledTools": root.tool_names, "snapshotHash": graph.payload.get("snapshotHash")},
+        activity_code="main-agent-request-analysis",
+        activity_name="分析用户请求",
+        input_summary=_request_analysis_summary(graph),
     )
     result = Runner.run_streamed(
         sdk_graph.root,
@@ -46,6 +47,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             emitter,
             sdk_graph.compiled_for,
             lambda name: _gateway_tool_identity(graph, name),
+            hidden_agent_codes={root.code},
         )
 
     final_output = result.final_output
@@ -53,6 +55,15 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
     last_agent = sdk_graph.compiled_for(last_sdk_agent) or root
     usage = extract_usage(result)
     normalized_output = _output_text(final_output)
+    _emit_execution_note(
+        emitter,
+        event_type="thinking.conclusion.completed",
+        status="SUCCESS",
+        activity_code="main-agent-conclusion",
+        activity_name="形成处理结论",
+        output_summary=_conclusion_summary(normalized_output),
+        ext={"usage": usage},
+    )
     outputs = _build_outputs(final_output, graph.payload.get("responseFormat"))
     artifacts = extract_artifacts(final_output)
     for artifact in artifacts:
@@ -67,20 +78,6 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
                 "contentFormat": artifact["contentFormat"],
             },
         )
-    emitter.event(
-        "agent.completed",
-        status="SUCCESS",
-        message=f"{last_agent.name} completed",
-        agent=last_agent,
-        ext={"usage": usage},
-    )
-    emitter.event(
-        "round.completed",
-        status="SUCCESS",
-        message="Agent round completed",
-        agent=last_agent,
-        ext={"usage": usage, "artifactCount": len(artifacts)},
-    )
     run = graph.payload["run"]
     return {
         "protocolVersion": "2.0",
@@ -103,6 +100,72 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             "enabledTools": root.tool_names,
         },
     }
+
+
+def _emit_execution_note(
+    emitter: EventEmitter,
+    *,
+    event_type: str,
+    status: str,
+    activity_code: str,
+    activity_name: str,
+    input_summary: str | None = None,
+    output_summary: str | None = None,
+    ext: dict[str, Any] | None = None,
+) -> None:
+    """Emit an auditable execution summary, never the model's private reasoning."""
+
+    detail = {
+        "activityCode": activity_code,
+        "activityType": "THINKING",
+        "activityName": activity_name,
+        "inputSummary": input_summary,
+        "outputSummary": output_summary,
+        **(ext or {}),
+    }
+    emitter.event(
+        event_type,
+        status=status,
+        message=activity_name,
+        ext=detail,
+    )
+
+
+def _request_analysis_summary(graph: CompiledGraph) -> str:
+    request = _latest_user_request(graph)
+    if not request:
+        return "识别本轮目标、可用上下文以及是否需要知识库、工具或专业 Agent 协作。"
+    return (
+        f"收到用户请求：{_compact_summary(request, 360)}。"
+        "将识别任务目标，并判断是否需要知识库、工具或专业 Agent 协作。"
+    )
+
+
+def _latest_user_request(graph: CompiledGraph) -> str | None:
+    run_input = graph.payload.get("run", {}).get("input")
+    if isinstance(run_input, str) and run_input.strip():
+        return run_input.strip()
+    messages = graph.payload.get("messages")
+    if not isinstance(messages, list):
+        return None
+    for message in reversed(messages):
+        if not isinstance(message, dict) or str(message.get("role", "")).lower() != "user":
+            continue
+        content = message.get("content") or message.get("text")
+        if isinstance(content, str) and content.strip():
+            return content.strip()
+    return None
+
+
+def _conclusion_summary(final_output: str) -> str:
+    if not final_output.strip():
+        return "本轮处理完成，但没有生成可展示的文本结论。"
+    return f"结论摘要：{_compact_summary(final_output, 600)}"
+
+
+def _compact_summary(value: str, limit: int) -> str:
+    normalized = " ".join(value.split())
+    return normalized if len(normalized) <= limit else f"{normalized[:limit - 1]}…"
 
 
 def extract_usage(result: Any) -> dict[str, int]:

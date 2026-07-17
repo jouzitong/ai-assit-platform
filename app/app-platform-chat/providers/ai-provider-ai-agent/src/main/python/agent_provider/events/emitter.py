@@ -66,6 +66,7 @@ def emit_sdk_event(
     emitter: EventEmitter,
     agent_lookup: Callable[[Any], Any],
     tool_lookup: Callable[[str | None], dict[str, Any] | None] | None = None,
+    hidden_agent_codes: set[str] | None = None,
 ) -> None:
     event_type = str(getattr(event, "type", "") or "")
     if event_type == "raw_response_event":
@@ -78,6 +79,8 @@ def emit_sdk_event(
     if event_type == "agent_updated_stream_event":
         new_agent = getattr(event, "new_agent", None)
         compiled = agent_lookup(new_agent)
+        if compiled is not None and compiled.code in (hidden_agent_codes or set()):
+            return
         emitter.event(
             "agent.changed",
             status="RUNNING",

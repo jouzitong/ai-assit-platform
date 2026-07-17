@@ -255,7 +255,7 @@ public class DefaultConversationRunManager implements ConversationRunManager {
             log.debug("对话流回答增量已发布，event={}", event);
             return;
         }
-        log.info("对话流活动更新，event={}", event);
+        log.debug("对话流活动更新，event={}", event);
     }
 
     private void deliver(RunEntry entry,
