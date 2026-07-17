@@ -138,6 +138,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         Map<String, Object> ext = normalizeExt(request.getExt());
 
         AiKbStoreDTO store = new AiKbStoreDTO();
+        store.setKbCode(request.getKbCode().trim());
         store.setKbName(request.getKbName().trim());
         store.setEmbeddingModel(request.getEmbeddingModel().trim());
         store.setChunkMethod(trimToNull(request.getChunkMethod()));
@@ -1215,6 +1216,9 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     private void validateCreateRequest(AiKbCreateRequest request) {
         if (request == null) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
+        }
+        if (!StringUtils.hasText(request.getKbCode())) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_CODE);
         }
         if (!StringUtils.hasText(request.getKbName())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_NAME);

@@ -11,7 +11,14 @@ import java.util.Map;
 @Data
 public class KbSearchRequest implements Serializable {
 
-    /** 知识库唯一标识 */
+    /** 本地知识库业务编码。服务端据此查询对应的 Provider 知识库 ID。 */
+    private String kbCode;
+
+    /**
+     * @deprecated 请改用 {@link #kbCode}。该字段仅兼容历史调用，值仍按本地 kbCode 解析，
+     * 不接受 Provider/RAGFlow 的真实知识库 ID。
+     */
+    @Deprecated(since = "2026-07", forRemoval = true)
     private String kbId;
     /** 用户检索语句 */
     private String query;

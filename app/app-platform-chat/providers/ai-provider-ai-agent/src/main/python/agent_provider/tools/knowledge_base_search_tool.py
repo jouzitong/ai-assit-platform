@@ -21,7 +21,7 @@ def _kb_search_headers() -> dict[str, str]:
     return headers
 
 def _build_request_payload(
-    kb_id: str,
+    kb_code: str,
     query_text: str,
     top_k: int,
     trace_id: str | None,
@@ -33,7 +33,7 @@ def _build_request_payload(
     if scene:
         meta["scene"] = scene
     return {
-        "kbId": kb_id,
+        "kbCode": kb_code,
         "query": query_text,
         "topK": top_k,
         "meta": meta,
@@ -95,7 +95,7 @@ def _request_kb_search(payload: dict[str, Any]) -> dict[str, Any]:
     items = _normalize_items(data.get("items"))
     return {
         "success": True,
-        "kbId": data.get("kbId") or payload.get("kbId"),
+        "kbCode": data.get("kbCode") or payload.get("kbCode"),
         "items": items,
     }
 
@@ -152,7 +152,7 @@ def search_authorized_knowledge_base(
         return {"tool": "knowledge_base_search_tool", "success": False, "error": "query is required."}
     trace_id = run.get("traceId") if isinstance(run.get("traceId"), str) else None
     payload = _build_request_payload(
-        kb_id=normalized_code,
+        kb_code=normalized_code,
         query_text=query.strip(),
         top_k=max(1, int(top_k or 5)),
         trace_id=trace_id.strip() if trace_id and trace_id.strip() else None,
@@ -187,21 +187,21 @@ def build_knowledge_base_search_tool(run: dict[str, Any], function_tool: Any) ->
 
 @function_tool
 def knowledge_base_search_tool(
-    kb_id: str,
+    kb_code: str,
     query: str,
     top_k: int = 5,
     trace_id: str | None = None,
     scene: str | None = None,
 ) -> dict[str, Any]:
-    """Search a knowledge base by kb_id and query text, then return matched items."""
+    """Search a knowledge base by kb_code and query text, then return matched items."""
 
-    if not isinstance(kb_id, str) or not kb_id.strip():
-        return {"tool": "knowledge_base_search_tool", "success": False, "error": "kb_id is required."}
+    if not isinstance(kb_code, str) or not kb_code.strip():
+        return {"tool": "knowledge_base_search_tool", "success": False, "error": "kb_code is required."}
     if not isinstance(query, str) or not query.strip():
         return {"tool": "knowledge_base_search_tool", "success": False, "error": "query is required."}
 
     payload = _build_request_payload(
-        kb_id=kb_id.strip(),
+        kb_code=kb_code.strip(),
         query_text=query.strip(),
         top_k=max(1, int(top_k or 5)),
         trace_id=trace_id.strip() if isinstance(trace_id, str) and trace_id.strip() else None,

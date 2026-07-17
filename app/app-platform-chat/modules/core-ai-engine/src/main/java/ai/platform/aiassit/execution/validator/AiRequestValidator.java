@@ -78,7 +78,9 @@ public class AiRequestValidator {
     }
 
     public void validateKbSearch(KbSearchRequest request) {
-        if (request == null || !StringUtils.hasText(request.getKbId()) || !StringUtils.hasText(request.getQuery())) {
+        if (request == null
+                || (!StringUtils.hasText(request.getKbCode()) && !StringUtils.hasText(request.getKbId()))
+                || !StringUtils.hasText(request.getQuery())) {
             throw BizException.illegalParam(ParamBizCodeConstant.REQUIRED_KB_ID_OR_QUERY);
         }
         if (request.getTopK() != null && request.getTopK() <= 0) {

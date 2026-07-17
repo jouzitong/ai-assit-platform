@@ -26,14 +26,13 @@ import java.time.LocalDateTime;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
 
 /** {@link AiKbStoreManageDomainService} 默认实现。 */
 @Service
 public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainService {
 
     private static final String DEFAULT_CHUNK_METHOD = "one";
-    private static final String PENDING_KB_CODE_PREFIX = "local-";
+    private static final int MAX_KB_CODE_LENGTH = 64;
     private static final int MAX_SYNC_ERROR_LENGTH = 1024;
 
     private final AiKbStoreService storeService;
@@ -66,7 +65,6 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         applyDefaultChunkMethod(target);
         validate(target);
         target.setAuth(resolveConfiguredAuth());
-        target.setKbCode(generatePendingKbCode());
         applySyncState(target, AiKbStoreSyncStatus.CREATING, null);
         AiKbStoreDTO created = storeService.add(target);
         return syncRemoteCreate(requireLocalStoreId(created), created);
@@ -254,10 +252,6 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         return providerKbId;
     }
 
-    private String generatePendingKbCode() {
-        return PENDING_KB_CODE_PREFIX + UUID.randomUUID().toString().replace("-", "");
-    }
-
     private String normalizeErrorMessage(Throwable error) {
         String message = error.getMessage();
         if (!StringUtils.hasText(message) && error.getCause() != null) {
@@ -277,8 +271,8 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
         AiKbStoreDTO source = incoming == null ? new AiKbStoreDTO() : incoming;
         AiKbStoreDTO target = new AiKbStoreDTO();
         target.setId(current == null ? source.getId() : current.getId());
-        // 知识库编码与 Provider Dataset ID 均由 RAGFlow 分配，页面请求不可覆盖。
-        target.setKbCode(current == null ? null : current.getKbCode());
+        // kbCode 是用户创建时指定的本地稳定业务编码，编辑请求不可覆盖。
+        target.setKbCode(current == null ? trimToNull(source.getKbCode()) : current.getKbCode());
         target.setKbName(choose(trimToNull(source.getKbName()), current == null ? null : current.getKbName(), replaceNulls));
         target.setProviderKbId(current == null ? null : current.getProviderKbId());
         target.setDescription(choose(trimToNull(source.getDescription()), current == null ? null : current.getDescription(), replaceNulls));
@@ -299,6 +293,13 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
     }
 
     private void validate(AiKbStoreDTO dto) {
+        if (!StringUtils.hasText(dto.getKbCode())) {
+            throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
+        }
+        if (dto.getKbCode().length() > MAX_KB_CODE_LENGTH) {
+            throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                    "kbCode must not exceed " + MAX_KB_CODE_LENGTH + " characters");
+        }
         if (!StringUtils.hasText(dto.getKbName())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
@@ -445,7 +446,6 @@ public class AiKbStoreManageDomainServiceImpl implements AiKbStoreManageDomainSe
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_RESPONSE_INVALID, "RAGFlow dataset id is empty");
         }
         target.setProviderKbId(remoteId);
-        target.setKbCode(remoteId);
     }
 
     private String trimToNull(String value) {

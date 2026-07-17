@@ -59,12 +59,13 @@ class AiKbStoreManageDomainServiceImplTest {
 
         ArgumentCaptor<AiKbStoreDTO> addCaptor = ArgumentCaptor.forClass(AiKbStoreDTO.class);
         verify(storeService).add(addCaptor.capture());
+        assertEquals("sales-knowledge", addCaptor.getValue().getKbCode());
         assertEquals(AiKbStoreSyncStatus.CREATING, addCaptor.getValue().getSyncStatus());
         assertEquals("one", addCaptor.getValue().getChunkMethod());
 
         ArgumentCaptor<AiKbStoreDTO> editCaptor = ArgumentCaptor.forClass(AiKbStoreDTO.class);
         verify(storeService).edit(eq(1L), editCaptor.capture());
-        assertEquals("dataset-remote-1", editCaptor.getValue().getKbCode());
+        assertEquals("sales-knowledge", editCaptor.getValue().getKbCode());
         assertEquals("dataset-remote-1", editCaptor.getValue().getProviderKbId());
         assertEquals(AiKbStoreSyncStatus.ACTIVE, editCaptor.getValue().getSyncStatus());
 
@@ -160,6 +161,7 @@ class AiKbStoreManageDomainServiceImplTest {
 
     private AiKbStoreDTO request() {
         AiKbStoreDTO request = new AiKbStoreDTO();
+        request.setKbCode("sales-knowledge");
         request.setKbName("销售知识库");
         request.setEmbeddingModel("BAAI/bge-m3@BAAI");
         request.setEnabled(true);

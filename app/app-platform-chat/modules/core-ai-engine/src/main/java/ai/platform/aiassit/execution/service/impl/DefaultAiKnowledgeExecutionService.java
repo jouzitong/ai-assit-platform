@@ -94,10 +94,26 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
     @Override
     public KbSearchResponse kbSearch(KbSearchRequest request) {
         validator.validateKbSearch(request);
-        AiKbStoreDTO store = requireKnowledgeStore(request.getKbId(), true);
+        String kbCode = resolveKbCode(request);
+        AiKbStoreDTO store = requireKnowledgeStore(kbCode, true);
         request.setMeta(mergeStoreMeta(store, request.getMeta()));
         request.setKbId(store.getProviderKbId());
-        return resolveKnowledgeService(requireConfiguredClientType()).kbSearch(requestMapper.mapKbSearch(request));
+        KbSearchResponse response = resolveKnowledgeService(requireConfiguredClientType())
+                .kbSearch(requestMapper.mapKbSearch(request));
+        if (response == null) {
+            response = new KbSearchResponse();
+        }
+        response.setKbCode(store.getKbCode());
+        // 历史客户端读取 kbId；返回本地业务编码以避免泄露 Provider Dataset ID。
+        response.setKbId(store.getKbCode());
+        return response;
+    }
+
+    private String resolveKbCode(KbSearchRequest request) {
+        if (StringUtils.hasText(request.getKbCode())) {
+            return request.getKbCode().trim();
+        }
+        return request.getKbId().trim();
     }
 
     private AiKbStoreDTO requireKnowledgeStore(String kbCode) {

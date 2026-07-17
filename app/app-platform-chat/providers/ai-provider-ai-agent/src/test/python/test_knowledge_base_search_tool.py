@@ -62,7 +62,7 @@ class KnowledgeBaseSearchToolTest(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual("product", result["kbCode"])
-        self.assertEqual("product", search.call_args.args[0]["kbId"])
+        self.assertEqual("product", search.call_args.args[0]["kbCode"])
         self.assertEqual("trace-1", search.call_args.args[0]["meta"]["traceId"])
 
 

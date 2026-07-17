@@ -116,6 +116,7 @@ export interface AiKbStoreItem {
 }
 
 export interface AiKbStoreUpsertPayload {
+  kbCode?: string
   kbName?: string
   description?: string
   embeddingModel?: string
@@ -300,7 +301,9 @@ export interface AiKbSyncTaskItem {
 }
 
 export interface AiKbRetrievalTestPayload {
-  kbId: string
+  kbCode: string
+  /** @deprecated 请改用 kbCode。 */
+  kbId?: string
   query: string
   topK?: number
   page?: number
@@ -330,6 +333,8 @@ export interface AiKbRetrievalTestItem {
 }
 
 export interface AiKbRetrievalTestResult {
+  kbCode?: string
+  /** @deprecated 请改用 kbCode。 */
   kbId?: string
   total?: number
   items?: AiKbRetrievalTestItem[]

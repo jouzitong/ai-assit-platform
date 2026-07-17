@@ -29,9 +29,10 @@ import java.util.Map;
 public class AiKbStoreEntity extends AuditableEntity {
 
     /**
-     * RAGFlow Dataset ID，同时作为本地知识库编码。
+     * 本地知识库业务编码，由用户自定义，并应与 {@link #kbName} 语义相近。
      *
-     * @see #providerKbId 与 kbCode 相同
+     * <p>该编码是 Agent、应用和内部调用使用的稳定标识；RAGFlow Dataset ID
+     * 单独保存在 {@link #providerKbId}，不得向调用方透出或作为知识库编码使用。</p>
      */
     @JdbcColumn(
             name = "kb_code",
@@ -39,7 +40,7 @@ public class AiKbStoreEntity extends AuditableEntity {
             length = 64,
             nullable = false,
             unique = true,
-            comment = "RAGFlow Dataset ID（本地知识库编码）"
+            comment = "用户自定义的知识库业务编码"
     )
     @TableField("kb_code")
     private String kbCode;
@@ -58,7 +59,7 @@ public class AiKbStoreEntity extends AuditableEntity {
     private String kbName;
 
     /**
-     * AI 侧真实知识库 ID。
+     * RAGFlow 侧真实 Dataset ID，仅供 Provider 适配调用。
      */
     @JdbcColumn(
             name = "provider_kb_id",

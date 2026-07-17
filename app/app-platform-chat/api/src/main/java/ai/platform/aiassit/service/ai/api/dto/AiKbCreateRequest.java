@@ -10,9 +10,7 @@ import java.util.Map;
 @Data
 public class AiKbCreateRequest implements Serializable {
 
-    /**
-     * 历史兼容字段；知识库编码由远端 Dataset 创建成功后回填，不再使用请求值。
-     */
+    /** 用户自定义的本地知识库业务编码，创建后不可修改。 */
     private String kbCode;
 
     /** 知识库名称。 */

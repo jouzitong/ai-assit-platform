@@ -5,6 +5,7 @@ import ai.platform.aiassit.knowledge.manage.domainservice.AiKbStoreManageDomainS
 import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentContentDTO;
 import ai.platform.aiassit.knowledge.manage.entity.document.dto.AiKbDocumentDTO;
 import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
+import ai.platform.aiassit.knowledge.manage.vo.AiKbStoreVO;
 import ai.platform.aiassit.knowledge.manage.entity.task.dto.AiKbPublishTaskDTO;
 import ai.platform.aiassit.knowledge.manage.req.AiKbDocumentStatusUpdateRequest;
 import ai.platform.aiassit.knowledge.manage.req.AiKbSyncRequest;
@@ -18,6 +19,8 @@ import ai.platform.aiassit.service.ai.api.dto.KbDeleteRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
+import ai.platform.aiassit.service.ai.api.dto.AiKbCreateRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
@@ -76,6 +79,27 @@ class AiKnowledgeManageDomainServiceImplTest {
         });
         when(publishTaskService.update(eq(100L), any())).thenAnswer(invocation -> invocation.getArgument(1));
         when(storeService.update(eq(1L), any())).thenAnswer(invocation -> invocation.getArgument(1));
+    }
+
+    @Test
+    void shouldPassRequestedKbCodeWhenCreatingKnowledgeBase() {
+        AiKbCreateRequest request = new AiKbCreateRequest();
+        request.setKbCode("sales-knowledge");
+        request.setKbName("销售知识库");
+        request.setEmbeddingModel("BAAI/bge-m3@BAAI");
+
+        AiKbStoreVO saved = new AiKbStoreVO();
+        saved.setId(1L);
+        saved.setKbCode("sales-knowledge");
+        saved.setProviderKbId("dataset-1");
+        when(storeManageDomainService.add(any())).thenReturn(saved);
+
+        AiKbInfoDTO result = domainService.createKnowledgeBase(request);
+
+        ArgumentCaptor<AiKbStoreDTO> storeCaptor = ArgumentCaptor.forClass(AiKbStoreDTO.class);
+        verify(storeManageDomainService).add(storeCaptor.capture());
+        assertEquals("sales-knowledge", storeCaptor.getValue().getKbCode());
+        assertEquals("sales-knowledge", result.getKbId());
     }
 
     @Test

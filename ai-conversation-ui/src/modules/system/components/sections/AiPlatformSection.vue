@@ -116,6 +116,7 @@ const modelForm = reactive({
 })
 
 const kbForm = reactive({
+  kbCode: '',
   kbName: '',
   description: '',
   embeddingModel: '',
@@ -230,6 +231,7 @@ function resetModelForm() {
 }
 
 function resetKbForm() {
+  kbForm.kbCode = ''
   kbForm.kbName = ''
   kbForm.description = ''
   kbForm.embeddingModel = ''
@@ -454,6 +456,7 @@ function openEditDialog(card: PlatformCard) {
     modelForm.extJsonText = formatJsonText(item.extJson)
   } else if (card.entityType === 'kb') {
     const item = card.raw as AiKbStoreItem
+    kbForm.kbCode = item.kbCode || ''
     kbForm.kbName = item.kbName || ''
     kbForm.description = item.description || ''
     kbForm.embeddingModel = item.embeddingModel || ''
@@ -539,6 +542,7 @@ function buildKbPayload(): AiKbStoreUpsertPayload {
     .filter(Boolean)
 
   return {
+    kbCode: normalizeText(kbForm.kbCode) || undefined,
     kbName: normalizeText(kbForm.kbName) || undefined,
     description: normalizeText(kbForm.description) || undefined,
     embeddingModel: normalizeText(kbForm.embeddingModel) || undefined,
@@ -576,6 +580,12 @@ function validateCurrentForm() {
   }
 
   if (props.activeTab === 'kb') {
+    if (!normalizeText(kbForm.kbCode)) {
+      return '请输入知识库编码'
+    }
+    if (normalizeText(kbForm.kbCode).length > 64) {
+      return '知识库编码不能超过 64 个字符'
+    }
     if (!normalizeText(kbForm.kbName)) {
       return '请输入知识库名称'
     }
@@ -1095,7 +1105,7 @@ watch(
 
       <el-form v-else-if="props.activeTab === 'kb'" label-width="112px" class="ai-platform-dialog-form">
         <el-alert
-          title="RAGFlow 地址与 API Key 由系统参数统一维护；保存时会先创建或更新远端 Dataset，知识库编码以远端 Dataset ID 为准。"
+          title="RAGFlow 地址与 API Key 由系统参数统一维护；知识库编码由您创建时定义，系统会在服务端映射到远端 Dataset ID。"
           type="info"
           :closable="false"
           show-icon
@@ -1106,6 +1116,16 @@ watch(
             <el-input :model-value="kbAuthSummary" readonly />
             <span>认证由系统参数统一维护，保存知识库时会同步保留认证快照。</span>
           </div>
+        </el-form-item>
+        <el-form-item label="知识库编码" required>
+          <el-input
+            v-model="kbForm.kbCode"
+            :disabled="dialogMode === 'edit'"
+            maxlength="64"
+            show-word-limit
+            placeholder="例如 product-manual，需与知识库名称语义相近"
+          />
+          <div class="ai-platform-dialog-form__field-tip">创建后不可修改；Agent 将根据该编码识别知识库。</div>
         </el-form-item>
         <el-form-item label="知识库名称" required>
           <el-input v-model="kbForm.kbName" placeholder="请输入知识库名称" />

@@ -127,7 +127,7 @@ async function runRetrievalTest() {
   const startTime = performance.now()
   try {
     const result = await testAiKbRetrieval({
-      kbId: normalizeText(props.knowledgeBase?.kbCode),
+      kbCode: normalizeText(props.knowledgeBase?.kbCode),
       query: normalizeText(form.query),
       topK: form.pageSize,
       page: 1,
