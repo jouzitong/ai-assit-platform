@@ -22,6 +22,21 @@ class ProtocolTest(unittest.TestCase):
         self.assertEqual("Be exact.", payload["rootAgent"]["spec"]["instructions"]["text"])
         self.assertEqual("Hello", payload["run"]["input"])
 
+    def test_preserves_the_java_confidence_policy(self) -> None:
+        policy = {
+            "enabled": True,
+            "threshold": 0.9,
+            "scoring": {"enabled": True},
+            "retrieval": {"enabled": True, "topK": 5},
+            "reanalysis": {"enabled": True},
+            "maxRetries": 1,
+            "audit": {"enabled": True},
+        }
+
+        payload = normalize_payload({"confidencePolicy": policy})
+
+        self.assertEqual(policy, payload["confidencePolicy"])
+
     def test_application_replay_keeps_assistant_history_and_deduplicates_current_user(self) -> None:
         replay = build_application_input(
             [

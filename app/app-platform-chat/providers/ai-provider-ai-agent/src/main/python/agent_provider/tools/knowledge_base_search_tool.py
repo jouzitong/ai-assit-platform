@@ -130,6 +130,43 @@ def available_knowledge_bases(run: Any) -> list[dict[str, Any]]:
     return result
 
 
+def search_authorized_knowledge_base(
+    run: dict[str, Any],
+    kb_code: str,
+    query: str,
+    top_k: int = 5,
+    scene: str = "ai-agent-tool",
+) -> dict[str, Any]:
+    """Search a knowledge base from the current run's frozen allowlist."""
+
+    allowed_codes = {item["kbCode"] for item in available_knowledge_bases(run)}
+    normalized_code = kb_code.strip() if isinstance(kb_code, str) else ""
+    if normalized_code not in allowed_codes:
+        return {
+            "tool": "knowledge_base_search_tool",
+            "success": False,
+            "error": "kb_code is not available for this Agent run.",
+            "availableKbCodes": sorted(allowed_codes),
+        }
+    if not isinstance(query, str) or not query.strip():
+        return {"tool": "knowledge_base_search_tool", "success": False, "error": "query is required."}
+    trace_id = run.get("traceId") if isinstance(run.get("traceId"), str) else None
+    payload = _build_request_payload(
+        kb_id=normalized_code,
+        query_text=query.strip(),
+        top_k=max(1, int(top_k or 5)),
+        trace_id=trace_id.strip() if trace_id and trace_id.strip() else None,
+        scene=scene,
+    )
+    result = _request_kb_search(payload)
+    result["tool"] = "knowledge_base_search_tool"
+    result["kbCode"] = normalized_code
+    result["topK"] = payload["topK"]
+    if result.get("success"):
+        result["summary"] = f"Returned {len(result.get('items', []))} knowledge hits."
+    return result
+
+
 def build_knowledge_base_search_tool(run: dict[str, Any], function_tool: Any) -> Any | None:
     """Create a per-run KB search tool limited to the Java-provided allowlist."""
 
@@ -137,35 +174,9 @@ def build_knowledge_base_search_tool(run: dict[str, Any], function_tool: Any) ->
     allowed_codes = {item["kbCode"] for item in knowledge_bases}
     if not allowed_codes:
         return None
-    trace_id = run.get("traceId") if isinstance(run.get("traceId"), str) else None
-
     def search_knowledge_base(kb_code: str, query: str, top_k: int = 5) -> dict[str, Any]:
         """Search one knowledge base authorized for this Agent run by kb_code and query text."""
-
-        normalized_code = kb_code.strip() if isinstance(kb_code, str) else ""
-        if normalized_code not in allowed_codes:
-            return {
-                "tool": "knowledge_base_search_tool",
-                "success": False,
-                "error": "kb_code is not available for this Agent run.",
-                "availableKbCodes": sorted(allowed_codes),
-            }
-        if not isinstance(query, str) or not query.strip():
-            return {"tool": "knowledge_base_search_tool", "success": False, "error": "query is required."}
-        payload = _build_request_payload(
-            kb_id=normalized_code,
-            query_text=query.strip(),
-            top_k=max(1, int(top_k or 5)),
-            trace_id=trace_id.strip() if trace_id and trace_id.strip() else None,
-            scene="ai-agent-tool",
-        )
-        result = _request_kb_search(payload)
-        result["tool"] = "knowledge_base_search_tool"
-        result["kbCode"] = normalized_code
-        result["topK"] = payload["topK"]
-        if result.get("success"):
-            result["summary"] = f"Returned {len(result.get('items', []))} knowledge hits."
-        return result
+        return search_authorized_knowledge_base(run, kb_code, query, top_k)
 
     decorator = function_tool(
         name_override="knowledge_base_search_tool",

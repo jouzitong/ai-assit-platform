@@ -11,6 +11,7 @@ from ..agents.factory import AgentFactory, SdkGraph
 from ..compiler import CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
 from ..protocol import build_application_input
+from .confidence_guard import ConfidencePolicy, guard_output
 
 
 def build_sdk_graph(graph: CompiledGraph, emitter: EventEmitter) -> SdkGraph:
@@ -24,6 +25,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
 
     sdk_graph = build_sdk_graph(graph, emitter)
     root = graph.root
+    confidence_policy = ConfidencePolicy.from_payload(graph.payload)
     _emit_execution_note(
         emitter,
         event_type="thinking.analysis.started",
@@ -32,13 +34,14 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         activity_name="分析用户请求",
         input_summary=_request_analysis_summary(graph),
     )
+    application_input = build_application_input(
+        graph.payload.get("messages"),
+        graph.payload["run"].get("input"),
+        graph.payload["run"].get("context"),
+    )
     result = Runner.run_streamed(
         sdk_graph.root,
-        build_application_input(
-            graph.payload.get("messages"),
-            graph.payload["run"].get("input"),
-            graph.payload["run"].get("context"),
-        ),
+        application_input,
         max_turns=graph.max_turns,
     )
     async for event in result.stream_events():
@@ -48,13 +51,23 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             sdk_graph.compiled_for,
             lambda name: _gateway_tool_identity(graph, name),
             hidden_agent_codes={root.code},
+            emit_output_deltas=not confidence_policy.requires_guard,
         )
 
     final_output = result.final_output
     last_sdk_agent = getattr(result, "last_agent", None)
     last_agent = sdk_graph.compiled_for(last_sdk_agent) or root
     usage = extract_usage(result)
-    normalized_output = _output_text(final_output)
+    guarded_output = await guard_output(
+        sdk_agent=sdk_graph.root,
+        compiled_agent=root,
+        graph=graph,
+        emitter=emitter,
+        original_task=_latest_user_request(graph) or "Continue.",
+        initial_output=final_output,
+        policy=confidence_policy,
+    )
+    normalized_output = guarded_output.text
     _emit_execution_note(
         emitter,
         event_type="thinking.conclusion.completed",
@@ -98,6 +111,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             "snapshotHash": graph.payload.get("snapshotHash"),
             "lastAgent": last_agent.code,
             "enabledTools": root.tool_names,
+            "confidence": guarded_output.audit_dict() if confidence_policy.requires_guard else {"enabled": False},
         },
     }
 

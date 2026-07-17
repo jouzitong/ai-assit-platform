@@ -65,6 +65,9 @@ def normalize_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
         else {},
         "snapshotHash": _first_text(source.get("snapshotHash")),
         "agentDefinitionSource": _first_text(source.get("agentDefinitionSource")),
+        "confidencePolicy": source.get("confidencePolicy")
+        if isinstance(source.get("confidencePolicy"), dict)
+        else {},
         "model": _first_text(source.get("model")),
         "messages": source.get("messages") if isinstance(source.get("messages"), list) else [],
         "tools": source.get("tools") if isinstance(source.get("tools"), list) else [],

@@ -58,7 +58,8 @@ public class AiAgentProcessExecutor {
             "workflowSnapshot",
             "snapshotHash",
             "modelSettings",
-            "agentDefinitionSource"
+            "agentDefinitionSource",
+            "confidencePolicy"
     );
     private static final Set<String> MODEL_SETTING_KEYS = Set.of(
             "temperature", "topP", "top_p", "maxTokens", "max_tokens",
@@ -364,6 +365,7 @@ public class AiAgentProcessExecutor {
         payload.put("workflowSnapshot", runtime.get("workflowSnapshot"));
         payload.put("snapshotHash", runtime.get("snapshotHash"));
         payload.put("agentDefinitionSource", runtime.get("agentDefinitionSource"));
+        payload.put("confidencePolicy", runtime.get("confidencePolicy"));
         Map<String, Object> options = new LinkedHashMap<>();
         options.put("temperature", request.getTemperature());
         options.put("topP", request.getTopP());
@@ -444,8 +446,22 @@ public class AiAgentProcessExecutor {
         // source of prompts, tool/skill bindings and collaboration topology.
         runtime.put("agentDefinitionSource", "PYTHON_LOCAL");
         runtime.put("modelSettings", connection == null ? Map.of() : connection.getSettings());
+        runtime.put("confidencePolicy", defaultConfidencePolicy());
         request.getExt().put("agentRuntime", runtime);
         return request;
+    }
+
+    private Map<String, Object> defaultConfidencePolicy() {
+        // FIXME: Move these defaults to a versioned, tenant-aware runtime configuration after the policy is validated.
+        Map<String, Object> policy = new LinkedHashMap<>();
+        policy.put("enabled", true);
+        policy.put("threshold", 0.9d);
+        policy.put("scoring", Map.of("enabled", true));
+        policy.put("retrieval", Map.of("enabled", true, "topK", 5));
+        policy.put("reanalysis", Map.of("enabled", true));
+        policy.put("maxRetries", 3);
+        policy.put("audit", Map.of("enabled", true));
+        return policy;
     }
 
     private Map<String, Object> runtimeExtension(Map<String, Object> extensions) {

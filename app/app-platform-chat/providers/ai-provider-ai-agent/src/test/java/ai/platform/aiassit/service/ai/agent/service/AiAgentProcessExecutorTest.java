@@ -175,6 +175,29 @@ class AiAgentProcessExecutorTest {
         assertThat(result.path("skillToken").asText()).isEqualTo("skill-token");
     }
 
+    @Test
+    void sendsTheDefaultConfidencePolicyToThePythonWorker() throws Exception {
+        Path worker = shellWorker("payload=$(cat)\n"
+                + "printf '%s\\n' \"{\\\"type\\\":\\\"result\\\",\\\"data\\\":$payload}\"\n");
+
+        var result = new AiAgentProcessExecutor(objectMapper).executeAgentWithWorker(
+                properties(5000),
+                new AgentDefinitionSnapshot(),
+                command(),
+                frame -> { },
+                () -> false,
+                "/bin/sh",
+                worker,
+                "",
+                Map.of()
+        );
+
+        assertThat(result.path("confidencePolicy").path("enabled").asBoolean()).isTrue();
+        assertThat(result.path("confidencePolicy").path("threshold").asDouble()).isEqualTo(0.9d);
+        assertThat(result.path("confidencePolicy").path("maxRetries").asInt()).isEqualTo(1);
+        assertThat(result.path("confidencePolicy").path("retrieval").path("topK").asInt()).isEqualTo(5);
+    }
+
     private AiAgentProperties properties(int timeoutMs) {
         AiAgentProperties properties = new AiAgentProperties();
         properties.setApiKey("test-api-key");
