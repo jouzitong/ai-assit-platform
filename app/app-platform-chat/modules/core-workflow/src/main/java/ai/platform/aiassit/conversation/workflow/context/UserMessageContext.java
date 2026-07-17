@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.context;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
 import lombok.Data;
 
 import java.io.Serial;
@@ -15,6 +15,6 @@ public class UserMessageContext implements Serializable {
     @Serial
     private static final long serialVersionUID = 1L;
 
-    private AiChatMessageDTO currentMessage;
-    private List<AiChatMessageDTO> sessionMessages = new ArrayList<>();
+    private ConversationMessageDTO currentMessage;
+    private List<ConversationMessageDTO> sessionMessages = new ArrayList<>();
 }

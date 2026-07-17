@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.dto.conversation;
 
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -12,7 +12,7 @@ public class ConversationSessionVO {
 
     private Long userId;
 
-    private AiChatBusinessType businessType;
+    private ConversationBusinessType businessType;
 
     private String sessionName;
 

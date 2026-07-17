@@ -202,9 +202,9 @@ CREATE TABLE IF NOT EXISTS ai_kb_publish_task
     KEY idx_publish_task_time (started_at, finished_at)
 ) COMMENT ='AI知识库发布任务表';
 
--- Source module: data-chat-history
+-- Source module: data-conversation
 
-CREATE TABLE IF NOT EXISTS ai_chat_session
+CREATE TABLE IF NOT EXISTS conversation_session
 (
     id            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     session_code  VARCHAR(64) NOT NULL COMMENT '会话编码',
@@ -220,9 +220,9 @@ CREATE TABLE IF NOT EXISTS ai_chat_session
     deleted       TINYINT     NOT NULL DEFAULT 0 COMMENT '软删除标记',
     UNIQUE KEY uk_session_code (session_code),
     KEY idx_user_id (user_id)
-) COMMENT ='AI聊天会话表';
+) COMMENT ='会话表';
 
-CREATE TABLE IF NOT EXISTS ai_chat_round
+CREATE TABLE IF NOT EXISTS conversation_round
 (
     id                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     round_code          VARCHAR(64) NOT NULL COMMENT '轮次编码',
@@ -249,9 +249,9 @@ CREATE TABLE IF NOT EXISTS ai_chat_round
     KEY idx_session_code (session_code),
     KEY idx_user_id (user_id),
     KEY idx_round_agent_run (agent_run_id)
-) COMMENT ='AI聊天轮次表';
+) COMMENT ='会话轮次表';
 
-CREATE TABLE IF NOT EXISTS ai_chat_message
+CREATE TABLE IF NOT EXISTS conversation_message
 (
     id                  BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     message_code        VARCHAR(64) NOT NULL COMMENT '消息编码',
@@ -277,9 +277,9 @@ CREATE TABLE IF NOT EXISTS ai_chat_message
     UNIQUE KEY uk_message_code (message_code),
     KEY idx_round_code (round_code),
     KEY idx_session_code (session_code)
-) COMMENT ='AI聊天消息表';
+) COMMENT ='会话消息表';
 
-CREATE TABLE IF NOT EXISTS ai_chat_artifact
+CREATE TABLE IF NOT EXISTS conversation_artifact
 (
     id                   BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     artifact_code        VARCHAR(64) NOT NULL COMMENT '产物编码',
@@ -307,9 +307,9 @@ CREATE TABLE IF NOT EXISTS ai_chat_artifact
     KEY idx_artifact_session_code (session_code),
     KEY idx_artifact_round_code (round_code),
     KEY idx_artifact_message_code (related_message_code)
-) COMMENT ='AI聊天过程产物表';
+) COMMENT ='会话过程产物表';
 
-CREATE TABLE IF NOT EXISTS ai_chat_activity
+CREATE TABLE IF NOT EXISTS conversation_activity
 (
     id               BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
     activity_code    VARCHAR(64)  NOT NULL COMMENT '活动事件编码',
@@ -324,8 +324,8 @@ CREATE TABLE IF NOT EXISTS ai_chat_activity
     phase            VARCHAR(32)           DEFAULT NULL COMMENT '活动阶段',
     status           VARCHAR(32)  NOT NULL DEFAULT 'RUNNING' COMMENT '活动状态',
     message          VARCHAR(512)          DEFAULT NULL COMMENT '活动展示信息',
-    input_summary    VARCHAR(1000)         DEFAULT NULL COMMENT '输入摘要',
-    output_summary   VARCHAR(1000)         DEFAULT NULL COMMENT '输出摘要',
+    input_summary    MEDIUMTEXT            DEFAULT NULL COMMENT '活动输入摘要',
+    output_summary   MEDIUMTEXT            DEFAULT NULL COMMENT '活动输出摘要',
     duration_ms      BIGINT                DEFAULT NULL COMMENT '耗时毫秒',
     request_id       VARCHAR(128)          DEFAULT NULL COMMENT '请求追踪编码',
     seq_no           INT          NOT NULL DEFAULT 1 COMMENT '轮次内事件顺序',
@@ -335,8 +335,256 @@ CREATE TABLE IF NOT EXISTS ai_chat_activity
     created_by       BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
     updated_by       BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
     version          BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
-    UNIQUE KEY uk_chat_activity_code (activity_code),
-    KEY idx_chat_activity_session (session_code),
-    KEY idx_chat_activity_round_seq (round_code, seq_no),
-    KEY idx_chat_activity_correlation (round_code, correlation_code)
-) COMMENT ='AI聊天执行活动事件表';
+    UNIQUE KEY uk_conversation_activity_code (activity_code),
+    KEY idx_conversation_activity_session (session_code),
+    KEY idx_conversation_activity_round_seq (round_code, seq_no),
+    KEY idx_conversation_activity_correlation (round_code, correlation_code)
+) COMMENT ='会话执行活动事件表';
+
+-- Source module: data-agent-control
+
+CREATE TABLE IF NOT EXISTS agent_definition
+(
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    code            VARCHAR(64)  NOT NULL COMMENT 'Agent 编码',
+    name            VARCHAR(128) NOT NULL COMMENT 'Agent 名称',
+    description     VARCHAR(512)          DEFAULT NULL COMMENT 'Agent 说明',
+    current_version INT                   DEFAULT NULL COMMENT '当前发布版本号',
+    status          INT          NOT NULL COMMENT '目录状态：1=草稿,2=已校验,3=已发布,4=已归档',
+    enabled         BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '是否启用',
+    create_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time     DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by      BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by      BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version         BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted         TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    UNIQUE KEY uk_agent_definition_code (code)
+) COMMENT ='Agent 定义目录表';
+
+CREATE TABLE IF NOT EXISTS agent_definition_version
+(
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    agent_code      VARCHAR(64) NOT NULL COMMENT 'Agent 编码',
+    version_no      INT         NOT NULL COMMENT '版本号',
+    status          INT         NOT NULL COMMENT '版本状态：1=草稿,2=已校验,3=已发布,4=已归档',
+    manifest_json   MEDIUMTEXT  NOT NULL COMMENT '完整中立 Agent Manifest JSON',
+    validation_json MEDIUMTEXT           DEFAULT NULL COMMENT '最近一次校验报告 JSON',
+    checksum        CHAR(64)    NOT NULL COMMENT 'Manifest SHA-256',
+    published_at    DATETIME             DEFAULT NULL COMMENT '发布时间',
+    create_time     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by      BIGINT      NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by      BIGINT      NOT NULL DEFAULT 0 COMMENT '更新者',
+    version         BIGINT      NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted         TINYINT     NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_definition_version_agent (agent_code, version_no),
+    KEY idx_agent_definition_version_status (status)
+) COMMENT ='Agent 定义版本表';
+
+CREATE TABLE IF NOT EXISTS agent_entry_binding
+(
+    id            BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    entry_code    VARCHAR(64) NOT NULL COMMENT '产品入口编码，例如 HOME_CHAT',
+    agent_code    VARCHAR(64) NOT NULL COMMENT '绑定 Agent 编码',
+    agent_version INT         NOT NULL COMMENT '绑定的已发布 Agent 版本',
+    runtime_type  INT         NOT NULL COMMENT '运行时：1=OpenAI Agents Python,2=OpenAI Agents TypeScript',
+    sdk_version   VARCHAR(64)          DEFAULT NULL COMMENT '目标 Agent SDK 版本约束',
+    priority      INT         NOT NULL DEFAULT 100 COMMENT '同入口候选优先级，值越小优先',
+    enabled       BOOLEAN     NOT NULL DEFAULT TRUE COMMENT '是否启用',
+    config_json   MEDIUMTEXT           DEFAULT NULL COMMENT '入口级非敏感运行配置 JSON',
+    create_time   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time   DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by    BIGINT      NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by    BIGINT      NOT NULL DEFAULT 0 COMMENT '更新者',
+    version       BIGINT      NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted       TINYINT     NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_entry_binding_entry (entry_code, enabled, priority),
+    KEY idx_agent_entry_binding_agent (agent_code, agent_version)
+) COMMENT ='Agent 入口绑定表';
+
+CREATE TABLE IF NOT EXISTS agent_run_audit
+(
+    id                 BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    run_id             VARCHAR(64) NOT NULL COMMENT 'Agent run id',
+    session_code       VARCHAR(64)          DEFAULT NULL COMMENT '会话编码',
+    round_code         VARCHAR(64)          DEFAULT NULL COMMENT '轮次编码',
+    root_agent_code    VARCHAR(64) NOT NULL COMMENT '根 Agent 编码',
+    root_agent_version INT         NOT NULL COMMENT '根 Agent 版本',
+    workflow_code      VARCHAR(64)          DEFAULT NULL COMMENT 'Workflow 编码',
+    workflow_version   INT                  DEFAULT NULL COMMENT 'Workflow 版本',
+    runtime_type       INT         NOT NULL COMMENT '运行时类型',
+    sdk_version        VARCHAR(64)          DEFAULT NULL COMMENT 'Agent SDK 版本',
+    snapshot_hash      VARCHAR(80) NOT NULL COMMENT '冻结定义摘要（含算法前缀）',
+    trace_id           VARCHAR(128)         DEFAULT NULL COMMENT 'Trace id',
+    status             VARCHAR(32) NOT NULL COMMENT '运行状态',
+    started_at         DATETIME             DEFAULT NULL COMMENT '开始时间',
+    finished_at        DATETIME             DEFAULT NULL COMMENT '结束时间',
+    usage_json         MEDIUMTEXT           DEFAULT NULL COMMENT '用量 JSON',
+    error_summary      VARCHAR(1024)        DEFAULT NULL COMMENT '脱敏错误摘要',
+    create_time        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by         BIGINT      NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by         BIGINT      NOT NULL DEFAULT 0 COMMENT '更新者',
+    version            BIGINT      NOT NULL DEFAULT 1 COMMENT '版本号',
+    UNIQUE KEY uk_agent_run_audit_run_id (run_id),
+    KEY idx_agent_run_audit_session_round (session_code, round_code),
+    KEY idx_agent_run_audit_root_agent (root_agent_code, root_agent_version),
+    KEY idx_agent_run_audit_status_time (status, started_at)
+) COMMENT ='Agent 运行审计表';
+
+CREATE TABLE IF NOT EXISTS agent_skill
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    code        VARCHAR(64)  NOT NULL COMMENT 'Skill 编码',
+    name        VARCHAR(128) NOT NULL COMMENT 'Skill 名称',
+    `desc`      VARCHAR(1024)         DEFAULT NULL COMMENT 'Skill 简要说明',
+    content     TEXT                  DEFAULT NULL COMMENT 'Skill Markdown 规则内容预览',
+    tool_refs   JSON                  DEFAULT NULL COMMENT 'Skill 关联的 tool 编码列表',
+    enabled     BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '是否启用',
+    remark      VARCHAR(1024)         DEFAULT NULL COMMENT '备注',
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by  BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by  BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version     BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted     TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    UNIQUE KEY uk_agent_skill_code (code)
+) COMMENT ='Agent Skill 目录表';
+
+CREATE TABLE IF NOT EXISTS agent_skill_version
+(
+    id               BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    skill_code       VARCHAR(64)  NOT NULL COMMENT 'Skill 编码',
+    version_no       INT          NOT NULL COMMENT '版本号',
+    status           INT          NOT NULL COMMENT '版本状态：1=草稿,2=已校验,3=已发布,4=已归档',
+    source_type      INT          NOT NULL COMMENT '来源：1=表单,2=ZIP',
+    entrypoint       VARCHAR(512) NOT NULL COMMENT 'Skill 入口文件路径',
+    manifest_json    MEDIUMTEXT   NOT NULL COMMENT 'Skill 包文件清单与兼容性 JSON',
+    validation_json  MEDIUMTEXT            DEFAULT NULL COMMENT '最近一次校验报告 JSON',
+    package_checksum CHAR(64)     NOT NULL COMMENT '规范化包内容 SHA-256',
+    package_size     BIGINT       NOT NULL COMMENT '解压后总字节数',
+    published_at     DATETIME              DEFAULT NULL COMMENT '发布时间',
+    create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by       BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by       BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version          BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted          TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_skill_version_skill (skill_code, version_no),
+    KEY idx_agent_skill_version_status (status)
+) COMMENT ='Agent Skill 版本表';
+
+CREATE TABLE IF NOT EXISTS agent_skill_file
+(
+    id               BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    skill_version_id BIGINT       NOT NULL COMMENT 'Skill 版本主键',
+    path             VARCHAR(512) NOT NULL COMMENT '规范化包内相对路径',
+    media_type       VARCHAR(128)          DEFAULT NULL COMMENT '推断的媒体类型',
+    content_size     BIGINT       NOT NULL COMMENT '文件字节数',
+    checksum         CHAR(64)     NOT NULL COMMENT '文件 SHA-256',
+    content          LONGBLOB     NOT NULL COMMENT '文件内容',
+    create_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by       BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by       BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version          BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted          TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_skill_file_version (skill_version_id),
+    UNIQUE KEY uk_agent_skill_file_path (skill_version_id, path)
+) COMMENT ='Agent Skill 文件表';
+
+CREATE TABLE IF NOT EXISTS agent_skill_package
+(
+    id                BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    skill_version_id  BIGINT       NOT NULL COMMENT 'Skill 版本主键',
+    original_filename VARCHAR(255) NOT NULL COMMENT '原始 ZIP 文件名',
+    package_checksum  CHAR(64)     NOT NULL COMMENT '原始 ZIP SHA-256',
+    compressed_size   BIGINT       NOT NULL COMMENT '压缩包字节数',
+    content           LONGBLOB     NOT NULL COMMENT '原始 ZIP 内容',
+    create_time       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time       DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by        BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by        BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version           BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted           TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_skill_package_version (skill_version_id),
+    UNIQUE KEY uk_agent_skill_package_checksum (package_checksum)
+) COMMENT ='Agent Skill 原始包表';
+
+CREATE TABLE IF NOT EXISTS agent_tool
+(
+    id           BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    code         VARCHAR(64)  NOT NULL COMMENT 'Tool 编码',
+    name         VARCHAR(128) NOT NULL COMMENT 'Tool 名称 / Agent 暴露名',
+    `desc`       VARCHAR(1024)         DEFAULT NULL COMMENT 'Tool 说明',
+    content      MEDIUMTEXT            DEFAULT NULL COMMENT '工具脚本内容',
+    runtime_type VARCHAR(32)           DEFAULT NULL COMMENT '运行时类型，例如 PYTHON / JAVASCRIPT',
+    sync_status  INT          NOT NULL DEFAULT 1 COMMENT '同步状态，例如 PENDING / SUCCESS / FAILED',
+    enabled      BOOLEAN      NOT NULL DEFAULT TRUE COMMENT '是否启用',
+    remark       VARCHAR(1024)         DEFAULT NULL COMMENT '备注',
+    create_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time  DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by   BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by   BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version      BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted      TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    UNIQUE KEY uk_agent_tool_code (code)
+) COMMENT ='Agent Tool 目录表';
+
+CREATE TABLE IF NOT EXISTS agent_tool_version
+(
+    id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    tool_code       VARCHAR(64) NOT NULL COMMENT 'Tool 编码',
+    version_no      INT         NOT NULL COMMENT '版本号',
+    status          INT         NOT NULL COMMENT '版本状态：1=草稿,2=已校验,3=已发布,4=已归档',
+    adapter_type    INT         NOT NULL COMMENT '适配器：1=FUNCTION,2=HTTP,3=MCP,4=SCRIPT',
+    definition_json MEDIUMTEXT  NOT NULL COMMENT '输入输出 Schema、权限、超时和适配配置 JSON',
+    validation_json MEDIUMTEXT           DEFAULT NULL COMMENT '最近一次校验报告 JSON',
+    checksum        CHAR(64)    NOT NULL COMMENT '定义 SHA-256',
+    published_at    DATETIME             DEFAULT NULL COMMENT '发布时间',
+    create_time     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time     DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by      BIGINT      NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by      BIGINT      NOT NULL DEFAULT 0 COMMENT '更新者',
+    version         BIGINT      NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted         TINYINT     NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_tool_version_tool (tool_code, version_no),
+    KEY idx_agent_tool_version_status (status)
+) COMMENT ='Agent Tool 版本表';
+
+CREATE TABLE IF NOT EXISTS agent_workflow
+(
+    id          BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    code        VARCHAR(64)  NOT NULL COMMENT '流程编码',
+    name        VARCHAR(128) NOT NULL COMMENT '流程名称',
+    type        VARCHAR(32)  NOT NULL COMMENT '流程类型',
+    enabled     TINYINT      NOT NULL DEFAULT 1 COMMENT '是否启用',
+    config      MEDIUMTEXT            DEFAULT NULL COMMENT '流程目录配置JSON',
+    create_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by  BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by  BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version     BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted     TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    UNIQUE KEY uk_agent_workflow_code (code)
+) COMMENT ='Agent Workflow 目录表';
+
+CREATE TABLE IF NOT EXISTS agent_workflow_version
+(
+    id                 BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    workflow_code      VARCHAR(64) NOT NULL COMMENT 'Workflow 编码',
+    version_no         INT         NOT NULL COMMENT '版本号',
+    status             INT         NOT NULL COMMENT '版本状态：1=草稿,2=已校验,3=已发布,4=已归档',
+    specification_json MEDIUMTEXT  NOT NULL COMMENT '产出物、检查器和完成策略 JSON',
+    validation_json    MEDIUMTEXT           DEFAULT NULL COMMENT '最近一次校验报告 JSON',
+    checksum           CHAR(64)    NOT NULL COMMENT '规范 SHA-256',
+    published_at       DATETIME             DEFAULT NULL COMMENT '发布时间',
+    create_time        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time        DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by         BIGINT      NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by         BIGINT      NOT NULL DEFAULT 0 COMMENT '更新者',
+    version            BIGINT      NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted            TINYINT     NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    KEY idx_agent_workflow_version_workflow (workflow_code, version_no),
+    KEY idx_agent_workflow_version_status (status)
+) COMMENT ='Agent Workflow 版本表';

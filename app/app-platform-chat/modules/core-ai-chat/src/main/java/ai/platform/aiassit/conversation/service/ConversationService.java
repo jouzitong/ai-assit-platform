@@ -7,21 +7,21 @@ import ai.platform.aiassit.conversation.dto.conversation.ConversationRenameReque
 import ai.platform.aiassit.conversation.dto.conversation.ConversationCreateRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDeleteRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDetailRequest;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
 
 import java.util.List;
 
 public interface ConversationService {
 
-    List<AiChatSessionDTO> listConversations(ConversationQueryRequest request);
+    List<ConversationSessionDTO> listConversations(ConversationQueryRequest request);
 
     ConversationDetailResponse detailConversation(ConversationDetailRequest request);
 
     ConversationDetailResponse createConversation(ConversationCreateRequest request);
 
-    AiChatSessionDTO renameConversation(ConversationRenameRequest request);
+    ConversationSessionDTO renameConversation(ConversationRenameRequest request);
 
-    AiChatSessionDTO pinConversation(ConversationPinRequest request);
+    ConversationSessionDTO pinConversation(ConversationPinRequest request);
 
     Boolean deleteConversation(ConversationDeleteRequest request);
 }

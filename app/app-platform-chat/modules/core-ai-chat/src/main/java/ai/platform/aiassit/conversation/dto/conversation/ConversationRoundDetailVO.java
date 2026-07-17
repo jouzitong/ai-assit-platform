@@ -1,9 +1,9 @@
 package ai.platform.aiassit.conversation.dto.conversation;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationActivityDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -12,14 +12,14 @@ import java.util.List;
 @Data
 public class ConversationRoundDetailVO {
 
-    private AiChatRoundDTO round;
+    private ConversationRoundDTO round;
 
-    private List<AiChatMessageDTO> messages = new ArrayList<>();
+    private List<ConversationMessageDTO> messages = new ArrayList<>();
 
-    private List<AiChatArtifactDTO> artifacts = new ArrayList<>();
+    private List<ConversationArtifactDTO> artifacts = new ArrayList<>();
 
     /** Persisted Agent/tool/handoff/check activity timeline for history replay. */
-    private List<AiChatActivityDTO> activities = new ArrayList<>();
+    private List<ConversationActivityDTO> activities = new ArrayList<>();
 
     /**
      * TODO: 后续在这里补充 artifact -> renderer 的聚合结果，

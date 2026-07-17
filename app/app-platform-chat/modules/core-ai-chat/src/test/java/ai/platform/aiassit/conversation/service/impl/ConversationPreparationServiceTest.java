@@ -1,7 +1,7 @@
 package ai.platform.aiassit.conversation.service.impl;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import org.arthena.framework.common.exception.BizException;
 import org.junit.jupiter.api.Test;
@@ -17,39 +17,39 @@ class ConversationPreparationServiceTest {
     @Test
     void pageAssistantOnlyContinuesPageAssistantSession() {
         assertThatCode(() -> service.validateSessionBusinessType(
-                session(AiChatBusinessType.PAGE_ASSISTANT), command(AiChatBusinessType.PAGE_ASSISTANT)))
+                session(ConversationBusinessType.PAGE_ASSISTANT), command(ConversationBusinessType.PAGE_ASSISTANT)))
                 .doesNotThrowAnyException();
 
         assertThatThrownBy(() -> service.validateSessionBusinessType(
-                session(AiChatBusinessType.CUSTOM), command(AiChatBusinessType.PAGE_ASSISTANT)))
+                session(ConversationBusinessType.CUSTOM), command(ConversationBusinessType.PAGE_ASSISTANT)))
                 .isInstanceOf(BizException.class);
     }
 
     @Test
     void homeChatAcceptsLegacySessionTypesButRejectsPageAssistantSession() {
         assertThatCode(() -> service.validateSessionBusinessType(
-                session(AiChatBusinessType.CUSTOM), command(AiChatBusinessType.CUSTOM)))
+                session(ConversationBusinessType.CUSTOM), command(ConversationBusinessType.CUSTOM)))
                 .doesNotThrowAnyException();
         assertThatCode(() -> service.validateSessionBusinessType(
-                session(AiChatBusinessType.GENERAL), command(AiChatBusinessType.CUSTOM)))
+                session(ConversationBusinessType.GENERAL), command(ConversationBusinessType.CUSTOM)))
                 .doesNotThrowAnyException();
         assertThatCode(() -> service.validateSessionBusinessType(
-                session(null), command(AiChatBusinessType.CUSTOM)))
+                session(null), command(ConversationBusinessType.CUSTOM)))
                 .doesNotThrowAnyException();
 
         assertThatThrownBy(() -> service.validateSessionBusinessType(
-                session(AiChatBusinessType.PAGE_ASSISTANT), command(AiChatBusinessType.CUSTOM)))
+                session(ConversationBusinessType.PAGE_ASSISTANT), command(ConversationBusinessType.CUSTOM)))
                 .isInstanceOf(BizException.class);
     }
 
-    private AiChatSessionDTO session(AiChatBusinessType businessType) {
-        AiChatSessionDTO session = new AiChatSessionDTO();
+    private ConversationSessionDTO session(ConversationBusinessType businessType) {
+        ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode("session-1");
         session.setBusinessType(businessType);
         return session;
     }
 
-    private ConversationQueryCommand command(AiChatBusinessType businessType) {
+    private ConversationQueryCommand command(ConversationBusinessType businessType) {
         ConversationQueryCommand command = new ConversationQueryCommand();
         command.setBusinessType(businessType);
         return command;

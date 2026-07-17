@@ -9,7 +9,7 @@ import ai.platform.aiassit.conversation.dto.conversation.ConversationRenameReque
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSearchRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSessionVO;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDeleteRequest;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
 import lombok.AllArgsConstructor;
 import org.arthena.framework.common.constant.ErrCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
@@ -66,7 +66,7 @@ public class ConversationManageController implements IConversationManageControll
         return service.deleteConversation(request);
     }
 
-    private List<ConversationSessionVO> toVOList(List<AiChatSessionDTO> sessions) {
+    private List<ConversationSessionVO> toVOList(List<ConversationSessionDTO> sessions) {
         return sessions.stream().map(apiResConvert::toVO).toList();
     }
 

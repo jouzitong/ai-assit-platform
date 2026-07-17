@@ -1,8 +1,8 @@
 package ai.platform.aiassit.conversation.workflow.context;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
 import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
 import ai.platform.aiassit.conversation.constant.ConversationEventTypes;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
@@ -33,9 +33,9 @@ public class ConversationRuntimeContext implements Serializable {
     private static final String STATUS_RUNNING = "RUNNING";
 
     private ConversationQueryCommand command;
-    private AiChatSessionDTO session;
-    private AiChatRoundDTO round;
-    private List<AiChatArtifactDTO> sessionArtifacts = new ArrayList<>();
+    private ConversationSessionDTO session;
+    private ConversationRoundDTO round;
+    private List<ConversationArtifactDTO> sessionArtifacts = new ArrayList<>();
     private UserMessageContext userMessageContext = new UserMessageContext();
     private String renderedAnswer;
     private transient ConversationEventPublisher eventPublisher = ConversationEventPublisher.NOOP;

@@ -1,17 +1,17 @@
 package ai.platform.aiassit.conversation.workflow.support;
 
 import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.enums.AiChatActorType;
-import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
-import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
-import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
-import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
-import ai.platform.aiassit.chat.history.service.AiChatActivityService;
-import ai.platform.aiassit.chat.history.service.AiChatMessageService;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationActivityDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
+import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
+import ai.platform.aiassit.conversation.data.enums.ConversationActorType;
+import ai.platform.aiassit.conversation.data.enums.ConversationContentFormat;
+import ai.platform.aiassit.conversation.data.enums.ConversationDisplayLevel;
+import ai.platform.aiassit.conversation.data.enums.ConversationMessageType;
+import ai.platform.aiassit.conversation.data.service.ConversationArtifactService;
+import ai.platform.aiassit.conversation.data.service.ConversationActivityService;
+import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -46,14 +46,14 @@ public class AgentConversationHistoryRecorder {
             "(?i)\\bsk-[a-z0-9_-]{4,}\\b"
     );
 
-    private final AiChatMessageService messageService;
-    private final AiChatArtifactService artifactService;
-    private final AiChatActivityService activityService;
+    private final ConversationMessageService messageService;
+    private final ConversationArtifactService artifactService;
+    private final ConversationActivityService activityService;
     private final ObjectMapper objectMapper;
 
-    public AgentConversationHistoryRecorder(AiChatMessageService messageService,
-                                   AiChatArtifactService artifactService,
-                                   AiChatActivityService activityService,
+    public AgentConversationHistoryRecorder(ConversationMessageService messageService,
+                                   ConversationArtifactService artifactService,
+                                   ConversationActivityService activityService,
                                    ObjectMapper objectMapper) {
         this.messageService = messageService;
         this.artifactService = artifactService;
@@ -61,7 +61,7 @@ public class AgentConversationHistoryRecorder {
         this.objectMapper = objectMapper;
     }
 
-    public AiChatMessageDTO saveMessage(ConversationRuntimeContext context,
+    public ConversationMessageDTO saveMessage(ConversationRuntimeContext context,
                                         String roundCode,
                                         String role,
                                         String actorType,
@@ -73,7 +73,7 @@ public class AgentConversationHistoryRecorder {
                                         String parentMessageCode,
                                         String sourceMessageCode,
                                         Object ext) {
-        AiChatMessageDTO message = new AiChatMessageDTO();
+        ConversationMessageDTO message = new ConversationMessageDTO();
         message.setMessageCode(generateCode("msg"));
         message.setRoundCode(roundCode);
         message.setSessionCode(context.getSession().getSessionCode());
@@ -88,9 +88,9 @@ public class AgentConversationHistoryRecorder {
         message.setSourceMessageCode(sourceMessageCode);
         message.setSortNo(nextMessageSortNo(context));
         message.setExtJson(toJson(ext));
-        AiChatMessageDTO created = messageService.add(message);
+        ConversationMessageDTO created = messageService.add(message);
 
-        List<AiChatMessageDTO> messages = new ArrayList<>(context.getOrCreateUserMessageContext().getSessionMessages());
+        List<ConversationMessageDTO> messages = new ArrayList<>(context.getOrCreateUserMessageContext().getSessionMessages());
         messages.add(created);
         context.getOrCreateUserMessageContext().setSessionMessages(messages);
         return created;
@@ -102,10 +102,10 @@ public class AgentConversationHistoryRecorder {
      * <p>消息正文保持为空，错误展示信息仅存放在已脱敏的 extJson.error 中；
      * 任何查询、序列化或写库异常都不会覆盖原 Agent 运行异常。</p>
      */
-    public Optional<AiChatMessageDTO> saveFailureMessage(ConversationRuntimeContext context,
+    public Optional<ConversationMessageDTO> saveFailureMessage(ConversationRuntimeContext context,
                                                          String rawErrorMessage) {
         try {
-            AiChatMessageDTO existing = findFailureMessage(context);
+            ConversationMessageDTO existing = findFailureMessage(context);
             if (existing != null) {
                 return Optional.of(existing);
             }
@@ -117,11 +117,11 @@ public class AgentConversationHistoryRecorder {
                     context,
                     context.getRound().getRoundCode(),
                     "ASSISTANT",
-                    AiChatActorType.AI.name(),
-                    AiChatMessageType.ERROR_MESSAGE.name(),
+                    ConversationActorType.AI.name(),
+                    ConversationMessageType.ERROR_MESSAGE.name(),
                     "",
-                    AiChatContentFormat.PLAIN_TEXT.name(),
-                    AiChatDisplayLevel.VISIBLE.name(),
+                    ConversationContentFormat.PLAIN_TEXT.name(),
+                    ConversationDisplayLevel.VISIBLE.name(),
                     "FAILED",
                     currentMessageCode,
                     currentMessageCode,
@@ -140,7 +140,7 @@ public class AgentConversationHistoryRecorder {
      * <p>活动属于可观测数据，持久化故障不能中断 AI 回答或实时事件发布。
      * correlationCode 用于前端合并同一活动的开始/完成状态。</p>
      */
-    public Optional<AiChatActivityDTO> saveActivity(ConversationRuntimeContext context,
+    public Optional<ConversationActivityDTO> saveActivity(ConversationRuntimeContext context,
                                                     String source,
                                                     String phase,
                                                     String message,
@@ -152,7 +152,7 @@ public class AgentConversationHistoryRecorder {
                 activity.get("activityCode"), detail.get("activityCode"), detail.get("callId"),
                 activity.get("callId"), detail.get("activity"), detail.get("toolName"));
         try {
-            AiChatActivityDTO record = new AiChatActivityDTO();
+            ConversationActivityDTO record = new ConversationActivityDTO();
             record.setActivityCode(generateCode("activity"));
             record.setSessionCode(context.getSession().getSessionCode());
             record.setRoundCode(context.getRound().getRoundCode());
@@ -168,8 +168,8 @@ public class AgentConversationHistoryRecorder {
             record.setPhase(truncate(phase, 32));
             record.setStatus(truncate(defaultText(status, "RUNNING"), 32));
             record.setMessage(truncate(message, 512));
-            record.setInputSummary(truncate(firstText(activity.get("inputSummary"), detail.get("inputSummary")), 1000));
-            record.setOutputSummary(truncate(firstText(activity.get("outputSummary"), detail.get("outputSummary")), 1000));
+            record.setInputSummary(firstText(activity.get("inputSummary"), detail.get("inputSummary")));
+            record.setOutputSummary(firstText(activity.get("outputSummary"), detail.get("outputSummary")));
             record.setDurationMs(longValue(activity.get("durationMs"), detail.get("durationMs")));
             record.setRequestId(truncate(context.getCommand() == null ? null : context.getCommand().getTraceId(), 128));
             record.setSeqNo(nextActivitySeqNo(context));
@@ -182,7 +182,7 @@ public class AgentConversationHistoryRecorder {
         }
     }
 
-    public AiChatArtifactDTO saveArtifact(ConversationRuntimeContext context,
+    public ConversationArtifactDTO saveArtifact(ConversationRuntimeContext context,
                                           String artifactType,
                                           String stage,
                                           String title,
@@ -192,7 +192,7 @@ public class AgentConversationHistoryRecorder {
                                           String status,
                                           String relatedMessageCode,
                                           Object ext) {
-        AiChatArtifactDTO artifact = new AiChatArtifactDTO();
+        ConversationArtifactDTO artifact = new ConversationArtifactDTO();
         artifact.setArtifactCode(generateCode("artifact"));
         artifact.setSessionCode(context.getSession().getSessionCode());
         artifact.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
@@ -200,7 +200,7 @@ public class AgentConversationHistoryRecorder {
         artifact.setRelatedMessageCode(relatedMessageCode);
         artifact.setArtifactType(artifactType);
         artifact.setStage(stage);
-        artifact.setProducerType(visible ? AiChatActorType.AI.name() : AiChatActorType.SYSTEM.name());
+        artifact.setProducerType(visible ? ConversationActorType.AI.name() : ConversationActorType.SYSTEM.name());
         artifact.setVisibleFlag(visible);
         artifact.setTitle(title);
         artifact.setContent(stringifyContent(content));
@@ -208,28 +208,28 @@ public class AgentConversationHistoryRecorder {
         artifact.setStatus(status);
         artifact.setSeqNo(nextArtifactSeqNo(context));
         artifact.setExtJson(toJson(ext));
-        AiChatArtifactDTO created = artifactService.add(artifact);
+        ConversationArtifactDTO created = artifactService.add(artifact);
 
-        List<AiChatArtifactDTO> artifacts = new ArrayList<>(context.getSessionArtifacts());
+        List<ConversationArtifactDTO> artifacts = new ArrayList<>(context.getSessionArtifacts());
         artifacts.add(created);
         context.setSessionArtifacts(artifacts);
         return created;
     }
 
     public String defaultDisplayLevel(boolean visible) {
-        return visible ? AiChatDisplayLevel.VISIBLE.name() : AiChatDisplayLevel.COLLAPSIBLE.name();
+        return visible ? ConversationDisplayLevel.VISIBLE.name() : ConversationDisplayLevel.COLLAPSIBLE.name();
     }
 
     public String defaultContentFormat(String contentFormat) {
-        return contentFormat == null ? AiChatContentFormat.PLAIN_TEXT.name() : contentFormat;
+        return contentFormat == null ? ConversationContentFormat.PLAIN_TEXT.name() : contentFormat;
     }
 
     public String defaultActorType(String actorType) {
-        return actorType == null ? AiChatActorType.SYSTEM.name() : actorType;
+        return actorType == null ? ConversationActorType.SYSTEM.name() : actorType;
     }
 
     private int nextMessageSortNo(ConversationRuntimeContext context) {
-        List<AiChatMessageDTO> messages = context.getOrCreateUserMessageContext().getSessionMessages();
+        List<ConversationMessageDTO> messages = context.getOrCreateUserMessageContext().getSessionMessages();
         return CollectionUtils.isEmpty(messages) ? 1 : messages.size() + 1;
     }
 
@@ -238,7 +238,7 @@ public class AgentConversationHistoryRecorder {
     }
 
     private int nextActivitySeqNo(ConversationRuntimeContext context) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(context.getSession().getSessionCode());
         query.setRoundCode(context.getRound().getRoundCode());
         return activityService.queryAll(query).size() + 1;
@@ -313,7 +313,7 @@ public class AgentConversationHistoryRecorder {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    private AiChatMessageDTO findFailureMessage(ConversationRuntimeContext context) {
+    private ConversationMessageDTO findFailureMessage(ConversationRuntimeContext context) {
         if (context == null || context.getOrCreateUserMessageContext().getSessionMessages() == null) {
             return null;
         }
@@ -321,7 +321,7 @@ public class AgentConversationHistoryRecorder {
         return context.getOrCreateUserMessageContext().getSessionMessages().stream()
                 .filter(message -> message != null && currentRoundCode != null
                         && currentRoundCode.equals(message.getRoundCode()))
-                .filter(message -> AiChatMessageType.ERROR_MESSAGE.name().equalsIgnoreCase(message.getMessageType()))
+                .filter(message -> ConversationMessageType.ERROR_MESSAGE.name().equalsIgnoreCase(message.getMessageType()))
                 .filter(message -> "FAILED".equalsIgnoreCase(message.getStatus()))
                 .findFirst()
                 .orElse(null);

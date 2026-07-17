@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.support;
 
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
 import ai.platform.aiassit.conversation.dto.chat.ConversationQueryRequest;
 import ai.platform.aiassit.conversation.protocol.dto.ChatTransportRequest;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
@@ -82,7 +82,7 @@ public class ConversationCommandFactory {
                 request, pathSessionCode, userId, fallbackTraceId, allowModelOverride);
         command.setScene(SETTINGS_ASSISTANT_SCENE);
         command.setAgentEntryCode(SETTINGS_ASSISTANT_ENTRY);
-        command.setBusinessType(AiChatBusinessType.PAGE_ASSISTANT);
+        command.setBusinessType(ConversationBusinessType.PAGE_ASSISTANT);
         return command;
     }
 
@@ -141,7 +141,7 @@ public class ConversationCommandFactory {
         ConversationQueryCommand command = new ConversationQueryCommand();
         command.setScene(DEFAULT_SCENE);
         command.setAgentEntryCode(HOME_CHAT_ENTRY);
-        command.setBusinessType(AiChatBusinessType.CUSTOM);
+        command.setBusinessType(ConversationBusinessType.CUSTOM);
         command.setTraceId(traceId);
         command.setUserId(userId);
         return command;

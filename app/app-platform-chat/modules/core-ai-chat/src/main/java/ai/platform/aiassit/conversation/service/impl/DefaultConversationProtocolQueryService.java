@@ -1,12 +1,12 @@
 package ai.platform.aiassit.conversation.service.impl;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
-import ai.platform.aiassit.chat.history.service.AiChatActivityService;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationActivityDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
+import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
+import ai.platform.aiassit.conversation.data.service.ConversationArtifactService;
+import ai.platform.aiassit.conversation.data.service.ConversationActivityService;
+import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.dto.protocol.RenderArtifactResponse;
 import ai.platform.aiassit.conversation.dto.protocol.RoundThinkingResponse;
 import ai.platform.aiassit.conversation.service.ConversationProtocolQueryService;
@@ -26,14 +26,14 @@ import java.util.Objects;
 @Service
 public class DefaultConversationProtocolQueryService implements ConversationProtocolQueryService {
 
-    private final AiChatRoundService roundService;
-    private final AiChatArtifactService artifactService;
-    private final AiChatActivityService activityService;
+    private final ConversationRoundService roundService;
+    private final ConversationArtifactService artifactService;
+    private final ConversationActivityService activityService;
     private final ObjectMapper objectMapper;
 
-    public DefaultConversationProtocolQueryService(AiChatRoundService roundService,
-                                                   AiChatArtifactService artifactService,
-                                                   AiChatActivityService activityService,
+    public DefaultConversationProtocolQueryService(ConversationRoundService roundService,
+                                                   ConversationArtifactService artifactService,
+                                                   ConversationActivityService activityService,
                                                    ObjectMapper objectMapper) {
         this.roundService = roundService;
         this.artifactService = artifactService;
@@ -50,21 +50,21 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ROUND_CODE);
         }
 
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setRoundCode(roundCode);
-        AiChatRoundDTO round = roundService.queryAll(query).stream()
+        ConversationRoundDTO round = roundService.queryAll(query).stream()
                 .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
-                .max(Comparator.comparing(AiChatRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
+                .max(Comparator.comparing(ConversationRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
                 .orElseThrow(() -> BizException.of(AiChatBizCodeConstant.CONVERSATION_ROUND_NOT_FOUND));
 
-        List<AiChatArtifactDTO> artifacts = artifactService.queryAll(query).stream()
+        List<ConversationArtifactDTO> artifacts = artifactService.queryAll(query).stream()
                 .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
-                .sorted(Comparator.comparing(AiChatArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
-        List<AiChatActivityDTO> activities = activityService.queryAll(query).stream()
+        List<ConversationActivityDTO> activities = activityService.queryAll(query).stream()
                 .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
-                .sorted(Comparator.comparing(AiChatActivityDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationActivityDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
 
         RoundThinkingResponse response = new RoundThinkingResponse();
@@ -72,10 +72,10 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         response.setRoundCode(roundCode);
         response.setStatus(round.getStatus());
         Map<String, Map<String, Object>> agents = new LinkedHashMap<>();
-        for (AiChatArtifactDTO artifact : artifacts) {
+        for (ConversationArtifactDTO artifact : artifacts) {
             response.getArtifacts().add(artifact(artifact));
         }
-        for (AiChatActivityDTO activity : activities) {
+        for (ConversationActivityDTO activity : activities) {
             String agentCode = StringUtils.hasText(activity.getAgentCode())
                     ? activity.getAgentCode()
                     : StringUtils.hasText(round.getRootAgentCode()) ? round.getRootAgentCode() : "AI_AGENT";
@@ -103,9 +103,9 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         if (!StringUtils.hasText(codeRef)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CONTENT);
         }
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setArtifactCode(codeRef);
-        AiChatArtifactDTO artifact = artifactService.queryAll(query).stream()
+        ConversationArtifactDTO artifact = artifactService.queryAll(query).stream()
                 .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
                 .findFirst()
                 .orElseThrow(() -> BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND));
@@ -124,7 +124,7 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
     }
 
     private Map<String, Object> agent(String agentCode,
-                                      AiChatActivityDTO activity,
+                                      ConversationActivityDTO activity,
                                       Map<String, Object> current) {
         Map<String, Object> agent = current == null ? new LinkedHashMap<>() : new LinkedHashMap<>(current);
         agent.put("code", agentCode);
@@ -136,7 +136,7 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         return agent;
     }
 
-    private Map<String, Object> activity(AiChatActivityDTO record) {
+    private Map<String, Object> activity(ConversationActivityDTO record) {
         Map<String, Object> activity = new LinkedHashMap<>();
         activity.put("id", record.getActivityCode());
         activity.put("activityCode", record.getCorrelationCode());
@@ -158,7 +158,7 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         return activity;
     }
 
-    private Map<String, Object> artifact(AiChatArtifactDTO record) {
+    private Map<String, Object> artifact(ConversationArtifactDTO record) {
         Map<String, Object> artifact = new LinkedHashMap<>();
         artifact.put("artifactCode", record.getArtifactCode());
         artifact.put("artifactType", record.getArtifactType());

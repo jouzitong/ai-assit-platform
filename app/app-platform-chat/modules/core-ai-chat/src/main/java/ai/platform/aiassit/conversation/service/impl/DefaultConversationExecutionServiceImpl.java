@@ -4,10 +4,10 @@ import ai.platform.aiassit.agent.runtime.AgentConversationOutcome;
 import ai.platform.aiassit.agent.runtime.AgentConversationRequest;
 import ai.platform.aiassit.agent.runtime.AgentConversationRunner;
 import ai.platform.aiassit.agent.runtime.AgentTarget;
-import ai.platform.aiassit.chat.history.enums.AiChatActorType;
-import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
-import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
-import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
+import ai.platform.aiassit.conversation.data.enums.ConversationActorType;
+import ai.platform.aiassit.conversation.data.enums.ConversationContentFormat;
+import ai.platform.aiassit.conversation.data.enums.ConversationDisplayLevel;
+import ai.platform.aiassit.conversation.data.enums.ConversationMessageType;
 import ai.platform.aiassit.conversation.constant.ConversationEventPhases;
 import ai.platform.aiassit.conversation.constant.ConversationEventSources;
 import ai.platform.aiassit.conversation.dto.chat.ConversationQueryResponse;
@@ -20,13 +20,13 @@ import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancellatio
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationEventPublisher;
 import ai.platform.aiassit.conversation.workflow.support.AgentConversationHistoryRecorder;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.service.AiChatMessageService;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
-import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
+import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
+import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
+import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
@@ -53,16 +53,16 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     private final AgentConversationRunner agentConversationRunner;
     private final ConversationPreparationService preparationService;
     private final AgentConversationHistoryRecorder historyRecorder;
-    private final AiChatSessionService sessionService;
-    private final AiChatRoundService roundService;
-    private final AiChatMessageService messageService;
+    private final ConversationSessionService sessionService;
+    private final ConversationRoundService roundService;
+    private final ConversationMessageService messageService;
 
     public DefaultConversationExecutionServiceImpl(AgentConversationRunner agentConversationRunner,
                                                    ConversationPreparationService preparationService,
                                                    AgentConversationHistoryRecorder historyRecorder,
-                                                   AiChatSessionService sessionService,
-                                                   AiChatRoundService roundService,
-                                                   AiChatMessageService messageService) {
+                                                   ConversationSessionService sessionService,
+                                                   ConversationRoundService roundService,
+                                                   ConversationMessageService messageService) {
         this.agentConversationRunner = agentConversationRunner;
         this.preparationService = preparationService;
         this.historyRecorder = historyRecorder;
@@ -147,11 +147,11 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     public List<ConversationQueryStreamEvent> replayStream(ConversationStreamReconnectRequest request,
                                                            Long userId,
                                                            String traceId) {
-        AiChatSessionDTO session = loadSession(request == null ? null : request.getSessionCode(), userId);
+        ConversationSessionDTO session = loadSession(request == null ? null : request.getSessionCode(), userId);
         if (session == null) {
             throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
         }
-        AiChatRoundDTO round = loadRound(request == null ? null : request.getRoundCode(), session.getSessionCode(), userId);
+        ConversationRoundDTO round = loadRound(request == null ? null : request.getRoundCode(), session.getSessionCode(), userId);
         if (round == null) {
             throw BizException.of(AiChatBizCodeConstant.CONVERSATION_ROUND_NOT_FOUND);
         }
@@ -198,7 +198,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                         StringUtils.hasText(command.getAgentEntryCode()) ? command.getAgentEntryCode() : "HOME_CHAT",
                         null,
                         null));
-        AiChatMessageDTO current = context.getOrCreateUserMessageContext().getCurrentMessage();
+        ConversationMessageDTO current = context.getOrCreateUserMessageContext().getCurrentMessage();
         request.setMessages(toAgentMessages(
                 context.getOrCreateUserMessageContext().getSessionMessages(),
                 current == null ? null : current.getMessageCode()));
@@ -212,7 +212,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         return request;
     }
 
-    private List<ChatMessage> toAgentMessages(List<AiChatMessageDTO> messages, String currentMessageCode) {
+    private List<ChatMessage> toAgentMessages(List<ConversationMessageDTO> messages, String currentMessageCode) {
         if (messages == null) {
             return List.of();
         }
@@ -237,7 +237,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         return selected;
     }
 
-    private ChatMessage toAgentMessage(AiChatMessageDTO source) {
+    private ChatMessage toAgentMessage(ConversationMessageDTO source) {
         MessageRole role;
         if ("USER".equalsIgnoreCase(source.getRole())) {
             role = MessageRole.USER;
@@ -305,18 +305,18 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
             throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED, "Agent runtime returned an empty answer");
         }
         context.setRenderedAnswer(answer);
-        AiChatMessageDTO current = context.getOrCreateUserMessageContext().getCurrentMessage();
-        AiChatMessageDTO assistant = historyRecorder.saveMessage(
+        ConversationMessageDTO current = context.getOrCreateUserMessageContext().getCurrentMessage();
+        ConversationMessageDTO assistant = historyRecorder.saveMessage(
                 context,
                 context.getRound().getRoundCode(),
                 "ASSISTANT",
-                AiChatActorType.AI.name(),
+                ConversationActorType.AI.name(),
                 "INPUT_REQUIRED".equalsIgnoreCase(outcome.getStatus())
-                        ? AiChatMessageType.ASSISTANT_QUESTION.name()
-                        : AiChatMessageType.FINAL_ANSWER.name(),
+                        ? ConversationMessageType.ASSISTANT_QUESTION.name()
+                        : ConversationMessageType.FINAL_ANSWER.name(),
                 answer,
-                AiChatContentFormat.MARKDOWN.name(),
-                AiChatDisplayLevel.VISIBLE.name(),
+                ConversationContentFormat.MARKDOWN.name(),
+                ConversationDisplayLevel.VISIBLE.name(),
                 "INPUT_REQUIRED".equalsIgnoreCase(outcome.getStatus()) ? "INPUT_REQUIRED" : "SUCCESS",
                 current == null ? null : current.getMessageCode(),
                 current == null ? null : current.getMessageCode(),
@@ -332,7 +332,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     private void persistArtifacts(ConversationRuntimeContext context,
                                   AgentConversationOutcome outcome,
-                                  AiChatMessageDTO assistant) {
+                                  ConversationMessageDTO assistant) {
         if (outcome.getArtifacts() == null) {
             return;
         }
@@ -407,8 +407,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private void updateRoundAgentSnapshot(ConversationRuntimeContext context, AgentConversationOutcome outcome) {
-        AiChatRoundDTO round = context.getRound();
-        AiChatRoundDTO update = new AiChatRoundDTO();
+        ConversationRoundDTO round = context.getRound();
+        ConversationRoundDTO update = new ConversationRoundDTO();
         String status = "INPUT_REQUIRED".equalsIgnoreCase(outcome.getStatus()) ? "INPUT_REQUIRED" : "SUCCESS";
         update.setStatus(status);
         update.setModelCode(outcome.getModelCode());
@@ -509,7 +509,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         }
         ext.put("round", round);
 
-        AiChatMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
+        ConversationMessageDTO currentMessage = context.getOrCreateUserMessageContext().getCurrentMessage();
         if (currentMessage != null) {
             Map<String, Object> userMessage = new LinkedHashMap<>();
             userMessage.put("id", currentMessage.getMessageCode());
@@ -537,66 +537,66 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private void markRoundFailed(ConversationRuntimeContext context) {
-        AiChatRoundDTO round = context == null ? null : context.getRound();
+        ConversationRoundDTO round = context == null ? null : context.getRound();
         if (round == null || round.getId() == null) {
             return;
         }
-        AiChatRoundDTO update = new AiChatRoundDTO();
+        ConversationRoundDTO update = new ConversationRoundDTO();
         update.setStatus("FAILED");
         roundService.edit(round.getId(), update);
         round.setStatus("FAILED");
     }
 
     private void markRoundCancelled(ConversationRuntimeContext context) {
-        AiChatRoundDTO round = context == null ? null : context.getRound();
+        ConversationRoundDTO round = context == null ? null : context.getRound();
         if (round == null || round.getId() == null) {
             return;
         }
-        AiChatRoundDTO update = new AiChatRoundDTO();
+        ConversationRoundDTO update = new ConversationRoundDTO();
         update.setStatus("CANCELLED");
         roundService.edit(round.getId(), update);
         round.setStatus("CANCELLED");
     }
 
-    private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
+    private ConversationSessionDTO loadSession(String sessionCode, Long userId) {
         if (!StringUtils.hasText(sessionCode)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_SESSION_CODE);
         }
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setCreatedBy(userId);
         return sessionService.get(query);
     }
 
-    private AiChatRoundDTO loadRound(String roundCode, String sessionCode, Long userId) {
+    private ConversationRoundDTO loadRound(String roundCode, String sessionCode, Long userId) {
         if (!StringUtils.hasText(roundCode)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ROUND_CODE);
         }
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setRoundCode(roundCode);
         query.setSessionCode(sessionCode);
         query.setCreatedBy(userId);
         return roundService.queryAll(query).stream()
-                .max(Comparator.comparing(AiChatRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
+                .max(Comparator.comparing(ConversationRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
                 .orElse(null);
     }
 
     private String loadLatestAssistantAnswer(String roundCode, String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setRoundCode(roundCode);
         query.setSessionCode(sessionCode);
         query.setCreatedBy(userId);
-        List<AiChatMessageDTO> messages = messageService.queryAll(query).stream()
+        List<ConversationMessageDTO> messages = messageService.queryAll(query).stream()
                 .filter(message -> message != null && StringUtils.hasText(message.getContent()))
                 .filter(message -> "ASSISTANT".equalsIgnoreCase(message.getRole()))
-                .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
         return messages.isEmpty() ? null : messages.get(messages.size() - 1).getContent();
     }
 
     private ConversationQueryStreamEvent buildInitEvent(String traceId,
-                                                        AiChatSessionDTO session,
-                                                        AiChatRoundDTO round) {
+                                                        ConversationSessionDTO session,
+                                                        ConversationRoundDTO round) {
         ConversationQueryStreamEvent initEvent = new ConversationQueryStreamEvent();
         initEvent.setEventType("progress");
         initEvent.setSource(ConversationEventSources.CONVERSATION);
@@ -611,8 +611,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private ConversationQueryStreamEvent buildAnswerSnapshot(String traceId,
-                                                             AiChatSessionDTO session,
-                                                             AiChatRoundDTO round,
+                                                             ConversationSessionDTO session,
+                                                             ConversationRoundDTO round,
                                                              String answer) {
         ConversationQueryStreamEvent answerEvent = new ConversationQueryStreamEvent();
         answerEvent.setEventType("answer");
@@ -629,8 +629,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private ConversationQueryStreamEvent buildCompleteEvent(String traceId,
-                                                            AiChatSessionDTO session,
-                                                            AiChatRoundDTO round,
+                                                            ConversationSessionDTO session,
+                                                            ConversationRoundDTO round,
                                                             String answer) {
         ConversationQueryStreamEvent completeEvent = new ConversationQueryStreamEvent();
         completeEvent.setEventType("complete");
@@ -646,8 +646,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private ConversationQueryStreamEvent buildErrorEvent(String traceId,
-                                                         AiChatSessionDTO session,
-                                                         AiChatRoundDTO round,
+                                                         ConversationSessionDTO session,
+                                                         ConversationRoundDTO round,
                                                          String message) {
         ConversationQueryStreamEvent errorEvent = new ConversationQueryStreamEvent();
         errorEvent.setEventType("error");
@@ -663,8 +663,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private ConversationQueryStreamEvent buildCancelledEvent(String traceId,
-                                                             AiChatSessionDTO session,
-                                                             AiChatRoundDTO round) {
+                                                             ConversationSessionDTO session,
+                                                             ConversationRoundDTO round) {
         ConversationQueryStreamEvent event = new ConversationQueryStreamEvent();
         event.setEventType("run.cancelled");
         event.setSource(ConversationEventSources.CONVERSATION);

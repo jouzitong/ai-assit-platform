@@ -47,7 +47,7 @@
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
-                <artifactId>app-platform-chat-data-chat-history</artifactId>
+                <artifactId>app-platform-chat-data-conversation</artifactId>
                 <version>${app.platform.chat.version}</version>
             </dependency>
             <dependency>
@@ -151,7 +151,7 @@
         <module>api</module>
         <module>web</module>
         <module>boot</module>
-        <module>data/data-chat-history</module>
+        <module>data/data-conversation</module>
         <module>data/data-meta</module>
         <module>data/data-agent-control</module>
         <module>data/data-kb</module>

@@ -9,18 +9,18 @@ import ai.platform.aiassit.conversation.dto.conversation.ConversationRenameReque
 import ai.platform.aiassit.conversation.dto.conversation.ConversationCreateRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDeleteRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDetailRequest;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatActivityDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
-import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
-import ai.platform.aiassit.chat.history.service.AiChatActivityService;
-import ai.platform.aiassit.chat.history.service.AiChatMessageService;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
-import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationActivityDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
+import ai.platform.aiassit.conversation.data.service.ConversationArtifactService;
+import ai.platform.aiassit.conversation.data.service.ConversationActivityService;
+import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
+import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
+import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
@@ -38,17 +38,17 @@ public class DefaultConversationServiceImpl implements ConversationService {
 
     private static final String DEFAULT_SESSION_NAME = "智能问数";
 
-    private final AiChatSessionService sessionService;
-    private final AiChatRoundService roundService;
-    private final AiChatMessageService messageService;
-    private final AiChatArtifactService artifactService;
-    private final AiChatActivityService activityService;
+    private final ConversationSessionService sessionService;
+    private final ConversationRoundService roundService;
+    private final ConversationMessageService messageService;
+    private final ConversationArtifactService artifactService;
+    private final ConversationActivityService activityService;
 
-    public DefaultConversationServiceImpl(AiChatSessionService sessionService,
-                                         AiChatRoundService roundService,
-                                         AiChatMessageService messageService,
-                                         AiChatArtifactService artifactService,
-                                         AiChatActivityService activityService) {
+    public DefaultConversationServiceImpl(ConversationSessionService sessionService,
+                                         ConversationRoundService roundService,
+                                         ConversationMessageService messageService,
+                                         ConversationArtifactService artifactService,
+                                         ConversationActivityService activityService) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
@@ -57,19 +57,19 @@ public class DefaultConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    public List<AiChatSessionDTO> listConversations(ConversationQueryRequest request) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+    public List<ConversationSessionDTO> listConversations(ConversationQueryRequest request) {
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         if (request != null) {
             query.setUserId(request.getUserId());
             query.setSessionCode(request.getSessionCode());
             query.setBusinessType(request.getBusinessType());
         }
-        List<AiChatSessionDTO> sessions = sessionService.queryAll(query);
+        List<ConversationSessionDTO> sessions = sessionService.queryAll(query);
         if (request != null && request.getBusinessType() != null) {
             return sessions;
         }
         return sessions.stream()
-                .filter(session -> session.getBusinessType() != AiChatBusinessType.PAGE_ASSISTANT)
+                .filter(session -> session.getBusinessType() != ConversationBusinessType.PAGE_ASSISTANT)
                 .toList();
     }
 
@@ -80,11 +80,11 @@ public class DefaultConversationServiceImpl implements ConversationService {
         }
 
         ConversationDetailResponse response = new ConversationDetailResponse();
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(request.getSessionCode());
         query.setUserId(request.getUserId());
 
-        AiChatSessionDTO session = sessionService.get(query);
+        ConversationSessionDTO session = sessionService.get(query);
         if (session == null) {
             throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
         }
@@ -100,14 +100,14 @@ public class DefaultConversationServiceImpl implements ConversationService {
 
     @Override
     public ConversationDetailResponse createConversation(ConversationCreateRequest request) {
-        AiChatSessionDTO session = new AiChatSessionDTO();
+        ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode(generateCode("session"));
         session.setUserId(resolveUserId(request == null ? null : request.getUserId()));
         session.setBusinessType(request == null || request.getBusinessType() == null
-                ? AiChatBusinessType.GENERAL
+                ? ConversationBusinessType.GENERAL
                 : request.getBusinessType());
         session.setSessionName(resolveSessionName(request == null ? null : request.getSessionName()));
-        AiChatSessionDTO created = sessionService.add(session);
+        ConversationSessionDTO created = sessionService.add(session);
 
         ConversationDetailResponse response = new ConversationDetailResponse();
         response.setSession(created);
@@ -115,19 +115,19 @@ public class DefaultConversationServiceImpl implements ConversationService {
     }
 
     @Override
-    public AiChatSessionDTO renameConversation(ConversationRenameRequest request) {
-        AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
+    public ConversationSessionDTO renameConversation(ConversationRenameRequest request) {
+        ConversationSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
                 request == null ? null : request.getUserId());
-        AiChatSessionDTO update = new AiChatSessionDTO();
+        ConversationSessionDTO update = new ConversationSessionDTO();
         update.setSessionName(resolveSessionName(request == null ? null : request.getSessionName()));
         return sessionService.edit(session.getId(), update);
     }
 
     @Override
-    public AiChatSessionDTO pinConversation(ConversationPinRequest request) {
-        AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
+    public ConversationSessionDTO pinConversation(ConversationPinRequest request) {
+        ConversationSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
                 request == null ? null : request.getUserId());
-        AiChatSessionDTO update = new AiChatSessionDTO();
+        ConversationSessionDTO update = new ConversationSessionDTO();
         update.setPinned(resolvePinned(request == null ? null : request.getPinned(), session.getPinned()));
         return sessionService.edit(session.getId(), update);
     }
@@ -135,20 +135,20 @@ public class DefaultConversationServiceImpl implements ConversationService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean deleteConversation(ConversationDeleteRequest request) {
-        AiChatSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
+        ConversationSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
                 request == null ? null : request.getUserId());
         deleteConversationHistory(session.getSessionCode(), session.getUserId());
         return sessionService.delete(session.getId());
     }
 
-    private AiChatSessionDTO loadConversationSession(String sessionCode, Long userId) {
+    private ConversationSessionDTO loadConversationSession(String sessionCode, Long userId) {
         if (!StringUtils.hasText(sessionCode)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_SESSION_CODE);
         }
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
-        AiChatSessionDTO session = sessionService.get(query);
+        ConversationSessionDTO session = sessionService.get(query);
         if (session == null) {
             throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
         }
@@ -156,8 +156,8 @@ public class DefaultConversationServiceImpl implements ConversationService {
     }
 
     private void deleteConversationHistory(String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = buildHistoryQuery(sessionCode, userId);
-        for (AiChatMessageDTO message : messageService.queryAll(query)) {
+        ConversationHistoryQueryRequest query = buildHistoryQuery(sessionCode, userId);
+        for (ConversationMessageDTO message : messageService.queryAll(query)) {
             if (message.getId() != null) {
                 messageService.delete(message.getId());
             }
@@ -172,15 +172,15 @@ public class DefaultConversationServiceImpl implements ConversationService {
                 activityService.delete(activity.getId());
             }
         });
-        for (AiChatRoundDTO round : roundService.queryAll(query)) {
+        for (ConversationRoundDTO round : roundService.queryAll(query)) {
             if (round.getId() != null) {
                 roundService.delete(round.getId());
             }
         }
     }
 
-    private AiChatHistoryQueryRequest buildHistoryQuery(String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+    private ConversationHistoryQueryRequest buildHistoryQuery(String sessionCode, Long userId) {
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
         return query;
@@ -208,14 +208,14 @@ public class DefaultConversationServiceImpl implements ConversationService {
         return prefix + "-" + UUID.randomUUID().toString().replace("-", "");
     }
 
-    private List<ConversationRoundDetailVO> buildRoundDetails(List<AiChatRoundDTO> rounds,
-                                                                    List<AiChatMessageDTO> messages,
-                                                                    List<AiChatArtifactDTO> artifacts,
-                                                                    List<AiChatActivityDTO> activities) {
+    private List<ConversationRoundDetailVO> buildRoundDetails(List<ConversationRoundDTO> rounds,
+                                                                    List<ConversationMessageDTO> messages,
+                                                                    List<ConversationArtifactDTO> artifacts,
+                                                                    List<ConversationActivityDTO> activities) {
         Map<String, ConversationRoundDetailVO> detailMap = new LinkedHashMap<>();
 
         rounds.stream()
-                .sorted(Comparator.comparing(AiChatRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
+                .sorted(Comparator.comparing(ConversationRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
                 .forEach(round -> {
                     ConversationRoundDetailVO detail = new ConversationRoundDetailVO();
                     detail.setRound(round);
@@ -223,21 +223,21 @@ public class DefaultConversationServiceImpl implements ConversationService {
                 });
 
         messages.stream()
-                .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .forEach(message -> detailMap
                         .computeIfAbsent(message.getRoundCode(), key -> new ConversationRoundDetailVO())
                         .getMessages()
                         .add(message));
 
         artifacts.stream()
-                .sorted(Comparator.comparing(AiChatArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
                 .forEach(artifact -> detailMap
                         .computeIfAbsent(artifact.getRoundCode(), key -> new ConversationRoundDetailVO())
                         .getArtifacts()
                         .add(artifact));
 
         activities.stream()
-                .sorted(Comparator.comparing(AiChatActivityDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationActivityDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
                 .forEach(activity -> detailMap
                         .computeIfAbsent(activity.getRoundCode(), key -> new ConversationRoundDetailVO())
                         .getActivities()

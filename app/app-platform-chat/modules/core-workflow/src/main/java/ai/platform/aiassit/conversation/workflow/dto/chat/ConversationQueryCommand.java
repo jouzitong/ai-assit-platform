@@ -1,6 +1,6 @@
 package ai.platform.aiassit.conversation.workflow.dto.chat;
 
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
 import lombok.Data;
 
 import java.util.ArrayList;
@@ -59,7 +59,7 @@ public class ConversationQueryCommand {
      * <p>用于标识当前会话所属的业务域，例如通用对话、智能问数等。</p>
      * <p>一般由服务端入口或业务场景决定，不要求前端显式传入；为空时 service 会使用默认业务类型。</p>
      */
-    private AiChatBusinessType businessType;
+    private ConversationBusinessType businessType;
 
     /** 用户选择的模型配置主键；运行时据此解析模型连接，并用于轮次审计。 */
     private Long modelId;

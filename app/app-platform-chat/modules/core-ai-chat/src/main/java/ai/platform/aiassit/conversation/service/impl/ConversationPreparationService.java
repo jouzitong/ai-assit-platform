@@ -1,23 +1,23 @@
 package ai.platform.aiassit.conversation.service.impl;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatArtifactDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatMessageDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatRoundDTO;
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
-import ai.platform.aiassit.chat.history.enums.AiChatRoundType;
-import ai.platform.aiassit.chat.history.service.AiChatArtifactService;
-import ai.platform.aiassit.chat.history.service.AiChatMessageService;
-import ai.platform.aiassit.chat.history.service.AiChatRoundService;
-import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
+import ai.platform.aiassit.conversation.data.enums.ConversationRoundType;
+import ai.platform.aiassit.conversation.data.service.ConversationArtifactService;
+import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
+import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
+import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
 import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.support.AgentConversationHistoryRecorder;
-import ai.platform.aiassit.chat.history.enums.AiChatActorType;
-import ai.platform.aiassit.chat.history.enums.AiChatContentFormat;
-import ai.platform.aiassit.chat.history.enums.AiChatDisplayLevel;
-import ai.platform.aiassit.chat.history.enums.AiChatMessageType;
+import ai.platform.aiassit.conversation.data.enums.ConversationActorType;
+import ai.platform.aiassit.conversation.data.enums.ConversationContentFormat;
+import ai.platform.aiassit.conversation.data.enums.ConversationDisplayLevel;
+import ai.platform.aiassit.conversation.data.enums.ConversationMessageType;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.apache.commons.collections4.CollectionUtils;
 import org.arthena.framework.common.exception.BizException;
@@ -36,16 +36,16 @@ public class ConversationPreparationService {
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_RUNNING = "RUNNING";
 
-    private final AiChatSessionService sessionService;
-    private final AiChatMessageService messageService;
-    private final AiChatArtifactService artifactService;
-    private final AiChatRoundService roundService;
+    private final ConversationSessionService sessionService;
+    private final ConversationMessageService messageService;
+    private final ConversationArtifactService artifactService;
+    private final ConversationRoundService roundService;
     private final AgentConversationHistoryRecorder historyRecorder;
 
-    public ConversationPreparationService(AiChatSessionService sessionService,
-                                                AiChatMessageService messageService,
-                                                AiChatArtifactService artifactService,
-                                                AiChatRoundService roundService,
+    public ConversationPreparationService(ConversationSessionService sessionService,
+                                                ConversationMessageService messageService,
+                                                ConversationArtifactService artifactService,
+                                                ConversationRoundService roundService,
                                                 AgentConversationHistoryRecorder historyRecorder) {
         this.sessionService = sessionService;
         this.messageService = messageService;
@@ -72,9 +72,9 @@ public class ConversationPreparationService {
         String sessionCode = command.getSessionCode();
         Long userId = resolveUserId(command.getUserId());
 
-        AiChatSessionDTO session;
-        List<AiChatMessageDTO> sessionMessages;
-        List<AiChatArtifactDTO> sessionArtifacts;
+        ConversationSessionDTO session;
+        List<ConversationMessageDTO> sessionMessages;
+        List<ConversationArtifactDTO> sessionArtifacts;
         if (!org.springframework.util.StringUtils.hasText(sessionCode)) {
             session = createSession(command, userId);
             sessionMessages = List.of();
@@ -94,19 +94,19 @@ public class ConversationPreparationService {
         context.setSessionArtifacts(sessionArtifacts);
         context.getOrCreateUserMessageContext().setSessionMessages(sessionMessages);
 
-        AiChatRoundDTO round = createRound(session, command, userId);
+        ConversationRoundDTO round = createRound(session, command, userId);
         context.setRound(round);
 
-        AiChatMessageDTO lastMessage = sessionMessages.isEmpty() ? null : sessionMessages.get(sessionMessages.size() - 1);
-        AiChatMessageDTO userMessage = historyRecorder.saveMessage(
+        ConversationMessageDTO lastMessage = sessionMessages.isEmpty() ? null : sessionMessages.get(sessionMessages.size() - 1);
+        ConversationMessageDTO userMessage = historyRecorder.saveMessage(
                 context,
                 round.getRoundCode(),
                 "USER",
-                AiChatActorType.HUMAN.name(),
-                AiChatMessageType.USER_INPUT.name(),
+                ConversationActorType.HUMAN.name(),
+                ConversationMessageType.USER_INPUT.name(),
                 command.getMessage(),
-                AiChatContentFormat.PLAIN_TEXT.name(),
-                AiChatDisplayLevel.VISIBLE.name(),
+                ConversationContentFormat.PLAIN_TEXT.name(),
+                ConversationDisplayLevel.VISIBLE.name(),
                 STATUS_SUCCESS,
                 lastMessage == null ? null : lastMessage.getMessageCode(),
                 lastMessage == null ? null : lastMessage.getMessageCode(),
@@ -117,8 +117,8 @@ public class ConversationPreparationService {
         log.info("用户消息已写入当前对话轮次，context={}", context);
     }
 
-    private AiChatSessionDTO createSession(ConversationQueryCommand command, Long userId) {
-        AiChatSessionDTO session = new AiChatSessionDTO();
+    private ConversationSessionDTO createSession(ConversationQueryCommand command, Long userId) {
+        ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode(generateCode("session"));
         session.setUserId(userId);
         session.setBusinessType(resolveBusinessType(command.getBusinessType()));
@@ -127,31 +127,31 @@ public class ConversationPreparationService {
         return sessionService.add(session);
     }
 
-    private AiChatSessionDTO loadSession(String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+    private ConversationSessionDTO loadSession(String sessionCode, Long userId) {
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
         return sessionService.get(query);
     }
 
-    private List<AiChatMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+    private List<ConversationMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
         return messageService.queryAll(query).stream()
-                .sorted(Comparator.comparing(AiChatMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+                .sorted(Comparator.comparing(ConversationMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
     }
 
-    private List<AiChatArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+    private List<ConversationArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
         return artifactService.queryAll(query);
     }
 
-    private AiChatRoundDTO createRound(AiChatSessionDTO session, ConversationQueryCommand command, Long userId) {
-        AiChatRoundDTO round = new AiChatRoundDTO();
+    private ConversationRoundDTO createRound(ConversationSessionDTO session, ConversationQueryCommand command, Long userId) {
+        ConversationRoundDTO round = new ConversationRoundDTO();
         round.setRoundCode(org.springframework.util.StringUtils.hasText(command.getRoundCode())
                 ? command.getRoundCode().trim()
                 : generateCode("round"));
@@ -172,18 +172,18 @@ public class ConversationPreparationService {
         return userId == null ? 0L : userId;
     }
 
-    private AiChatBusinessType resolveBusinessType(AiChatBusinessType businessType) {
-        return businessType == null ? AiChatBusinessType.CUSTOM : businessType;
+    private ConversationBusinessType resolveBusinessType(ConversationBusinessType businessType) {
+        return businessType == null ? ConversationBusinessType.CUSTOM : businessType;
     }
 
-    void validateSessionBusinessType(AiChatSessionDTO session, ConversationQueryCommand command) {
-        AiChatBusinessType expected = resolveBusinessType(command.getBusinessType());
-        AiChatBusinessType persisted = session.getBusinessType();
-        boolean matches = expected == AiChatBusinessType.PAGE_ASSISTANT
-                ? persisted == AiChatBusinessType.PAGE_ASSISTANT
+    void validateSessionBusinessType(ConversationSessionDTO session, ConversationQueryCommand command) {
+        ConversationBusinessType expected = resolveBusinessType(command.getBusinessType());
+        ConversationBusinessType persisted = session.getBusinessType();
+        boolean matches = expected == ConversationBusinessType.PAGE_ASSISTANT
+                ? persisted == ConversationBusinessType.PAGE_ASSISTANT
                 : persisted == null
-                || persisted == AiChatBusinessType.GENERAL
-                || persisted == AiChatBusinessType.CUSTOM;
+                || persisted == ConversationBusinessType.GENERAL
+                || persisted == ConversationBusinessType.CUSTOM;
         if (matches) {
             return;
         }
@@ -204,12 +204,12 @@ public class ConversationPreparationService {
         return content.length() > 20 ? content.substring(0, 20) : content;
     }
 
-    private AiChatRoundType resolveRoundType(ConversationQueryCommand command) {
+    private ConversationRoundType resolveRoundType(ConversationQueryCommand command) {
         String explicitRoundType = readExtText(command, "roundType");
         if (explicitRoundType != null) {
-            return AiChatRoundType.fromName(explicitRoundType);
+            return ConversationRoundType.fromName(explicitRoundType);
         }
-        return AiChatRoundType.AGENT_CHAT;
+        return ConversationRoundType.AGENT_CHAT;
     }
 
     private String readExtText(ConversationQueryCommand command, String key) {
@@ -221,10 +221,10 @@ public class ConversationPreparationService {
     }
 
     private String resolveParentRoundCode(String sessionCode, Long userId) {
-        AiChatHistoryQueryRequest query = new AiChatHistoryQueryRequest();
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
         query.setUserId(userId);
-        List<AiChatRoundDTO> rounds = roundService.queryAll(query);
+        List<ConversationRoundDTO> rounds = roundService.queryAll(query);
         if (CollectionUtils.isEmpty(rounds)) {
             return null;
         }

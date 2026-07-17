@@ -1,9 +1,9 @@
 package ai.platform.aiassit.conversation.service.impl;
 
-import ai.platform.aiassit.chat.history.entity.dto.AiChatSessionDTO;
-import ai.platform.aiassit.chat.history.entity.req.AiChatHistoryQueryRequest;
-import ai.platform.aiassit.chat.history.enums.AiChatBusinessType;
-import ai.platform.aiassit.chat.history.service.AiChatSessionService;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
+import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
+import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
+import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationQueryRequest;
 import org.junit.jupiter.api.Test;
 
@@ -16,37 +16,37 @@ class DefaultConversationServiceImplTest {
 
     @Test
     void defaultListExcludesPageAssistantButExplicitQueryCanLoadIt() {
-        AiChatSessionDTO custom = session("custom", AiChatBusinessType.CUSTOM);
-        AiChatSessionDTO general = session("general", AiChatBusinessType.GENERAL);
-        AiChatSessionDTO assistant = session("assistant", AiChatBusinessType.PAGE_ASSISTANT);
+        ConversationSessionDTO custom = session("custom", ConversationBusinessType.CUSTOM);
+        ConversationSessionDTO general = session("general", ConversationBusinessType.GENERAL);
+        ConversationSessionDTO assistant = session("assistant", ConversationBusinessType.PAGE_ASSISTANT);
         DefaultConversationServiceImpl service = new DefaultConversationServiceImpl(
                 sessionService(List.of(custom, general, assistant)), null, null, null, null);
 
         assertThat(service.listConversations(new ConversationQueryRequest()))
-                .extracting(AiChatSessionDTO::getSessionCode)
+                .extracting(ConversationSessionDTO::getSessionCode)
                 .containsExactly("custom", "general");
 
         ConversationQueryRequest assistantQuery = new ConversationQueryRequest();
-        assistantQuery.setBusinessType(AiChatBusinessType.PAGE_ASSISTANT);
+        assistantQuery.setBusinessType(ConversationBusinessType.PAGE_ASSISTANT);
         assertThat(service.listConversations(assistantQuery))
-                .extracting(AiChatSessionDTO::getSessionCode)
+                .extracting(ConversationSessionDTO::getSessionCode)
                 .containsExactly("assistant");
     }
 
-    private AiChatSessionDTO session(String code, AiChatBusinessType businessType) {
-        AiChatSessionDTO session = new AiChatSessionDTO();
+    private ConversationSessionDTO session(String code, ConversationBusinessType businessType) {
+        ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode(code);
         session.setBusinessType(businessType);
         return session;
     }
 
-    private AiChatSessionService sessionService(List<AiChatSessionDTO> sessions) {
-        return (AiChatSessionService) Proxy.newProxyInstance(
-                AiChatSessionService.class.getClassLoader(),
-                new Class<?>[]{AiChatSessionService.class},
+    private ConversationSessionService sessionService(List<ConversationSessionDTO> sessions) {
+        return (ConversationSessionService) Proxy.newProxyInstance(
+                ConversationSessionService.class.getClassLoader(),
+                new Class<?>[]{ConversationSessionService.class},
                 (proxy, method, args) -> {
                     if ("queryAll".equals(method.getName())) {
-                        AiChatHistoryQueryRequest query = (AiChatHistoryQueryRequest) args[0];
+                        ConversationHistoryQueryRequest query = (ConversationHistoryQueryRequest) args[0];
                         if (query.getBusinessType() == null) {
                             return sessions;
                         }
@@ -55,7 +55,7 @@ class DefaultConversationServiceImplTest {
                                 .toList();
                     }
                     if ("toString".equals(method.getName())) {
-                        return "AiChatSessionServiceStub";
+                        return "ConversationSessionServiceStub";
                     }
                     if ("hashCode".equals(method.getName())) {
                         return System.identityHashCode(proxy);

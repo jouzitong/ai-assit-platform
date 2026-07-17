@@ -51,4 +51,4 @@ mybatis-plus:
     default-enum-type-handler: org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler
 
 database:
-  name: "ai_assist_chat_v2"
+  name: "ai_assist_chat_v3"

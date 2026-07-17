@@ -13,7 +13,7 @@ import org.springframework.cloud.openfeign.EnableFeignClients;
 import java.util.Map;
 
 @MapperScan({
-        "ai.platform.aiassit.chat.history.mapper",
+        "ai.platform.aiassit.conversation.data.mapper",
         "ai.platform.aiassit.chat.agent.control.data.mapper",
         "ai.platform.aiassit.knowledge.manage.mapper",
         "ai.platform.aiassit.model.mapper"
