@@ -40,6 +40,7 @@ class AgentFactory:
 
         from ..tools import (
             data_format_validate_tool,
+            build_knowledge_base_search_tool,
             knowledge_base_search_tool,
             render_json_validate_tool,
             web_search_tool,
@@ -48,6 +49,7 @@ class AgentFactory:
         self._agent_class = Agent
         self._model_settings_class = ModelSettings
         self._function_tool = function_tool
+        self._build_knowledge_base_search_tool = build_knowledge_base_search_tool
         self._tool_registry = {
             "data_format_validate_tool": data_format_validate_tool,
             "knowledge_base_search_tool": knowledge_base_search_tool,
@@ -94,16 +96,22 @@ class AgentFactory:
         return sdk_agent
 
     def _native_tools(self, spec: CompiledAgent) -> list[Any]:
-        tools = [
-            build_gateway_tool(
-                self.graph.gateway_tools[name],
-                self.graph.payload["run"],
-                self.graph.payload.get("snapshotHash"),
+        tools: list[Any] = []
+        for name in spec.tool_names:
+            if name == "knowledge_base_search_tool":
+                tool = self._build_knowledge_base_search_tool(self.graph.payload["run"], self._function_tool)
+                if tool is not None:
+                    tools.append(tool)
+                continue
+            tools.append(
+                build_gateway_tool(
+                    self.graph.gateway_tools[name],
+                    self.graph.payload["run"],
+                    self.graph.payload.get("snapshotHash"),
+                )
+                if name in self.graph.gateway_tools
+                else self._tool_registry[name]
             )
-            if name in self.graph.gateway_tools
-            else self._tool_registry[name]
-            for name in spec.tool_names
-        ]
         if self.graph.skill_catalog and spec.skill_refs:
             tools.append(build_skill_tool(self.graph, self.emitter, self._function_tool, spec.skill_refs))
         return tools

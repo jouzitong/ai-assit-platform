@@ -27,6 +27,7 @@ import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQuery
 import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
+import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
@@ -56,19 +57,22 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     private final ConversationSessionService sessionService;
     private final ConversationRoundService roundService;
     private final ConversationMessageService messageService;
+    private final AiKbStoreService kbStoreService;
 
     public DefaultConversationExecutionServiceImpl(AgentConversationRunner agentConversationRunner,
                                                    ConversationPreparationService preparationService,
                                                    AgentConversationHistoryRecorder historyRecorder,
                                                    ConversationSessionService sessionService,
                                                    ConversationRoundService roundService,
-                                                   ConversationMessageService messageService) {
+                                                   ConversationMessageService messageService,
+                                                   AiKbStoreService kbStoreService) {
         this.agentConversationRunner = agentConversationRunner;
         this.preparationService = preparationService;
         this.historyRecorder = historyRecorder;
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
+        this.kbStoreService = kbStoreService;
     }
 
     @Override
@@ -208,6 +212,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         if (command.getExt() != null && command.getExt().get("clientContext") instanceof Map<?, ?> clientContext) {
             runContext.put("clientContext", clientContext);
         }
+        runContext.put("knowledgeBases", kbStoreService.availableKnowledgeBases());
         request.setContext(runContext);
         return request;
     }

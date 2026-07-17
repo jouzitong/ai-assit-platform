@@ -4,6 +4,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbListRequest;
 import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
 import ai.platform.aiassit.knowledge.manage.convert.AiKbStoreConvert;
 import ai.platform.aiassit.knowledge.manage.entity.store.AiKbStoreEntity;
+import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbAgentKnowledgeDTO;
 import ai.platform.aiassit.knowledge.manage.entity.store.dto.AiKbStoreDTO;
 import ai.platform.aiassit.knowledge.manage.entity.store.req.AiKbStoreQueryRequest;
 import ai.platform.aiassit.knowledge.manage.mapper.AiKbStoreMapper;
@@ -68,6 +69,17 @@ public class AiKbStoreServiceImpl
     }
 
     @Override
+    public List<AiKbAgentKnowledgeDTO> availableKnowledgeBases() {
+        AiKbListRequest request = new AiKbListRequest();
+        request.setEnabled(Boolean.TRUE);
+        return list(request).stream()
+                .filter(store -> StringUtils.hasText(store.getKbCode())
+                        && StringUtils.hasText(store.getProviderKbId()))
+                .map(this::toAgentKnowledge)
+                .toList();
+    }
+
+    @Override
     protected <Query extends BaseRequest> QueryWrapper<AiKbStoreEntity> buildQuery(Query query) {
         QueryWrapper<AiKbStoreEntity> wrapper = super.buildQuery(query);
         if (query instanceof AiKbStoreQueryRequest req) {
@@ -92,6 +104,20 @@ public class AiKbStoreServiceImpl
 
     private boolean isSyncedStore(AiKbStoreDTO store) {
         return store.getSyncStatus() == null || store.getSyncStatus() == AiKbStoreSyncStatus.ACTIVE;
+    }
+
+    private AiKbAgentKnowledgeDTO toAgentKnowledge(AiKbStoreDTO store) {
+        AiKbAgentKnowledgeDTO result = new AiKbAgentKnowledgeDTO();
+        String kbCode = store.getKbCode().trim();
+        result.setKbCode(kbCode);
+        result.setName(StringUtils.hasText(store.getKbName()) ? store.getKbName().trim() : kbCode);
+        if (StringUtils.hasText(store.getDescription())) {
+            result.setDescription(store.getDescription().trim());
+        }
+        if (store.getTags() != null && !store.getTags().isEmpty()) {
+            result.setTags(List.copyOf(store.getTags()));
+        }
+        return result;
     }
 
 }
