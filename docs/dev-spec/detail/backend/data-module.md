@@ -56,8 +56,51 @@
 
 - 实体类必须显式声明 `@TableName`。
 - 字段名和数据库列名不一致时，使用 `@TableField` 明确映射。
+- 业务字段必须显式声明 `org.athena.framework.data.jdbc.annotations.JdbcColumn`，用于描述自动建表/补表所需的列名、类型、长度、非空、默认值、唯一约束和注释。
 - 枚举字段在实体上显式声明 `typeHandler = DefaultEnumTypeHandler.class`。
 - 布尔字段统一使用 `Boolean`，避免原始类型导致空值语义丢失。
+- 使用 JSON、枚举 typeHandler 或自定义 typeHandler 的实体，`@TableName` 必须设置 `autoResultMap = true`。
+- `@JdbcColumn.name` 与 `@TableField` 的列名必须保持一致；如果列名是数据库关键字，`@TableField` 可使用反引号转义，但 `@JdbcColumn.name` 仍填写真实列名。
+
+### 4.4 `@JdbcColumn` 列定义规范
+
+- `name` 必填，使用数据库列名的 snake_case，不使用 Java 字段名。
+- `dataType` 必填，必须写成明确的数据库类型；字符串类型同时写 `length`，避免只写泛化的 `VARCHAR(255)`。
+- `nullable` 必填，业务必填字段使用 `nullable = false`；可空字段必须有明确空值语义。
+- `comment` 必填，说明业务含义，不只重复字段名。
+- `defaultValue` 只用于数据库层面确实需要兜底的字段，例如启用标记、优先级、初始状态；不要用默认值掩盖业务侧应显式传入的数据。
+- `unique = true` 只用于单列全局唯一约束，例如稳定业务编码；复合唯一约束不要拆成多个单列 `unique`。
+- `JdbcColumn` 只描述当前实体自己的业务字段；继承自基类的 `id`、`version`、审计字段不要在子类重复声明。
+
+常用类型和长度建议：
+
+- 稳定业务编码、外部引用编码：`VARCHAR(64)`；同一语义字段在主表、版本表、关联表中长度必须一致。
+- 名称、标题：`VARCHAR(128)`；确有长标题展示需求时再提升到 `VARCHAR(255)`。
+- 短类型、运行时类型、状态文本、模式值：`VARCHAR(32)` 或枚举 `INT`；有固定集合时优先枚举 `INT`。
+- 描述、备注、错误摘要：`VARCHAR(512)` 或 `VARCHAR(1024)`；超过 1024 或内容可持续增长时改用 `TEXT` 并评估是否拆表。
+- JSON 配置、校验报告、规格定义、Manifest：优先 `MEDIUMTEXT`；如果用于数据库原生 JSON 查询，才考虑 `JSON` 类型。
+- Markdown、脚本、正文、快照类内容：优先拆到内容表或版本表；确需直接存储时使用 `TEXT` / `MEDIUMTEXT`，不要使用 `VARCHAR(255)`。
+- SHA-256 摘要：`CHAR(64)`；带算法前缀或多算法格式时使用 `VARCHAR(80)` 或更明确长度。
+- 路径、入口文件、包内相对路径：`VARCHAR(512)`；同时在业务校验中限制绝对路径、路径穿越和重复路径。
+- MIME / media type：`VARCHAR(128)`。
+- 字节数、文件大小、计数类长整型：`BIGINT`。
+- 布尔开关：`BOOLEAN`，Java 类型使用 `Boolean`；默认启用类字段可配 `defaultValue = "TRUE"`。
+- 时间字段：`DATETIME`，Java 类型按现有模块约定使用 `LocalDateTime` 或 `Instant`，同一表内保持一致。
+- 二进制文件内容：`LONGBLOB`；大文件默认优先放对象存储或文件服务，只有小规模受控内容才直接入库。
+
+示例：
+
+```java
+@JdbcColumn(name = "code", dataType = "VARCHAR(64)", length = 64,
+        nullable = false, unique = true, comment = "业务编码")
+@TableField("code")
+private String code;
+
+@JdbcColumn(name = "status", dataType = "INT", nullable = false,
+        defaultValue = "1", comment = "状态：1=草稿,2=已发布")
+@TableField(value = "status", typeHandler = DefaultEnumTypeHandler.class)
+private DefinitionStatus status;
+```
 
 ## 5. Mapper 规范
 
@@ -121,6 +164,8 @@
 - 把 controller 写成业务服务入口，导致校验、事务、跨表逻辑都堆在接口层。
 - 把 JSON 大字段直接塞进主表，导致列表查询和更新负担过重。
 - 枚举字段用 `String` 存库，后续再补 handler 和迁移，增加兼容成本。
+- `@JdbcColumn` 全部写成 `VARCHAR(255)` 或全部允许为空，导致建表结果无法表达真实业务约束。
+- `@JdbcColumn` 与 `@TableField` 的列名、类型语义不一致，后续自动建表和 MyBatis 持久化出现偏差。
 
 ## 11. 落地原则
 

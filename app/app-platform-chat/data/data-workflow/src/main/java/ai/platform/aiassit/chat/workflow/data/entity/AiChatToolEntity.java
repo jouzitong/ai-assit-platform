@@ -9,6 +9,7 @@ import lombok.EqualsAndHashCode;
 import lombok.NoArgsConstructor;
 import org.athena.framework.data.mybatis.entity.LogicalDeleteEntity;
 import org.athena.framework.data.jdbc.annotations.JdbcColumn;
+import org.athena.framework.data.mybatis.handler.DefaultEnumTypeHandler;
 
 /**
  * Tool 目录表。
@@ -22,7 +23,7 @@ import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 @NoArgsConstructor
 @AllArgsConstructor
 @EqualsAndHashCode(callSuper = true)
-@TableName("ai_chat_tool")
+@TableName(value = "ai_chat_tool", autoResultMap = true)
 public class AiChatToolEntity extends LogicalDeleteEntity {
 
     /**
@@ -30,9 +31,10 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "code",
-            dataType = "VARCHAR(255)",
-            length = 255,
-            nullable = true,
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
+            unique = true,
             comment = "Tool 编码。"
     )
     @TableField("code")
@@ -43,9 +45,9 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "name",
-            dataType = "VARCHAR(255)",
-            length = 255,
-            nullable = true,
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = false,
             comment = "Tool 名称 / Agent 暴露名。"
     )
     @TableField("name")
@@ -56,8 +58,8 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "desc",
-            dataType = "VARCHAR(255)",
-            length = 255,
+            dataType = "VARCHAR(1024)",
+            length = 1024,
             nullable = true,
             comment = "Tool 说明。"
     )
@@ -81,8 +83,8 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "runtime_type",
-            dataType = "VARCHAR(255)",
-            length = 255,
+            dataType = "VARCHAR(32)",
+            length = 32,
             nullable = true,
             comment = "运行时类型，例如 PYTHON / JAVASCRIPT。"
     )
@@ -95,10 +97,11 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
     @JdbcColumn(
             name = "sync_status",
             dataType = "INT",
-            nullable = true,
+            nullable = false,
+            defaultValue = "1",
             comment = "同步状态，例如 PENDING / SUCCESS / FAILED。"
     )
-    @TableField("sync_status")
+    @TableField(value = "sync_status", typeHandler = DefaultEnumTypeHandler.class)
     private AiChatToolSyncStatus syncStatus;
 
     /**
@@ -107,7 +110,8 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
     @JdbcColumn(
             name = "enabled",
             dataType = "BOOLEAN",
-            nullable = true,
+            nullable = false,
+            defaultValue = "TRUE",
             comment = "是否启用。"
     )
     @TableField("enabled")
@@ -118,8 +122,8 @@ public class AiChatToolEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "remark",
-            dataType = "VARCHAR(255)",
-            length = 255,
+            dataType = "VARCHAR(1024)",
+            length = 1024,
             nullable = true,
             comment = "备注。"
     )

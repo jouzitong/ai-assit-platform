@@ -18,7 +18,7 @@ import java.time.LocalDateTime;
 @TableName(value = "ai_chat_skill_version", autoResultMap = true)
 public class AiChatSkillVersionEntity extends LogicalDeleteEntity {
 
-    @JdbcColumn(name = "skill_code", dataType = "VARCHAR(255)", length = 255, nullable = false,
+    @JdbcColumn(name = "skill_code", dataType = "VARCHAR(64)", length = 64, nullable = false,
             comment = "Skill 编码")
     @TableField("skill_code")
     private String skillCode;

@@ -33,9 +33,9 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "code",
-            dataType = "VARCHAR(255)",
-            length = 255,
-            nullable = true,
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = false,
             unique = true,
             comment = "Skill 编码。"
     )
@@ -47,9 +47,9 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "name",
-            dataType = "VARCHAR(255)",
-            length = 255,
-            nullable = true,
+            dataType = "VARCHAR(128)",
+            length = 128,
+            nullable = false,
             comment = "Skill 名称。"
     )
     @TableField("name")
@@ -60,8 +60,8 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "desc",
-            dataType = "VARCHAR(255)",
-            length = 255,
+            dataType = "VARCHAR(1024)",
+            length = 1024,
             nullable = true,
             comment = "Skill 简要说明。"
     )
@@ -73,10 +73,9 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "content",
-            dataType = "VARCHAR(255)",
-            length = 255,
+            dataType = "TEXT",
             nullable = true,
-            comment = "Skill Markdown 规则内容。"
+            comment = "Skill Markdown 规则内容预览。"
     )
     @TableField("content")
     private String content;
@@ -99,7 +98,8 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
     @JdbcColumn(
             name = "enabled",
             dataType = "BOOLEAN",
-            nullable = true,
+            nullable = false,
+            defaultValue = "TRUE",
             comment = "是否启用。"
     )
     @TableField("enabled")
@@ -110,8 +110,8 @@ public class AiChatSkillEntity extends LogicalDeleteEntity {
      */
     @JdbcColumn(
             name = "remark",
-            dataType = "VARCHAR(255)",
-            length = 255,
+            dataType = "VARCHAR(1024)",
+            length = 1024,
             nullable = true,
             comment = "备注。"
     )

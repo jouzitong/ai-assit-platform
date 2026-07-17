@@ -61,7 +61,7 @@ const codeFormat = computed(() => form.implementationRuntime === 'PYTHON' ? 'pyt
 const rules: FormRules = {
   code: [
     { required: true, message: '请输入 Tool 编码', trigger: 'blur' },
-    { pattern: /^[a-z][a-z0-9-]{1,63}$/, message: '使用小写字母、数字和短横线', trigger: 'blur' },
+    { pattern: /^[a-z][a-z0-9_-]{1,63}$/, message: '使用小写字母、数字、下划线或短横线，长度 2-64', trigger: 'blur' },
   ],
   name: [{ required: true, message: '请输入 Tool 名称', trigger: 'blur' }],
 }
