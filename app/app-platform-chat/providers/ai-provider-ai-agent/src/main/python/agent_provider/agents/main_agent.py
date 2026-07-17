@@ -6,7 +6,7 @@ if TYPE_CHECKING:
     from ..compiler import CompiledAgent, CompiledGraph
 
 
-MAIN_AGENT_CODE = "home-assistant"
+MAIN_AGENT_CODE = "enterprise-work-assistant"
 
 
 def resolve_main_agent(graph: "CompiledGraph") -> "CompiledAgent":

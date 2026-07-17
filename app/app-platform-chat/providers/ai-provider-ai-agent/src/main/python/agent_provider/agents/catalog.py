@@ -3,21 +3,23 @@ from __future__ import annotations
 from typing import Any
 
 from .definitions import (
-    BUSINESS_ANALYSIS_AGENT,
-    HOME_AGENT,
-    RENDERER_AGENT,
-    SETTINGS_AGENT,
-    SQL_BUILDER_AGENT,
+    DASHBOARD_APPLICATION_AGENT,
+    DATA_ANALYSIS_AGENT,
+    DOCUMENT_ANALYSIS_AGENT,
+    ENTERPRISE_WORK_AGENT,
+    KNOWLEDGE_POLICY_AGENT,
     AgentDefinition,
+    WORKFLOW_FORMS_AGENT,
 )
 
 
 _ROLES = (
-    HOME_AGENT,
-    SETTINGS_AGENT,
-    BUSINESS_ANALYSIS_AGENT,
-    RENDERER_AGENT,
-    SQL_BUILDER_AGENT,
+    ENTERPRISE_WORK_AGENT,
+    DATA_ANALYSIS_AGENT,
+    DASHBOARD_APPLICATION_AGENT,
+    DOCUMENT_ANALYSIS_AGENT,
+    KNOWLEDGE_POLICY_AGENT,
+    WORKFLOW_FORMS_AGENT,
 )
 _ROLES_BY_CODE = {role.code: role for role in _ROLES}
 
@@ -41,17 +43,18 @@ def local_agent_documents(entry: str | None) -> tuple[dict[str, Any], list[dict[
 
     selected = (entry or "HOME_CHAT").strip()
     root_code = {
-        "": "home-assistant",
-        "HOME_CHAT": "home-assistant",
-        "SETTINGS_ASSISTANT": "settings-assistant",
+        "": ENTERPRISE_WORK_AGENT.code,
+        "HOME_CHAT": ENTERPRISE_WORK_AGENT.code,
+        # Keep Java's existing page entry stable while routing it to the new enterprise root.
+        "SETTINGS_ASSISTANT": ENTERPRISE_WORK_AGENT.code,
     }.get(selected, selected)
     root = definition_for(root_code)
     if root is None:
         raise ValueError(f"Unknown Python Agent entry: {selected}")
 
     definitions = [root]
-    if root.code == HOME_AGENT.code:
-        definitions.extend(role for role in _ROLES if role.code != HOME_AGENT.code)
+    if root.code == ENTERPRISE_WORK_AGENT.code:
+        definitions.extend(role for role in _ROLES if role.code != ENTERPRISE_WORK_AGENT.code)
     documents = [_document(definition, is_root=definition.code == root.code) for definition in definitions]
     return documents[0], documents
 
