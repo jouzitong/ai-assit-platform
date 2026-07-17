@@ -14,7 +14,7 @@ import java.util.Map;
 
 @MapperScan({
         "ai.platform.aiassit.chat.history.mapper",
-        "ai.platform.aiassit.chat.workflow.data.mapper",
+        "ai.platform.aiassit.chat.agent.control.data.mapper",
         "ai.platform.aiassit.knowledge.manage.mapper",
         "ai.platform.aiassit.model.mapper"
 })

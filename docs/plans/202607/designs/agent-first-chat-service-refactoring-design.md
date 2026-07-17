@@ -141,8 +141,8 @@ code, name, desc, content, runtimeType, syncStatus, enabled, remark
 
 此外，以下两个 DDL 来源对 Node/Skill 的列定义已经不一致：
 
-- app/app-platform-chat/config/chat/1.0.0/create_table_ddl.sql
-- app/app-platform-chat/data/data-workflow/src/main/resources/db/schema/ai_chat_workflow_init.sql
+- app/app-platform-chat/config/chat/1.0.0/create_table_ddl.sql（生成产物，不作为人工汇总目标）
+- 原 app/app-platform-chat/data/data-workflow/src/main/resources/db/schema/ai_chat_workflow_init.sql（已移除）
 
 Agent-first 迁移必须确定一个部署 DDL 来源，不能继续双轨维护。
 
@@ -886,7 +886,7 @@ app/app-platform-chat/
 ├── data/
 │   ├── data-chat-history/
 │   ├── data-meta/
-│   ├── data-workflow/              # Agent/Skill/Tool/Workflow 控制面与发布快照存储
+│   ├── data-agent-control/         # Agent/Skill/Tool/Workflow 控制面与发布快照存储
 │   ├── data-kb/
 ├── modules/
 │   ├── core-ai-engine/
@@ -915,7 +915,7 @@ flowchart LR
     AR --> WF["core-workflow"]
     AR --> ENG["core-ai-engine"]
     AR --> SPI["Agent/Tool/Skill SPI"]
-    DW["data-workflow 控制面"] --> SPI
+    DW["data-agent-control 控制面"] --> SPI
     WF --> SPI
     CHAT --> HD["data-chat-history"]
     RT["ai-provider-ai-agent\nPython + TypeScript"] --> SPI
@@ -1037,7 +1037,7 @@ error_summary
 - ai_chat_workflow_config_node_skill
 - 旧 ai_chat_workflow_config 的节点编排语义
 
-新 DDL 只放在 `app/app-platform-chat/config/chat/1.1.0`；`data-workflow` 下的重复初始化 SQL 已移除。
+DDL 由系统生成；`data-agent-control` 下的重复初始化 SQL 已移除，人工维护的数据初始化或数据迁移脚本只放到 `config/db-data-init`。
 
 ## 16. 管理 API
 
@@ -1221,7 +1221,7 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 - 完成第 16.5 节所列浏览器密钥入口下线，不再维护第二份重复的下线清单。
 - 为 Python 和前端 Agents SDK 锁定经过测试的精确版本。
 - 固化现有 Query、Render、SSE、重连、取消和 Artifact 回归样例。
-- 确定 config/chat/1.1.0 为唯一迁移 DDL 来源。
+- 确定生成 DDL 只有一套来源，`config/db-data-init` 只放人工维护的数据初始化或数据迁移 DML。
 
 验收：
 
@@ -1230,7 +1230,7 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
 
 ### Phase 1：Agent 控制面和 Runtime SPI
 
-- 在 data-workflow 落地 Agent 控制面，并新增 core-agent-runtime 和 Agent Runtime SPI。
+- 在 data-agent-control 落地 Agent 控制面，并新增 core-agent-runtime 和 Agent Runtime SPI。
 - 落 Agent、版本、引用、Binding、Entry、Run 表。
 - 实现 AgentManifest Validator、Snapshot Resolver 和 Python Compiler。
 - 改造当前 Python Worker 接收完整 Agent Graph。
@@ -1357,7 +1357,7 @@ ai-conversation-ui 的共享 request 层已经支持 FormData，API Wrapper 复�
   - 从固定 Agent 改为 Agent Graph Compiler/Runner。
 - core-ai-engine/.../AiTextGenerationService.java
   - 固定 Spring AI Stateless 路径。
-- data/data-workflow
+- data/data-agent-control
   - 删除 Node 数据模型，落地 Agent/Skill/Tool/Artifact Workflow 控制面和发布快照存储。
 - modules/core-agent-runtime
   - 实现 Agent 运行面、快照冻结、Capability Gateway grant 和 Workflow 验收。
@@ -1465,7 +1465,7 @@ npm run build
 | 双跑产生外部副作用 | Shadow Run 使用 Dry Run、只读 Tool 或幂等隔离 |
 | 每 Run 一个 Python 进程成本高 | 先保证契约，随后切长驻 Worker，不改变上层设计 |
 | Workflow 再次演变为编排图 | 数据模型中禁止 Node/Edge；Agent 协作只存在于 AgentManifest |
-| DDL 双轨继续漂移 | config/chat/1.1.0 作为唯一部署来源 |
+| DDL 双轨继续漂移 | 生成 DDL 只保留一套来源，人工维护的数据初始化或数据迁移脚本只进入 `config/db-data-init` |
 
 ## 24. 实施起点
 
@@ -1507,7 +1507,7 @@ npm run build
 | Agent Runtime | `modules/core-agent-runtime` 中的 Manifest 校验、引用冻结、图环/深度/数量限制、snapshotHash、Run grant、Workflow 验收与有限修复 | 用真实发布 Agent 验证 Python/TypeScript Runtime 选择和取消/超时 |
 | 正式聊天 | `modules/core-ai-chat` 已由 `AgentConversationRunner` 驱动；缺省 target 解析 `HOME_CHAT`；普通 modelId 由服务端校验，显式 target 和 modelOverrideId 分别按 Entry Binding/权限鉴权 | 验证首页、历史续聊、SSE 重连、停止和审计字段 |
 | Artifact Workflow | `modules/core-workflow` 已改为 Artifact Contract、确定性 Check、Repair/Input Required，不再执行 Node DAG | 验证阻断检查 fail-closed 和修复耗尽行为 |
-| 控制面 | 首期集中落在 `data/data-workflow`，提供 Agent、Entry、Skill、Tool、Artifact Workflow 的版本、校验和发布能力 | `test-runs` 当前是定义/Binding/兼容性 dry-run，不等同于真实模型端到端执行 |
+| 控制面 | 首期集中落在 `data/data-agent-control`，提供 Agent、Entry、Skill、Tool、Artifact Workflow 的版本、校验和发布能力 | `test-runs` 当前是定义/Binding/兼容性 dry-run，不等同于真实模型端到端执行 |
 | Skill | FORM 和 ZIP Inspect/Import、不可变文件索引、原包 checksum、安全限制、按需 Resource Gateway | 验证大包容量、恶意 ZIP 拒绝、资源 checksum；首期不执行包内脚本 |
 | Tool | JSON Schema、权限、审批、Secret 引用、网络策略、幂等和 Tool Gateway | 配置 Secret/Approval 实现，验证 Allowlist 和写操作幂等 |
 | OpenAI Agents Worker | `providers/ai-provider-ai-agent` 同时打包 Python 与 TypeScript Worker，支持 agent-as-tool、handoff、Tool/Skill Gateway 和统一事件 | Python >= 3.11、Node.js >= 20、SDK 依赖和模型网络必须在目标环境实测 |
@@ -1516,7 +1516,7 @@ npm run build
 | 前端 | 首页系统模型 selector、HOME_CHAT 自动 Agent 路由、Agent activity/artifact 展示，以及 Agent/Workflow/Skill/Tool 独立管理页已落地 | 用已部署后端执行浏览器验收；构建成功不能替代交互验收 |
 | 旧 Node 体系 | Node Java Runtime、管理 API、页面和数据访问代码已从新版本移除 | 旧表仅作迁移/旧版本回滚档案，新二进制不会读取旧 Node 执行表 |
 
-首期有两个有意保留的物理边界：控制面继续位于 `data-workflow`，Python/TypeScript 继续位于同一个 Provider Maven 模块。它们不影响中立 Manifest 和 Agent Runtime SPI，暂不为目录纯度增加一次额外迁移。
+首期有两个有意保留的物理边界：控制面继续位于 `data-agent-control`，Python/TypeScript 继续位于同一个 Provider Maven 模块。它们不影响中立 Manifest 和 Agent Runtime SPI，暂不为目录纯度增加一次额外迁移。
 
 ### 26.2 已落地 API
 
@@ -1563,17 +1563,18 @@ POST /api/v1/ai/skill-gateway/{skillCode}/versions/{version}/resources/read
 
 两个网关都校验当前用户、runId、snapshotHash、发布版本和本轮 capability grant。Tool Gateway 还校验参数/返回 Schema、权限、审批、网络策略、超时、大小和写操作幂等键。
 
-### 26.3 1.1.0 DDL 部署顺序
+### 26.3 1.1.0 部署顺序
 
-`app/app-platform-chat/config/chat/1.1.0` 是 1.1.0 的唯一部署 DDL 来源；已移除 `data-workflow` 下的重复初始化 SQL。部署顺序不可交换：
+`create_table_ddl.sql` 和 `update_table_ddl.sql` 是生成产物，不进入人工汇总目录；`app/app-platform-chat/config/db-data-init` 只承载初始化或数据迁移 DML。部署顺序不可交换：
 
 1. 备份现有 Chat Schema，并确认可回滚到旧应用版本。
-2. 执行 [`create_table_ddl.sql`](../../../../app/app-platform-chat/config/chat/1.1.0/create_table_ddl.sql)。它创建 Agent/版本/Entry/Skill 包/Tool 版本/Workflow 版本/Agent Run 表，并幂等写入 `home-assistant@1` 与 `HOME_CHAT` 引导绑定。
-3. 执行 [`update_table_ddl.sql`](../../../../app/app-platform-chat/config/chat/1.1.0/update_table_ddl.sql)。它幂等把 Activity 的 `node_code` 迁为 `agent_code`，并给 Round 增加 Agent Run、根 Agent、Runtime、SDK 和 snapshotHash 字段及索引。
-4. 部署新应用，完成第 26.4 节配置，然后验证 `GET /api/v1/ai/agent-entries/HOME_CHAT/available-agents` 至少返回一个已发布 Agent。
-5. 如需转换 1.0 目录数据，再执行可选的 [`migrate_legacy_control_plane.sql`](../../../../app/app-platform-chat/config/chat/1.1.0/migrate_legacy_control_plane.sql)。该脚本只生成 `DRAFT`，不删除旧表，也不会自动发布或绑定。
-6. 对迁移出的每个 Agent、Skill、Tool、Workflow 执行 validate；人工核对后 publish，再显式更新 Entry Binding。
-7. 执行真实聊天冒烟测试，核对 `ai_chat_agent_run`、`ai_chat_round`、`ai_chat_activity`、Artifact 和 SSE 重连/停止。
+2. 确认生成的 [`create_table_ddl.sql`](../../../../app/app-platform-chat/config/chat/1.0.0/create_table_ddl.sql) 基线已经执行，它包含当前 Agent/版本/Entry/Skill 包/Tool 版本/Workflow 版本/Agent Run 表结构。
+3. 执行生成的 [`update_table_ddl.sql`](../../../../app/app-platform-chat/config/chat/1.1.0/update_table_ddl.sql)。它幂等把 Activity 的 `node_code` 迁为 `agent_code`，并给 Round 增加 Agent Run、根 Agent、Runtime、SDK 和 snapshotHash 字段及索引。
+4. 执行 [`home_chat_seed.sql`](../../../../app/app-platform-chat/config/db-data-init/1.1.0/home_chat_seed.sql)。它幂等写入 `home-assistant@1` 与 `HOME_CHAT` 引导绑定，不覆盖管理员维护的数据。
+5. 部署新应用，完成第 26.4 节配置，然后验证 `GET /api/v1/ai/agent-entries/HOME_CHAT/available-agents` 至少返回一个已发布 Agent。
+6. 如需转换 1.0 目录数据，再执行可选的 [`migrate_legacy_control_plane.sql`](../../../../app/app-platform-chat/config/db-data-init/1.1.0/migrate_legacy_control_plane.sql)。该脚本只生成 `DRAFT`，不删除旧表，也不会自动发布或绑定。
+7. 对迁移出的每个 Agent、Skill、Tool、Workflow 执行 validate；人工核对后 publish，再显式更新 Entry Binding。
+8. 执行真实聊天冒烟测试，核对 `ai_chat_agent_run`、`ai_chat_round`、`ai_chat_activity`、Artifact 和 SSE 重连/停止。
 
 引导 Seed 只保证系统有可解析入口，不代表生产 Agent 已完成业务配置。生产环境应把 `model://default-quality` 映射到可用模型，并把 Runtime Binding 的 SDK 版本替换为经过该环境测试的明确版本。若回滚，新应用需先停止流量并禁用新 Entry Binding，再回滚到可读取旧表的旧应用版本；仅保留旧表并不能让新二进制恢复 Node Runtime。
 
@@ -1609,7 +1610,7 @@ mvn -pl app/app-platform-chat/boot -am clean compile -DskipTests
 mvn -pl app/app-platform-chat/modules/core-agent-runtime -am test
 mvn -pl app/app-platform-chat/modules/core-workflow -am test
 mvn -pl app/app-platform-chat/modules/core-ai-chat -am test
-mvn -pl app/app-platform-chat/data/data-workflow -am test
+mvn -pl app/app-platform-chat/data/data-agent-control -am test
 mvn -pl app/app-platform-chat/providers/ai-provider-ai-agent -am test
 ~~~
 

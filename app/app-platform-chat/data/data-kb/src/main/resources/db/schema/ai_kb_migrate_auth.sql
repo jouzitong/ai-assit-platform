@@ -1,2 +1,0 @@
-ALTER TABLE ai_kb_store
-    ADD COLUMN auth_json MEDIUMTEXT DEFAULT NULL COMMENT '知识库认证配置 JSON' AFTER url;
