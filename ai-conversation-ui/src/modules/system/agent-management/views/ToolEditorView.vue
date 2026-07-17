@@ -14,29 +14,40 @@ const AGENT_RUNTIME_OPTIONS = [
 ]
 
 const PYTHON_TEMPLATE = `import os
+from agents import function_tool
 
 
-async def run(arguments, context):
-    """Platform entrypoint. Return a JSON-serializable value."""
+@function_tool
+async def custom_tool(query: str) -> dict:
+    """Describe what this Tool does so the Agent knows when to call it."""
     token = (os.getenv("AI_AGENT_KB_SEARCH_TOKEN") or "").strip()
-    query = str(arguments.get("query") or "").strip()
     return {
-        "query": query,
+        "query": query.strip(),
         "tokenAvailable": bool(token),
-        "config": context.get("config") or {},
     }
 `
 
-const JAVASCRIPT_TEMPLATE = `export async function run(args, context) {
-  // Return a JSON-serializable value.
-  const token = (process.env.AI_AGENT_KB_SEARCH_TOKEN ?? "").trim();
-  const query = String(args.query ?? "").trim();
-  return {
-    query,
-    tokenAvailable: Boolean(token),
-    config: context.config ?? {},
-  };
-}
+const JAVASCRIPT_TEMPLATE = `import { tool } from "@openai/agents";
+
+export const customTool = tool({
+  name: "custom_tool",
+  description: "Describe what this Tool does so the Agent knows when to call it.",
+  parameters: {
+    type: "object",
+    properties: {
+      query: { type: "string", description: "The query to process." },
+    },
+    required: ["query"],
+    additionalProperties: false,
+  },
+  async execute({ query }) {
+    const token = (process.env.AI_AGENT_KB_SEARCH_TOKEN ?? "").trim();
+    return {
+      query: String(query).trim(),
+      tokenAvailable: Boolean(token),
+    };
+  },
+});
 `
 
 const formRef = ref<FormInstance>()
@@ -49,11 +60,11 @@ const form = reactive({
   implementationRuntime: 'PYTHON' as ToolImplementationRuntime,
   compatibleAgentRuntimes: ['OPENAI_AGENTS_PYTHON', 'OPENAI_AGENTS_TYPESCRIPT'],
   sourceCode: PYTHON_TEMPLATE,
-  inputSchemaText: '{\n  "type": "object",\n  "properties": {\n    "query": { "type": "string" }\n  },\n  "required": ["query"],\n  "additionalProperties": false\n}',
-  outputSchemaText: '{\n  "type": "object"\n}',
-  runtimeConfigText: '{}',
-  permissionPolicyText: '{}',
-  approvalPolicyText: '{}',
+  inputSchema: {} as Record<string, unknown>,
+  outputSchema: {} as Record<string, unknown>,
+  runtimeConfig: {} as Record<string, unknown>,
+  permissionPolicy: {} as Record<string, unknown>,
+  approvalPolicy: {} as Record<string, unknown>,
 })
 
 const codeFormat = computed(() => form.implementationRuntime === 'PYTHON' ? 'python' : 'javascript')
@@ -76,11 +87,11 @@ function reset() {
     implementationRuntime: 'PYTHON',
     compatibleAgentRuntimes: ['OPENAI_AGENTS_PYTHON', 'OPENAI_AGENTS_TYPESCRIPT'],
     sourceCode: PYTHON_TEMPLATE,
-    inputSchemaText: '{\n  "type": "object",\n  "properties": {\n    "query": { "type": "string" }\n  },\n  "required": ["query"],\n  "additionalProperties": false\n}',
-    outputSchemaText: '{\n  "type": "object"\n}',
-    runtimeConfigText: '{}',
-    permissionPolicyText: '{}',
-    approvalPolicyText: '{}',
+    inputSchema: {},
+    outputSchema: {},
+    runtimeConfig: {},
+    permissionPolicy: {},
+    approvalPolicy: {},
   })
 }
 
@@ -95,23 +106,11 @@ function apply(value: ToolDefinition) {
     ? [...value.compatibleAgentRuntimes]
     : ['OPENAI_AGENTS_PYTHON', 'OPENAI_AGENTS_TYPESCRIPT']
   form.sourceCode = value.sourceCode || (form.implementationRuntime === 'PYTHON' ? PYTHON_TEMPLATE : JAVASCRIPT_TEMPLATE)
-  form.inputSchemaText = JSON.stringify(value.inputSchema || { type: 'object', properties: {}, additionalProperties: false }, null, 2)
-  form.outputSchemaText = JSON.stringify(value.outputSchema || { type: 'object' }, null, 2)
-  form.runtimeConfigText = JSON.stringify(value.runtimeConfig || {}, null, 2)
-  form.permissionPolicyText = JSON.stringify(value.permissionPolicy || {}, null, 2)
-  form.approvalPolicyText = JSON.stringify(value.approvalPolicy || {}, null, 2)
-}
-
-function parseObject(text: string, label: string) {
-  try {
-    const value = JSON.parse(text || '{}')
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error()
-    return value as Record<string, unknown>
-  }
-  catch {
-    ElMessage.error(`${label}必须是合法 JSON Object`)
-    return null
-  }
+  form.inputSchema = { ...(value.inputSchema || {}) }
+  form.outputSchema = { ...(value.outputSchema || {}) }
+  form.runtimeConfig = { ...(value.runtimeConfig || {}) }
+  form.permissionPolicy = { ...(value.permissionPolicy || {}) }
+  form.approvalPolicy = { ...(value.approvalPolicy || {}) }
 }
 
 function getPayload(): ToolDefinition | null {
@@ -127,12 +126,6 @@ function getPayload(): ToolDefinition | null {
     ElMessage.error('至少选择一个可调用的 Agent Runtime')
     return null
   }
-  const inputSchema = parseObject(form.inputSchemaText, 'Input Schema')
-  const outputSchema = parseObject(form.outputSchemaText, 'Output Schema')
-  const runtimeConfig = parseObject(form.runtimeConfigText, 'Runtime Config')
-  const permissionPolicy = parseObject(form.permissionPolicyText, 'Permission Policy')
-  const approvalPolicy = parseObject(form.approvalPolicyText, 'Approval Policy')
-  if (!inputSchema || !outputSchema || !runtimeConfig || !permissionPolicy || !approvalPolicy) return null
   return {
     code: form.code.trim(),
     name: form.name.trim(),
@@ -145,12 +138,19 @@ function getPayload(): ToolDefinition | null {
     compatibleAgentRuntimes: [...form.compatibleAgentRuntimes],
     sourceCode: form.sourceCode,
     timeoutMs: form.timeoutMs,
-    inputSchema,
-    outputSchema,
-    runtimeConfig,
-    permissionPolicy,
-    approvalPolicy,
+    inputSchema: { ...form.inputSchema },
+    outputSchema: { ...form.outputSchema },
+    runtimeConfig: { ...form.runtimeConfig },
+    permissionPolicy: { ...form.permissionPolicy },
+    approvalPolicy: { ...form.approvalPolicy },
     bindings: [],
+  }
+}
+
+function handleRuntimeChange(runtime: ToolImplementationRuntime) {
+  if (!editor.isCreate.value) return
+  if (form.sourceCode === PYTHON_TEMPLATE || form.sourceCode === JAVASCRIPT_TEMPLATE || !form.sourceCode.trim()) {
+    form.sourceCode = runtime === 'PYTHON' ? PYTHON_TEMPLATE : JAVASCRIPT_TEMPLATE
   }
 }
 
@@ -205,7 +205,7 @@ onMounted(editor.load)
             <LayoutFormGridItem span="full"><el-form-item label="说明"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem>
               <el-form-item label="实现语言">
-                <el-select v-model="form.implementationRuntime">
+                <el-select v-model="form.implementationRuntime" @change="handleRuntimeChange">
                   <el-option label="Python" value="PYTHON" />
                   <el-option label="JavaScript · Node.js" value="JAVASCRIPT" />
                 </el-select>
@@ -225,28 +225,11 @@ onMounted(editor.load)
             </LayoutFormGridItem>
             <LayoutFormGridItem span="full">
               <div class="tool-editor__code-heading">
-                <div><strong>业务代码</strong><span>{{ form.implementationRuntime === 'PYTHON' ? '入口：run(arguments, context)' : '入口：export async function run(args, context)' }}</span></div>
+                <div><strong>业务代码</strong><span>{{ form.implementationRuntime === 'PYTHON' ? 'OpenAI Agents SDK：@function_tool' : 'OpenAI Agents SDK：tool({...})' }}</span></div>
                 <el-button text type="primary" @click="loadRuntimeTemplate">载入模板</el-button>
               </div>
               <AppCodeEditor v-model="form.sourceCode" :format="codeFormat" :show-format-switcher="false" min-height="460px" :max-rows="28" />
             </LayoutFormGridItem>
-          </LayoutFormGrid>
-        </el-tab-pane>
-
-        <el-tab-pane label="参数与配置">
-          <LayoutFormGrid :columns="2">
-            <LayoutFormGridItem><el-form-item label="超时（毫秒）"><el-input-number v-model="form.timeoutMs" :min="100" :max="300000" :step="1000" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="启用状态"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="Input JSON Schema"><AppCodeEditor v-model="form.inputSchemaText" format="json" min-height="300px" :max-rows="18" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="Output JSON Schema"><AppCodeEditor v-model="form.outputSchemaText" format="json" min-height="300px" :max-rows="18" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem span="full"><el-form-item label="Runtime Config（通过 context.config 读取）"><AppCodeEditor v-model="form.runtimeConfigText" format="json" min-height="220px" :max-rows="14" /></el-form-item></LayoutFormGridItem>
-          </LayoutFormGrid>
-        </el-tab-pane>
-
-        <el-tab-pane label="权限与审批">
-          <LayoutFormGrid :columns="2">
-            <LayoutFormGridItem><el-form-item label="Permission Policy"><AppCodeEditor v-model="form.permissionPolicyText" format="json" min-height="320px" :max-rows="20" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="Approval Policy"><AppCodeEditor v-model="form.approvalPolicyText" format="json" min-height="320px" :max-rows="20" /></el-form-item></LayoutFormGridItem>
           </LayoutFormGrid>
         </el-tab-pane>
 
@@ -281,8 +264,7 @@ onMounted(editor.load)
   font-size: var(--app-font-size-sm);
 }
 
-:deep(.el-select),
-:deep(.el-input-number) {
+:deep(.el-select) {
   width: 100%;
 }
 </style>

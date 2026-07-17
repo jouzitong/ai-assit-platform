@@ -37,8 +37,12 @@ public class ManagedToolProcessExecutor implements ManagedToolExecutor {
     private static final int MAX_STREAM_BYTES = 1024 * 1024;
     private static final Pattern PYTHON_ENTRYPOINT = Pattern.compile(
             "(?m)^\\s*(?:async\\s+)?def\\s+run\\s*\\(");
+    private static final Pattern PYTHON_SDK_TOOL = Pattern.compile(
+            "(?m)^\\s*@function_tool(?:\\s*\\(|\\s*$)");
     private static final Pattern JAVASCRIPT_ENTRYPOINT = Pattern.compile(
             "(?m)^\\s*export\\s+(?:async\\s+)?function\\s+run\\s*\\(");
+    private static final Pattern JAVASCRIPT_SDK_TOOL = Pattern.compile(
+            "(?m)(?:^|[=:(,]\\s*)tool\\s*\\(\\s*\\{");
 
     private final ObjectMapper objectMapper;
     private final String pythonCommand;
@@ -73,6 +77,39 @@ public class ManagedToolProcessExecutor implements ManagedToolExecutor {
             deleteDirectory(directory);
         }
         return errors;
+    }
+
+    @Override
+    @SuppressWarnings("unchecked")
+    public Map<String, Object> describe(Map<String, Object> definition) {
+        List<String> errors = validate(definition);
+        if (!errors.isEmpty()) throw new IllegalArgumentException(errors.get(0));
+        Path directory = null;
+        try {
+            directory = Files.createTempDirectory("managed-tool-describe-");
+            RuntimeFiles files = prepareFiles(directory, definition);
+            List<String> command = isPython(definition)
+                    ? List.of(pythonCommand, files.runner().toString(), files.source().toString(), "--describe")
+                    : List.of(nodeCommand, files.runner().toString(), files.source().toString(), "--describe");
+            ProcessResult process = runProcess(command, directory, null, Map.of(), 15_000);
+            if (process.exitCode() != 0) {
+                throw new IllegalStateException(compact(process.stderr().isBlank()
+                        ? process.stdout() : process.stderr()));
+            }
+            Object output = parseOutput(process.stdout()).output();
+            if (!(output instanceof Map<?, ?> map)) {
+                throw new IllegalStateException("Tool definition metadata must be a JSON object");
+            }
+            Map<String, Object> result = new LinkedHashMap<>();
+            map.forEach((key, value) -> result.put(String.valueOf(key), value));
+            return result;
+        } catch (RuntimeException ex) {
+            throw ex;
+        } catch (Exception ex) {
+            throw new IllegalStateException("Managed Tool description failed: " + compact(ex.getMessage()), ex);
+        } finally {
+            deleteDirectory(directory);
+        }
     }
 
     @Override
@@ -127,10 +164,12 @@ public class ManagedToolProcessExecutor implements ManagedToolExecutor {
             errors.add("sourceCode is required");
         } else if (source.getBytes(StandardCharsets.UTF_8).length > MAX_SOURCE_BYTES) {
             errors.add("sourceCode exceeds 524288 bytes");
-        } else if ("PYTHON".equals(runtime) && !PYTHON_ENTRYPOINT.matcher(source).find()) {
-            errors.add("Python Tool must define run(arguments, context)");
-        } else if ("JAVASCRIPT".equals(runtime) && !JAVASCRIPT_ENTRYPOINT.matcher(source).find()) {
-            errors.add("JavaScript Tool must export run(args, context)");
+        } else if ("PYTHON".equals(runtime) && !PYTHON_ENTRYPOINT.matcher(source).find()
+                && !PYTHON_SDK_TOOL.matcher(source).find()) {
+            errors.add("Python Tool must use @function_tool or define run(arguments, context)");
+        } else if ("JAVASCRIPT".equals(runtime) && !JAVASCRIPT_ENTRYPOINT.matcher(source).find()
+                && !JAVASCRIPT_SDK_TOOL.matcher(source).find()) {
+            errors.add("JavaScript Tool must use tool({...}) or export run(args, context)");
         }
         return errors;
     }
@@ -144,7 +183,23 @@ public class ManagedToolProcessExecutor implements ManagedToolExecutor {
         try (InputStream input = new ClassPathResource(resource).getInputStream()) {
             Files.copy(input, runner, StandardCopyOption.REPLACE_EXISTING);
         }
+        if (python) {
+            copyResource("tool-runtime/python_agents_shim.py", directory.resolve("agents/__init__.py"));
+        } else {
+            Path packageDirectory = directory.resolve("node_modules/@openai/agents");
+            copyResource("tool-runtime/javascript_agents_shim.mjs", packageDirectory.resolve("index.mjs"));
+            Files.writeString(packageDirectory.resolve("package.json"),
+                    "{\"name\":\"@openai/agents\",\"type\":\"module\",\"exports\":\"./index.mjs\"}",
+                    StandardCharsets.UTF_8);
+        }
         return new RuntimeFiles(source, runner);
+    }
+
+    private void copyResource(String resource, Path target) throws IOException {
+        Files.createDirectories(target.getParent());
+        try (InputStream input = new ClassPathResource(resource).getInputStream()) {
+            Files.copy(input, target, StandardCopyOption.REPLACE_EXISTING);
+        }
     }
 
     private ProcessResult runProcess(List<String> command,

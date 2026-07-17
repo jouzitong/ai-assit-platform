@@ -58,6 +58,66 @@ class ManagedToolProcessExecutorTest {
         assertThat(result.getOutput()).isEqualTo(Map.of("value", 7, "configured", true));
     }
 
+    @Test
+    void executesAndDescribesPythonAgentsSdkFunctionTool() {
+        Map<String, Object> definition = definition("PYTHON", """
+                import os
+                from agents import function_tool
+
+                @function_tool
+                async def knowledge_base_search_tool(query: str, top_k: int = 5) -> dict:
+                    \"\"\"Search the knowledge base.\"\"\"
+                    return {
+                        \"query\": query,
+                        \"topK\": top_k,
+                        \"hasToken\": bool(os.getenv(\"AI_AGENT_KB_SEARCH_TOKEN\")),
+                    }
+                """);
+
+        Map<String, Object> metadata = executor.describe(definition);
+        ManagedToolExecutionResult result = executor.execute(ManagedToolExecutionRequest.builder()
+                .definition(definition)
+                .arguments(Map.of("query", "orders", "top_k", 3))
+                .executionToken("temporary-token")
+                .build());
+
+        assertThat(metadata).containsEntry("name", "knowledge_base_search_tool");
+        assertThat(((Map<?, ?>) metadata.get("inputSchema")).get("type")).isEqualTo("object");
+        assertThat(result.getOutput()).isEqualTo(Map.of(
+                "query", "orders", "topK", 3, "hasToken", true));
+    }
+
+    @Test
+    void executesAndDescribesJavascriptAgentsSdkTool() {
+        Map<String, Object> definition = definition("JAVASCRIPT", """
+                import { tool } from "@openai/agents";
+
+                export const lookupTool = tool({
+                  name: "lookup_tool",
+                  description: "Look up one value.",
+                  parameters: {
+                    type: "object",
+                    properties: { value: { type: "integer" } },
+                    required: ["value"],
+                    additionalProperties: false,
+                  },
+                  async execute({ value }) {
+                    return { doubled: value * 2 };
+                  },
+                });
+                """);
+
+        Map<String, Object> metadata = executor.describe(definition);
+        ManagedToolExecutionResult result = executor.execute(ManagedToolExecutionRequest.builder()
+                .definition(definition)
+                .arguments(Map.of("value", 7))
+                .build());
+
+        assertThat(metadata).containsEntry("name", "lookup_tool");
+        assertThat(((Map<?, ?>) metadata.get("inputSchema")).get("type")).isEqualTo("object");
+        assertThat(result.getOutput()).isEqualTo(Map.of("doubled", 14));
+    }
+
     private Map<String, Object> definition(String runtime, String source) {
         return Map.of(
                 "executionMode", "MANAGED_CODE",

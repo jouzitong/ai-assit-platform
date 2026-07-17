@@ -182,6 +182,7 @@ public class AiToolControlServiceImpl implements AiToolControlService {
         ValidationReportDTO report = validateDefinition(entity.getAdapterType(), definition);
         entity.setValidationJson(json.write(report));
         if (entity.getStatus() != DefinitionStatus.PUBLISHED) {
+            updateDefinition(entity, definition);
             entity.setStatus(report.isValid() ? DefinitionStatus.VALIDATED : DefinitionStatus.DRAFT);
         }
         versionMapper.updateById(entity);
@@ -203,6 +204,7 @@ public class AiToolControlServiceImpl implements AiToolControlService {
             versionMapper.updateById(entity);
             throw BizException.of(ErrCodeConstant.ILLEGAL_PARAMETER_ERROR);
         }
+        updateDefinition(entity, definition);
         entity.setValidationJson(json.write(report));
         entity.setStatus(DefinitionStatus.PUBLISHED);
         entity.setPublishedAt(LocalDateTime.now());
@@ -407,10 +409,35 @@ public class AiToolControlServiceImpl implements AiToolControlService {
                 report.error("Managed Tool runtime is not available");
             } else {
                 executor.validate(definition).forEach(report::error);
+                if (report.getErrors().isEmpty()) {
+                    try {
+                        Map<String, Object> metadata = executor.describe(definition);
+                        if (metadata.get("inputSchema") instanceof Map<?, ?> inputSchema) {
+                            definition.put("inputSchema", stringMap(inputSchema));
+                        }
+                        if (metadata.get("outputSchema") instanceof Map<?, ?> outputSchema) {
+                            definition.put("outputSchema", stringMap(outputSchema));
+                        }
+                    } catch (RuntimeException ex) {
+                        report.error(ex.getMessage() == null ? "Unable to read SDK Tool definition" : ex.getMessage());
+                    }
+                }
             }
             report.finish();
         }
         return report;
+    }
+
+    private void updateDefinition(AiChatToolVersionEntity entity, Map<String, Object> definition) {
+        String content = json.write(definition);
+        entity.setDefinitionJson(content);
+        entity.setChecksum(json.sha256(content));
+    }
+
+    private Map<String, Object> stringMap(Map<?, ?> source) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        source.forEach((key, value) -> result.put(String.valueOf(key), value));
+        return result;
     }
 
     private boolean isManagedCode(Map<String, Object> definition) {

@@ -72,6 +72,32 @@ class ToolDefinitionValidatorTest {
         assertThat(report.isValid()).isTrue();
     }
 
+    @Test
+    void acceptsManagedOpenAiAgentsSdkToolDefinition() {
+        Map<String, Object> definition = new LinkedHashMap<>();
+        definition.put("executionMode", "MANAGED_CODE");
+        definition.put("implementationRuntime", "PYTHON");
+        definition.put("compatibleAgentRuntimes", List.of("OPENAI_AGENTS_PYTHON"));
+        definition.put("sourceCode", """
+                from agents import function_tool
+
+                @function_tool
+                def lookup_tool(query: str) -> dict:
+                    return {"query": query}
+                """);
+        definition.put("runtimeConfig", Map.of());
+        definition.put("inputSchema", Map.of());
+        definition.put("outputSchema", Map.of());
+        definition.put("permissionPolicy", Map.of());
+        definition.put("approvalPolicy", Map.of());
+        definition.put("timeoutMs", 30_000);
+        definition.put("bindings", List.of());
+
+        ValidationReportDTO report = validator.validate(ToolAdapterType.FUNCTION, definition);
+
+        assertThat(report.isValid()).isTrue();
+    }
+
     private Map<String, Object> definition(Map<String, Object> binding) {
         Map<String, Object> definition = new LinkedHashMap<>();
         definition.put("inputSchema", Map.of("type", "object"));

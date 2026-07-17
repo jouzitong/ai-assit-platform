@@ -23,8 +23,12 @@ public class ToolDefinitionValidator {
             "OPENAI_AGENTS_PYTHON", "OPENAI_AGENTS_TYPESCRIPT");
     private static final Pattern PYTHON_ENTRYPOINT = Pattern.compile(
             "(?m)^\\s*(?:async\\s+)?def\\s+run\\s*\\(");
+    private static final Pattern PYTHON_SDK_TOOL = Pattern.compile(
+            "(?m)^\\s*@function_tool(?:\\s*\\(|\\s*$)");
     private static final Pattern JAVASCRIPT_ENTRYPOINT = Pattern.compile(
             "(?m)^\\s*export\\s+(?:async\\s+)?function\\s+run\\s*\\(");
+    private static final Pattern JAVASCRIPT_SDK_TOOL = Pattern.compile(
+            "(?m)(?:^|[=:(,]\\s*)tool\\s*\\(\\s*\\{");
     private static final Set<String> SECRET_KEYS = Set.of(
             "apikey", "token", "accesstoken", "refreshtoken", "password", "secret",
             "clientsecret", "authorization", "credential", "credentials", "cookie");
@@ -88,10 +92,12 @@ public class ToolDefinitionValidator {
             report.error("definition.sourceCode is required");
         } else if (sourceCode.getBytes(java.nio.charset.StandardCharsets.UTF_8).length > 524_288) {
             report.error("definition.sourceCode exceeds 524288 bytes");
-        } else if ("PYTHON".equals(runtime) && !PYTHON_ENTRYPOINT.matcher(sourceCode).find()) {
-            report.error("Python Tool must define run(arguments, context)");
-        } else if ("JAVASCRIPT".equals(runtime) && !JAVASCRIPT_ENTRYPOINT.matcher(sourceCode).find()) {
-            report.error("JavaScript Tool must export run(args, context)");
+        } else if ("PYTHON".equals(runtime) && !PYTHON_ENTRYPOINT.matcher(sourceCode).find()
+                && !PYTHON_SDK_TOOL.matcher(sourceCode).find()) {
+            report.error("Python Tool must use @function_tool or define run(arguments, context)");
+        } else if ("JAVASCRIPT".equals(runtime) && !JAVASCRIPT_ENTRYPOINT.matcher(sourceCode).find()
+                && !JAVASCRIPT_SDK_TOOL.matcher(sourceCode).find()) {
+            report.error("JavaScript Tool must use tool({...}) or export run(args, context)");
         }
         Object compatible = definition.get("compatibleAgentRuntimes");
         if (!(compatible instanceof Collection<?> values) || values.isEmpty()) {
