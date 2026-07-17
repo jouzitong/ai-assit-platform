@@ -13,9 +13,10 @@ import {
   updateSkill,
   validateSkill,
 } from '../api/skills'
+import { listTools } from '../api/tools'
 import ManagementEditorShell from '../components/ManagementEditorShell.vue'
 import { useDefinitionEditor } from '../composables/useDefinitionEditor'
-import type { SkillDefinition, SkillPackageInspection, SkillSourceType } from '../types'
+import type { SkillDefinition, SkillPackageInspection, SkillSourceType, ToolDefinition } from '../types'
 
 const router = useRouter()
 const formRef = ref<FormInstance>()
@@ -25,6 +26,9 @@ const packageFiles = ref<SkillDefinition['files']>([])
 const packageManifest = ref<Record<string, unknown>>({})
 const inspecting = ref(false)
 const importing = ref(false)
+const toolOptions = ref<ToolDefinition[]>([])
+const toolOptionsLoading = ref(false)
+const toolOptionsError = ref('')
 
 const form = reactive({
   sourceType: 'FORM' as SkillSourceType,
@@ -66,6 +70,34 @@ const inspectionValid = computed(() => Boolean(
   && inspection.value.compatibility?.valid !== false
   && inspection.value.compatibility?.compatible !== false
 ))
+const toolOptionsEmptyText = computed(() => toolOptionsError.value || '暂无已发布且启用的 Tool')
+
+function toolRef(tool: ToolDefinition) {
+  return `tool://${tool.code}/v${tool.currentPublishedVersion}`
+}
+
+function toolOptionLabel(tool: ToolDefinition) {
+  return `${tool.name || tool.code} · ${tool.code} · v${tool.currentPublishedVersion}`
+}
+
+async function loadToolOptions() {
+  toolOptionsLoading.value = true
+  toolOptionsError.value = ''
+  try {
+    const result = await listTools({ enabled: true })
+    const rows = Array.isArray(result) ? result : (result.list || [])
+    toolOptions.value = rows
+      .filter(tool => tool.enabled !== false && Number.isInteger(tool.currentPublishedVersion))
+      .sort((left, right) => (left.name || left.code).localeCompare(right.name || right.code, 'zh-CN'))
+  }
+  catch (error) {
+    toolOptions.value = []
+    toolOptionsError.value = error instanceof Error ? error.message : 'Tool 列表加载失败'
+  }
+  finally {
+    toolOptionsLoading.value = false
+  }
+}
 
 function reset() {
   Object.assign(form, {
@@ -213,7 +245,9 @@ async function importInspectedPackage() {
   if (value) await router.replace(`/settings/system/skills/${encodeURIComponent(value.code)}`)
 }
 
-onMounted(editor.load)
+onMounted(async () => {
+  await Promise.all([editor.load(), loadToolOptions()])
+})
 </script>
 
 <template>
@@ -241,8 +275,6 @@ onMounted(editor.load)
             <LayoutFormGridItem><el-form-item label="Skill 编码" prop="code"><el-input v-model="form.code" :disabled="!editor.isCreate.value || (form.sourceType === 'ZIP' && inspectionValid)" placeholder="analysis-policy" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem><el-form-item label="名称" prop="name"><el-input v-model="form.name" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem span="full"><el-form-item label="说明"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="License"><el-input v-model="form.license" :disabled="form.sourceType === 'ZIP' && !editor.isCreate.value" placeholder="Apache-2.0" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="Compatibility"><el-input v-model="form.compatibility" :disabled="form.sourceType === 'ZIP' && !editor.isCreate.value" placeholder="OpenAI Agents Python / TypeScript" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem span="full">
               <el-form-item label="兼容 Runtime">
                 <el-select v-model="form.compatibleRuntimes" :disabled="form.sourceType === 'ZIP' && !editor.isCreate.value" multiple filterable allow-create default-first-option placeholder="OPENAI_AGENTS_PYTHON">
@@ -251,7 +283,26 @@ onMounted(editor.load)
                 </el-select>
               </el-form-item>
             </LayoutFormGridItem>
-            <LayoutFormGridItem span="full"><el-form-item label="Tool 映射"><el-select v-model="form.toolRefs" multiple filterable allow-create default-first-option placeholder="tool://kb-search/v2" /></el-form-item></LayoutFormGridItem>
+            <LayoutFormGridItem span="full">
+              <el-form-item label="Tool 映射">
+                <el-select
+                  v-model="form.toolRefs"
+                  multiple
+                  filterable
+                  :loading="toolOptionsLoading"
+                  :no-data-text="toolOptionsEmptyText"
+                  placeholder="选择已发布 Tool"
+                >
+                  <el-option
+                    v-for="tool in toolOptions"
+                    :key="toolRef(tool)"
+                    :label="toolOptionLabel(tool)"
+                    :value="toolRef(tool)"
+                  />
+                </el-select>
+                <el-text type="info" size="small">仅展示已发布且启用的 Tool，引用固定到具体发布版本。</el-text>
+              </el-form-item>
+            </LayoutFormGridItem>
             <LayoutFormGridItem><el-form-item label="启用状态"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item></LayoutFormGridItem>
           </LayoutFormGrid>
 
