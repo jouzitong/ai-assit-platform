@@ -12,6 +12,10 @@ server:
     context-path: /chat
 
 ai:
+  tool:
+    runtime:
+      python-command: ${AI_TOOL_RUNTIME_PYTHON_COMMAND:python3}
+      node-command: ${AI_TOOL_RUNTIME_NODE_COMMAND:node}
   chat:
     runtime:
       mode: ${AI_CHAT_RUNTIME_MODE:local}

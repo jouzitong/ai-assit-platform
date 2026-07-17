@@ -7,6 +7,7 @@ import ai.platform.aiassit.service.ai.spi.agent.AgentCancellation;
 import ai.platform.aiassit.service.ai.spi.agent.AgentDefinitionSnapshot;
 import ai.platform.aiassit.service.ai.spi.agent.AgentModelConnection;
 import ai.platform.aiassit.service.ai.spi.agent.AgentRunCommand;
+import ai.platform.aiassit.service.ai.spi.agent.AgentTemporaryTokenIssuer;
 import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -15,6 +16,7 @@ import org.arthena.framework.common.context.SystemContext;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.api.model.UserContext;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.util.StringUtils;
 
 import java.io.BufferedReader;
@@ -88,9 +90,17 @@ public class AiAgentProcessExecutor {
     );
 
     private final ObjectMapper objectMapper;
+    private final AgentTemporaryTokenIssuer temporaryTokenIssuer;
 
     public AiAgentProcessExecutor(ObjectMapper objectMapper) {
+        this(objectMapper, null);
+    }
+
+    @Autowired
+    public AiAgentProcessExecutor(ObjectMapper objectMapper,
+                                  AgentTemporaryTokenIssuer temporaryTokenIssuer) {
         this.objectMapper = objectMapper;
+        this.temporaryTokenIssuer = temporaryTokenIssuer;
     }
 
     public JsonNode execute(AiAgentProperties properties, ProviderChatRequest request) {
@@ -221,10 +231,15 @@ public class AiAgentProcessExecutor {
             env.put("AI_AGENT_VALIDATE_STRUCTURE", properties.getValidateStructure());
         }
         Object currentUser = SystemContext.getUserContext();
-        if (currentUser instanceof UserContext userContext && StringUtils.hasText(userContext.token())) {
-            env.put("AI_AGENT_KB_SEARCH_TOKEN", userContext.token());
-            env.put("AI_AGENT_TOOL_GATEWAY_TOKEN", userContext.token());
-            env.put("AI_AGENT_SKILL_GATEWAY_TOKEN", userContext.token());
+        if (currentUser instanceof UserContext userContext) {
+            if (temporaryTokenIssuer == null) {
+                throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
+                        "temporary Agent token issuer is unavailable");
+            }
+            String temporaryToken = temporaryTokenIssuer.issue(userContext);
+            env.put("AI_AGENT_KB_SEARCH_TOKEN", temporaryToken);
+            env.put("AI_AGENT_TOOL_GATEWAY_TOKEN", temporaryToken);
+            env.put("AI_AGENT_SKILL_GATEWAY_TOKEN", temporaryToken);
         }
 
         Process process = null;

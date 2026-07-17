@@ -186,6 +186,13 @@ const selectedModelLabel = computed(() => {
   }
   return isLoadingModels.value ? '正在加载模型...' : '请选择模型'
 })
+const composerModelContentWidth = computed(() => {
+  const displayUnits = Array.from(selectedModelLabel.value).reduce((width, character) => {
+    const codePoint = character.codePointAt(0) || 0
+    return width + (codePoint <= 0x7f ? 1 : 2)
+  }, 0)
+  return `${Math.max(displayUnits, 1)}ch`
+})
 const welcomeModelDescription = computed(() => {
   if (isLoadingModels.value) {
     return '正在加载系统已启用模型，加载完成后即可描述任务。'
@@ -1444,32 +1451,7 @@ watch(route, () => {
 
     <main class="chat-home-main">
       <header class="chat-home-topbar">
-        <div class="chat-home-topbar__left">
-          <el-select
-            v-model="selectedModel"
-            class="chat-home-model-switcher chat-home-model-switcher--home"
-            :loading="isLoadingModels"
-            :disabled="isLoadingModels || isStreaming"
-            :no-data-text="modelSelectEmptyText"
-            placeholder="选择模型"
-            filterable
-            fit-input-width
-            aria-label="选择对话模型"
-            @visible-change="handleModelDropdownVisible"
-          >
-            <el-option
-              v-for="model in modelOptions"
-              :key="model.id"
-              :label="model.modelName || model.modelCode || model.apiModel"
-              :value="model.id"
-            >
-              <div class="chat-home-model-option">
-                <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
-                <small>{{ model.apiModel || model.modelCode }}</small>
-              </div>
-            </el-option>
-          </el-select>
-        </div>
+        <div class="chat-home-topbar__left" aria-hidden="true"></div>
 
         <div class="chat-home-topbar__right">
           <button class="ghost-icon-button" type="button"><el-icon><MoreFilled /></el-icon></button>
@@ -1564,7 +1546,7 @@ watch(route, () => {
             <el-icon v-if="isInteractionBusy" class="is-loading"><Loading /></el-icon>
             <span>{{ interactionStatusText }}</span>
           </div>
-          <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome">
+          <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome chat-home-composer--model-selectable">
             <textarea
               ref="welcomeTextarea"
               v-model="prompt"
@@ -1580,6 +1562,31 @@ watch(route, () => {
                 </button>
               </div>
               <div class="chat-home-composer__actions">
+                <el-select
+                  v-model="selectedModel"
+                  class="chat-home-model-switcher chat-home-model-switcher--composer"
+                  :style="{ '--chat-composer-model-content-width': composerModelContentWidth }"
+                  :loading="isLoadingModels"
+                  :disabled="isLoadingModels || isStreaming"
+                  :no-data-text="modelSelectEmptyText"
+                  placeholder="选择模型"
+                  filterable
+                  aria-label="选择对话模型"
+                  title="切换对话模型"
+                  @visible-change="handleModelDropdownVisible"
+                >
+                  <el-option
+                    v-for="model in modelOptions"
+                    :key="model.id"
+                    :label="model.modelName || model.modelCode || model.apiModel"
+                    :value="model.id"
+                  >
+                    <div class="chat-home-model-option">
+                      <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
+                      <small>{{ model.apiModel || model.modelCode }}</small>
+                    </div>
+                  </el-option>
+                </el-select>
                 <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
                 <button
                   :class="['composer-send-button', { 'is-stop': isStreaming }]"
@@ -1709,7 +1716,7 @@ watch(route, () => {
           </div>
         </div>
 
-        <div class="chat-home-composer chat-home-composer--floating chat-home-composer--conversation">
+        <div class="chat-home-composer chat-home-composer--floating chat-home-composer--conversation chat-home-composer--model-selectable">
           <textarea
             ref="conversationTextarea"
             v-model="prompt"
@@ -1725,6 +1732,31 @@ watch(route, () => {
               </button>
             </div>
             <div class="chat-home-composer__actions">
+              <el-select
+                v-model="selectedModel"
+                class="chat-home-model-switcher chat-home-model-switcher--composer"
+                :style="{ '--chat-composer-model-content-width': composerModelContentWidth }"
+                :loading="isLoadingModels"
+                :disabled="isLoadingModels || isStreaming"
+                :no-data-text="modelSelectEmptyText"
+                placeholder="选择模型"
+                filterable
+                aria-label="选择对话模型"
+                title="切换对话模型"
+                @visible-change="handleModelDropdownVisible"
+              >
+                <el-option
+                  v-for="model in modelOptions"
+                  :key="model.id"
+                  :label="model.modelName || model.modelCode || model.apiModel"
+                  :value="model.id"
+                >
+                  <div class="chat-home-model-option">
+                    <span>{{ model.modelName || model.modelCode || model.apiModel }}</span>
+                    <small>{{ model.apiModel || model.modelCode }}</small>
+                  </div>
+                </el-option>
+              </el-select>
               <button class="composer-icon-button" type="button"><el-icon><Microphone /></el-icon></button>
               <button
                 :class="['composer-send-button', { 'is-stop': isStreaming }]"

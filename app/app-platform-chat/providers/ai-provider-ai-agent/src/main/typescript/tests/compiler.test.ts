@@ -159,6 +159,26 @@ test("rejects unsupported MCP bindings fail closed", () => {
   assert.throws(() => compileSnapshot(payload), /MCP/);
 });
 
+test("rejects a Tool not enabled for the TypeScript Agent runtime", () => {
+  const payload = structuredClone(fixture);
+  const root = payload.rootAgent as JsonRecord;
+  const spec = root.spec as JsonRecord;
+  spec.toolRefs = [{ ref: "tool://python-only/v1" }];
+  const capabilities = payload.resolvedCapabilities as JsonRecord;
+  capabilities.tools = [{
+    code: "python-only",
+    version: 1,
+    adapterType: "FUNCTION",
+    definition: {
+      compatibleAgentRuntimes: ["OPENAI_AGENTS_PYTHON"],
+      inputSchema: { type: "object" },
+      bindings: [],
+    },
+  }];
+
+  assert.throws(() => compileSnapshot(payload), /OPENAI_AGENTS_TYPESCRIPT/);
+});
+
 test("resolves the backend database Skill snapshot by canonical /v ref", () => {
   const payload = structuredClone(fixture);
   const root = payload.rootAgent as JsonRecord;

@@ -1,6 +1,7 @@
 package ai.platform.aiassit.service.ai.spi.tool;
 
 import lombok.Builder;
+import lombok.ToString;
 import lombok.Value;
 
 import java.util.Set;
@@ -15,4 +16,6 @@ public class ToolInvocationPrincipal {
     @Builder.Default
     Set<String> permissions = Set.of();
     String traceId;
+    @ToString.Exclude
+    String executionToken;
 }

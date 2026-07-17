@@ -298,6 +298,11 @@ function resolveToolCatalog(value: unknown): {
   for (const [key, item] of resolvedRecords(value)) {
     const binding = record(item.binding);
     const definition = record(item.definition);
+    const compatibleRuntimes = new Set(array(definition.compatibleAgentRuntimes)
+      .map((runtime) => String(runtime).trim().toUpperCase()).filter(Boolean));
+    if (compatibleRuntimes.size > 0 && !compatibleRuntimes.has("OPENAI_AGENTS_TYPESCRIPT")) {
+      throw new Error(`Tool is not compatible with OPENAI_AGENTS_TYPESCRIPT: ${key ?? "unknown"}`);
+    }
     const runtimeName = text(
       binding.runtimeName,
       binding.functionName,

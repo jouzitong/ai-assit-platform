@@ -25,6 +25,10 @@
             <artifactId>athena-framework-starter-web</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.athena</groupId>
+            <artifactId>athena-framework-starter-security-token-jwt</artifactId>
+        </dependency>
+        <dependency>
             <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-chat-api</artifactId>
         </dependency>

@@ -10,7 +10,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/** Versioned Tool contracts. Secrets are represented only by secret:// references. */
+/** Versioned Tool contracts for platform-managed source and legacy portable bindings. */
 public final class ToolControlDTOs {
 
     private ToolControlDTOs() {
@@ -41,6 +41,12 @@ public final class ToolControlDTOs {
         private Map<String, Object> permissionPolicy = new LinkedHashMap<>();
         private Map<String, Object> approvalPolicy = new LinkedHashMap<>();
         private Integer timeoutMs = 30_000;
+        private String executionMode;
+        private String implementationRuntime = "PYTHON";
+        private List<String> compatibleAgentRuntimes = new ArrayList<>(List.of(
+                "OPENAI_AGENTS_PYTHON", "OPENAI_AGENTS_TYPESCRIPT"));
+        private String sourceCode;
+        private Map<String, Object> runtimeConfig = new LinkedHashMap<>();
         @Valid
         private List<Binding> bindings = new ArrayList<>();
 
@@ -56,7 +62,6 @@ public final class ToolControlDTOs {
         private String endpointRef;
         private String packageUri;
         private String entrypoint;
-        private List<String> secretRefs = new ArrayList<>();
         private Boolean enabled = Boolean.TRUE;
         private Map<String, Object> config = new LinkedHashMap<>();
     }
@@ -80,6 +85,11 @@ public final class ToolControlDTOs {
         private Map<String, Object> permissionPolicy = new LinkedHashMap<>();
         private Map<String, Object> approvalPolicy = new LinkedHashMap<>();
         private Integer timeoutMs;
+        private String executionMode;
+        private String implementationRuntime;
+        private List<String> compatibleAgentRuntimes = new ArrayList<>();
+        private String sourceCode;
+        private Map<String, Object> runtimeConfig = new LinkedHashMap<>();
         private List<Binding> bindings = new ArrayList<>();
         private ValidationReportDTO validation;
         private String checksum;

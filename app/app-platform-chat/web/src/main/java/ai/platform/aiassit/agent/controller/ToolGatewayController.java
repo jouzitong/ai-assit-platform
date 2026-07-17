@@ -4,6 +4,7 @@ import ai.platform.aiassit.agent.runtime.tool.ToolGatewayRequest;
 import ai.platform.aiassit.agent.runtime.tool.ToolGatewayResponse;
 import ai.platform.aiassit.agent.runtime.tool.ToolGatewayService;
 import ai.platform.aiassit.service.ai.spi.tool.ToolInvocationPrincipal;
+import ai.platform.aiassit.service.ai.spi.agent.AgentTemporaryTokenIssuer;
 import jakarta.servlet.http.HttpServletRequest;
 import org.arthena.framework.common.constant.ErrCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
@@ -28,9 +29,12 @@ import java.util.UUID;
 public class ToolGatewayController {
 
     private final ToolGatewayService gatewayService;
+    private final AgentTemporaryTokenIssuer temporaryTokenIssuer;
 
-    public ToolGatewayController(ToolGatewayService gatewayService) {
+    public ToolGatewayController(ToolGatewayService gatewayService,
+                                 AgentTemporaryTokenIssuer temporaryTokenIssuer) {
         this.gatewayService = gatewayService;
+        this.temporaryTokenIssuer = temporaryTokenIssuer;
     }
 
     @IgnoredResultWrapper
@@ -53,6 +57,7 @@ public class ToolGatewayController {
                 .roles(copy(authorization == null ? null : authorization.roles()))
                 .permissions(copy(authorization == null ? null : authorization.permissions()))
                 .traceId(traceId)
+                .executionToken(temporaryTokenIssuer.issue(current))
                 .build();
         return gatewayService.invoke(toolCode, version, request, principal, approvalToken, idempotencyKey);
     }

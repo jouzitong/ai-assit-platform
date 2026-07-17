@@ -7,12 +7,16 @@ import ai.platform.aiassit.service.ai.spi.tool.PublishedToolDefinitionStore;
 import ai.platform.aiassit.service.ai.spi.tool.ToolApprovalVerifier;
 import ai.platform.aiassit.service.ai.spi.tool.ToolInvocationPrincipal;
 import ai.platform.aiassit.service.ai.spi.tool.ToolSecretResolver;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionRequest;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionResult;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutor;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -46,18 +50,31 @@ public class ToolGatewayService {
     private final ObjectMapper objectMapper;
     private final HttpClient httpClient;
     private final AgentCapabilityGrantService capabilityGrantService;
+    private final ManagedToolExecutor managedToolExecutor;
 
+    @Autowired
     public ToolGatewayService(PublishedToolDefinitionStore definitionStore,
                               List<ToolSecretResolver> secretResolvers,
                               List<ToolApprovalVerifier> approvalVerifiers,
                               ObjectMapper objectMapper,
-                              AgentCapabilityGrantService capabilityGrantService) {
+                              AgentCapabilityGrantService capabilityGrantService,
+                              ManagedToolExecutor managedToolExecutor) {
         this.definitionStore = definitionStore;
         this.secretResolvers = secretResolvers == null ? List.of() : List.copyOf(secretResolvers);
         this.approvalVerifiers = approvalVerifiers == null ? List.of() : List.copyOf(approvalVerifiers);
         this.objectMapper = objectMapper;
         this.capabilityGrantService = capabilityGrantService;
+        this.managedToolExecutor = managedToolExecutor;
         this.httpClient = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    }
+
+    /** Kept for focused HTTP gateway tests and embedders that do not enable managed code. */
+    ToolGatewayService(PublishedToolDefinitionStore definitionStore,
+                       List<ToolSecretResolver> secretResolvers,
+                       List<ToolApprovalVerifier> approvalVerifiers,
+                       ObjectMapper objectMapper,
+                       AgentCapabilityGrantService capabilityGrantService) {
+        this(definitionStore, secretResolvers, approvalVerifiers, objectMapper, capabilityGrantService, null);
     }
 
     public ToolGatewayResponse invoke(String toolCode,
@@ -85,6 +102,44 @@ public class ToolGatewayService {
         validateSchema(mapValue(definition.get("inputSchema")), arguments, "$", true);
         enforcePermissions(tool, definition, principal);
         enforceApproval(tool, definition, principal, approvalToken, arguments);
+
+        if ("MANAGED_CODE".equalsIgnoreCase(text(definition.get("executionMode")))) {
+            if (managedToolExecutor == null) {
+                throw BizException.of(AiChatBizCodeConstant.TOOL_INVOCATION_FAILED,
+                        "Managed Tool runtime is not available");
+            }
+            Map<String, Object> context = new LinkedHashMap<>(run);
+            context.put("toolCode", tool.getToolCode());
+            context.put("toolVersion", tool.getToolVersion());
+            context.put("userId", principal.getUserId());
+            context.put("traceId", principal.getTraceId());
+            context.put("config", mapValue(definition.get("runtimeConfig")));
+            ManagedToolExecutionResult execution;
+            try {
+                execution = managedToolExecutor.execute(ManagedToolExecutionRequest.builder()
+                        .definition(definition)
+                        .arguments(arguments)
+                        .context(context)
+                        .executionToken(principal.getExecutionToken())
+                        .build());
+            } catch (Exception ex) {
+                log.warn("managed Tool invocation failed: toolCode={}, version={}, userId={}, errorType={}",
+                        tool.getToolCode(), tool.getToolVersion(), principal.getUserId(), ex.getClass().getSimpleName());
+                throw BizException.of(AiChatBizCodeConstant.TOOL_INVOCATION_FAILED, safeMessage(ex));
+            }
+            validateSchema(mapValue(definition.get("outputSchema")), execution.getOutput(), "$", false);
+            long duration = System.currentTimeMillis() - startedAt;
+            log.info("managed Tool invocation completed: toolCode={}, version={}, userId={}, runtime={}, durationMs={}, result=success",
+                    tool.getToolCode(), tool.getToolVersion(), principal.getUserId(),
+                    text(definition.get("implementationRuntime")), duration);
+            return ToolGatewayResponse.builder()
+                    .toolCode(tool.getToolCode())
+                    .toolVersion(tool.getToolVersion())
+                    .status("SUCCESS")
+                    .output(execution.getOutput())
+                    .durationMs(duration)
+                    .build();
+        }
 
         String adapter = text(tool.getAdapterType());
         if (!"HTTP".equals(adapter) && !"FUNCTION".equals(adapter)) {

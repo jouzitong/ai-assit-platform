@@ -98,6 +98,23 @@ class CompilerTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "MCP"):
             compile_snapshot(payload)
 
+    def test_rejects_a_tool_not_enabled_for_the_python_agent_runtime(self) -> None:
+        payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
+        payload["rootAgent"]["spec"]["toolRefs"] = [{"ref": "tool://node-only/v1"}]
+        payload["resolvedCapabilities"]["tools"] = [{
+            "code": "node-only",
+            "version": 1,
+            "adapterType": "FUNCTION",
+            "definition": {
+                "compatibleAgentRuntimes": ["OPENAI_AGENTS_TYPESCRIPT"],
+                "inputSchema": {"type": "object"},
+                "bindings": [],
+            },
+        }]
+
+        with self.assertRaisesRegex(ValueError, "OPENAI_AGENTS_PYTHON"):
+            compile_snapshot(payload)
+
 
 if __name__ == "__main__":
     unittest.main()

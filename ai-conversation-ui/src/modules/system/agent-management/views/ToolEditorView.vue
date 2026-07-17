@@ -1,23 +1,62 @@
 <script setup lang="ts">
-import { Delete, Plus } from '@element-plus/icons-vue'
-import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
-import { onMounted, reactive, ref } from 'vue'
+import { ElMessage, ElMessageBox, type FormInstance, type FormRules } from 'element-plus'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { AppCodeEditor, LayoutFormGrid, LayoutFormGridItem } from '../../../../components'
 import { createTool, getTool, publishTool, testTool, updateTool, validateTool } from '../api/tools'
 import DefinitionTestRunPanel from '../components/DefinitionTestRunPanel.vue'
 import ManagementEditorShell from '../components/ManagementEditorShell.vue'
 import { useDefinitionEditor } from '../composables/useDefinitionEditor'
-import type { ToolBinding, ToolDefinition } from '../types'
+import type { ToolDefinition, ToolImplementationRuntime } from '../types'
 
-type BindingDraft = ToolBinding & { secretRefsText: string; configText: string }
+const AGENT_RUNTIME_OPTIONS = [
+  { label: 'OpenAI Agents SDK · Python', value: 'OPENAI_AGENTS_PYTHON' },
+  { label: 'OpenAI Agents SDK · TypeScript', value: 'OPENAI_AGENTS_TYPESCRIPT' },
+]
+
+const PYTHON_TEMPLATE = `import os
+
+
+async def run(arguments, context):
+    """Platform entrypoint. Return a JSON-serializable value."""
+    token = (os.getenv("AI_AGENT_KB_SEARCH_TOKEN") or "").strip()
+    query = str(arguments.get("query") or "").strip()
+    return {
+        "query": query,
+        "tokenAvailable": bool(token),
+        "config": context.get("config") or {},
+    }
+`
+
+const JAVASCRIPT_TEMPLATE = `export async function run(args, context) {
+  // Return a JSON-serializable value.
+  const token = (process.env.AI_AGENT_KB_SEARCH_TOKEN ?? "").trim();
+  const query = String(args.query ?? "").trim();
+  return {
+    query,
+    tokenAvailable: Boolean(token),
+    config: context.config ?? {},
+  };
+}
+`
 
 const formRef = ref<FormInstance>()
 const form = reactive({
-  code: '', name: '', description: '', enabled: true, timeoutMs: 30000,
-  inputSchemaText: '{\n  "type": "object",\n  "properties": {},\n  "additionalProperties": false\n}',
+  code: '',
+  name: '',
+  description: '',
+  enabled: true,
+  timeoutMs: 30000,
+  implementationRuntime: 'PYTHON' as ToolImplementationRuntime,
+  compatibleAgentRuntimes: ['OPENAI_AGENTS_PYTHON', 'OPENAI_AGENTS_TYPESCRIPT'],
+  sourceCode: PYTHON_TEMPLATE,
+  inputSchemaText: '{\n  "type": "object",\n  "properties": {\n    "query": { "type": "string" }\n  },\n  "required": ["query"],\n  "additionalProperties": false\n}',
   outputSchemaText: '{\n  "type": "object"\n}',
-  permissionPolicyText: '{}', approvalPolicyText: '{}', bindings: [] as BindingDraft[],
+  runtimeConfigText: '{}',
+  permissionPolicyText: '{}',
+  approvalPolicyText: '{}',
 })
+
+const codeFormat = computed(() => form.implementationRuntime === 'PYTHON' ? 'python' : 'javascript')
 
 const rules: FormRules = {
   code: [
@@ -29,11 +68,20 @@ const rules: FormRules = {
 
 function reset() {
   Object.assign(form, {
-    code: '', name: '', description: '', enabled: true, timeoutMs: 30000,
-    inputSchemaText: '{\n  "type": "object",\n  "properties": {},\n  "additionalProperties": false\n}',
-    outputSchemaText: '{\n  "type": "object"\n}', permissionPolicyText: '{}', approvalPolicyText: '{}', bindings: [],
+    code: '',
+    name: '',
+    description: '',
+    enabled: true,
+    timeoutMs: 30000,
+    implementationRuntime: 'PYTHON',
+    compatibleAgentRuntimes: ['OPENAI_AGENTS_PYTHON', 'OPENAI_AGENTS_TYPESCRIPT'],
+    sourceCode: PYTHON_TEMPLATE,
+    inputSchemaText: '{\n  "type": "object",\n  "properties": {\n    "query": { "type": "string" }\n  },\n  "required": ["query"],\n  "additionalProperties": false\n}',
+    outputSchemaText: '{\n  "type": "object"\n}',
+    runtimeConfigText: '{}',
+    permissionPolicyText: '{}',
+    approvalPolicyText: '{}',
   })
-  addBinding()
 }
 
 function apply(value: ToolDefinition) {
@@ -42,22 +90,16 @@ function apply(value: ToolDefinition) {
   form.description = value.description || ''
   form.enabled = value.enabled !== false
   form.timeoutMs = Number(value.timeoutMs || 30000)
+  form.implementationRuntime = value.implementationRuntime || 'PYTHON'
+  form.compatibleAgentRuntimes = value.compatibleAgentRuntimes?.length
+    ? [...value.compatibleAgentRuntimes]
+    : ['OPENAI_AGENTS_PYTHON', 'OPENAI_AGENTS_TYPESCRIPT']
+  form.sourceCode = value.sourceCode || (form.implementationRuntime === 'PYTHON' ? PYTHON_TEMPLATE : JAVASCRIPT_TEMPLATE)
   form.inputSchemaText = JSON.stringify(value.inputSchema || { type: 'object', properties: {}, additionalProperties: false }, null, 2)
   form.outputSchemaText = JSON.stringify(value.outputSchema || { type: 'object' }, null, 2)
+  form.runtimeConfigText = JSON.stringify(value.runtimeConfig || {}, null, 2)
   form.permissionPolicyText = JSON.stringify(value.permissionPolicy || {}, null, 2)
   form.approvalPolicyText = JSON.stringify(value.approvalPolicy || {}, null, 2)
-  form.bindings = (value.bindings || []).map(binding => ({
-    ...binding,
-    secretRefsText: (binding.secretRefs || []).join(', '),
-    configText: JSON.stringify(binding.config || {}, null, 2),
-  }))
-}
-
-function addBinding() {
-  form.bindings.push({
-    bindingType: 'HTTP', runtimeType: '', endpointRef: '', packageUri: '', entrypoint: '',
-    secretRefs: [], secretRefsText: '', enabled: true, config: {}, configText: '{}',
-  })
 }
 
 function parseObject(text: string, label: string) {
@@ -77,48 +119,38 @@ function getPayload(): ToolDefinition | null {
     ElMessage.error('请填写 Tool 编码和名称')
     return null
   }
-  const inputSchema = parseObject(form.inputSchemaText, 'Input Schema')
-  const outputSchema = parseObject(form.outputSchemaText, 'Output Schema')
-  const permissionPolicy = parseObject(form.permissionPolicyText, 'Permission Policy')
-  const approvalPolicy = parseObject(form.approvalPolicyText, 'Approval Policy')
-  if (!inputSchema || !outputSchema || !permissionPolicy || !approvalPolicy) return null
-  if (!form.bindings.length) {
-    ElMessage.error('至少配置一个 Runtime Binding')
+  if (!form.sourceCode.trim()) {
+    ElMessage.error('请编写 Tool 代码')
     return null
   }
-  const bindings: ToolBinding[] = []
-  for (const item of form.bindings) {
-    if (!item.bindingType) {
-      ElMessage.error('Runtime Binding 必须选择类型')
-      return null
-    }
-    const config = parseObject(item.configText, `${item.bindingType} Binding 配置`)
-    if (!config) return null
-    if (['HTTP', 'JAVA_INTERNAL'].includes(item.bindingType) && !item.endpointRef?.trim()) {
-      ElMessage.error(`${item.bindingType} Binding 必须填写 Endpoint 引用`)
-      return null
-    }
-    if (['PYTHON_MODULE', 'JAVASCRIPT_MODULE'].includes(item.bindingType)
-      && (!item.packageUri?.trim() || !item.entrypoint?.trim())) {
-      ElMessage.error(`${item.bindingType} Binding 必须填写 Package URI 和 Entrypoint`)
-      return null
-    }
-    const secretRefs = item.secretRefsText.split(',').map(value => value.trim()).filter(Boolean)
-    if (secretRefs.some(ref => !ref.startsWith('secret://'))) {
-      ElMessage.error('Secret 只能保存 secret:// 引用')
-      return null
-    }
-    bindings.push({
-      bindingType: item.bindingType, runtimeType: item.runtimeType?.trim(), endpointRef: item.endpointRef?.trim(),
-      packageUri: item.packageUri?.trim(), entrypoint: item.entrypoint?.trim(),
-      secretRefs,
-      enabled: item.enabled !== false, config,
-    })
+  if (!form.compatibleAgentRuntimes.length) {
+    ElMessage.error('至少选择一个可调用的 Agent Runtime')
+    return null
   }
+  const inputSchema = parseObject(form.inputSchemaText, 'Input Schema')
+  const outputSchema = parseObject(form.outputSchemaText, 'Output Schema')
+  const runtimeConfig = parseObject(form.runtimeConfigText, 'Runtime Config')
+  const permissionPolicy = parseObject(form.permissionPolicyText, 'Permission Policy')
+  const approvalPolicy = parseObject(form.approvalPolicyText, 'Approval Policy')
+  if (!inputSchema || !outputSchema || !runtimeConfig || !permissionPolicy || !approvalPolicy) return null
   return {
-    code: form.code.trim(), name: form.name.trim(), description: form.description.trim(), enabled: form.enabled,
-    status: editor.saved.value?.status || 'DRAFT', draftVersion: editor.saved.value?.draftVersion || editor.currentVersion.value,
-    timeoutMs: form.timeoutMs, inputSchema, outputSchema, permissionPolicy, approvalPolicy, bindings,
+    code: form.code.trim(),
+    name: form.name.trim(),
+    description: form.description.trim(),
+    enabled: form.enabled,
+    status: editor.saved.value?.status || 'DRAFT',
+    draftVersion: editor.saved.value?.draftVersion || editor.currentVersion.value,
+    executionMode: 'MANAGED_CODE',
+    implementationRuntime: form.implementationRuntime,
+    compatibleAgentRuntimes: [...form.compatibleAgentRuntimes],
+    sourceCode: form.sourceCode,
+    timeoutMs: form.timeoutMs,
+    inputSchema,
+    outputSchema,
+    runtimeConfig,
+    permissionPolicy,
+    approvalPolicy,
+    bindings: [],
   }
 }
 
@@ -133,6 +165,20 @@ async function save() {
   await editor.save()
 }
 
+async function loadRuntimeTemplate() {
+  if (form.sourceCode.trim()) {
+    try {
+      await ElMessageBox.confirm('载入模板会覆盖当前代码，是否继续？', '载入代码模板', {
+        type: 'warning', confirmButtonText: '载入模板', cancelButtonText: '取消',
+      })
+    }
+    catch {
+      return
+    }
+  }
+  form.sourceCode = form.implementationRuntime === 'PYTHON' ? PYTHON_TEMPLATE : JAVASCRIPT_TEMPLATE
+}
+
 async function runTest(payload: Record<string, unknown>) {
   const definition = await editor.save()
   if (!definition) throw new Error('Tool 草稿保存失败，未执行测试')
@@ -145,22 +191,55 @@ onMounted(editor.load)
 <template>
   <ManagementEditorShell
     :title="editor.isCreate.value ? '新增 Tool' : `编辑 Tool · ${form.name || form.code}`"
-    description="Tool 是具备 JSON Schema、权限与审批策略的确定性能力；Secret 只能保存引用。"
+    description="在页面编写并测试 Python/JavaScript；发布后由 Java Tool Gateway 按不可变版本执行。"
     :status="editor.status.value" :version="editor.currentVersion.value" :loading="editor.loading.value"
     :saving="editor.saving.value" :validating="editor.validating.value" :publishing="editor.publishing.value"
     :report="editor.report.value" @back="editor.back" @save="save" @validate="editor.validate" @publish="editor.publish"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-position="top" status-icon>
       <el-tabs>
-        <el-tab-pane label="基础与 Schema">
+        <el-tab-pane label="代码实现">
           <LayoutFormGrid :columns="2">
             <LayoutFormGridItem><el-form-item label="Tool 编码" prop="code"><el-input v-model="form.code" :disabled="!editor.isCreate.value" placeholder="kb-search" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem><el-form-item label="名称" prop="name"><el-input v-model="form.name" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem span="full"><el-form-item label="说明"><el-input v-model="form.description" type="textarea" :rows="3" /></el-form-item></LayoutFormGridItem>
-            <LayoutFormGridItem><el-form-item label="超时（毫秒）"><el-input-number v-model="form.timeoutMs" :min="100" :max="900000" :step="1000" /></el-form-item></LayoutFormGridItem>
+            <LayoutFormGridItem span="full"><el-form-item label="说明"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item></LayoutFormGridItem>
+            <LayoutFormGridItem>
+              <el-form-item label="实现语言">
+                <el-select v-model="form.implementationRuntime">
+                  <el-option label="Python" value="PYTHON" />
+                  <el-option label="JavaScript · Node.js" value="JAVASCRIPT" />
+                </el-select>
+              </el-form-item>
+            </LayoutFormGridItem>
+            <LayoutFormGridItem>
+              <el-form-item label="可调用的 Agent Runtime">
+                <el-select v-model="form.compatibleAgentRuntimes" multiple collapse-tags :max-collapse-tags="2">
+                  <el-option v-for="option in AGENT_RUNTIME_OPTIONS" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+              </el-form-item>
+            </LayoutFormGridItem>
+            <LayoutFormGridItem span="full">
+              <el-alert type="info" :closable="false" show-icon>
+                Java 在每次执行前签发有效期 2 小时的临时 Token，并注入 AI_AGENT_KB_SEARCH_TOKEN 等环境变量；代码和配置中不保存 Secret。
+              </el-alert>
+            </LayoutFormGridItem>
+            <LayoutFormGridItem span="full">
+              <div class="tool-editor__code-heading">
+                <div><strong>业务代码</strong><span>{{ form.implementationRuntime === 'PYTHON' ? '入口：run(arguments, context)' : '入口：export async function run(args, context)' }}</span></div>
+                <el-button text type="primary" @click="loadRuntimeTemplate">载入模板</el-button>
+              </div>
+              <AppCodeEditor v-model="form.sourceCode" :format="codeFormat" :show-format-switcher="false" min-height="460px" :max-rows="28" />
+            </LayoutFormGridItem>
+          </LayoutFormGrid>
+        </el-tab-pane>
+
+        <el-tab-pane label="参数与配置">
+          <LayoutFormGrid :columns="2">
+            <LayoutFormGridItem><el-form-item label="超时（毫秒）"><el-input-number v-model="form.timeoutMs" :min="100" :max="300000" :step="1000" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem><el-form-item label="启用状态"><el-switch v-model="form.enabled" inline-prompt active-text="启用" inactive-text="停用" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem><el-form-item label="Input JSON Schema"><AppCodeEditor v-model="form.inputSchemaText" format="json" min-height="300px" :max-rows="18" /></el-form-item></LayoutFormGridItem>
             <LayoutFormGridItem><el-form-item label="Output JSON Schema"><AppCodeEditor v-model="form.outputSchemaText" format="json" min-height="300px" :max-rows="18" /></el-form-item></LayoutFormGridItem>
+            <LayoutFormGridItem span="full"><el-form-item label="Runtime Config（通过 context.config 读取）"><AppCodeEditor v-model="form.runtimeConfigText" format="json" min-height="220px" :max-rows="14" /></el-form-item></LayoutFormGridItem>
           </LayoutFormGrid>
         </el-tab-pane>
 
@@ -171,31 +250,10 @@ onMounted(editor.load)
           </LayoutFormGrid>
         </el-tab-pane>
 
-        <el-tab-pane label="Runtime Bindings">
-          <div class="tool-editor__toolbar"><el-button :icon="Plus" @click="addBinding">添加 Binding</el-button></div>
-          <el-collapse>
-            <el-collapse-item v-for="(binding, index) in form.bindings" :key="index" :name="index">
-              <template #title><strong>{{ binding.bindingType || `Binding ${index + 1}` }}</strong><el-tag effect="plain">{{ binding.runtimeType || '未配置 Runtime' }}</el-tag></template>
-              <div class="tool-editor__item-actions"><el-button link type="danger" :icon="Delete" @click.stop="form.bindings.splice(index, 1)">删除</el-button></div>
-              <LayoutFormGrid :columns="2">
-                <LayoutFormGridItem><el-form-item label="Binding 类型"><el-select v-model="binding.bindingType"><el-option label="HTTP" value="HTTP" /><el-option label="MCP" value="MCP" /><el-option label="Java Internal" value="JAVA_INTERNAL" /><el-option label="Hosted" value="HOSTED" /><el-option label="Python Module" value="PYTHON_MODULE" /><el-option label="JavaScript Module" value="JAVASCRIPT_MODULE" /></el-select></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem><el-form-item label="Runtime 类型"><el-input v-model="binding.runtimeType" placeholder="OPENAI_AGENTS_PYTHON" /></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem><el-form-item label="Endpoint 引用"><el-input v-model="binding.endpointRef" placeholder="endpoint://internal-api" /></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem><el-form-item label="Package URI"><el-input v-model="binding.packageUri" placeholder="package://tool-runtime/v1" /></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem><el-form-item label="Entrypoint"><el-input v-model="binding.entrypoint" placeholder="tools/search.py:run" /></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem><el-form-item label="Secret 引用（逗号分隔）"><el-input v-model="binding.secretRefsText" placeholder="secret://kb-token" /></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem><el-form-item label="启用"><el-switch v-model="binding.enabled" /></el-form-item></LayoutFormGridItem>
-                <LayoutFormGridItem span="full"><el-form-item label="Binding Config"><AppCodeEditor v-model="binding.configText" format="json" min-height="180px" :max-rows="12" /></el-form-item></LayoutFormGridItem>
-              </LayoutFormGrid>
-            </el-collapse-item>
-          </el-collapse>
-        </el-tab-pane>
-
         <el-tab-pane label="测试运行">
           <DefinitionTestRunPanel
             :execute="runTest"
-            :disabled="editor.isCreate.value || !editor.currentCode.value"
-            input-hint="输入符合 Input JSON Schema 的参数，验证当前 Tool 版本的 Binding、权限和返回契约。"
+            input-hint="执行测试会先保存当前草稿，再由 Java 启动对应 Python/Node.js 子进程运行代码。"
           />
         </el-tab-pane>
       </el-tabs>
@@ -204,15 +262,23 @@ onMounted(editor.load)
 </template>
 
 <style scoped>
-.tool-editor__toolbar,
-.tool-editor__item-actions {
+.tool-editor__code-heading {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-4);
   margin-bottom: var(--app-space-3);
 }
 
-:deep(.el-collapse-item__title) {
+.tool-editor__code-heading > div {
+  display: flex;
+  align-items: baseline;
   gap: var(--app-space-3);
+}
+
+.tool-editor__code-heading span {
+  color: var(--system-text-muted);
+  font-size: var(--app-font-size-sm);
 }
 
 :deep(.el-select),

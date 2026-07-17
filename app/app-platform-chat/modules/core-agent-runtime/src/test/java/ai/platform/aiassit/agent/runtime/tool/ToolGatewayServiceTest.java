@@ -5,6 +5,9 @@ import ai.platform.aiassit.service.ai.spi.tool.PublishedToolDefinitionStore;
 import ai.platform.aiassit.service.ai.spi.tool.ToolInvocationPrincipal;
 import ai.platform.aiassit.agent.runtime.AgentCapabilityGrantService;
 import ai.platform.aiassit.service.ai.spi.agent.AgentDefinitionSnapshot;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionRequest;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionResult;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.sun.net.httpserver.HttpServer;
 import org.arthena.framework.common.exception.BizException;
@@ -16,6 +19,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -77,7 +82,51 @@ class ToolGatewayServiceTest {
                 .isInstanceOf(BizException.class);
     }
 
+    @Test
+    void invokesManagedSourceThroughTheSameVersionedGateway() {
+        Map<String, Object> managedDefinition = new java.util.LinkedHashMap<>();
+        managedDefinition.put("executionMode", "MANAGED_CODE");
+        managedDefinition.put("implementationRuntime", "PYTHON");
+        managedDefinition.put("runtimeConfig", Map.of("region", "cn"));
+        managedDefinition.put("inputSchema", Map.of("type", "object"));
+        managedDefinition.put("outputSchema", Map.of("type", "object"));
+        managedDefinition.put("permissionPolicy", Map.of());
+        managedDefinition.put("approvalPolicy", Map.of());
+        AtomicReference<ManagedToolExecutionRequest> invocation = new AtomicReference<>();
+        ManagedToolExecutor executor = new ManagedToolExecutor() {
+            @Override
+            public List<String> validate(Map<String, Object> definition) {
+                return List.of();
+            }
+
+            @Override
+            public ManagedToolExecutionResult execute(ManagedToolExecutionRequest request) {
+                invocation.set(request);
+                return ManagedToolExecutionResult.builder()
+                        .output(Map.of("value", "managed"))
+                        .durationMs(3)
+                        .build();
+            }
+        };
+        PublishedToolDefinition tool = PublishedToolDefinition.builder()
+                .toolCode("lookup").toolVersion(3).adapterType("FUNCTION")
+                .checksum("hash").definition(managedDefinition).build();
+        ToolGatewayRequest request = new ToolGatewayRequest();
+        request.setArguments(Map.of("query", "orders"));
+        request.setRun(Map.of("runId", "run-1", "snapshotHash", "sha256:test"));
+
+        ToolGatewayResponse response = service(tool, executor).invoke(
+                "lookup", 3, request, principal(Set.of()), null, null);
+
+        assertThat(response.getOutput()).isEqualTo(Map.of("value", "managed"));
+        assertThat(invocation.get().getContext()).containsEntry("config", Map.of("region", "cn"));
+    }
+
     private ToolGatewayService service(PublishedToolDefinition definition) {
+        return service(definition, null);
+    }
+
+    private ToolGatewayService service(PublishedToolDefinition definition, ManagedToolExecutor executor) {
         PublishedToolDefinitionStore store = (code, version) ->
                 "lookup".equals(code) && Integer.valueOf(3).equals(version)
                         ? Optional.of(definition) : Optional.empty();
@@ -87,7 +136,8 @@ class ToolGatewayServiceTest {
         snapshot.setResolvedCapabilities(Map.of("tools", java.util.List.of(
                 Map.of("code", "lookup", "version", 3))));
         grants.register("run-1", 7L, snapshot, java.time.Duration.ofMinutes(1));
-        return new ToolGatewayService(store, java.util.List.of(), java.util.List.of(), new ObjectMapper(), grants);
+        return new ToolGatewayService(store, java.util.List.of(), java.util.List.of(),
+                new ObjectMapper(), grants, executor);
     }
 
     private PublishedToolDefinition definition(String endpoint, String permission) {

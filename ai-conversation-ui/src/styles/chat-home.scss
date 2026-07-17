@@ -447,8 +447,14 @@
   width: min(240px, 34vw);
 }
 
-.chat-home-model-switcher--home {
-  width: min(var(--app-field-width-max), 42vw);
+.chat-home-model-switcher--composer {
+  flex: none;
+  width: clamp(
+    var(--chat-composer-model-min-width),
+    calc(var(--chat-composer-model-content-width, 1ch) + var(--app-space-8)),
+    min(var(--chat-composer-model-max-width), 34cqi)
+  );
+  max-width: min(var(--chat-composer-model-max-width), 34cqi);
 }
 
 .chat-home-model-switcher .el-select__wrapper {
@@ -472,6 +478,36 @@
 .chat-home-model-switcher .el-select__selected-item,
 .chat-home-model-switcher .el-select__placeholder {
   color: var(--chat-text-secondary);
+}
+
+.chat-home-model-switcher--composer :deep(.el-select__wrapper) {
+  min-height: var(--chat-composer-model-height);
+  padding: 0 var(--app-space-2);
+  border-radius: var(--app-radius-round);
+  background: var(--chat-soft-bg);
+  box-shadow: 0 0 0 1px var(--chat-panel-border) inset;
+  color: var(--chat-text-secondary);
+  font-size: var(--app-font-size-caption);
+  font-weight: 600;
+  transition: background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.chat-home-model-switcher--composer:not(.is-disabled) :deep(.el-select__wrapper:hover),
+.chat-home-model-switcher--composer :deep(.el-select__wrapper.is-focused) {
+  background: var(--chat-hover-bg);
+  box-shadow: 0 0 0 1px var(--chat-text-subtle) inset;
+}
+
+.chat-home-model-switcher--composer :deep(.el-select__selected-item),
+.chat-home-model-switcher--composer :deep(.el-select__placeholder) {
+  overflow: hidden;
+  color: var(--chat-text-secondary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chat-home-model-switcher--composer :deep(.el-select__suffix) {
+  color: var(--chat-text-muted);
 }
 
 .chat-home-model-option {
@@ -929,6 +965,10 @@
   border-radius: 24px;
   background: var(--chat-panel-bg);
   box-shadow: var(--chat-composer-shadow);
+}
+
+.chat-home-composer--model-selectable {
+  container-type: inline-size;
 }
 
 .chat-home-composer textarea {
@@ -1996,14 +2036,6 @@
     gap: 4px;
   }
 
-  .chat-home-model-switcher {
-    width: min(170px, 48vw);
-  }
-
-  .chat-home-model-switcher .el-select__wrapper {
-    font-size: 13px;
-  }
-
   .chat-home-center-column,
   .chat-home-composer,
   .chat-home-composer--conversation {
@@ -2038,3 +2070,10 @@
     font-size: 12px;
   }
 }
+  .chat-home-model-switcher:not(.chat-home-model-switcher--composer) {
+    width: min(170px, 48vw);
+  }
+
+  .chat-home-model-switcher:not(.chat-home-model-switcher--composer) .el-select__wrapper {
+    font-size: 13px;
+  }

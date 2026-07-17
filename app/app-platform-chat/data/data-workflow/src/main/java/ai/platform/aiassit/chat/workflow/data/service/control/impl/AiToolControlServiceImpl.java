@@ -12,10 +12,18 @@ import ai.platform.aiassit.chat.workflow.data.mapper.AiChatToolVersionMapper;
 import ai.platform.aiassit.chat.workflow.data.service.control.AiToolControlService;
 import ai.platform.aiassit.chat.workflow.data.support.ControlPlaneJsonSupport;
 import ai.platform.aiassit.chat.workflow.data.validator.ToolDefinitionValidator;
+import ai.platform.aiassit.service.ai.spi.agent.AgentTemporaryTokenIssuer;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionRequest;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionResult;
+import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutor;
+import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import com.baomidou.mybatisplus.core.toolkit.Wrappers;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.constant.ErrCodeConstant;
+import org.arthena.framework.common.context.SystemContext;
 import org.arthena.framework.common.exception.BizException;
+import org.athena.framework.security.api.model.UserContext;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -34,15 +42,21 @@ public class AiToolControlServiceImpl implements AiToolControlService {
     private final AiChatToolVersionMapper versionMapper;
     private final ToolDefinitionValidator validator;
     private final ControlPlaneJsonSupport json;
+    private final ObjectProvider<ManagedToolExecutor> managedToolExecutor;
+    private final ObjectProvider<AgentTemporaryTokenIssuer> temporaryTokenIssuer;
 
     public AiToolControlServiceImpl(AiChatToolMapper toolMapper,
                                     AiChatToolVersionMapper versionMapper,
                                     ToolDefinitionValidator validator,
-                                    ControlPlaneJsonSupport json) {
+                                    ControlPlaneJsonSupport json,
+                                    ObjectProvider<ManagedToolExecutor> managedToolExecutor,
+                                    ObjectProvider<AgentTemporaryTokenIssuer> temporaryTokenIssuer) {
         this.toolMapper = toolMapper;
         this.versionMapper = versionMapper;
         this.validator = validator;
         this.json = json;
+        this.managedToolExecutor = managedToolExecutor;
+        this.temporaryTokenIssuer = temporaryTokenIssuer;
     }
 
     @Override
@@ -164,7 +178,8 @@ public class AiToolControlServiceImpl implements AiToolControlService {
     @Transactional(rollbackFor = Exception.class)
     public ValidationReportDTO validateVersion(String toolCode, Integer version) {
         AiChatToolVersionEntity entity = requireVersion(normalizeCode(toolCode), version);
-        ValidationReportDTO report = validator.validate(entity.getAdapterType(), json.readMap(entity.getDefinitionJson()));
+        Map<String, Object> definition = json.readMap(entity.getDefinitionJson());
+        ValidationReportDTO report = validateDefinition(entity.getAdapterType(), definition);
         entity.setValidationJson(json.write(report));
         if (entity.getStatus() != DefinitionStatus.PUBLISHED) {
             entity.setStatus(report.isValid() ? DefinitionStatus.VALIDATED : DefinitionStatus.DRAFT);
@@ -180,7 +195,8 @@ public class AiToolControlServiceImpl implements AiToolControlService {
         AiChatToolVersionEntity entity = requireVersion(code, version);
         AiChatToolEntity catalog = requireCatalog(code);
         if (entity.getStatus() == DefinitionStatus.PUBLISHED) return toDTO(entity, catalog);
-        ValidationReportDTO report = validator.validate(entity.getAdapterType(), json.readMap(entity.getDefinitionJson()));
+        Map<String, Object> definition = json.readMap(entity.getDefinitionJson());
+        ValidationReportDTO report = validateDefinition(entity.getAdapterType(), definition);
         if (!report.isValid()) {
             entity.setValidationJson(json.write(report));
             entity.setStatus(DefinitionStatus.DRAFT);
@@ -203,14 +219,45 @@ public class AiToolControlServiceImpl implements AiToolControlService {
     @Override
     public Map<String, Object> testVersion(String toolCode, Integer version, Map<String, Object> payload) {
         AiChatToolVersionEntity entity = requireVersion(normalizeCode(toolCode), version);
-        ValidationReportDTO report = validator.validate(entity.getAdapterType(), json.readMap(entity.getDefinitionJson()));
+        Map<String, Object> definition = json.readMap(entity.getDefinitionJson());
+        ValidationReportDTO report = validateDefinition(entity.getAdapterType(), definition);
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("toolCode", entity.getToolCode());
         result.put("version", entity.getVersionNo());
         result.put("valid", report.isValid());
         result.put("validation", report);
         result.put("input", payload == null ? Map.of() : payload);
-        result.put("mode", "BINDING_VALIDATION_DRY_RUN");
+        if (!report.isValid() || !isManagedCode(definition)) {
+            result.put("mode", "BINDING_VALIDATION_DRY_RUN");
+            return result;
+        }
+        ManagedToolExecutor executor = managedToolExecutor.getIfAvailable();
+        if (executor == null) {
+            throw BizException.of(AiChatBizCodeConstant.TOOL_INVOCATION_FAILED,
+                    "Managed Tool runtime is not available");
+        }
+        String token = null;
+        Object current = SystemContext.getUserContext();
+        AgentTemporaryTokenIssuer issuer = temporaryTokenIssuer.getIfAvailable();
+        if (current instanceof UserContext userContext && issuer != null) {
+            token = issuer.issue(userContext);
+        }
+        Map<String, Object> context = new LinkedHashMap<>();
+        context.put("toolCode", entity.getToolCode());
+        context.put("toolVersion", entity.getVersionNo());
+        context.put("testRun", true);
+        context.put("config", map(definition.get("runtimeConfig")));
+        ManagedToolExecutionResult execution = executor.execute(ManagedToolExecutionRequest.builder()
+                .definition(definition)
+                .arguments(payload == null ? Map.of() : payload)
+                .context(context)
+                .executionToken(token)
+                .build());
+        result.put("mode", "MANAGED_CODE");
+        result.put("output", execution.getOutput());
+        result.put("stdout", execution.getStdout());
+        result.put("stderr", execution.getStderr());
+        result.put("durationMs", execution.getDurationMs());
         return result;
     }
 
@@ -233,7 +280,8 @@ public class AiToolControlServiceImpl implements AiToolControlService {
         boolean noBindings = request.getBindings() == null || request.getBindings().isEmpty();
         boolean noInputSchema = request.getInputSchema() == null || request.getInputSchema().isEmpty();
         boolean noOutputSchema = request.getOutputSchema() == null || request.getOutputSchema().isEmpty();
-        if (request.getDefinition() != null && noBindings && noInputSchema && noOutputSchema) {
+        boolean noManagedSource = !StringUtils.hasText(request.getSourceCode());
+        if (request.getDefinition() != null && noBindings && noInputSchema && noOutputSchema && noManagedSource) {
             return new LinkedHashMap<>(request.getDefinition());
         }
         Map<String, Object> definition = new LinkedHashMap<>();
@@ -242,6 +290,16 @@ public class AiToolControlServiceImpl implements AiToolControlService {
         definition.put("permissionPolicy", request.getPermissionPolicy() == null ? Map.of() : request.getPermissionPolicy());
         definition.put("approvalPolicy", request.getApprovalPolicy() == null ? Map.of() : request.getApprovalPolicy());
         definition.put("timeoutMs", request.getTimeoutMs() == null ? 30_000 : request.getTimeoutMs());
+        definition.put("executionMode", isManagedCodeRequest(request)
+                ? "MANAGED_CODE" : "PORTABLE_BINDING");
+        definition.put("implementationRuntime", StringUtils.hasText(request.getImplementationRuntime())
+                ? request.getImplementationRuntime().trim().toUpperCase() : "PYTHON");
+        definition.put("compatibleAgentRuntimes", request.getCompatibleAgentRuntimes() == null
+                || request.getCompatibleAgentRuntimes().isEmpty()
+                ? List.of("OPENAI_AGENTS_PYTHON", "OPENAI_AGENTS_TYPESCRIPT")
+                : request.getCompatibleAgentRuntimes());
+        definition.put("sourceCode", request.getSourceCode());
+        definition.put("runtimeConfig", request.getRuntimeConfig() == null ? Map.of() : request.getRuntimeConfig());
         definition.put("bindings", request.getBindings() == null ? List.of() : request.getBindings());
         return definition;
     }
@@ -268,6 +326,11 @@ public class AiToolControlServiceImpl implements AiToolControlService {
         dto.setPermissionPolicy(map(definition.get("permissionPolicy")));
         dto.setApprovalPolicy(map(definition.get("approvalPolicy")));
         dto.setTimeoutMs(definition.get("timeoutMs") instanceof Number number ? number.intValue() : null);
+        dto.setExecutionMode(text(definition.get("executionMode")));
+        dto.setImplementationRuntime(text(definition.get("implementationRuntime")));
+        dto.setCompatibleAgentRuntimes(strings(definition.get("compatibleAgentRuntimes")));
+        dto.setSourceCode(text(definition.get("sourceCode")));
+        dto.setRuntimeConfig(map(definition.get("runtimeConfig")));
         dto.setBindings(bindings(definition.get("bindings")));
         dto.setValidation(json.read(entity.getValidationJson(), ValidationReportDTO.class));
         dto.setChecksum(entity.getChecksum());
@@ -296,6 +359,9 @@ public class AiToolControlServiceImpl implements AiToolControlService {
     }
 
     private ToolAdapterType resolveAdapterType(ToolControlDTOs.DraftRequest request) {
+        if (isManagedCodeRequest(request)) {
+            return ToolAdapterType.FUNCTION;
+        }
         if (request.getAdapterType() != null) return request.getAdapterType();
         String type = primaryBindingType(request);
         return switch (type) {
@@ -307,6 +373,10 @@ public class AiToolControlServiceImpl implements AiToolControlService {
     }
 
     private String primaryBindingType(ToolControlDTOs.DraftRequest request) {
+        if (isManagedCodeRequest(request)) {
+            return StringUtils.hasText(request.getImplementationRuntime())
+                    ? request.getImplementationRuntime().trim().toUpperCase() : "PYTHON";
+        }
         if (request != null && request.getBindings() != null) {
             for (ToolControlDTOs.Binding binding : request.getBindings()) {
                 if (binding != null && Boolean.TRUE.equals(binding.getEnabled())
@@ -320,7 +390,31 @@ public class AiToolControlServiceImpl implements AiToolControlService {
 
     private boolean hasDefinition(ToolControlDTOs.DraftRequest request) {
         return request.getDefinition() != null || (request.getBindings() != null && !request.getBindings().isEmpty())
+                || StringUtils.hasText(request.getSourceCode())
                 || (request.getInputSchema() != null && !request.getInputSchema().isEmpty());
+    }
+
+    private boolean isManagedCodeRequest(ToolControlDTOs.DraftRequest request) {
+        return request != null && ("MANAGED_CODE".equalsIgnoreCase(request.getExecutionMode())
+                || (!StringUtils.hasText(request.getExecutionMode()) && StringUtils.hasText(request.getSourceCode())));
+    }
+
+    private ValidationReportDTO validateDefinition(ToolAdapterType adapterType, Map<String, Object> definition) {
+        ValidationReportDTO report = validator.validate(adapterType, definition);
+        if (report.isValid() && isManagedCode(definition)) {
+            ManagedToolExecutor executor = managedToolExecutor.getIfAvailable();
+            if (executor == null) {
+                report.error("Managed Tool runtime is not available");
+            } else {
+                executor.validate(definition).forEach(report::error);
+            }
+            report.finish();
+        }
+        return report;
+    }
+
+    private boolean isManagedCode(Map<String, Object> definition) {
+        return "MANAGED_CODE".equalsIgnoreCase(text(definition.get("executionMode")));
     }
 
     private void requireRequest(ToolControlDTOs.DraftRequest request) {
@@ -395,6 +489,21 @@ public class AiToolControlServiceImpl implements AiToolControlService {
             }
         }
         return result;
+    }
+
+    private List<String> strings(Object value) {
+        if (!(value instanceof List<?> values)) return new ArrayList<>();
+        List<String> result = new ArrayList<>();
+        for (Object item : values) {
+            if (item != null && StringUtils.hasText(String.valueOf(item))) {
+                result.add(String.valueOf(item).trim());
+            }
+        }
+        return result;
+    }
+
+    private String text(Object value) {
+        return value == null ? null : String.valueOf(value);
     }
 
     private String normalizeCode(String code) {

@@ -51,6 +51,27 @@ class ToolDefinitionValidatorTest {
         assertThat(report.getErrors()).anyMatch(message -> message.contains("not supported"));
     }
 
+    @Test
+    void acceptsManagedPythonSourceWithoutRuntimeBindingOrSecretReference() {
+        Map<String, Object> definition = new LinkedHashMap<>();
+        definition.put("executionMode", "MANAGED_CODE");
+        definition.put("implementationRuntime", "PYTHON");
+        definition.put("compatibleAgentRuntimes", List.of(
+                "OPENAI_AGENTS_PYTHON", "OPENAI_AGENTS_TYPESCRIPT"));
+        definition.put("sourceCode", "async def run(arguments, context):\n    return arguments\n");
+        definition.put("runtimeConfig", Map.of());
+        definition.put("inputSchema", Map.of("type", "object"));
+        definition.put("outputSchema", Map.of("type", "object"));
+        definition.put("permissionPolicy", Map.of());
+        definition.put("approvalPolicy", Map.of());
+        definition.put("timeoutMs", 30_000);
+        definition.put("bindings", List.of());
+
+        ValidationReportDTO report = validator.validate(ToolAdapterType.FUNCTION, definition);
+
+        assertThat(report.isValid()).isTrue();
+    }
+
     private Map<String, Object> definition(Map<String, Object> binding) {
         Map<String, Object> definition = new LinkedHashMap<>();
         definition.put("inputSchema", Map.of("type", "object"));

@@ -262,12 +262,19 @@ export interface ToolBinding {
   endpointRef?: string
   packageUri?: string
   entrypoint?: string
-  secretRefs?: string[]
   enabled?: boolean
   config?: Record<string, unknown>
 }
 
+export type ToolImplementationRuntime = 'PYTHON' | 'JAVASCRIPT'
+export type ToolAgentRuntime = 'OPENAI_AGENTS_PYTHON' | 'OPENAI_AGENTS_TYPESCRIPT' | string
+
 export interface ToolDefinition extends CatalogItem {
+  executionMode?: 'MANAGED_CODE' | string
+  implementationRuntime?: ToolImplementationRuntime
+  compatibleAgentRuntimes?: ToolAgentRuntime[]
+  sourceCode?: string
+  runtimeConfig?: Record<string, unknown> | null
   inputSchema?: Record<string, unknown> | null
   outputSchema?: Record<string, unknown> | null
   permissionPolicy?: Record<string, unknown> | null

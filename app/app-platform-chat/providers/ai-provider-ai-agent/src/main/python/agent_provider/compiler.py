@@ -302,6 +302,13 @@ def _tool_catalog(capabilities: dict[str, Any]) -> tuple[dict[str, str], dict[st
     for key, item in _iter_records(capabilities.get("tools")):
         binding = _mapping(item.get("binding"))
         definition = _mapping(item.get("definition"))
+        compatible_runtimes = {
+            str(value).strip().upper()
+            for value in definition.get("compatibleAgentRuntimes") or []
+            if str(value).strip()
+        }
+        if compatible_runtimes and "OPENAI_AGENTS_PYTHON" not in compatible_runtimes:
+            raise ValueError(f"Tool is not compatible with OPENAI_AGENTS_PYTHON: {key}")
         runtime_name = _text(
             binding.get("runtimeName"),
             binding.get("functionName"),
