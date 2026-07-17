@@ -967,11 +967,34 @@ onBeforeUnmount(() => {
   white-space: pre-wrap;
 }
 
-.assistant-message__markdown :deep(h3) {
-  margin: 0 0 var(--app-space-2);
+.assistant-message__markdown :deep(h1),
+.assistant-message__markdown :deep(h2),
+.assistant-message__markdown :deep(h3),
+.assistant-message__markdown :deep(h4),
+.assistant-message__markdown :deep(h5),
+.assistant-message__markdown :deep(h6) {
+  margin: var(--app-space-4) 0 var(--app-space-2);
   color: var(--app-title);
-  font-size: var(--app-font-size-subtitle);
   line-height: var(--app-line-height-body);
+  font-weight: 700;
+}
+
+.assistant-message__markdown :deep(h1) {
+  font-size: var(--app-font-size-title-md);
+}
+
+.assistant-message__markdown :deep(h2) {
+  font-size: var(--app-font-size-title-sm);
+}
+
+.assistant-message__markdown :deep(h3) {
+  font-size: var(--app-font-size-subtitle);
+}
+
+.assistant-message__markdown :deep(h4),
+.assistant-message__markdown :deep(h5),
+.assistant-message__markdown :deep(h6) {
+  font-size: var(--app-font-size-body-lg);
 }
 
 .assistant-message__markdown :deep(p) {
@@ -990,6 +1013,16 @@ onBeforeUnmount(() => {
   padding-inline-start: var(--app-space-hairline);
 }
 
+.assistant-message__markdown :deep(li.task-list-item) {
+  list-style: none;
+}
+
+.assistant-message__markdown :deep(li > input[type='checkbox']) {
+  margin: 0 var(--app-space-tight) 0 0;
+  accent-color: var(--app-accent);
+  pointer-events: none;
+}
+
 .assistant-message__markdown :deep(strong) {
   color: var(--app-title);
   font-weight: 700;
@@ -1006,6 +1039,77 @@ onBeforeUnmount(() => {
   overflow-wrap: anywhere;
 }
 
+.assistant-message__markdown :deep(pre) {
+  max-width: 100%;
+  margin: 0 0 var(--app-space-3);
+  padding: var(--app-space-3);
+  overflow-x: auto;
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-md);
+  background: var(--app-surface-muted);
+}
+
+.assistant-message__markdown :deep(pre code) {
+  display: block;
+  min-width: max-content;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  color: var(--app-text);
+  line-height: var(--app-line-height-body);
+  overflow-wrap: normal;
+  tab-size: 2;
+  white-space: pre;
+  word-break: normal;
+}
+
+.assistant-message__markdown :deep(a) {
+  color: var(--app-accent);
+  text-decoration: underline;
+  text-underline-offset: var(--app-space-hairline);
+}
+
+.assistant-message__markdown :deep(hr) {
+  margin: var(--app-space-4) 0;
+  border: 0;
+  border-top: 1px solid var(--app-border-subtle);
+}
+
+.assistant-message__markdown :deep(table) {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 0 var(--app-space-3);
+  overflow-x: auto;
+  border-collapse: collapse;
+}
+
+.assistant-message__markdown :deep(th),
+.assistant-message__markdown :deep(td) {
+  min-width: calc(var(--app-space-8) * 3);
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px solid var(--app-border-subtle);
+  text-align: start;
+  vertical-align: top;
+}
+
+.assistant-message__markdown :deep(th) {
+  background: var(--app-surface-muted);
+  color: var(--app-title);
+  font-weight: 700;
+}
+
+.assistant-message__markdown :deep(th[align='center']),
+.assistant-message__markdown :deep(td[align='center']) {
+  text-align: center;
+}
+
+.assistant-message__markdown :deep(th[align='right']),
+.assistant-message__markdown :deep(td[align='right']) {
+  text-align: end;
+}
+
 .assistant-message__markdown :deep(blockquote) {
   margin: var(--app-space-2) 0;
   padding: var(--app-space-2) var(--app-space-3);
@@ -1017,6 +1121,10 @@ onBeforeUnmount(() => {
 
 .assistant-message__markdown :deep(> :last-child) {
   margin-bottom: 0;
+}
+
+.assistant-message__markdown :deep(> :first-child) {
+  margin-top: 0;
 }
 
 .assistant-message__pending {

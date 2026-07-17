@@ -24,9 +24,11 @@
     "@vue-flow/core": "^1.48.2",
     "@vue-flow/minimap": "^1.5.4",
     "codemirror": "^6.0.2",
+    "dompurify": "^3.4.12",
     "echarts": "^6.1.0",
     "element-plus": "^2.11.3",
     "elkjs": "^0.11.1",
+    "marked": "^18.0.6",
     "vue": "^3.5.34",
     "vue-router": "^4.6.4"
   },
