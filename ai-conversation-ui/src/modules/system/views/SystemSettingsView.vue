@@ -31,7 +31,8 @@ type SettingsSection = {
   title: string
   description: string
   component?: unknown
-  children?: Array<Pick<SettingsSection, 'key' | 'label' | 'icon' | 'title' | 'description' | 'component'>>
+  disabled?: boolean
+  children?: SettingsSection[]
 }
 
 const router = useRouter()
@@ -144,6 +145,7 @@ const sections: SettingsSection[] = [
         title: 'Agent 管理',
         description: '配置可版本化、可协作并可绑定 Skill 与 Tool 的 Agent。',
         component: AgentListView,
+        disabled: true,
       },
       {
         key: 'workflows',
@@ -152,6 +154,7 @@ const sections: SettingsSection[] = [
         title: '产物流程',
         description: '定义产物契约、检查规则和完成标准，由 Agent 自主协作完成任务。',
         component: WorkflowListView,
+        disabled: true,
       },
       {
         key: 'skills',
@@ -160,6 +163,7 @@ const sections: SettingsSection[] = [
         title: 'Skill 管理',
         description: '管理表单 Skill 与通用 Skill 压缩包。',
         component: SkillListView,
+        disabled: true,
       },
       {
         key: 'tools',
@@ -168,6 +172,7 @@ const sections: SettingsSection[] = [
         title: 'Tool 管理',
         description: '管理工具契约、权限策略与不同运行时绑定。',
         component: ToolListView,
+        disabled: true,
       },
     ],
   },

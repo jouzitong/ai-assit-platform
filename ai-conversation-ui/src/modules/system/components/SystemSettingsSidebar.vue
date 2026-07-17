@@ -13,6 +13,7 @@ type SettingsSection = {
   key: string
   label: string
   icon: unknown
+  disabled?: boolean
   children?: SettingsSection[]
 }
 
@@ -198,8 +199,9 @@ onBeforeUnmount(() => {
     <nav class="system-settings-nav">
       <div v-for="section in sections" :key="section.key" class="system-settings-nav__group">
         <button
-          :class="['system-settings-nav__item', { 'is-active': isGroupActive(section), 'is-group': section.children?.length }]"
+          :class="['system-settings-nav__item', { 'is-active': isGroupActive(section), 'is-group': section.children?.length, 'is-disabled': section.disabled }]"
           type="button"
+          :disabled="section.disabled"
           :aria-expanded="section.children?.length ? isExpanded(section) : undefined"
           @click="section.children?.length ? handleGroupClick(section) : emit('selectSection', section.key)"
         >
@@ -214,8 +216,9 @@ onBeforeUnmount(() => {
           <button
             v-for="child in section.children"
             :key="child.key"
-            :class="['system-settings-nav__child', { 'is-active': activeSection === child.key }]"
+            :class="['system-settings-nav__child', { 'is-active': activeSection === child.key, 'is-disabled': child.disabled }]"
             type="button"
+            :disabled="child.disabled"
             @click="emit('selectSection', child.key)"
           >
             {{ child.label }}
@@ -383,6 +386,13 @@ onBeforeUnmount(() => {
   background: var(--system-accent-bg);
   color: var(--system-accent-text);
   font-weight: 600;
+}
+
+.system-settings-nav__item:disabled,
+.system-settings-nav__child:disabled {
+  color: var(--system-text-faint);
+  cursor: not-allowed;
+  opacity: 0.65;
 }
 
 .system-settings-logo {

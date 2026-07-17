@@ -6,6 +6,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from ..protocol import normalize_payload
+from ..agents.catalog import definition_for
 from ..skills import SkillCatalog
 
 
@@ -157,6 +158,9 @@ def _compile_agent(
     name = _text(metadata.get("name"), definition.get("name"), code) or code
     description = _text(metadata.get("description"), definition.get("description")) or ""
     instructions = _instructions(spec.get("instructions"))
+    definition = definition_for(code)
+    if definition is not None and definition.prompt not in instructions:
+        instructions = (instructions + "\n\n" + definition.prompt).strip()
     instructions = _append_json_instruction(instructions, payload.get("responseFormat"))
 
     skill_refs = _resolve_skill_refs(spec.get("skillRefs"), catalog)

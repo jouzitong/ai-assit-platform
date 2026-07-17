@@ -5,102 +5,18 @@ import inspect
 import json
 import os
 from dataclasses import asdict, is_dataclass
-from dataclasses import dataclass
 from typing import Any
 
-from ..compiler import CompiledAgent, CompiledGraph
+from ..agents.factory import AgentFactory, SdkGraph
+from ..compiler import CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
-from ..gateway import build_gateway_tool
 from ..protocol import build_application_input
-from ..skills import build_skill_tool
-
-
-@dataclass
-class SdkGraph:
-    root: Any
-    agents: dict[str, Any]
-    reverse: dict[int, CompiledAgent]
-
-    def compiled_for(self, sdk_agent: Any) -> CompiledAgent | None:
-        if sdk_agent is None:
-            return None
-        direct = self.reverse.get(id(sdk_agent))
-        if direct is not None:
-            return direct
-        name = getattr(sdk_agent, "name", None)
-        return next((agent for agent in self.reverse.values() if agent.name == name), None)
 
 
 def build_sdk_graph(graph: CompiledGraph, emitter: EventEmitter) -> SdkGraph:
-    """Recursively compile the language-neutral graph into OpenAI Agents SDK objects."""
+    """Build only the root now; specialist Agent instances are delegated lazily."""
 
-    from agents import Agent, ModelSettings, function_tool
-
-    from ..tools import (
-        data_format_validate_tool,
-        knowledge_base_search_tool,
-        render_json_validate_tool,
-        web_search_tool,
-    )
-
-    registry = {
-        "data_format_validate_tool": data_format_validate_tool,
-        "knowledge_base_search_tool": knowledge_base_search_tool,
-        "render_json_validate_tool": render_json_validate_tool,
-        "web_search_tool": web_search_tool,
-    }
-    built: dict[str, Any] = {}
-    reverse: dict[int, CompiledAgent] = {}
-
-    def build(key: str) -> Any:
-        if key in built:
-            return built[key]
-        spec = graph.agents[key]
-        child_tools: list[Any] = []
-        for link in spec.agent_tools:
-            child = build(link.target_key)
-            target = graph.agents[link.target_key]
-            tool_name = link.tool_name or f"ask_{_safe_identifier(target.code)}"
-            child_tools.append(
-                child.as_tool(
-                    tool_name=tool_name,
-                    tool_description=link.description or target.description or f"Delegate work to {target.name}.",
-                )
-            )
-        handoffs = [build(link.target_key) for link in spec.handoffs]
-        tools = [
-            build_gateway_tool(
-                graph.gateway_tools[name],
-                graph.payload["run"],
-                graph.payload.get("snapshotHash"),
-            )
-            if name in graph.gateway_tools
-            else registry[name]
-            for name in spec.tool_names
-        ]
-        if graph.skill_catalog and spec.skill_refs:
-            tools.append(build_skill_tool(graph, emitter, function_tool, spec.skill_refs))
-        tools.extend(child_tools)
-
-        kwargs: dict[str, Any] = {
-            "name": spec.name,
-            "instructions": spec.instructions,
-            "model": _runtime_model(spec.model),
-            "tools": tools,
-            "handoffs": handoffs,
-            "handoff_description": spec.description or None,
-        }
-        settings = _model_settings(ModelSettings, spec.model_settings)
-        if settings is not None:
-            kwargs["model_settings"] = settings
-        kwargs = _supported_kwargs(Agent, kwargs)
-        sdk_agent = Agent(**kwargs)
-        built[key] = sdk_agent
-        reverse[id(sdk_agent)] = spec
-        return sdk_agent
-
-    root = build(graph.root_key)
-    return SdkGraph(root=root, agents=built, reverse=reverse)
+    return AgentFactory(graph, emitter).build_root()
 
 
 async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, Any]:
