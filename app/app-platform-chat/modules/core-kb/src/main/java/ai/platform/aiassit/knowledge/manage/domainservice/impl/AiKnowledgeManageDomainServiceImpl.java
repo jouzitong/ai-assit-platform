@@ -230,14 +230,14 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     @Transactional(rollbackFor = Exception.class)
     public AiKbDocumentUpsertResponse upsertDocument(AiKbDocumentUpsertRequest request) {
         validateUpsertRequest(request);
-        String kbId = request.getKbId().trim();
-        AiKbStoreDTO store = requireStore(kbId);
+        String kbCode = request.getKbCode().trim();
+        AiKbStoreDTO store = requireStore(kbCode);
         AiKbDocumentType documentType = resolveDocumentType(request);
         String documentId = request.getDocumentId().trim();
         String documentName = StringUtils.hasText(request.getDocumentName()) ? request.getDocumentName().trim() : documentId;
         Map<String, Object> ext = normalizeExt(request.getExt());
         AiKbBizType bizType = resolveBizType(documentType, request.getBizType());
-        AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbId, documentId);
+        AiKbDocumentDTO existing = documentService.getByKbCodeAndDocumentCode(kbCode, documentId);
         boolean created = existing == null;
         String sourceKey = resolveUpsertSourceKey(ext, existing);
         if (StringUtils.hasText(sourceKey)) {
@@ -247,20 +247,20 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         String checksum = checksum(request.getContent());
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
         boolean canUpdate = Boolean.TRUE.equals(request.getCanUpdate());
-        log.info("ai kb upsert document start, kbId={}, documentId={}, documentType={}, bizType={}, sourceKey={}, canUpdate={}",
-                kbId, documentId, documentType, bizType, sourceKey, canUpdate);
+        log.info("ai kb upsert document start, kbCode={}, documentId={}, documentType={}, bizType={}, sourceKey={}, canUpdate={}",
+                kbCode, documentId, documentType, bizType, sourceKey, canUpdate);
 
         if (existing != null && !canUpdate) {
-            log.info("ai kb document exists and update skipped, kbId={}, documentId={}, currentVersionNo={}",
-                    kbId, documentId, existing.getDocumentVersionNo());
-            return buildUpsertResponse(kbId, documentId, false, false, true, false,
+            log.info("ai kb document exists and update skipped, kbCode={}, documentId={}, currentVersionNo={}",
+                    kbCode, documentId, existing.getDocumentVersionNo());
+            return buildUpsertResponse(kbCode, documentId, false, false, true, false,
                     existing.getDocumentVersionNo(), null, "document exists and canUpdate is false");
         }
 
         boolean updated = false;
         AiKbDocumentDTO document = created ? new AiKbDocumentDTO() : existing;
         if (created) {
-            document.setKbCode(kbId);
+            document.setKbCode(kbCode);
             document.setDocumentCode(documentId);
             document.setDocumentVersionNo(1);
             document.setStatus(AiKbDocumentStatus.ACTIVE);
@@ -273,8 +273,8 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                 || !Objects.equals(document.getBizType(), bizType)
                 || !Objects.equals(document.getBizKey(), documentBizKey)
                 || !Objects.equals(document.getMetaJson(), ext);
-        log.info("ai kb upsert document diff, kbId={}, documentId={}, created={}, contentChanged={}, metadataChanged={}",
-                kbId, documentId, created, contentChanged, metadataChanged);
+        log.info("ai kb upsert document diff, kbCode={}, documentId={}, created={}, contentChanged={}, metadataChanged={}",
+                kbCode, documentId, created, contentChanged, metadataChanged);
 
         Integer previousVersionNo = created ? null : document.getDocumentVersionNo();
         if (!created && (contentChanged || metadataChanged)) {
@@ -303,15 +303,15 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
 
         if (created) {
             document = documentService.add(document);
-            log.info("ai kb document created, kbId={}, documentId={}, currentVersionNo={}",
-                    kbId, documentId, document.getDocumentVersionNo());
+            log.info("ai kb document created, kbCode={}, documentId={}, currentVersionNo={}",
+                    kbCode, documentId, document.getDocumentVersionNo());
         } else if (updated) {
             document = documentService.update(document.getId(), document);
-            log.info("ai kb document updated, kbId={}, documentId={}, currentVersionNo={}",
-                    kbId, documentId, document.getDocumentVersionNo());
+            log.info("ai kb document updated, kbCode={}, documentId={}, currentVersionNo={}",
+                    kbCode, documentId, document.getDocumentVersionNo());
         } else {
-            log.info("ai kb document unchanged, kbId={}, documentId={}, currentVersionNo={}",
-                    kbId, documentId, document.getDocumentVersionNo());
+            log.info("ai kb document unchanged, kbCode={}, documentId={}, currentVersionNo={}",
+                    kbCode, documentId, document.getDocumentVersionNo());
         }
 
         AiKbDocumentContentDTO content = contentService.getByDocumentId(document.getId());
@@ -324,22 +324,22 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             content.setRenderedContent(request.getContent());
             content.setExtJson(ext);
             contentService.add(content);
-            log.info("ai kb document content created, kbId={}, documentId={}, contentSize={}",
-                    kbId, documentId, contentSize);
+            log.info("ai kb document content created, kbCode={}, documentId={}, contentSize={}",
+                    kbCode, documentId, contentSize);
         } else if (updated || !Objects.equals(content.getRenderedContent(), request.getContent())) {
             content.setContentFormat(AiKbContentFormat.MARKDOWN);
             content.setContentSize(contentSize);
             content.setRenderedContent(request.getContent());
             content.setExtJson(ext);
             contentService.update(content.getId(), content);
-            log.info("ai kb document content updated, kbId={}, documentId={}, contentSize={}",
-                    kbId, documentId, contentSize);
+            log.info("ai kb document content updated, kbCode={}, documentId={}, contentSize={}",
+                    kbCode, documentId, contentSize);
         }
 
         boolean unchanged = !created && !updated;
-        log.info("ai kb upsert document finish, kbId={}, documentId={}, created={}, updated={}, currentVersionNo={}",
-                kbId, documentId, created, updated, document.getDocumentVersionNo());
-        return buildUpsertResponse(kbId, documentId, created, updated, !created, unchanged,
+        log.info("ai kb upsert document finish, kbCode={}, documentId={}, created={}, updated={}, currentVersionNo={}",
+                kbCode, documentId, created, updated, document.getDocumentVersionNo());
+        return buildUpsertResponse(kbCode, documentId, created, updated, !created, unchanged,
                 document.getDocumentVersionNo(), updated ? previousVersionNo : null,
                 unchanged ? "document unchanged" : "document upserted");
     }
@@ -1202,8 +1202,8 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         if (request == null) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DTO);
         }
-        if (!StringUtils.hasText(request.getKbId())) {
-            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_ID);
+        if (!StringUtils.hasText(request.getKbCode())) {
+            throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_KB_CODE);
         }
         if (!StringUtils.hasText(request.getDocumentId())) {
             throw BizException.illegalParam(AiKbBizCodeConstant.REQUIRED_DOCUMENT_ID);

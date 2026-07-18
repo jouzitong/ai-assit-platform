@@ -184,7 +184,7 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
                                                       DbTableMetaDTO table,
                                                       DbTableKnowledgePreviewDTO preview) {
         AiKbDocumentUpsertRequest request = new AiKbDocumentUpsertRequest();
-        request.setKbId(kbId);
+        request.setKbCode(kbId);
         request.setDocumentId(buildDocumentId(sourceKey, table.getTableName()));
         request.setDocumentName(buildDocumentName(table));
         request.setDocumentType(AiKbDocumentType.DB_TABLE);

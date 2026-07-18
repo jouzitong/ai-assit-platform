@@ -323,7 +323,7 @@ async function handleSubmit() {
   saving.value = true
   try {
     await createOrUpdateAiKbDocument({
-      kbId: kbCode.value,
+      kbCode: kbCode.value,
       documentId: normalizeText(form.documentCode),
       documentName: normalizeText(form.documentName),
       documentType: Number(form.documentType),

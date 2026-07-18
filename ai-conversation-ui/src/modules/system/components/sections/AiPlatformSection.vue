@@ -245,6 +245,12 @@ function resetKbForm() {
   kbForm.extJsonText = ''
 }
 
+function trimNewKbCodeEnd() {
+  if (dialogMode.value === 'create') {
+    kbForm.kbCode = kbForm.kbCode.trimEnd()
+  }
+}
+
 function resolveTotal(payloadTotal?: number, fallback = 0) {
   const numericTotal = Number(payloadTotal)
   return Number.isFinite(numericTotal) ? numericTotal : fallback
@@ -717,6 +723,10 @@ async function sendTestMessage() {
 }
 
 async function handleSubmitDialog() {
+  if (props.activeTab === 'kb') {
+    trimNewKbCodeEnd()
+  }
+
   const validationError = validateCurrentForm()
   if (validationError) {
     ElMessage.error(validationError)
@@ -1124,6 +1134,7 @@ watch(
             maxlength="64"
             show-word-limit
             placeholder="例如 product-manual，需与知识库名称语义相近"
+            @blur="trimNewKbCodeEnd"
           />
           <div class="ai-platform-dialog-form__field-tip">创建后不可修改；Agent 将根据该编码识别知识库。</div>
         </el-form-item>

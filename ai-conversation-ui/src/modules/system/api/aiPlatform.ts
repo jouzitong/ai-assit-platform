@@ -234,7 +234,7 @@ export interface AiKbDocumentQueryPayload {
 }
 
 export interface AiKbDocumentUpsertPayload {
-  kbId: string
+  kbCode: string
   documentId: string
   documentName?: string
   documentType: number

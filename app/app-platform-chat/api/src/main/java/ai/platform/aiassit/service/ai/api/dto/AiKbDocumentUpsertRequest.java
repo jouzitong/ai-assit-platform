@@ -12,9 +12,9 @@ import java.util.Map;
 public class AiKbDocumentUpsertRequest implements Serializable {
 
     /**
-     * 本地知识库标识。
+     * 本地知识库业务编码。
      */
-    private String kbId;
+    private String kbCode;
 
     /**
      * 文档唯一标识。

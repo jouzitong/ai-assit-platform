@@ -54,7 +54,7 @@ public class AiKnowledgeDocumentAdapter implements KnowledgeDocumentPort {
             throw new IllegalArgumentException("knowledge base code 和 document code 不能为空");
         }
         AiKbDocumentUpsertRequest request = new AiKbDocumentUpsertRequest();
-        request.setKbId(command.knowledgeBaseCode().trim());
+        request.setKbCode(command.knowledgeBaseCode().trim());
         request.setDocumentId(command.documentCode().trim());
         request.setDocumentName(command.documentName());
         request.setDocumentType(AiKbDocumentType.DB_TABLE);
