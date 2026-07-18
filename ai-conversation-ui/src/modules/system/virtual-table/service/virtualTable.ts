@@ -102,7 +102,7 @@ export async function initializeVirtualTables(tables: DbTableMetaItem[]): Promis
     return createVirtualEntityFromPhysicalTable({
       physicalTableMetaId: table.id,
       entityCode: virtualCode,
-      entityName: virtualCode,
+      entityName: table.tableComment?.trim(),
     })
   }))
 

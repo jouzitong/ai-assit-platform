@@ -30,15 +30,18 @@ public class CatalogValidator {
     private final FieldTransformerRegistry transformerRegistry;
     private final PhysicalCatalogPort physicalCatalogPort;
     private final VirtualCatalogDataRepository repository;
+    private final DefaultFieldMappingResolver defaultFieldMappingResolver;
 
     public CatalogValidator(
             FieldTransformerRegistry transformerRegistry,
             PhysicalCatalogPort physicalCatalogPort,
-            VirtualCatalogDataRepository repository
+            VirtualCatalogDataRepository repository,
+            DefaultFieldMappingResolver defaultFieldMappingResolver
     ) {
         this.transformerRegistry = transformerRegistry;
         this.physicalCatalogPort = physicalCatalogPort;
         this.repository = repository;
+        this.defaultFieldMappingResolver = defaultFieldMappingResolver;
     }
 
     public void validate(CatalogSnapshot snapshot) {
@@ -157,9 +160,14 @@ public class CatalogValidator {
         }
 
         if (binding.readable()) {
-            snapshot.fieldsByCode().values().stream().filter(CatalogSnapshot.VirtualField::enabled).forEach(field ->
-                    require(readProducers.getOrDefault(field.id(), 0) == 1,
-                            "可读绑定中的虚拟字段必须有且只有一个读取生产规则: " + binding.code() + "." + field.code()));
+            snapshot.fieldsByCode().values().stream().filter(CatalogSnapshot.VirtualField::enabled).forEach(field -> {
+                int producerCount = readProducers.getOrDefault(field.id(), 0);
+                if (producerCount == 0 && defaultFieldMappingResolver.resolveReadableRule(snapshot, binding, field) != null) {
+                    producerCount = 1;
+                }
+                require(producerCount == 1,
+                        "可读绑定中的虚拟字段必须有且只有一个读取生产规则: " + binding.code() + "." + field.code());
+            });
         }
         writeProducers.forEach((fieldId, count) -> require(count == 1, "多个规则竞争写入同一物理字段: " + fieldId));
     }

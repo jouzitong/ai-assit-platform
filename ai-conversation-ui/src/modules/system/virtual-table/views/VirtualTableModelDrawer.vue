@@ -43,6 +43,7 @@ const emit = defineEmits<{
   saveBinding: [id: VirtualDataId | null, payload: VirtualBindingPayload]
   deleteBinding: [id: VirtualDataId]
   saveRule: [id: VirtualDataId | null, payload: FieldTransformRulePayload, ports: Array<FieldTransformPortPayload & { id?: VirtualDataId }>, existingPorts: FieldTransformPortItem[]]
+  updateRuleEnabled: [rule: FieldTransformRuleItem, enabled: boolean]
   deleteRule: [id: VirtualDataId]
   validateRule: [id: VirtualDataId]
   generateScript: [payload: FieldTransformScriptGeneratePayload, apply: (script: string) => void, fail: (message: string) => void]
@@ -529,6 +530,10 @@ function submitRule() {
   ruleDialogVisible.value = false
 }
 
+function updateRuleEnabled(rule: FieldTransformRuleItem, enabled: boolean) {
+  emit('updateRuleEnabled', rule, enabled)
+}
+
 async function confirmDelete(type: 'field' | 'binding' | 'rule', id: VirtualDataId, label: string) {
   try {
     await ElMessageBox.confirm(`确认删除「${label}」吗？请先确保没有其他规则或关联引用它。`, '删除确认', {
@@ -628,6 +633,7 @@ watch(() => props.modelValue, (visible) => {
             <el-table-column label="规则编码" min-width="150"><template #default="{ row }"><code>{{ row.ruleCode }}</code></template></el-table-column>
             <el-table-column label="物理绑定" min-width="220"><template #default="{ row }">{{ bindingLabel(row.bindingId) }}</template></el-table-column>
             <el-table-column label="端口" width="80" align="center"><template #default="{ row }">{{ workspace.ports.filter(item => String(item.ruleId) === String(row.id)).length }}</template></el-table-column>
+            <el-table-column label="状态" width="120"><template #default="{ row }"><el-switch :model-value="row.enabled !== false" active-text="启用" inactive-text="停用" @update:model-value="updateRuleEnabled(row, Boolean($event))" /></template></el-table-column>
             <el-table-column label="操作" width="220" fixed="right"><template #default="{ row }"><el-button text type="primary" :icon="Setting" @click="openRuleEditor(row)">配置</el-button><el-button text :icon="Check" @click="emit('validateRule', row.id)">校验</el-button><el-button text type="danger" @click="confirmDelete('rule', row.id, row.ruleName || row.ruleCode)">删除</el-button></template></el-table-column>
           </el-table>
         </el-tab-pane>

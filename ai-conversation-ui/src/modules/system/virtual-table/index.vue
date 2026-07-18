@@ -32,12 +32,14 @@ import {
   updateVirtualBinding,
   updateVirtualEntity,
   updateVirtualField,
+  updateFieldTransformRule,
   validateFieldTransformRule,
   validateVirtualCatalog,
   type CatalogStatus,
   type FieldTransformPortItem,
   type FieldTransformPortPayload,
   type FieldTransformRulePayload,
+  type FieldTransformRuleItem,
   type FieldTransformScriptGeneratePayload,
   type VirtualBindingPayload,
   type VirtualDataId,
@@ -686,6 +688,29 @@ function saveRule(
   return runMutation(() => saveTransformRuleWithPorts(id, payload, ports, existingPorts), id === null ? '转换规则已创建' : '转换规则已保存')
 }
 
+function updateRuleEnabled(rule: FieldTransformRuleItem, enabled: boolean) {
+  if (!rule.bindingId || !rule.ruleCode || !rule.ruleName) {
+    ElMessage.error('规则数据不完整，无法更新状态')
+    return Promise.resolve()
+  }
+  const payload: FieldTransformRulePayload = {
+    bindingId: rule.bindingId,
+    ruleCode: rule.ruleCode,
+    ruleName: rule.ruleName,
+    transformMode: rule.transformMode ?? 2,
+    readTransformerCode: rule.readTransformerCode,
+    readTransformerVersion: rule.readTransformerVersion,
+    writeTransformerCode: rule.writeTransformerCode,
+    writeTransformerVersion: rule.writeTransformerVersion,
+    readConfig: rule.readConfig || { configVersion: 1 },
+    writeConfig: rule.writeConfig || { configVersion: 1 },
+    scriptCode: rule.scriptCode,
+    enabled,
+    remark: rule.remark,
+  }
+  return runMutation(() => updateFieldTransformRule(rule.id, payload), enabled ? '转换规则已启用' : '转换规则已停用')
+}
+
 function removeRule(id: VirtualDataId) {
   return runMutation(async () => {
     const ports = workspace.value.ports.filter(port => String(port.ruleId) === String(id))
@@ -999,6 +1024,7 @@ onMounted(() => {
       @save-binding="saveBinding"
       @delete-binding="removeBinding"
       @save-rule="saveRule"
+      @update-rule-enabled="updateRuleEnabled"
       @delete-rule="removeRule"
       @validate-rule="validateRule"
       @generate-script="generateScript"

@@ -117,7 +117,7 @@ public class VirtualEntityDraftFactory {
             rule.setWriteTransformerVersion(1);
             rule.setReadConfig(Map.of("configVersion", 1));
             rule.setWriteConfig(Map.of("configVersion", 1));
-            rule.setEnabled(true);
+            rule.setEnabled(false);
             repository.insertRule(rule);
 
             FieldTransformPortEntity physicalPort = new FieldTransformPortEntity();

@@ -1,6 +1,7 @@
 package ai.platform.aiassit.data.virtualization.core.plan;
 
 import ai.platform.aiassit.data.virtualization.core.catalog.CatalogSnapshot;
+import ai.platform.aiassit.data.virtualization.core.catalog.DefaultFieldMappingResolver;
 import ai.platform.aiassit.data.virtualization.core.exception.VirtualDataException;
 import ai.platform.aiassit.data.virtualization.core.routing.BindingRouter;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
@@ -22,10 +23,16 @@ import java.util.UUID;
 public class PhysicalPlanGenerator {
     private final BindingRouter bindingRouter;
     private final PhysicalFilterMapper filterMapper;
+    private final DefaultFieldMappingResolver defaultFieldMappingResolver;
 
-    public PhysicalPlanGenerator(BindingRouter bindingRouter, PhysicalFilterMapper filterMapper) {
+    public PhysicalPlanGenerator(
+            BindingRouter bindingRouter,
+            PhysicalFilterMapper filterMapper,
+            DefaultFieldMappingResolver defaultFieldMappingResolver
+    ) {
         this.bindingRouter = bindingRouter;
         this.filterMapper = filterMapper;
+        this.defaultFieldMappingResolver = defaultFieldMappingResolver;
     }
 
     public PhysicalExecutionPlan generate(CatalogSnapshot snapshot, VirtualLogicalPlan logicalPlan) {
@@ -74,7 +81,7 @@ public class PhysicalPlanGenerator {
         Map<Long, CatalogSnapshot.TransformRule> rules = new LinkedHashMap<>();
         for (String fieldCode : requiredFields) {
             CatalogSnapshot.VirtualField field = snapshot.fieldsByCode().get(fieldCode);
-            CatalogSnapshot.TransformRule rule = snapshot.readableRule(binding.id(), field.id());
+            CatalogSnapshot.TransformRule rule = defaultFieldMappingResolver.resolveReadableRule(snapshot, binding, field);
             if (rule == null) {
                 throw new VirtualDataException("FIELD_NOT_MAPPED", "绑定 " + binding.code() + " 缺少字段读取规则: " + fieldCode);
             }

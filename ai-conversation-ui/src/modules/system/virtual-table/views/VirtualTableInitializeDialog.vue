@@ -129,7 +129,7 @@ watch(() => props.modelValue, (visible) => {
 
       <div class="virtual-init__summary">
         <el-icon><Select /></el-icon>
-        已选择 <strong>{{ selectedRows.length }}</strong> 张表，来自 <strong>{{ sourceKeys.length }}</strong> 个数据源。初始化会创建虚拟字段、主绑定和默认 identity 双向转换规则。
+        已选择 <strong>{{ selectedRows.length }}</strong> 张表，来自 <strong>{{ sourceKeys.length }}</strong> 个数据源。初始化会创建虚拟字段、主绑定和默认 identity 双向转换规则（初始为停用）。
       </div>
     </div>
     <template #footer>
