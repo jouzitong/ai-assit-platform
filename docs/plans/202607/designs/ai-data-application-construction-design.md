@@ -60,41 +60,20 @@ AI 问数不应被实现为“模型一次性生成 Render JSON”。目标链�
 
 这是 AI 问数的首要知识库。文档的主体应是“虚拟业务模型”或已发布查询模型；只有当一个物理表就是稳定的业务模型时，才按物理表建立文档。
 
-每份文档至少包含：
+文档格式以 [数据语义模型模板](../templates/test_template.md) 为唯一事实来源，本方案不再重复维护另一份字段 Schema。每份文档保持以下五部分即可：
 
-```yaml
-documentType: data-semantic-model
-model: sales_order
-modelAliases: [销售订单, 成交订单, 订单明细]
-domain: 销售
-description: 已支付订单的销售分析模型
-fields:
-  - code: paid_amount
-    aliases: [销售额, 实付金额, GMV]
-    type: decimal
-    description: 用户实际支付金额
-    classification: internal
-  - code: paid_at
-    aliases: [成交时间, 支付时间]
-    type: datetime
-relations:
-  - targetModel: region
-    joinHint: region_id
-recommendedDimensions: [region_name, paid_at]
-recommendedMetrics: [sum(paid_amount), count(order_id)]
-exampleQuestions:
-  - 各区域近半年销售趋势
-owner: 销售数据团队
-sourceRevision: virtual-model/v12
-updatedAt: 2026-07-17
-```
+1. front matter：`documentType`、`model`、`modelAliases`、`domain`、`description`、`owner`、`sourceRevision`、`updatedAt`。
+2. 模型粒度：一行代表的业务对象、主键、默认时间字段，以及不能混合统计的边界。
+3. 机器可读字段目录：字段 `code`、名称、别名、`logicalType`、业务说明；仅在字段确有特殊限制时填写允许的筛选操作和示例值。
+4. 关系、值域与业务口径：只记录已发布虚拟目录中可确认的关联，以及“销售额”“订单数”等存在默认条件或聚合方式的业务定义。
+5. 已审核示例：典型问句及其受控查询 JSON。它同时承担问句示例和正确用法示例的职责，不再单独维护 `exampleQuestions`。
 
 要求：
 
-- 同义词既要写入正文，也要写入 RAGFlow metadata/tags，提升关键词与向量检索召回。
-- 明确 `model`、`fields.code`、关系和版本；这些字段必须能映射到已发布虚拟目录。
-- 可写入数据分级和“需额外授权”的说明，但不能把该说明当成真实权限判断依据。
-- 虚拟目录发布、字段变更或模型下线后，必须自动重建或更新对应文档；检索结果必须携带 `sourceRevision` 和 `updatedAt`。
+- 同义词写入文档并同步到 RAGFlow metadata/tags，提升关键词与向量检索召回。
+- `model`、字段 `code`、关系和 `sourceRevision` 必须能映射到已发布虚拟目录。
+- 不在文档中重复维护运行时查询能力、默认分页、权限或授权规则；这些由 `data_preview_query_tool` 和服务端虚拟目录实时判定。
+- 虚拟目录发布、字段变更或模型下线后，必须自动更新对应文档；检索结果必须携带 `sourceRevision` 和 `updatedAt`。
 
 ### 4.2 `render-component-catalog`：Render 组件目录
 
