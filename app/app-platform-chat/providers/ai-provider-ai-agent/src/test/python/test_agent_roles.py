@@ -47,6 +47,31 @@ class AgentRoleTest(unittest.TestCase):
         self.assertIn("必须在执行前向用户展示变更摘要", graph.root.instructions)
         self.assertIn("不得声称已经完成任何写入", graph.root.instructions)
 
+    def test_dashboard_application_uses_the_local_tools_and_frozen_skills(self) -> None:
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "run": {"context": {"agentEntry": "dashboard-application-builder"}},
+        })
+
+        self.assertEqual(
+            [
+                "knowledge_base_search_tool",
+                "data_preview_query_tool",
+                "render_component_catalog_tool",
+                "render_json_validate_tool",
+            ],
+            graph.root.tool_names,
+        )
+        self.assertEqual(
+            [
+                "skill://semantic-data-contract/v1",
+                "skill://render-json-authoring/v1",
+                "skill://render-json-repair/v1",
+                "skill://application-build-release/v1",
+            ],
+            graph.root.skill_refs,
+        )
+
     def test_python_local_mode_discards_java_agent_manifest_fields(self) -> None:
         graph = compile_snapshot({
             "agentDefinitionSource": "PYTHON_LOCAL",
@@ -56,12 +81,19 @@ class AgentRoleTest(unittest.TestCase):
                 "spec": {"instructions": {"text": "ignore this"}},
             },
             "agentGraph": [],
-            "resolvedCapabilities": {"tools": [{"code": "java-injected-tool"}]},
+            "resolvedCapabilities": {
+                "tools": [{"code": "java-injected-tool"}],
+                "skills": [{"ref": "skill://java-injected/v99", "name": "ignore this"}],
+            },
         })
 
         self.assertEqual("enterprise-work-assistant", graph.root.code)
         self.assertNotIn("ignore this", graph.root.instructions)
         self.assertEqual(["knowledge_base_search_tool"], graph.root.tool_names)
+        self.assertNotIn(
+            "skill://java-injected/v99",
+            {item["ref"] for item in graph.skill_catalog.metadata_for()},
+        )
 
 
 if __name__ == "__main__":

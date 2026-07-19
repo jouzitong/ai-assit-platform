@@ -148,6 +148,8 @@ class AiAgentProcessExecutorTest {
     void forwardsGatewayEndpointsAndRunScopedTokensToTheWorkerEnvironment() throws Exception {
         Path worker = shellWorker("cat >/dev/null\n"
                 + "printf '%s\\n' \"{\\\"type\\\":\\\"result\\\",\\\"data\\\":{"
+                + "\\\"dataPreviewUrl\\\":\\\"$AI_AGENT_DATA_PREVIEW_URL\\\","
+                + "\\\"componentCatalogUrl\\\":\\\"$AI_AGENT_RENDER_COMPONENT_CATALOG_URL\\\","
                 + "\\\"toolUrl\\\":\\\"$AI_AGENT_TOOL_GATEWAY_URL\\\","
                 + "\\\"skillUrl\\\":\\\"$AI_AGENT_SKILL_GATEWAY_URL\\\","
                 + "\\\"toolToken\\\":\\\"$AI_AGENT_TOOL_GATEWAY_TOKEN\\\","
@@ -171,6 +173,10 @@ class AiAgentProcessExecutorTest {
 
         assertThat(result.path("toolUrl").asText()).isEqualTo("http://127.0.0.1:9764/chat");
         assertThat(result.path("skillUrl").asText()).isEqualTo("http://127.0.0.1:9764/chat");
+        assertThat(result.path("dataPreviewUrl").asText())
+                .isEqualTo("http://127.0.0.1:9764/dbEngine/internal/v1/data-preview/query");
+        assertThat(result.path("componentCatalogUrl").asText())
+                .isEqualTo("http://127.0.0.1:9764/render/internal/v1/render-components/catalog/query");
         assertThat(result.path("toolToken").asText()).isEqualTo("tool-token");
         assertThat(result.path("skillToken").asText()).isEqualTo("skill-token");
     }
@@ -194,7 +200,7 @@ class AiAgentProcessExecutorTest {
 
         assertThat(result.path("confidencePolicy").path("enabled").asBoolean()).isTrue();
         assertThat(result.path("confidencePolicy").path("threshold").asDouble()).isEqualTo(0.9d);
-        assertThat(result.path("confidencePolicy").path("maxRetries").asInt()).isEqualTo(1);
+        assertThat(result.path("confidencePolicy").path("maxRetries").asInt()).isEqualTo(3);
         assertThat(result.path("confidencePolicy").path("retrieval").path("topK").asInt()).isEqualTo(5);
     }
 

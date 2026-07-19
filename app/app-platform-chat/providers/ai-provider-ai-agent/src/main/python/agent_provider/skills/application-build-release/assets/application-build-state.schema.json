@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-assit-platform.local/schemas/application-build-state/v1",
+  "title": "ApplicationBuildState",
+  "description": "A Phase 1 ledger for gated application-build artifacts and proofs.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "phaseBoundary",
+    "status",
+    "currentStage",
+    "artifacts",
+    "proofs",
+    "validationAttempts",
+    "lastErrorCodes",
+    "releaseStatus"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "application-build-state/v1"
+    },
+    "phaseBoundary": {
+      "const": "static-validation"
+    },
+    "status": {
+      "enum": [
+        "RUNNING",
+        "INPUT_REQUIRED",
+        "FAILED",
+        "SUCCESS"
+      ]
+    },
+    "currentStage": {
+      "enum": [
+        "brief",
+        "data-contract",
+        "data-preview",
+        "application-plan",
+        "render-authoring",
+        "render-validation",
+        "completed",
+        "blocked"
+      ]
+    },
+    "artifacts": {
+      "$ref": "#/$defs/artifacts"
+    },
+    "proofs": {
+      "$ref": "#/$defs/proofs"
+    },
+    "validationAttempts": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 3
+    },
+    "lastErrorCodes": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9_]{2,127}$"
+      },
+      "uniqueItems": true
+    },
+    "releaseStatus": {
+      "enum": [
+        "not-requested",
+        "not-supported"
+      ]
+    },
+    "message": {
+      "type": "string"
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "SUCCESS"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "currentStage": {
+            "const": "completed"
+          },
+          "releaseStatus": {
+            "const": "not-supported"
+          },
+          "artifacts": {
+            "required": [
+              "applicationBrief",
+              "dataContract",
+              "applicationPlan",
+              "renderDocument",
+              "validationReport"
+            ]
+          },
+          "proofs": {
+            "required": [
+              "dataPreview",
+              "renderValidation"
+            ]
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "artifactRef": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256
+    },
+    "artifacts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "applicationBrief": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "dataContract": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "applicationPlan": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "renderDocument": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "validationReport": {
+          "$ref": "#/$defs/artifactRef"
+        }
+      }
+    },
+    "proofs": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "dataPreview": {
+          "$ref": "#/$defs/artifactRef"
+        },
+        "renderValidation": {
+          "$ref": "#/$defs/artifactRef"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,16 @@
+{
+  "code": "application-build-release",
+  "version": 1,
+  "name": "Application Build Release",
+  "description": "Orchestrate the gated data-application build and report the Phase 1 static-validation result.",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "assets/application-build-state.schema.json",
+      "mediaType": "application/schema+json"
+    }
+  ]
+}

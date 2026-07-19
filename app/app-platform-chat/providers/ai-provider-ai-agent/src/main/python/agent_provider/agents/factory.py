@@ -39,9 +39,14 @@ class AgentFactory:
         from agents import Agent, ModelSettings, function_tool
 
         from ..tools import (
+            build_data_preview_query_tool,
+            build_render_component_catalog_tool,
+            build_render_json_validate_tool,
+            data_preview_query_tool,
             data_format_validate_tool,
             build_knowledge_base_search_tool,
             knowledge_base_search_tool,
+            render_component_catalog_tool,
             render_json_validate_tool,
             web_search_tool,
         )
@@ -49,10 +54,15 @@ class AgentFactory:
         self._agent_class = Agent
         self._model_settings_class = ModelSettings
         self._function_tool = function_tool
+        self._build_data_preview_query_tool = build_data_preview_query_tool
         self._build_knowledge_base_search_tool = build_knowledge_base_search_tool
+        self._build_render_component_catalog_tool = build_render_component_catalog_tool
+        self._build_render_json_validate_tool = build_render_json_validate_tool
         self._tool_registry = {
+            "data_preview_query_tool": data_preview_query_tool,
             "data_format_validate_tool": data_format_validate_tool,
             "knowledge_base_search_tool": knowledge_base_search_tool,
+            "render_component_catalog_tool": render_component_catalog_tool,
             "render_json_validate_tool": render_json_validate_tool,
             "web_search_tool": web_search_tool,
         }
@@ -98,10 +108,19 @@ class AgentFactory:
     def _native_tools(self, spec: CompiledAgent) -> list[Any]:
         tools: list[Any] = []
         for name in spec.tool_names:
+            if name == "data_preview_query_tool":
+                tools.append(self._build_data_preview_query_tool(self.graph.payload["run"], self._function_tool))
+                continue
             if name == "knowledge_base_search_tool":
                 tool = self._build_knowledge_base_search_tool(self.graph.payload["run"], self._function_tool)
                 if tool is not None:
                     tools.append(tool)
+                continue
+            if name == "render_component_catalog_tool":
+                tools.append(self._build_render_component_catalog_tool(self.graph.payload["run"], self._function_tool))
+                continue
+            if name == "render_json_validate_tool":
+                tools.append(self._build_render_json_validate_tool(self.graph.payload["run"], self._function_tool))
                 continue
             tools.append(
                 build_gateway_tool(

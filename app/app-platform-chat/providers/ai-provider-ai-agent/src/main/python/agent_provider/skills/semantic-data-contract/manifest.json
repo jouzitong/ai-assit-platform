@@ -1,0 +1,20 @@
+{
+  "code": "semantic-data-contract",
+  "version": 1,
+  "name": "Semantic Data Contract",
+  "description": "Turn an application request into a clarified ApplicationBrief and an authorized semantic DataContract.",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "assets/application-brief.schema.json",
+      "mediaType": "application/schema+json"
+    },
+    {
+      "path": "assets/data-contract.schema.json",
+      "mediaType": "application/schema+json"
+    }
+  ]
+}

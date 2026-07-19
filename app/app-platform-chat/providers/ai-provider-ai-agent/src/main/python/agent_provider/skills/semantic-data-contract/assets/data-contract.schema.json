@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-assit-platform.local/schemas/data-contract/v1",
+  "title": "DataContract",
+  "description": "An auditable semantic query contract without physical data access details.",
+  "type": "object",
+  "additionalProperties": false,
+    "required": [
+    "schemaVersion",
+    "model",
+    "measures",
+    "dimensions",
+    "filters",
+    "sourceRevision",
+        "assumptions"
+    ],
+    "anyOf": [
+        {
+            "required": [
+                "measures"
+            ],
+            "properties": {
+                "measures": {
+                    "minItems": 1
+                }
+            }
+        },
+        {
+            "required": [
+                "dimensions"
+            ],
+            "properties": {
+                "dimensions": {
+                    "minItems": 1
+                }
+            }
+        }
+    ],
+  "properties": {
+    "schemaVersion": {
+      "const": "data-contract/v1"
+    },
+        "model": {
+            "$ref": "#/$defs/modelIdentifier"
+    },
+        "measures": {
+            "type": "array",
+            "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/measure"
+      }
+    },
+        "dimensions": {
+            "type": "array",
+            "maxItems": 20,
+      "items": {
+        "$ref": "#/$defs/dimension"
+      }
+    },
+    "timeRange": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "$ref": "#/$defs/timeRange"
+        }
+      ]
+    },
+        "filters": {
+            "type": "array",
+            "maxItems": 50,
+      "items": {
+        "$ref": "#/$defs/filter"
+      }
+    },
+        "sorts": {
+            "type": "array",
+            "maxItems": 10,
+      "items": {
+        "$ref": "#/$defs/sort"
+      }
+    },
+        "sourceRevision": {
+            "type": "string",
+            "pattern": "^(?:virtual-model/)?v[1-9][0-9]*$"
+        },
+        "catalogVersion": {
+            "type": "integer",
+            "minimum": 1
+    },
+    "assumptions": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    }
+  },
+  "$defs": {
+        "semanticIdentifier": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}(?:\\.[A-Za-z_][A-Za-z0-9_]{0,63})?$"
+        },
+        "modelIdentifier": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        },
+    "measure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "aggregation"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/semanticIdentifier"
+        },
+        "aggregation": {
+          "enum": [
+            "count",
+            "sum",
+            "avg",
+            "min",
+            "max",
+            "COUNT",
+            "SUM",
+            "AVG",
+            "MIN",
+            "MAX"
+          ]
+        },
+        "label": {
+          "type": "string"
+        },
+        "alias": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        }
+      }
+    },
+    "dimension": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/semanticIdentifier"
+        },
+        "label": {
+          "type": "string"
+        },
+        "alias": {
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_]{0,63}$"
+        }
+      }
+    },
+    "timeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/semanticIdentifier"
+        },
+        "preset": {
+          "type": "string",
+          "minLength": 1
+        },
+        "start": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "end": {
+          "type": "string",
+          "format": "date-time"
+        }
+      },
+            "anyOf": [
+                {
+                    "required": [
+                        "preset"
+                    ]
+                },
+                {
+                    "required": [
+                        "start"
+                    ]
+                },
+                {
+                    "required": [
+                        "end"
+                    ]
+                }
+            ]
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "operator"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/semanticIdentifier"
+        },
+        "operator": {
+          "enum": [
+            "eq",
+            "ne",
+            "gt",
+            "gte",
+            "lt",
+            "lte",
+            "in",
+            "not_in",
+            "like",
+                    "is_null",
+                    "is_not_null",
+                    "starts_with",
+                    "ends_with",
+                    "EQ",
+                    "NE",
+                    "GT",
+                    "GTE",
+                    "LT",
+                    "LTE",
+                    "IN",
+                    "NOT_IN",
+                    "LIKE",
+                    "IS_NULL",
+                    "IS_NOT_NULL",
+                    "STARTS_WITH",
+                    "ENDS_WITH"
+          ]
+        },
+        "value": true,
+        "values": {
+          "type": "array"
+        }
+      }
+    },
+    "sort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "field",
+        "direction"
+      ],
+      "properties": {
+        "field": {
+          "$ref": "#/$defs/semanticIdentifier"
+        },
+        "direction": {
+          "enum": [
+            "ASC",
+            "DESC",
+            "asc",
+            "desc"
+          ]
+        }
+      }
+    }
+  }
+}

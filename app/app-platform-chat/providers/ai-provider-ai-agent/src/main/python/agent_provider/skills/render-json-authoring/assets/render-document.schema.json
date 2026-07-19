@@ -1,0 +1,255 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://ai-assit-platform.local/schemas/render-document/v1",
+  "title": "RenderDocument",
+  "description": "A declarative Render JSON document composed from approved catalog components.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "protocol",
+    "protocolVersion",
+    "pageId",
+    "root"
+  ],
+  "properties": {
+    "protocol": {
+      "const": "render-json"
+    },
+    "protocolVersion": {
+      "enum": [
+        "1.0",
+        "1.0.0"
+      ]
+    },
+    "pageId": {
+      "$ref": "#/$defs/stableKey"
+    },
+    "revision": {
+      "type": "string",
+      "minLength": 1
+    },
+    "root": {
+      "$ref": "#/$defs/renderNode"
+    }
+  },
+  "$defs": {
+    "stableKey": {
+      "type": "string",
+      "pattern": "^[A-Za-z][A-Za-z0-9_.:-]{0,127}$"
+    },
+    "jsonObject": {
+      "type": "object"
+    },
+    "renderNode": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "component",
+        "componentVersion"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "component": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "componentVersion": {
+          "type": "string",
+          "minLength": 1
+        },
+        "props": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "layout": {
+          "$ref": "#/$defs/jsonObject"
+        },
+        "datasource": {
+          "$ref": "#/$defs/datasource"
+        },
+        "bindings": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/binding"
+          }
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/event"
+          }
+        },
+        "actions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/action"
+          }
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/renderNode"
+          }
+        }
+      }
+    },
+    "datasource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "type"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "type": {
+          "enum": [
+            "direct-json",
+            "db-query-list",
+            "semantic-query",
+            "preview-result",
+            "static"
+          ]
+        },
+        "model": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "page": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "page_size": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
+        "filter_dict": {
+          "type": "object"
+        },
+        "filterExpr": {
+          "type": "string",
+          "pattern": "^[A-Za-z][A-Za-z0-9_.()\\s]*$"
+        },
+        "ext": {
+          "type": "object"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableKey"
+          },
+          "uniqueItems": true
+        },
+        "contractRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "previewProofRef": {
+          "type": "string",
+          "minLength": 1
+        },
+        "summary": {
+          "type": "object"
+        },
+        "data": true
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source"
+      ],
+      "properties": {
+        "source": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z][A-Za-z0-9_]*(?:\\.[A-Za-z][A-Za-z0-9_]*)*(?:\\[\\d+\\])?$"
+        },
+        "transform": {
+          "enum": [
+            "identity",
+            "number",
+            "percent",
+            "currency",
+            "date",
+            "datetime",
+            "category-series"
+          ]
+        },
+        "fallback": true
+      }
+    },
+    "event": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "event": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "name": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "type": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "actionRef": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "action": {
+          "$ref": "#/$defs/stableKey"
+        }
+      },
+      "anyOf": [
+        {
+          "required": ["event"]
+        },
+        {
+          "required": ["name"]
+        },
+        {
+          "required": ["type"]
+        }
+      ],
+      "allOf": [
+        {
+          "anyOf": [
+            {"required": ["actionRef"]},
+            {"required": ["action"]}
+          ]
+        }
+      ]
+    },
+    "action": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "key",
+        "type"
+      ],
+      "properties": {
+        "key": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "type": {
+          "enum": [
+            "filter.update",
+            "selection.update",
+            "navigation.local",
+            "refresh",
+            "dialog.open"
+          ]
+        },
+        "target": {
+          "$ref": "#/$defs/stableKey"
+        },
+        "params": {
+          "$ref": "#/$defs/jsonObject"
+        }
+      }
+    }
+  }
+}

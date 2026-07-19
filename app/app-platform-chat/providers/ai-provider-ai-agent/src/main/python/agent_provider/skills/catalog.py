@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from agent_provider.gateway.skill_gateway import read_skill_resource as read_gateway_skill_resource
 from agent_provider.gateway.skill_gateway import request
+from agent_provider.skills.validator import checksum_matches
 from agent_provider.skills.validator import safe_relative_path
 
 
@@ -133,8 +134,11 @@ class SkillCatalog:
     ) -> dict[str, Any]:
         record = self.resolve(skill_ref)
         relative = safe_relative_path(resource_path)
+        expected = record.package_files.get(relative)
         content = record.inline_files.get(relative)
         gateway_metadata: dict[str, Any] = {}
+        if content is not None:
+            _verify_frozen_resource(expected, content.encode("utf-8"), relative)
         if content is None and record.root_path is not None:
             candidate = (record.root_path / relative).resolve()
             try:
@@ -143,12 +147,14 @@ class SkillCatalog:
                 raise ValueError("Skill resource escapes the configured package root") from exc
             if not candidate.is_file():
                 raise ValueError(f"Skill resource not found: {relative}")
-            size = candidate.stat().st_size
+            content_bytes = candidate.read_bytes()
+            _verify_frozen_resource(expected, content_bytes, relative)
+            size = len(content_bytes)
             if size > MAX_RESOURCE_BYTES:
                 raise ValueError(f"Skill resource is larger than {MAX_RESOURCE_BYTES} bytes")
-            content = candidate.read_text(encoding="utf-8")
+            content = content_bytes.decode("utf-8")
         if content is None:
-            content, gateway_metadata = self._read_gateway(record, relative)
+            content, gateway_metadata = self._read_gateway(record, relative, expected)
         if gateway_metadata.get("encoding") != "base64" and len(content.encode("utf-8")) > MAX_RESOURCE_BYTES:
             raise ValueError(f"Skill resource is larger than {MAX_RESOURCE_BYTES} bytes")
         if on_loaded is not None:
@@ -162,8 +168,12 @@ class SkillCatalog:
             **gateway_metadata,
         }
 
-    def _read_gateway(self, record: SkillRecord, relative: str) -> tuple[str, dict[str, Any]]:
-        expected = record.package_files.get(relative)
+    def _read_gateway(
+        self,
+        record: SkillRecord,
+        relative: str,
+        expected: dict[str, Any] | None,
+    ) -> tuple[str, dict[str, Any]]:
         if record.package_files and expected is None:
             raise ValueError(f"Skill resource is not part of the frozen package: {relative}")
         return read_gateway_skill_resource(
@@ -211,6 +221,24 @@ def _package_files(manifest: dict[str, Any]) -> dict[str, dict[str, Any]]:
             continue
         files[safe_relative_path(path)] = value
     return files
+
+
+def _verify_frozen_resource(
+    expected: dict[str, Any] | None,
+    content: bytes,
+    relative: str,
+) -> None:
+    if not expected:
+        return
+    declared_size = expected.get("size")
+    if declared_size is not None and declared_size != len(content):
+        raise ValueError(f"Skill resource size does not match the frozen package: {relative}")
+    declared_checksum = expected.get("checksum")
+    if declared_checksum and (
+        not isinstance(declared_checksum, str)
+        or not checksum_matches(declared_checksum, content)
+    ):
+        raise ValueError(f"Skill resource checksum does not match the frozen package: {relative}")
 
 
 def _terminal_ref(value: str) -> str:

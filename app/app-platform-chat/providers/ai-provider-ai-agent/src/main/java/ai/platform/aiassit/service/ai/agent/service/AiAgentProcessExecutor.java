@@ -220,6 +220,12 @@ public class AiAgentProcessExecutor {
         if (StringUtils.hasText(properties.getKnowledgeSearchUrl())) {
             env.put("AI_AGENT_KB_SEARCH_URL", properties.getKnowledgeSearchUrl());
         }
+        if (StringUtils.hasText(properties.getDataPreviewUrl())) {
+            env.put("AI_AGENT_DATA_PREVIEW_URL", properties.getDataPreviewUrl());
+        }
+        if (StringUtils.hasText(properties.getRenderComponentCatalogUrl())) {
+            env.put("AI_AGENT_RENDER_COMPONENT_CATALOG_URL", properties.getRenderComponentCatalogUrl());
+        }
         if (StringUtils.hasText(properties.getToolGatewayUrl())) {
             env.put("AI_AGENT_TOOL_GATEWAY_URL", properties.getToolGatewayUrl());
         }
@@ -240,6 +246,9 @@ public class AiAgentProcessExecutor {
             }
             String temporaryToken = temporaryTokenIssuer.issue(userContext);
             env.put("AI_AGENT_KB_SEARCH_TOKEN", temporaryToken);
+            env.put("AI_AGENT_DATA_PREVIEW_TOKEN", temporaryToken);
+            env.put("AI_AGENT_RENDER_COMPONENT_CATALOG_TOKEN", temporaryToken);
+            env.put("AI_AGENT_PLATFORM_TOKEN", temporaryToken);
             env.put("AI_AGENT_TOOL_GATEWAY_TOKEN", temporaryToken);
             env.put("AI_AGENT_SKILL_GATEWAY_TOKEN", temporaryToken);
         }

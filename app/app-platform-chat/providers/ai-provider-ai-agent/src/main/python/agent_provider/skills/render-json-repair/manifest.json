@@ -1,0 +1,16 @@
+{
+  "code": "render-json-repair",
+  "version": 1,
+  "name": "Render JSON Repair",
+  "description": "Repair deterministic Render JSON validation failures with bounded, minimal, auditable changes.",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "assets/validation-report.schema.json",
+      "mediaType": "application/schema+json"
+    }
+  ]
+}

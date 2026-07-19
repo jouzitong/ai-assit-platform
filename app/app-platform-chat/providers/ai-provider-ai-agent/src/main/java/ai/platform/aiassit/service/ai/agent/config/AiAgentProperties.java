@@ -46,6 +46,12 @@ public class AiAgentProperties {
     /** Python tool 调用知识库搜索接口的完整地址 */
     private String knowledgeSearchUrl = "http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search";
 
+    /** Python data_preview_query_tool 调用受控数据预览接口的完整地址 */
+    private String dataPreviewUrl = "http://127.0.0.1:9764/dbEngine/internal/v1/data-preview/query";
+
+    /** Python Render Tool 调用实时已发布组件目录接口的完整地址 */
+    private String renderComponentCatalogUrl = "http://127.0.0.1:9764/render/internal/v1/render-components/catalog/query";
+
     /** Python/TypeScript 动态 Tool 调用 Java Tool Gateway 的服务基址 */
     private String toolGatewayUrl = "http://127.0.0.1:9764/chat";
 

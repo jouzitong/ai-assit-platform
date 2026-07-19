@@ -8,14 +8,17 @@ from typing import Any
 from ..protocol import normalize_payload
 from ..agents.catalog import definition_for, local_agent_documents
 from ..skills import SkillCatalog
+from ..skills.registry import built_in_skill_capabilities
 
 
 MAX_AGENTS = 16
 DEFAULT_MAX_DEPTH = 4
 DEFAULT_MAX_TURNS = 12
 BUILTIN_TOOL_NAMES = {
+    "data_preview_query_tool",
     "data_format_validate_tool",
     "knowledge_base_search_tool",
+    "render_component_catalog_tool",
     "render_json_validate_tool",
     "web_search_tool",
 }
@@ -154,9 +157,11 @@ def _with_local_agent_definitions(normalized: dict[str, Any]) -> dict[str, Any]:
     root, graph = local_agent_documents(_text(context.get("agentEntry"), "HOME_CHAT"))
     local["rootAgent"] = root
     local["agentGraph"] = graph
-    # Runtime tools and skills are declared by local Agent definitions. The
-    # Java process deliberately cannot add capabilities to this graph.
-    local["resolvedCapabilities"] = {}
+    # Runtime tools and skills are declared by the Python-owned local catalog.
+    # The Java process deliberately cannot add capabilities to this graph.
+    local["resolvedCapabilities"] = {
+        "skills": built_in_skill_capabilities(),
+    }
     local["workflowSnapshot"] = {}
     local["snapshotHash"] = "python-local"
     return local

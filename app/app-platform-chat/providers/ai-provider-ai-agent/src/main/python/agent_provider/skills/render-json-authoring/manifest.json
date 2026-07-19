@@ -1,0 +1,20 @@
+{
+  "code": "render-json-authoring",
+  "version": 1,
+  "name": "Render JSON Authoring",
+  "description": "Plan a data application and author catalog-bound Render JSON after semantic preview succeeds.",
+  "files": [
+    {
+      "path": "SKILL.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "assets/application-plan.schema.json",
+      "mediaType": "application/schema+json"
+    },
+    {
+      "path": "assets/render-document.schema.json",
+      "mediaType": "application/schema+json"
+    }
+  ]
+}
