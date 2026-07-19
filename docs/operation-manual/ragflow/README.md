@@ -8,7 +8,7 @@
 
 ## 相关文档
 
-- [部署与 API 操作指南](../../tmp/ragflow_deploy_api_guide.md)：部署方案、Dataset HTTP API、文档上传和检索接口示例。
+- [部署与 API 操作指南](ragflow_deploy_api_guide.md)：部署方案、Dataset HTTP API、文档上传和检索接口示例。
 
 ## 后续可补充
 

@@ -175,7 +175,7 @@
 
 完成上述验证后，再将 Dataset ID 配置到业务平台。接口字段、批量上传和检索调用示例见：
 
-- [RAGFlow 部署与 API 操作指南](../../tmp/ragflow_deploy_api_guide.md)
+- [RAGFlow 部署与 API 操作指南](ragflow_deploy_api_guide.md)
 
 建议在业务侧维护如下映射：
 
