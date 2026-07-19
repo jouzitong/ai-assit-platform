@@ -14,6 +14,18 @@ export const testRoutes: RouteRecordRaw[] = [
     component: () => import('../../modules/test/views/TestFormView.vue'),
   },
   {
+    path: '/test/editor',
+    name: 'test-editor',
+    meta: { title: 'Code Editor Interaction Test' },
+    component: () => import('../../modules/test/views/TestEditorView.vue'),
+  },
+  {
+    path: '/test/dialog',
+    name: 'test-dialog',
+    meta: { title: 'Dialog Interaction Test' },
+    component: () => import('../../modules/test/views/TestDialogView.vue'),
+  },
+  {
     path: '/test/echarts',
     name: 'test-echarts',
     meta: { title: 'ECharts Renderer Test' },

@@ -6,4 +6,8 @@ export { default as AppDatePicker } from './AppDatePicker/index.vue'
 export { default as AppTimePicker } from './AppTimePicker/index.vue'
 export { default as AppCheckbox } from './AppCheckbox/index.vue'
 export { default as AppSwitch } from './AppSwitch/index.vue'
-export type { AppCodeEditorFormat, AppCodeEditorFormatOption } from './AppCodeEditor/types'
+export type {
+  AppCodeEditorFormat,
+  AppCodeEditorFormatOption,
+  AppCodeEditorMarkdownMode,
+} from './AppCodeEditor/types'

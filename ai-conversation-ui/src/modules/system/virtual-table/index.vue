@@ -1303,6 +1303,8 @@ onBeforeUnmount(clearKnowledgeSyncPolling)
           :format="knowledgePreviewFormat"
           :show-format-switcher="false"
           :toolbar-label="knowledgePreviewFormat === 'markdown' ? 'Markdown' : 'Text'"
+          expandable
+          expand-initially-fullscreen
           height="100%"
           min-height="0"
         />

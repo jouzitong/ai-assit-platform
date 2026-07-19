@@ -1,30 +1,31 @@
 <script setup lang="ts">
-import { basicSetup } from 'codemirror'
-import { json } from '@codemirror/lang-json'
-import { javascript } from '@codemirror/lang-javascript'
-import { python } from '@codemirror/lang-python'
-import { markdown } from '@codemirror/lang-markdown'
-import { syntaxTree, type Extension } from '@codemirror/language'
-import { EditorState, Compartment } from '@codemirror/state'
-import { EditorView, keymap, placeholder as cmPlaceholder } from '@codemirror/view'
-import { lintGutter, linter, type Diagnostic } from '@codemirror/lint'
-import { defaultKeymap, history, historyKeymap } from '@codemirror/commands'
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import {
+  Close,
+  EditPen,
+  FullScreen,
+  Memo,
+  Picture,
+  ScaleToOriginal,
+  Tickets,
+  View,
+} from '@element-plus/icons-vue'
+import { computed, nextTick, ref, watch } from 'vue'
 import { useResponsiveOverlayTarget } from '../../../composables/useResponsiveViewport'
 import AppFieldShell from '../shared/AppFieldShell.vue'
+import CodeEditorSurface from './CodeEditorSurface.vue'
+import MarkdownPreview from './MarkdownPreview.vue'
+import type {
+  AppCodeEditorFormat,
+  AppCodeEditorFormatOption,
+  AppCodeEditorMarkdownMode,
+  AppCodeEditorStatus,
+} from './types'
 
 defineOptions({
   inheritAttrs: false,
 })
 
-type EditorFormat = 'json' | 'python' | 'javascript' | 'markdown' | 'asciidoc' | 'text'
-
-type FormatOption = {
-  label: string
-  value: EditorFormat
-}
-
-const DEFAULT_FORMAT_OPTIONS: FormatOption[] = [
+const DEFAULT_FORMAT_OPTIONS: AppCodeEditorFormatOption[] = [
   { label: 'JSON', value: 'json' },
   { label: 'Python', value: 'python' },
   { label: 'JavaScript', value: 'javascript' },
@@ -36,7 +37,8 @@ const DEFAULT_FORMAT_OPTIONS: FormatOption[] = [
 const props = withDefaults(
   defineProps<{
     modelValue?: string
-    format?: EditorFormat
+    format?: AppCodeEditorFormat
+    markdownMode?: AppCodeEditorMarkdownMode
     label?: string
     hint?: string
     error?: string
@@ -50,13 +52,20 @@ const props = withDefaults(
     maxRows?: number
     showToolbar?: boolean
     showFormatSwitcher?: boolean
+    showMarkdownModeSwitcher?: boolean
+    expandable?: boolean
+    expandTitle?: string
+    expandWidth?: string
+    expandHeight?: string
+    expandInitiallyFullscreen?: boolean
     toolbarLabel?: string
-    formats?: FormatOption[]
+    formats?: AppCodeEditorFormatOption[]
     labelPosition?: 'left' | 'inner'
   }>(),
   {
     modelValue: '',
     format: 'text',
+    markdownMode: 'edit',
     placeholder: '',
     disabled: false,
     readonly: false,
@@ -67,55 +76,87 @@ const props = withDefaults(
     maxRows: 0,
     showToolbar: true,
     showFormatSwitcher: true,
+    showMarkdownModeSwitcher: true,
+    expandable: false,
+    expandTitle: '放大编辑',
+    expandWidth: 'var(--app-dialog-width-lg)',
+    expandHeight: 'var(--app-layout-dialog-body-max-height)',
+    expandInitiallyFullscreen: false,
     labelPosition: 'inner',
   },
 )
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
-  'update:format': [value: EditorFormat]
+  'update:format': [value: AppCodeEditorFormat]
+  'update:markdownMode': [value: AppCodeEditorMarkdownMode]
   change: [value: string]
-  'format-change': [value: EditorFormat]
+  'format-change': [value: AppCodeEditorFormat]
+  'markdown-mode-change': [value: AppCodeEditorMarkdownMode]
 }>()
 
-const editorRef = ref<HTMLElement | null>(null)
-const editorView = ref<EditorView | null>(null)
-const diagnostics = ref<Diagnostic[]>([])
-const checking = ref(true)
+const selectedMarkdownMode = ref<AppCodeEditorMarkdownMode>(props.markdownMode)
 const responsiveOverlayTarget = useResponsiveOverlayTarget()
-let diagnosticsTimer: number | null = null
-
-const editableCompartment = new Compartment()
-const languageCompartment = new Compartment()
-const placeholderCompartment = new Compartment()
+const inlineStatus = ref<AppCodeEditorStatus>({ checking: true, diagnostics: 0 })
+const expandedStatus = ref<AppCodeEditorStatus>({ checking: true, diagnostics: 0 })
+const expandedVisible = ref(false)
+const expandedFullscreen = ref(false)
+const expandedPreview = ref(false)
+const expandedDraft = ref('')
+const expandedEditorRef = ref<{ focus: () => void } | null>(null)
 
 const selectedFormat = computed({
   get: () => props.format,
-  set: (value: EditorFormat) => {
+  set: (value: AppCodeEditorFormat) => {
     emit('update:format', value)
     emit('format-change', value)
   },
 })
 
+const isMarkdown = computed(() => props.format === 'markdown')
+const showEditorSurface = computed(() => !isMarkdown.value || selectedMarkdownMode.value !== 'preview')
+const showMarkdownPreview = computed(() => isMarkdown.value && selectedMarkdownMode.value !== 'edit')
+const showExpandedPreview = computed(() => isMarkdown.value && expandedPreview.value)
+
 const toolbarFormats = computed(() => (props.formats?.length ? props.formats : DEFAULT_FORMAT_OPTIONS)
   .filter(option => DEFAULT_FORMAT_OPTIONS.some(item => item.value === option.value)))
 
+const formatLabel = computed(() => toolbarFormats.value.find(item => item.value === props.format)?.label || props.format)
+
 const diagnosticsSummary = computed(() => {
-  if (checking.value) {
+  if (inlineStatus.value.checking) {
     return '检查中...'
   }
-  if (diagnostics.value.length === 0) {
+  if (inlineStatus.value.diagnostics === 0) {
     return '语法正常'
   }
-  return `发现 ${diagnostics.value.length} 个语法问题`
+  return `发现 ${inlineStatus.value.diagnostics} 个语法问题`
 })
 
 const diagnosticsType = computed(() => {
-  if (checking.value) {
+  if (inlineStatus.value.checking) {
     return 'info'
   }
-  return diagnostics.value.length > 0 ? 'danger' : 'success'
+  return inlineStatus.value.diagnostics > 0 ? 'danger' : 'success'
 })
+
+const expandedDiagnosticsSummary = computed(() => {
+  if (expandedStatus.value.checking) {
+    return '检查中...'
+  }
+  if (expandedStatus.value.diagnostics === 0) {
+    return '语法正常'
+  }
+  return `发现 ${expandedStatus.value.diagnostics} 个语法问题`
+})
+
+const expandedDiagnosticsType = computed(() => {
+  if (expandedStatus.value.checking) {
+    return 'info'
+  }
+  return expandedStatus.value.diagnostics > 0 ? 'danger' : 'success'
+})
+
 const editorMaxHeight = computed(() => {
   if (!props.maxRows || props.maxRows <= 0) {
     return ''
@@ -123,227 +164,74 @@ const editorMaxHeight = computed(() => {
   return `calc(${props.maxRows} * 1.65em + 28px)`
 })
 
-function buildLanguageExtension(format: EditorFormat): Extension {
-  switch (format) {
-    case 'json':
-      return json()
-    case 'javascript':
-      return javascript()
-    case 'python':
-      return python()
-    case 'markdown':
-      return markdown()
-    case 'asciidoc':
-    case 'text':
-    default:
-      return []
-  }
-}
-
-function buildEditableExtension() {
-  return EditorState.readOnly.of(props.disabled || props.readonly)
-}
-
-function computeSyntaxDiagnostics(state: EditorState): Diagnostic[] {
-  if (props.format === 'asciidoc' || props.format === 'text') {
-    return []
-  }
-
-  const tree = syntaxTree(state)
-  const cursor = tree.cursor()
-  const nextDiagnostics: Diagnostic[] = []
-  do {
-    if (!cursor.type.isError) {
-      continue
-    }
-    nextDiagnostics.push({
-      from: cursor.from,
-      to: Math.max(cursor.to, cursor.from + 1),
-      severity: 'error',
-      message: '存在语法错误，请检查附近内容。',
-    })
-  } while (cursor.next())
-
-  return nextDiagnostics
-}
-
-function clearDiagnosticsTimer() {
-  if (diagnosticsTimer !== null) {
-    window.clearTimeout(diagnosticsTimer)
-    diagnosticsTimer = null
-  }
-}
-
-function scheduleDiagnostics(delay = 120) {
-  const view = editorView.value
-  if (!view) {
+function handleMarkdownModeChange(mode: string | number | boolean | undefined) {
+  if (mode !== 'edit' && mode !== 'split' && mode !== 'preview') {
     return
   }
-  clearDiagnosticsTimer()
-  checking.value = true
-  diagnosticsTimer = window.setTimeout(() => {
-    diagnostics.value = computeSyntaxDiagnostics(view.state)
-    checking.value = false
-    diagnosticsTimer = null
-  }, delay)
+  selectedMarkdownMode.value = mode
+  emit('update:markdownMode', mode)
+  emit('markdown-mode-change', mode)
 }
 
-function createEditor() {
-  if (!editorRef.value) {
+function handleInlineChange(value: string) {
+  emit('update:modelValue', value)
+  emit('change', value)
+}
+
+function openExpandedEditor() {
+  if (!props.expandable || props.disabled) {
     return
   }
-
-  const state = EditorState.create({
-    doc: props.modelValue,
-    extensions: [
-      basicSetup,
-      history(),
-      keymap.of([...defaultKeymap, ...historyKeymap]),
-      EditorView.lineWrapping,
-      lintGutter(),
-      linter(view => computeSyntaxDiagnostics(view.state)),
-      languageCompartment.of(buildLanguageExtension(props.format)),
-      editableCompartment.of(buildEditableExtension()),
-      placeholderCompartment.of(props.placeholder ? cmPlaceholder(props.placeholder) : []),
-      EditorView.updateListener.of((update) => {
-        if (!update.docChanged) {
-          return
-        }
-        const value = update.state.doc.toString()
-        scheduleDiagnostics()
-        emit('update:modelValue', value)
-        emit('change', value)
-      }),
-      EditorView.theme({
-        '&': {
-          height: props.height || '100%',
-          minHeight: props.minHeight,
-          fontSize: '13px',
-          borderRadius: '14px',
-          overflow: 'hidden',
-          backgroundColor: 'var(--app-code-editor-surface)',
-          color: 'var(--app-code-editor-text)',
-        },
-        '.cm-scroller': {
-          fontFamily: "Menlo, Monaco, Consolas, 'Courier New', monospace",
-          lineHeight: '1.65',
-        },
-        '.cm-content': {
-          padding: 'var(--app-space-comfortable) 0',
-        },
-        '.cm-line': {
-          padding: '0 var(--app-space-4)',
-        },
-        '.cm-gutters': {
-          backgroundColor: 'var(--app-code-editor-gutter-bg)',
-          color: 'var(--app-code-editor-gutter-text)',
-          borderRight: '1px solid var(--app-code-editor-border-soft)',
-        },
-        '.cm-activeLine': {
-          backgroundColor: 'var(--app-code-editor-active-line)',
-        },
-        '.cm-activeLineGutter': {
-          backgroundColor: 'var(--app-code-editor-active-gutter)',
-        },
-        '.cm-focused': {
-          outline: 'none',
-        },
-        '.cm-editor.cm-focused': {
-          boxShadow: 'inset 0 0 0 1px var(--app-code-editor-focus)',
-        },
-        '.cm-content, .cm-line, .cm-placeholder': {
-          color: 'var(--app-code-editor-text)',
-        },
-        '.cm-placeholder': {
-          color: 'var(--app-code-editor-placeholder)',
-        },
-        '.cm-tooltip-lint': {
-          fontFamily: 'inherit',
-        },
-      }),
-    ],
-  })
-
-  editorView.value = new EditorView({
-    state,
-    parent: editorRef.value,
-  })
-  scheduleDiagnostics(160)
+  expandedDraft.value = props.modelValue
+  expandedFullscreen.value = props.expandInitiallyFullscreen
+  expandedPreview.value = isMarkdown.value && selectedMarkdownMode.value === 'preview'
+  expandedVisible.value = true
 }
 
-function destroyEditor() {
-  clearDiagnosticsTimer()
-  editorView.value?.destroy()
-  editorView.value = null
+function cancelExpandedEditor() {
+  expandedVisible.value = false
 }
 
-onMounted(() => {
-  createEditor()
-})
+function confirmExpandedEditor() {
+  if (expandedDraft.value !== props.modelValue) {
+    emit('update:modelValue', expandedDraft.value)
+    emit('change', expandedDraft.value)
+  }
+  expandedVisible.value = false
+}
 
-onBeforeUnmount(() => {
-  destroyEditor()
-})
+function resetExpandedEditor() {
+  expandedDraft.value = ''
+  expandedFullscreen.value = false
+  expandedPreview.value = false
+  expandedStatus.value = { checking: true, diagnostics: 0 }
+}
 
-watch(
-  () => props.modelValue,
-  (value) => {
-    const view = editorView.value
-    if (!view) {
-      return
-    }
-    const current = view.state.doc.toString()
-    if (value === current) {
-      return
-    }
-    view.dispatch({
-      changes: {
-        from: 0,
-        to: current.length,
-        insert: value || '',
-      },
-    })
-    scheduleDiagnostics()
-  },
-)
+function focusExpandedEditor() {
+  expandedEditorRef.value?.focus()
+}
 
-watch(
-  () => props.format,
-  (value) => {
-    const view = editorView.value
-    if (!view) {
-      return
-    }
-    view.dispatch({
-      effects: languageCompartment.reconfigure(buildLanguageExtension(value)),
-    })
-    scheduleDiagnostics(160)
-  },
-)
+function toggleExpandedFullscreen() {
+  expandedFullscreen.value = !expandedFullscreen.value
+}
+
+function toggleExpandedPreview() {
+  expandedPreview.value = !expandedPreview.value
+  if (!expandedPreview.value) {
+    nextTick(focusExpandedEditor)
+  }
+}
+
+function handleExpandedOpened() {
+  if (!showExpandedPreview.value) {
+    focusExpandedEditor()
+  }
+}
 
 watch(
-  () => [props.disabled, props.readonly],
-  () => {
-    const view = editorView.value
-    if (!view) {
-      return
-    }
-    view.dispatch({
-      effects: editableCompartment.reconfigure(buildEditableExtension()),
-    })
-  },
-)
-
-watch(
-  () => props.placeholder,
-  (value) => {
-    const view = editorView.value
-    if (!view) {
-      return
-    }
-    view.dispatch({
-      effects: placeholderCompartment.reconfigure(value ? cmPlaceholder(value) : []),
-    })
+  () => props.markdownMode,
+  value => {
+    selectedMarkdownMode.value = value
   },
 )
 </script>
@@ -379,16 +267,172 @@ watch(
           <span v-else-if="toolbarLabel" class="app-code-editor__toolbar-label">
             {{ toolbarLabel }}
           </span>
+          <el-radio-group
+            v-if="isMarkdown && showMarkdownModeSwitcher"
+            :model-value="selectedMarkdownMode"
+            size="small"
+            class="app-code-editor__markdown-modes"
+            :disabled="disabled"
+            aria-label="Markdown 显示模式"
+            @update:model-value="handleMarkdownModeChange"
+          >
+            <el-radio-button value="edit" aria-label="文本模式" title="文本模式">
+              <el-icon aria-hidden="true"><Tickets /></el-icon>
+            </el-radio-button>
+            <el-radio-button value="split" aria-label="分屏模式" title="分屏模式">
+              <el-icon aria-hidden="true"><Memo /></el-icon>
+            </el-radio-button>
+            <el-radio-button value="preview" aria-label="预览模式" title="预览模式">
+              <el-icon aria-hidden="true"><Picture /></el-icon>
+            </el-radio-button>
+          </el-radio-group>
         </div>
         <div class="app-code-editor__toolbar-right">
+          <el-button
+            v-if="expandable"
+            text
+            circle
+            :icon="FullScreen"
+            :disabled="disabled"
+            aria-label="放大编辑"
+            aria-haspopup="dialog"
+            title="放大编辑"
+            @click="openExpandedEditor"
+          />
           <el-tag size="small" effect="plain" :type="diagnosticsType">
             {{ diagnosticsSummary }}
           </el-tag>
         </div>
       </div>
-      <div ref="editorRef" class="app-code-editor__surface" />
+      <div
+        class="app-code-editor__workspace"
+        :class="{
+          'app-code-editor__workspace--split': isMarkdown && selectedMarkdownMode === 'split',
+          'app-code-editor__workspace--preview': isMarkdown && selectedMarkdownMode === 'preview',
+        }"
+      >
+        <div v-show="showEditorSurface" class="app-code-editor__surface">
+          <CodeEditorSurface
+            :model-value="modelValue"
+            :format="format"
+            :placeholder="placeholder"
+            :disabled="disabled"
+            :readonly="readonly || expandable"
+            height="100%"
+            min-height="100%"
+            max-height="none"
+            @update:model-value="handleInlineChange"
+            @status-change="inlineStatus = $event"
+          />
+          <button
+            v-if="expandable"
+            type="button"
+            class="app-code-editor__expand-trigger"
+            :disabled="disabled"
+            aria-label="打开大型编辑框"
+            aria-haspopup="dialog"
+            @click="openExpandedEditor"
+          >
+            <span>
+              <el-icon><FullScreen /></el-icon>
+              点击放大编辑
+            </span>
+          </button>
+        </div>
+        <MarkdownPreview
+          v-if="showMarkdownPreview"
+          :content="modelValue"
+          class="app-code-editor__preview"
+        />
+      </div>
     </div>
   </AppFieldShell>
+
+  <el-dialog
+    v-model="expandedVisible"
+    class="app-code-editor-expand-dialog"
+    modal-class="app-code-editor-expand-dialog-mask"
+    :width="expandWidth"
+    :fullscreen="expandedFullscreen"
+    :append-to="responsiveOverlayTarget"
+    :close-on-click-modal="false"
+    :show-close="false"
+    destroy-on-close
+    @opened="handleExpandedOpened"
+    @closed="resetExpandedEditor"
+  >
+    <template #header>
+      <div class="app-code-editor__expand-header">
+        <div class="app-code-editor__expand-heading">
+          <strong>{{ expandTitle }}</strong>
+          <span>{{ formatLabel }}</span>
+        </div>
+        <div class="app-code-editor__expand-actions">
+          <el-tag size="small" effect="plain" :type="expandedDiagnosticsType">
+            {{ expandedDiagnosticsSummary }}
+          </el-tag>
+          <el-button
+            v-if="isMarkdown"
+            text
+            circle
+            :icon="showExpandedPreview ? EditPen : View"
+            :aria-label="showExpandedPreview ? '返回编辑' : '预览 Markdown'"
+            :aria-pressed="showExpandedPreview"
+            :title="showExpandedPreview ? '返回编辑' : '预览 Markdown'"
+            @click="toggleExpandedPreview"
+          />
+          <el-button
+            text
+            circle
+            :icon="expandedFullscreen ? ScaleToOriginal : FullScreen"
+            :aria-label="expandedFullscreen ? '还原编辑框' : '全屏编辑'"
+            :title="expandedFullscreen ? '还原窗口' : '全屏编辑'"
+            @click="toggleExpandedFullscreen"
+          />
+          <el-button
+            text
+            circle
+            :icon="Close"
+            aria-label="关闭编辑框"
+            title="关闭"
+            @click="cancelExpandedEditor"
+          />
+        </div>
+      </div>
+    </template>
+
+    <div
+      class="app-code-editor__expand-body"
+      :style="{ height: expandedFullscreen ? '100%' : expandHeight }"
+    >
+      <CodeEditorSurface
+        ref="expandedEditorRef"
+        v-show="!showExpandedPreview"
+        v-model="expandedDraft"
+        :format="format"
+        :placeholder="placeholder"
+        :readonly="readonly"
+        height="100%"
+        min-height="100%"
+        max-height="none"
+        @status-change="expandedStatus = $event"
+      />
+      <MarkdownPreview
+        v-if="showExpandedPreview"
+        :content="expandedDraft"
+        class="app-code-editor__expand-preview"
+      />
+    </div>
+
+    <template #footer>
+      <div class="app-code-editor__expand-footer">
+        <el-button @click="cancelExpandedEditor">取消</el-button>
+        <el-button type="primary" @click="confirmExpandedEditor">
+          {{ readonly ? '完成' : '确定' }}
+        </el-button>
+      </div>
+    </template>
+  </el-dialog>
 </template>
 
 <style scoped>
@@ -463,6 +507,59 @@ watch(
   white-space: nowrap;
 }
 
+.app-code-editor__markdown-modes {
+  --app-code-editor-mode-button-size: calc(var(--app-control-height-sm) - var(--app-space-tight));
+  --el-radio-button-checked-bg-color: var(--app-accent-bg-strong);
+  --el-radio-button-checked-text-color: var(--app-accent);
+  --el-radio-button-checked-border-color: transparent;
+  display: inline-flex;
+  gap: var(--app-space-1);
+  padding: var(--app-space-hairline);
+  border: 1px solid var(--app-code-editor-border-soft);
+  border-radius: var(--app-radius-control);
+  background: var(--app-surface-muted);
+  flex: 0 0 auto;
+}
+
+.app-code-editor__markdown-modes :deep(.el-radio-button__inner) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: var(--app-code-editor-mode-button-size);
+  min-width: var(--app-code-editor-mode-button-size);
+  height: var(--app-code-editor-mode-button-size);
+  padding: 0;
+  border: 0;
+  border-radius: var(--app-radius-md);
+  outline: 0;
+  background: transparent;
+  color: var(--app-text-muted);
+  box-shadow: none;
+}
+
+.app-code-editor__markdown-modes :deep(.el-radio-button__inner:hover) {
+  background: var(--app-surface-solid);
+  color: var(--app-code-editor-text);
+}
+
+.app-code-editor__markdown-modes :deep(.el-radio-button.is-active .el-radio-button__inner) {
+  border-radius: var(--app-radius-md);
+  box-shadow: none;
+}
+
+.app-code-editor__markdown-modes :deep(.el-radio-button__original-radio:focus-visible + .el-radio-button__inner) {
+  border: 0;
+  border-radius: var(--app-radius-md);
+  outline: 2px solid var(--app-code-editor-focus);
+  outline-offset: 1px;
+}
+
+.app-code-editor__markdown-modes :deep(.el-icon) {
+  width: var(--app-font-size-title-sm);
+  height: var(--app-font-size-title-sm);
+  font-size: var(--app-font-size-title-sm);
+}
+
 .app-code-editor__toolbar-label {
   display: inline-flex;
   align-items: center;
@@ -476,19 +573,184 @@ watch(
   line-height: 1;
 }
 
-.app-code-editor__surface {
+.app-code-editor__workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
   min-height: var(--app-code-editor-min-height);
   height: var(--app-code-editor-height);
   max-height: var(--app-code-editor-max-height);
+  min-width: 0;
 }
 
-.app-code-editor__surface :deep(.cm-editor) {
+.app-code-editor__workspace--split {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.app-code-editor__surface {
+  position: relative;
+  min-width: 0;
+  min-height: var(--app-code-editor-min-height);
   height: 100%;
   max-height: var(--app-code-editor-max-height);
 }
 
-.app-code-editor__surface :deep(.cm-scroller) {
-  overflow: auto;
+.app-code-editor__expand-trigger {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-end;
+  padding: var(--app-space-3);
+  border: 0;
+  background: transparent;
+  color: var(--app-accent);
+  cursor: zoom-in;
+}
+
+.app-code-editor__expand-trigger span {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--app-space-tight);
+  min-height: var(--app-control-height-sm);
+  padding: 0 var(--app-space-3);
+  border: 1px solid var(--app-accent-border);
+  border-radius: var(--app-radius-control);
+  background: var(--app-surface-solid);
+  box-shadow: var(--app-shadow-sm);
+  font-size: var(--app-font-size-caption);
+  font-weight: 600;
+  opacity: 0;
+  transition: opacity 180ms ease, background-color 180ms ease;
+}
+
+.app-code-editor__expand-trigger:hover {
+  background: var(--app-accent-bg);
+}
+
+.app-code-editor__expand-trigger:hover span,
+.app-code-editor__expand-trigger:focus-visible span {
+  opacity: 1;
+}
+
+.app-code-editor__expand-trigger:focus-visible {
+  outline: 2px solid var(--app-code-editor-focus);
+  outline-offset: -2px;
+}
+
+.app-code-editor__expand-trigger:disabled {
+  cursor: not-allowed;
+}
+
+.app-code-editor__expand-header,
+.app-code-editor__expand-actions,
+.app-code-editor__expand-footer {
+  display: flex;
+  align-items: center;
+}
+
+.app-code-editor__expand-header {
+  justify-content: space-between;
+  gap: var(--app-space-4);
+  min-width: 0;
+}
+
+.app-code-editor__expand-heading {
+  display: grid;
+  gap: var(--app-space-1);
+  min-width: 0;
+}
+
+.app-code-editor__expand-heading strong {
+  color: var(--app-title);
+  font-size: var(--app-font-size-title-md);
+}
+
+.app-code-editor__expand-heading span {
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+}
+
+.app-code-editor__expand-actions {
+  justify-content: flex-end;
+  gap: var(--app-space-2);
+  flex: 0 0 auto;
+}
+
+.app-code-editor__expand-body {
+  --app-code-editor-min-height: 100%;
+  --app-code-editor-max-height: none;
+  --app-code-editor-border: var(--app-editor-border);
+  --app-code-editor-border-soft: var(--app-editor-border-soft);
+  --app-code-editor-surface: var(--app-editor-surface);
+  --app-code-editor-surface-strong: var(--app-editor-surface-strong);
+  --app-code-editor-gutter-bg: var(--app-editor-gutter-bg);
+  --app-code-editor-gutter-text: var(--app-editor-gutter-text);
+  --app-code-editor-active-line: var(--app-editor-active-line);
+  --app-code-editor-active-gutter: var(--app-editor-active-gutter);
+  --app-code-editor-text: var(--app-editor-text);
+  --app-code-editor-placeholder: var(--app-editor-placeholder);
+  --app-code-editor-focus: var(--app-editor-focus);
+  display: grid;
+  min-width: 0;
+  min-height: calc(var(--app-control-height-lg) * 6);
+  overflow: hidden;
+  border: 1px solid var(--app-code-editor-border);
+  border-radius: var(--app-radius-comfortable);
+  background: var(--app-code-editor-surface);
+}
+
+.app-code-editor__expand-body > * {
+  grid-area: 1 / 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.app-code-editor__expand-preview {
+  height: 100%;
+}
+
+.app-code-editor__expand-footer {
+  justify-content: flex-end;
+  gap: var(--app-space-3);
+}
+
+:global(.app-code-editor-expand-dialog.el-dialog) {
+  max-width: calc(100% - var(--app-space-8));
+}
+
+:global(.app-code-editor-expand-dialog.el-dialog.is-fullscreen) {
+  display: flex;
+  flex-direction: column;
+  max-width: none;
+}
+
+:global(.app-code-editor-expand-dialog.el-dialog.is-fullscreen .el-dialog__body) {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+:global(.app-code-editor-expand-dialog.el-dialog.is-fullscreen .app-code-editor__expand-body) {
+  flex: 1;
+  width: 100%;
+  min-height: 0;
+}
+
+.app-code-editor__workspace--split .app-code-editor__preview {
+  border-inline-start: 1px solid var(--app-code-editor-border-soft);
+}
+
+@container app-code-editor (max-width: 720px) {
+  .app-code-editor__workspace--split {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    max-height: none;
+  }
+
+  .app-code-editor__workspace--split .app-code-editor__preview {
+    border-inline-start: 0;
+    border-top: 1px solid var(--app-code-editor-border-soft);
+  }
 }
 
 @container app-code-editor (max-width: 420px) {
@@ -502,6 +764,33 @@ watch(
   .app-code-editor__format :deep(.el-select__wrapper) {
     width: 100%;
     min-width: 0;
+  }
+
+  .app-code-editor__format {
+    flex: 1 1 100%;
+  }
+
+  .app-code-editor__toolbar-left,
+  .app-code-editor__toolbar-right {
+    width: 100%;
+  }
+
+  .app-code-editor__toolbar-left {
+    flex-wrap: wrap;
+  }
+
+  .app-code-editor__toolbar-right {
+    justify-content: flex-end;
+  }
+
+  .app-code-editor__markdown-modes {
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-code-editor__expand-trigger span {
+    transition: none;
   }
 }
 </style>

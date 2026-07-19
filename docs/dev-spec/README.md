@@ -16,6 +16,8 @@
   - 适用于 `src/application`、`src/components` 的主题 Token、Container Query、有边界等比例缩放、全局预设和局部覆盖相关任务。
 - [组件规范](./detail/frontend/component.md)
   - 适用于通用组件封装、组件职责边界、组件复用方式相关任务。
+- [弹窗与浮层组件规范](./detail/frontend/dialog.md)
+  - 适用于业务弹窗分类、Element Plus 组件选型、交互行为与公共样式相关任务。
 - [Application 开发规范](./detail/frontend/application.md)
   - 适用于 `src/application` 下 schema、registry、renderer、component manifest 的边界和扩展方式。
 
