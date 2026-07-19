@@ -35,11 +35,7 @@ ai:
       typescript-script-path: ${AI_PROVIDER_AI_AGENT_TYPESCRIPT_SCRIPT_PATH:}
       typescript-working-directory: ${AI_PROVIDER_AI_AGENT_TYPESCRIPT_WORKING_DIRECTORY:}
       timeout-ms: ${AI_PROVIDER_AI_AGENT_TIMEOUT_MS:120000}
-      knowledge-search-url: ${AI_PROVIDER_AI_AGENT_KNOWLEDGE_SEARCH_URL:http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search}
-      data-preview-url: ${AI_PROVIDER_AI_AGENT_DATA_PREVIEW_URL:http://127.0.0.1:9764/dbEngine/internal/v1/data-preview/query}
-      render-component-catalog-url: ${AI_PROVIDER_AI_AGENT_RENDER_COMPONENT_CATALOG_URL:http://127.0.0.1:9764/render/internal/v1/render-components/catalog/query}
-      tool-gateway-url: ${AI_PROVIDER_AI_AGENT_TOOL_GATEWAY_URL:http://127.0.0.1:9764/chat}
-      skill-gateway-url: ${AI_PROVIDER_AI_AGENT_SKILL_GATEWAY_URL:http://127.0.0.1:9764/chat}
+      chat-base-url: ${AI_PROVIDER_AI_AGENT_CHAT_BASE_URL:http://127.0.0.1:13103/chat}
     ragflow:
       enabled: ${AI_PROVIDER_RAGFLOW_ENABLED:false}
       base-url: ${AI_PROVIDER_RAGFLOW_BASE_URL:${RAGFLOW_BASE_URL:}}

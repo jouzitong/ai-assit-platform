@@ -125,6 +125,11 @@
                 <artifactId>app-platform-render-api</artifactId>
                 <version>${project.version}</version>
             </dependency>
+            <dependency>
+                <groupId>ai.platform.aiassit</groupId>
+                <artifactId>app-platform-db-engine-api</artifactId>
+                <version>${project.version}</version>
+            </dependency>
         </dependencies>
     </dependencyManagement>
 

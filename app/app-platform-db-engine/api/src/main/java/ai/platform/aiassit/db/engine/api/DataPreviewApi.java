@@ -2,7 +2,7 @@ package ai.platform.aiassit.db.engine.api;
 
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryRequest;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryResponse;
-import org.athena.framework.web.annotation.IgnoredResultWrapper;
+import org.athena.framework.web.vo.R;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -20,6 +20,5 @@ import org.springframework.web.bind.annotation.RequestBody;
 public interface DataPreviewApi {
 
     @PostMapping("/internal/v1/data-preview/query")
-    @IgnoredResultWrapper
-    DataPreviewQueryResponse query(@RequestBody DataPreviewQueryRequest request);
+    R<DataPreviewQueryResponse> query(@RequestBody DataPreviewQueryRequest request);
 }

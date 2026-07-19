@@ -5,12 +5,13 @@ from urllib import error, request
 
 from agents import function_tool
 
+from agent_provider.chat_endpoint import chat_endpoint
 
-DEFAULT_KB_SEARCH_URL = "http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search"
+KB_SEARCH_CHAT_ROUTE = "/api/v1/ai/execution/kb/search"
 
 
 def _kb_search_url() -> str:
-    return os.getenv("AI_AGENT_KB_SEARCH_URL") or DEFAULT_KB_SEARCH_URL
+    return chat_endpoint(KB_SEARCH_CHAT_ROUTE)
 
 
 def _kb_search_headers() -> dict[str, str]:
@@ -19,6 +20,7 @@ def _kb_search_headers() -> dict[str, str]:
     if token:
         headers["Authorization"] = token if token.lower().startswith("bearer ") else f"Bearer {token}"
     return headers
+
 
 def _build_request_payload(
     kb_code: str,

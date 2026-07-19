@@ -43,20 +43,8 @@ public class AiAgentProperties {
     /** 仅用于部署探针和离线验证；启用后 worker 只编译 Snapshot，不请求模型 */
     private boolean typescriptDryRun = false;
 
-    /** Python tool 调用知识库搜索接口的完整地址 */
-    private String knowledgeSearchUrl = "http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search";
-
-    /** Python data_preview_query_tool 调用受控数据预览接口的完整地址 */
-    private String dataPreviewUrl = "http://127.0.0.1:9764/dbEngine/internal/v1/data-preview/query";
-
-    /** Python Render Tool 调用实时已发布组件目录接口的完整地址 */
-    private String renderComponentCatalogUrl = "http://127.0.0.1:9764/render/internal/v1/render-components/catalog/query";
-
-    /** Python/TypeScript 动态 Tool 调用 Java Tool Gateway 的服务基址 */
-    private String toolGatewayUrl = "http://127.0.0.1:9764/chat";
-
-    /** Python/TypeScript 按需读取已发布 Skill Resource 的 Java Gateway 服务基址 */
-    private String skillGatewayUrl = "http://127.0.0.1:9764/chat";
+    /** Agent Worker 访问平台能力的唯一入口；默认直接调用本机 Chat，不依赖网关地址 */
+    private String chatBaseUrl = "http://127.0.0.1:13103/chat";
 
     /** 数据格式校验器默认 content type */
     private String validateContentType = "json";

@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -64,7 +65,10 @@ class DataPreviewQueryToolTest(unittest.TestCase):
             },
         }
 
-        with patch(
+        with patch.dict(os.environ, {
+            "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
+            "AI_AGENT_DATA_PREVIEW_URL": "http://db-engine/direct-preview",
+        }, clear=False), patch(
             "agent_provider.tools.data_preview_query_tool.post_platform_json",
             return_value=response,
         ) as post:
@@ -72,6 +76,10 @@ class DataPreviewQueryToolTest(unittest.TestCase):
 
         self.assertTrue(result["success"])
         self.assertEqual(1, len(result["records"]))
+        self.assertEqual(
+            "http://chat.internal:13103/chat/internal/v1/ai/agent-tools/data-preview/query",
+            post.call_args.args[0],
+        )
         self.assertEqual("sales_order", post.call_args.args[1]["model"])
         self.assertEqual("trace-1", post.call_args.kwargs["trace_id"])
         self.assertEqual("run-1", post.call_args.kwargs["run_id"])

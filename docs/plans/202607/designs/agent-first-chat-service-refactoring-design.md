@@ -1593,13 +1593,11 @@ POST /api/v1/ai/skill-gateway/{skillCode}/versions/{version}/resources/read
 | `AI_PROVIDER_AI_AGENT_TYPESCRIPT_WORKING_DIRECTORY` | 空 | TypeScript Worker 工作目录 |
 | `ai.provider.ai-agent.typescript-dry-run` | `false` | 只用于部署探针/离线编译，不得作为生产聊天模式 |
 | `AI_PROVIDER_AI_AGENT_TIMEOUT_MS` | `120000` | Provider 默认超时；还受 Manifest 上限约束 |
-| `AI_PROVIDER_AI_AGENT_KNOWLEDGE_SEARCH_URL` | `http://127.0.0.1:9764/chat/api/v1/ai/execution/kb/search` | Worker 知识检索地址 |
-| `AI_PROVIDER_AI_AGENT_TOOL_GATEWAY_URL` | `http://127.0.0.1:9764/chat` | Tool Gateway 服务基址 |
-| `AI_PROVIDER_AI_AGENT_SKILL_GATEWAY_URL` | `http://127.0.0.1:9764/chat` | Skill Resource Gateway 服务基址 |
+| `AI_PROVIDER_AI_AGENT_CHAT_BASE_URL` | `http://127.0.0.1:13103/chat` | Worker 访问知识检索、Tool/Skill Gateway、数据预览和 Render 组件目录的唯一平台入口 |
 | `AI_CHAT_RUNTIME_MODE` | `local` | 会话运行状态存储模式 |
 | `AI_CHAT_RUNTIME_NODE_ID` | 空 | 多实例运行节点标识 |
 
-默认 URL 假设本机 9764 网关把 `/chat` 路由到 Chat 服务；若容器、Service Mesh 或端口不同，必须显式覆盖。模型 Base URL、API Key 和实际模型来自服务端模型/客户端配置，不写入 AgentManifest、页面或静态 Worker 配置。Java 在启动子进程时从当前用户上下文临时注入 `AI_AGENT_*_GATEWAY_TOKEN`，部署配置中不要固化用户 Bearer Token。
+默认 URL 直接访问本机 13103 端口的 Chat 服务，不依赖网关地址；若容器、Service Mesh 或端口不同，只覆盖统一的 Chat Base URL。Worker 不再接收 DB Engine 或 Render 的直连地址。模型 Base URL、API Key 和实际模型来自服务端模型/客户端配置，不写入 AgentManifest、页面或静态 Worker 配置。Java 在启动子进程时从当前用户上下文临时注入带 Agent runId 绑定的短期 Token，部署配置中不要固化用户 Bearer Token。
 
 ### 26.5 验证命令
 

@@ -6,6 +6,7 @@ import os
 from typing import Any
 from urllib import error, parse, request
 
+from agent_provider.chat_endpoint import chat_endpoint
 from agent_provider.skills.validator import checksum_matches
 
 
@@ -19,18 +20,11 @@ def read_skill_resource(
 ) -> tuple[str, dict[str, Any]]:
     if not record.code or record.version is None:
         raise ValueError(f"Skill resource not found: {relative}")
-    base_url = (
-        os.getenv("AI_AGENT_SKILL_GATEWAY_URL")
-        or os.getenv("AI_AGENT_TOOL_GATEWAY_URL")
-        or ""
-    ).strip().rstrip("/")
     token = (
         os.getenv("AI_AGENT_SKILL_GATEWAY_TOKEN")
         or os.getenv("AI_AGENT_TOOL_GATEWAY_TOKEN")
         or ""
     ).strip()
-    if not base_url:
-        raise ValueError("AI_AGENT_SKILL_GATEWAY_URL is required")
     if not token:
         raise ValueError("AI_AGENT_SKILL_GATEWAY_TOKEN is required")
     run_id = _text(run.get("runId"))
@@ -39,8 +33,8 @@ def read_skill_resource(
     frozen_hash = _text(snapshot_hash)
     if not frozen_hash:
         raise ValueError("Skill Gateway snapshotHash is required")
-    url = (
-        f"{base_url}/api/v1/ai/skill-gateway/{parse.quote(record.code, safe='')}"
+    url = chat_endpoint(
+        f"/api/v1/ai/skill-gateway/{parse.quote(record.code, safe='')}"
         f"/versions/{record.version}/resources/read"
     )
     body = json.dumps({

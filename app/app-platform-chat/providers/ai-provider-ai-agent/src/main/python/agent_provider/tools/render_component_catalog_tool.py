@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from typing import Any
 
 from agents import function_tool
 
+from agent_provider.chat_endpoint import chat_endpoint
+
 from .platform_http import post_platform_json
 
 
-DEFAULT_COMPONENT_CATALOG_URL = (
-    "http://127.0.0.1:9764/render/internal/v1/render-components/catalog/query"
+RENDER_COMPONENT_CATALOG_CHAT_ROUTE = (
+    "/internal/v1/ai/agent-tools/render-components/catalog/query"
 )
 MAX_COMPONENTS = 100
 DEFAULT_COMPONENT_LIMIT = 100
@@ -20,7 +21,7 @@ _VERSION_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$")
 
 
 def _component_catalog_url() -> str:
-    return (os.getenv("AI_AGENT_RENDER_COMPONENT_CATALOG_URL") or DEFAULT_COMPONENT_CATALOG_URL).strip()
+    return chat_endpoint(RENDER_COMPONENT_CATALOG_CHAT_ROUTE)
 
 
 def fetch_component_catalog(

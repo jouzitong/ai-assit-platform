@@ -2,7 +2,7 @@ package ai.platform.aiassit.render.api;
 
 import ai.platform.aiassit.render.api.dto.RenderComponentCatalogQueryRequest;
 import ai.platform.aiassit.render.api.dto.RenderComponentCatalogResponse;
-import org.athena.framework.web.annotation.IgnoredResultWrapper;
+import org.athena.framework.web.vo.R;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -21,8 +21,7 @@ public interface RenderComponentCatalogInternalApi {
      * 查询当前已发布的组件目录。
      */
     @PostMapping("/catalog/query")
-    @IgnoredResultWrapper
-    RenderComponentCatalogResponse queryCatalog(
+    R<RenderComponentCatalogResponse> queryCatalog(
             @RequestBody(required = false) RenderComponentCatalogQueryRequest request
     );
 }

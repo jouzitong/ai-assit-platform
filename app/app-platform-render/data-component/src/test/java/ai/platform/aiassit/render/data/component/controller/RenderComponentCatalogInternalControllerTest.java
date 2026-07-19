@@ -4,7 +4,7 @@ import ai.platform.aiassit.render.api.RenderComponentCatalogInternalApi;
 import ai.platform.aiassit.render.api.dto.RenderComponentCatalogQueryRequest;
 import ai.platform.aiassit.render.api.dto.RenderComponentCatalogResponse;
 import ai.platform.aiassit.render.data.component.service.RenderComponentCatalogApplicationService;
-import org.athena.framework.web.annotation.IgnoredResultWrapper;
+import org.athena.framework.web.vo.R;
 import org.junit.jupiter.api.Test;
 import org.springframework.cloud.openfeign.FeignClient;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 class RenderComponentCatalogInternalControllerTest {
 
     @Test
-    void apiContractUsesStableInternalCatalogRouteAndRawResult() throws Exception {
+    void apiContractUsesStableInternalCatalogRouteAndResultEnvelope() throws Exception {
         FeignClient feignClient = RenderComponentCatalogInternalApi.class.getAnnotation(FeignClient.class);
         Method method = RenderComponentCatalogInternalApi.class.getMethod(
                 "queryCatalog", RenderComponentCatalogQueryRequest.class);
@@ -29,7 +29,7 @@ class RenderComponentCatalogInternalControllerTest {
         assertThat(feignClient.contextId()).isEqualTo("platformRenderComponentCatalogInternalClient");
         assertThat(feignClient.path()).isEqualTo("/render/internal/v1/render-components");
         assertThat(method.getAnnotation(PostMapping.class).value()).containsExactly("/catalog/query");
-        assertThat(method.isAnnotationPresent(IgnoredResultWrapper.class)).isTrue();
+        assertThat(method.getReturnType()).isEqualTo(R.class);
         assertThat(method.getParameters()[0].getAnnotation(RequestBody.class).required()).isFalse();
     }
 
@@ -45,7 +45,7 @@ class RenderComponentCatalogInternalControllerTest {
                 new RenderComponentCatalogInternalController(service);
         RenderComponentCatalogQueryRequest request = new RenderComponentCatalogQueryRequest();
 
-        RenderComponentCatalogResponse actual = controller.queryCatalog(request);
+        R<RenderComponentCatalogResponse> actual = controller.queryCatalog(request);
 
         RequestMapping classMapping = RenderComponentCatalogInternalController.class
                 .getAnnotation(RequestMapping.class);
@@ -55,7 +55,8 @@ class RenderComponentCatalogInternalControllerTest {
         assertThat(method.getAnnotation(PostMapping.class).value()).containsExactly("/catalog/query");
         assertThat(RenderComponentCatalogInternalApi.class)
                 .isAssignableFrom(RenderComponentCatalogInternalController.class);
-        assertThat(actual).isSameAs(expected);
+        assertThat(actual.isOk()).isTrue();
+        assertThat(actual.getData()).isSameAs(expected);
         assertThat(capturedRequest.get()).isSameAs(request);
     }
 }

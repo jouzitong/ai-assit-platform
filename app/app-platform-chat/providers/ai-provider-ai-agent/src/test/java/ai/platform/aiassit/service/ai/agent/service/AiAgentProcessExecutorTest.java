@@ -3,13 +3,20 @@ package ai.platform.aiassit.service.ai.agent.service;
 import ai.platform.aiassit.service.ai.agent.config.AiAgentProperties;
 import ai.platform.aiassit.service.ai.spi.agent.AgentDefinitionSnapshot;
 import ai.platform.aiassit.service.ai.spi.agent.AgentRunCommand;
+import ai.platform.aiassit.service.ai.spi.agent.AgentTemporaryTokenIssuer;
+import ai.platform.aiassit.service.ai.spi.provider.dto.ProviderChatRequest;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.arthena.framework.common.context.SystemContext;
+import org.athena.framework.security.api.model.MutableUserContext;
+import org.athena.framework.security.api.model.Subject;
+import org.athena.framework.security.api.model.UserContext;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -145,9 +152,11 @@ class AiAgentProcessExecutorTest {
     }
 
     @Test
-    void forwardsGatewayEndpointsAndRunScopedTokensToTheWorkerEnvironment() throws Exception {
+    void forwardsOnlyTheChatBaseAndRunScopedTokensToTheWorkerEnvironment() throws Exception {
         Path worker = shellWorker("cat >/dev/null\n"
                 + "printf '%s\\n' \"{\\\"type\\\":\\\"result\\\",\\\"data\\\":{"
+                + "\\\"chatBaseUrl\\\":\\\"$AI_AGENT_CHAT_BASE_URL\\\","
+                + "\\\"kbSearchUrl\\\":\\\"$AI_AGENT_KB_SEARCH_URL\\\","
                 + "\\\"dataPreviewUrl\\\":\\\"$AI_AGENT_DATA_PREVIEW_URL\\\","
                 + "\\\"componentCatalogUrl\\\":\\\"$AI_AGENT_RENDER_COMPONENT_CATALOG_URL\\\","
                 + "\\\"toolUrl\\\":\\\"$AI_AGENT_TOOL_GATEWAY_URL\\\","
@@ -166,19 +175,106 @@ class AiAgentProcessExecutorTest {
                 worker,
                 "",
                 Map.of(
+                        "AI_AGENT_CHAT_BASE_URL", "http://gateway/untrusted-chat-base",
+                        "AI_AGENT_TOOL_GATEWAY_URL", "http://tool-service/direct",
+                        "AI_AGENT_SKILL_GATEWAY_URL", "http://skill-service/direct",
+                        "AI_AGENT_KB_SEARCH_URL", "http://gateway/legacy-kb-search",
+                        "AI_AGENT_DATA_PREVIEW_URL", "http://db-engine/direct-preview",
+                        "AI_AGENT_RENDER_COMPONENT_CATALOG_URL", "http://render/direct-catalog",
                         "AI_AGENT_TOOL_GATEWAY_TOKEN", "tool-token",
                         "AI_AGENT_SKILL_GATEWAY_TOKEN", "skill-token"
                 )
         );
 
-        assertThat(result.path("toolUrl").asText()).isEqualTo("http://127.0.0.1:9764/chat");
-        assertThat(result.path("skillUrl").asText()).isEqualTo("http://127.0.0.1:9764/chat");
-        assertThat(result.path("dataPreviewUrl").asText())
-                .isEqualTo("http://127.0.0.1:9764/dbEngine/internal/v1/data-preview/query");
-        assertThat(result.path("componentCatalogUrl").asText())
-                .isEqualTo("http://127.0.0.1:9764/render/internal/v1/render-components/catalog/query");
+        assertThat(result.path("chatBaseUrl").asText()).isEqualTo("http://127.0.0.1:13103/chat");
+        assertThat(result.path("toolUrl").asText()).isEqualTo("http://127.0.0.1:13103/chat");
+        assertThat(result.path("skillUrl").asText()).isEqualTo("http://127.0.0.1:13103/chat");
+        assertThat(result.path("kbSearchUrl").asText()).isEmpty();
+        assertThat(result.path("dataPreviewUrl").asText()).isEmpty();
+        assertThat(result.path("componentCatalogUrl").asText()).isEmpty();
         assertThat(result.path("toolToken").asText()).isEqualTo("tool-token");
         assertThat(result.path("skillToken").asText()).isEqualTo("skill-token");
+    }
+
+    @Test
+    void bindsTheTemporaryWorkerTokenToTheAgentRun() throws Exception {
+        Path worker = shellWorker("cat >/dev/null\n"
+                + "printf '%s\\n' \"{\\\"type\\\":\\\"result\\\",\\\"data\\\":{"
+                + "\\\"platformToken\\\":\\\"$AI_AGENT_PLATFORM_TOKEN\\\"}}\"\n");
+        AtomicReference<String> issuedRunId = new AtomicReference<>();
+        AgentTemporaryTokenIssuer issuer = new AgentTemporaryTokenIssuer() {
+            @Override
+            public String issue(UserContext userContext) {
+                return "legacy-token";
+            }
+
+            @Override
+            public String issue(UserContext userContext, String agentRunId) {
+                issuedRunId.set(agentRunId);
+                return "run-bound-token";
+            }
+        };
+        MutableUserContext userContext = new MutableUserContext();
+        userContext.setSubject(new Subject(7L, "agent-user", "default", "USER"));
+        SystemContext.setUserContext(userContext);
+
+        try {
+            var result = new AiAgentProcessExecutor(objectMapper, issuer).executeAgentWithWorker(
+                    properties(5000),
+                    new AgentDefinitionSnapshot(),
+                    command(),
+                    frame -> { },
+                    () -> false,
+                    "/bin/sh",
+                    worker,
+                    "",
+                    Map.of()
+            );
+
+            assertThat(issuedRunId).hasValue("run-test");
+            assertThat(result.path("platformToken").asText()).isEqualTo("run-bound-token");
+        } finally {
+            SystemContext.clearUserContext();
+        }
+    }
+
+    @Test
+    void generatesOneRunIdForTheWorkerPayloadAndTemporaryCredential() throws Exception {
+        Path worker = shellWorker("payload=$(cat)\n"
+                + "printf '%s\\n' \"{\\\"type\\\":\\\"result\\\",\\\"data\\\":{"
+                + "\\\"payload\\\":$payload,"
+                + "\\\"platformToken\\\":\\\"$AI_AGENT_PLATFORM_TOKEN\\\"}}\"\n");
+        AtomicReference<String> issuedRunId = new AtomicReference<>();
+        AgentTemporaryTokenIssuer issuer = new AgentTemporaryTokenIssuer() {
+            @Override
+            public String issue(UserContext userContext) {
+                return "legacy-token";
+            }
+
+            @Override
+            public String issue(UserContext userContext, String agentRunId) {
+                issuedRunId.set(agentRunId);
+                return "generated-run-token";
+            }
+        };
+        MutableUserContext userContext = new MutableUserContext();
+        userContext.setSubject(new Subject(7L, "agent-user", "default", "USER"));
+        SystemContext.setUserContext(userContext);
+        AiAgentProperties properties = properties(5000);
+        properties.setPythonCommand("/bin/sh");
+        properties.setScriptPath(worker.toString());
+        ProviderChatRequest request = new ProviderChatRequest();
+
+        try {
+            var result = new AiAgentProcessExecutor(objectMapper, issuer).execute(properties, request);
+
+            String payloadRunId = result.path("payload").path("run").path("runId").asText();
+            assertThat(payloadRunId).matches("agent-run-[0-9a-f]{32}");
+            assertThat(issuedRunId).hasValue(payloadRunId);
+            assertThat(result.path("platformToken").asText()).isEqualTo("generated-run-token");
+        } finally {
+            SystemContext.clearUserContext();
+        }
     }
 
     @Test

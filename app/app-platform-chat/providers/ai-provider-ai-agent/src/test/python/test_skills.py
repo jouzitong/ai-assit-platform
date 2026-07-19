@@ -78,7 +78,8 @@ class SkillCatalogTest(unittest.TestCase):
             return Response()
 
         with patch.dict(os.environ, {
-            "AI_AGENT_SKILL_GATEWAY_URL": "http://gateway/base/",
+            "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
+            "AI_AGENT_SKILL_GATEWAY_URL": "http://gateway/legacy-base/",
             "AI_AGENT_SKILL_GATEWAY_TOKEN": "token-value",
         }, clear=False), patch("agent_provider.skills.request.urlopen", urlopen):
             resource = catalog.read("skill://database-skill/v3")
@@ -86,7 +87,7 @@ class SkillCatalogTest(unittest.TestCase):
         self.assertEqual(content, resource["content"])
         self.assertEqual(checksum, resource["checksum"])
         self.assertEqual(
-            "http://gateway/base/api/v1/ai/skill-gateway/database-skill/versions/3/resources/read",
+            "http://chat.internal:13103/chat/api/v1/ai/skill-gateway/database-skill/versions/3/resources/read",
             captured[0][0].full_url,
         )
         body = json.loads(captured[0][0].data)

@@ -18,6 +18,7 @@ import java.util.UUID;
 public class AthenaAgentTemporaryTokenIssuer implements AgentTemporaryTokenIssuer {
 
     static final Duration TOKEN_TTL = Duration.ofHours(2);
+    static final int MAX_AGENT_RUN_ID_LENGTH = 64;
 
     private final JwtTokenManager tokenManager;
 
@@ -31,9 +32,15 @@ public class AthenaAgentTemporaryTokenIssuer implements AgentTemporaryTokenIssue
 
     @Override
     public String issue(UserContext source) {
+        return issue(source, null);
+    }
+
+    @Override
+    public String issue(UserContext source, String agentRunId) {
         if (source == null || source.subject() == null) {
             throw new IllegalArgumentException("Authenticated user context is required");
         }
+        String normalizedAgentRunId = normalizeAgentRunId(agentRunId);
         Instant issuedAt = Instant.now();
         MutableUserContext temporary = new MutableUserContext();
         temporary.setSubject(source.subject());
@@ -48,6 +55,27 @@ public class AthenaAgentTemporaryTokenIssuer implements AgentTemporaryTokenIssue
             temporary.getAttributes().putAll(source.attributes());
         }
         temporary.getAttributes().put("credentialPurpose", "AI_AGENT_CHILD_PROCESS");
+        if (normalizedAgentRunId != null) {
+            temporary.getAttributes().put("agentRunId", normalizedAgentRunId);
+        }
         return tokenManager.create(temporary);
+    }
+
+    private String normalizeAgentRunId(String agentRunId) {
+        if (agentRunId == null) {
+            return null;
+        }
+        if (agentRunId.codePoints().anyMatch(Character::isISOControl)) {
+            throw new IllegalArgumentException("Agent run id must not contain control characters");
+        }
+        String normalized = agentRunId.trim();
+        if (normalized.isEmpty()) {
+            return null;
+        }
+        if (normalized.length() > MAX_AGENT_RUN_ID_LENGTH) {
+            throw new IllegalArgumentException(
+                    "Agent run id must not exceed " + MAX_AGENT_RUN_ID_LENGTH + " characters");
+        }
+        return normalized;
     }
 }

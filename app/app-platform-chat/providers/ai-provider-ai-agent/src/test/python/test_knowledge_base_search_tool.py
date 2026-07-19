@@ -1,13 +1,25 @@
+import os
 import unittest
 from unittest.mock import patch
 
 from agent_provider.tools.knowledge_base_search_tool import (
+    _kb_search_url,
     available_knowledge_bases,
     build_knowledge_base_search_tool,
 )
 
 
 class KnowledgeBaseSearchToolTest(unittest.TestCase):
+    def test_uses_the_chat_base_instead_of_a_legacy_full_url(self) -> None:
+        with patch.dict(os.environ, {
+            "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
+            "AI_AGENT_KB_SEARCH_URL": "http://gateway/legacy-kb-search",
+        }, clear=True):
+            self.assertEqual(
+                "http://chat.internal:13103/chat/api/v1/ai/execution/kb/search",
+                _kb_search_url(),
+            )
+
     def test_filters_invalid_and_duplicate_runtime_catalog_entries(self) -> None:
         values = available_knowledge_bases({
             "context": {

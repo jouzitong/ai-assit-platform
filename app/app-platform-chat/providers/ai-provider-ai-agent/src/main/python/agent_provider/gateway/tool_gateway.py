@@ -8,6 +8,8 @@ import re
 from typing import Any
 from urllib import error, parse, request
 
+from agent_provider.chat_endpoint import chat_endpoint
+
 
 DEFAULT_GATEWAY_TIMEOUT_SECONDS = 20.0
 
@@ -46,10 +48,7 @@ def _invoke_gateway(
     arguments: dict[str, Any],
     snapshot_hash: str | None = None,
 ) -> dict[str, Any]:
-    base_url = (os.getenv("AI_AGENT_TOOL_GATEWAY_URL") or "").strip().rstrip("/")
     token = (os.getenv("AI_AGENT_TOOL_GATEWAY_TOKEN") or "").strip()
-    if not base_url:
-        return _failure(descriptor, "AI_AGENT_TOOL_GATEWAY_URL is required")
     if not token:
         return _failure(descriptor, "AI_AGENT_TOOL_GATEWAY_TOKEN is required")
     run_id = str(run.get("runId") or "").strip()
@@ -61,9 +60,9 @@ def _invoke_gateway(
 
     code = str(descriptor["code"])
     version = int(descriptor["version"])
-    url = (
-        f"{base_url}/api/v1/ai/tool-gateway/"
-        f"{parse.quote(code, safe='')}/versions/{version}/invoke"
+    url = chat_endpoint(
+        f"/api/v1/ai/tool-gateway/{parse.quote(code, safe='')}"
+        f"/versions/{version}/invoke"
     )
     safe_run = {
         key: run.get(key)

@@ -28,12 +28,13 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
-import java.util.Collection;
+import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -191,6 +192,7 @@ public class AiAgentProcessExecutor {
         if (cancellation.isCancellationRequested()) {
             throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED, "agent run cancelled");
         }
+        String agentRunId = ensureAgentRunId(request);
         String apiKey = resolveValue(request == null ? null : request.getApiKey(), properties.getApiKey());
         String baseUrl = resolveValue(request == null ? null : request.getBaseUrl(), properties.getBaseUrl());
         validate(apiKey, workerCommand);
@@ -208,6 +210,14 @@ public class AiAgentProcessExecutor {
         }
         Map<String, String> env = processBuilder.environment();
         env.putAll(additionalEnvironment);
+        // Do not let inherited or caller-provided legacy configuration expose
+        // first-party service addresses to the child process.
+        env.remove("AI_AGENT_CHAT_BASE_URL");
+        env.remove("AI_AGENT_TOOL_GATEWAY_URL");
+        env.remove("AI_AGENT_SKILL_GATEWAY_URL");
+        env.remove("AI_AGENT_KB_SEARCH_URL");
+        env.remove("AI_AGENT_DATA_PREVIEW_URL");
+        env.remove("AI_AGENT_RENDER_COMPONENT_CATALOG_URL");
         env.put("OPENAI_API_KEY", apiKey);
         if (StringUtils.hasText(baseUrl)) {
             env.put("OPENAI_BASE_URL", baseUrl);
@@ -217,20 +227,13 @@ public class AiAgentProcessExecutor {
         } else if (StringUtils.hasText(properties.getDefaultModel())) {
             env.put("OPENAI_MODEL", properties.getDefaultModel());
         }
-        if (StringUtils.hasText(properties.getKnowledgeSearchUrl())) {
-            env.put("AI_AGENT_KB_SEARCH_URL", properties.getKnowledgeSearchUrl());
-        }
-        if (StringUtils.hasText(properties.getDataPreviewUrl())) {
-            env.put("AI_AGENT_DATA_PREVIEW_URL", properties.getDataPreviewUrl());
-        }
-        if (StringUtils.hasText(properties.getRenderComponentCatalogUrl())) {
-            env.put("AI_AGENT_RENDER_COMPONENT_CATALOG_URL", properties.getRenderComponentCatalogUrl());
-        }
-        if (StringUtils.hasText(properties.getToolGatewayUrl())) {
-            env.put("AI_AGENT_TOOL_GATEWAY_URL", properties.getToolGatewayUrl());
-        }
-        if (StringUtils.hasText(properties.getSkillGatewayUrl())) {
-            env.put("AI_AGENT_SKILL_GATEWAY_URL", properties.getSkillGatewayUrl());
+        if (StringUtils.hasText(properties.getChatBaseUrl())) {
+            String chatBaseUrl = properties.getChatBaseUrl().trim();
+            env.put("AI_AGENT_CHAT_BASE_URL", chatBaseUrl);
+            // TypeScript workers still consume the legacy gateway keys. They
+            // are intentionally derived from the same Chat-only base URL.
+            env.put("AI_AGENT_TOOL_GATEWAY_URL", chatBaseUrl);
+            env.put("AI_AGENT_SKILL_GATEWAY_URL", chatBaseUrl);
         }
         if (StringUtils.hasText(properties.getValidateContentType())) {
             env.put("AI_AGENT_VALIDATE_CONTENT_TYPE", properties.getValidateContentType());
@@ -244,7 +247,7 @@ public class AiAgentProcessExecutor {
                 throw BizException.of(AiChatBizCodeConstant.PROVIDER_PROCESS_FAILED,
                         "temporary Agent token issuer is unavailable");
             }
-            String temporaryToken = temporaryTokenIssuer.issue(userContext);
+            String temporaryToken = temporaryTokenIssuer.issue(userContext, agentRunId);
             env.put("AI_AGENT_KB_SEARCH_TOKEN", temporaryToken);
             env.put("AI_AGENT_DATA_PREVIEW_TOKEN", temporaryToken);
             env.put("AI_AGENT_RENDER_COMPONENT_CATALOG_TOKEN", temporaryToken);
@@ -494,6 +497,48 @@ public class AiAgentProcessExecutor {
             }
         }
         return runtime;
+    }
+
+    private String agentRunId(ProviderChatRequest request) {
+        if (request == null) {
+            return null;
+        }
+        Object run = runtimeExtension(request.getExt()).get("run");
+        if (!(run instanceof Map<?, ?> runMap)) {
+            return null;
+        }
+        Object value = runMap.get("runId");
+        if (value == null) {
+            return null;
+        }
+        String runId = value.toString().trim();
+        return StringUtils.hasText(runId) ? runId : null;
+    }
+
+    private String ensureAgentRunId(ProviderChatRequest request) {
+        String existingRunId = agentRunId(request);
+        String normalizedRunId = StringUtils.hasText(existingRunId)
+                ? existingRunId
+                : "agent-run-" + UUID.randomUUID().toString().replace("-", "");
+        Map<String, Object> extensions = request.getExt() == null
+                ? new LinkedHashMap<>()
+                : new LinkedHashMap<>(request.getExt());
+        Map<String, Object> runtime = new LinkedHashMap<>(runtimeExtension(extensions));
+        Map<String, Object> run = new LinkedHashMap<>();
+        Object currentRun = runtime.get("run");
+        if (currentRun instanceof Map<?, ?> currentRunMap) {
+            currentRunMap.forEach((key, value) -> {
+                if (key instanceof String stringKey) {
+                    run.put(stringKey, value);
+                }
+            });
+        }
+        run.put("runId", normalizedRunId);
+        runtime.put("run", run);
+        RUNTIME_EXTENSION_KEYS.forEach(extensions::remove);
+        extensions.put("agentRuntime", runtime);
+        request.setExt(extensions);
+        return normalizedRunId;
     }
 
     private Map<String, Object> legacyExtensions(Map<String, Object> extensions) {

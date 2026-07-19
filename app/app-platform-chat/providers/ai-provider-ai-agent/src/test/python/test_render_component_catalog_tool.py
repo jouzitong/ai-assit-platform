@@ -1,4 +1,5 @@
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -100,13 +101,20 @@ class RenderComponentCatalogToolTest(unittest.TestCase):
                 }],
             },
         }
-        with patch(
+        with patch.dict(os.environ, {
+            "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
+            "AI_AGENT_RENDER_COMPONENT_CATALOG_URL": "http://render/direct-catalog",
+        }, clear=False), patch(
             "agent_provider.tools.render_component_catalog_tool.post_platform_json",
             return_value=response,
-        ):
+        ) as post:
             result = fetch_component_catalog({}, component_keys=["line-chart-renderer"])
 
         self.assertTrue(result["success"])
+        self.assertEqual(
+            "http://chat.internal:13103/chat/internal/v1/ai/agent-tools/render-components/catalog/query",
+            post.call_args.args[0],
+        )
         self.assertEqual("1.0.0", result["components"][0]["componentVersion"])
         self.assertTrue(result["components"][0]["contractAvailable"])
 
@@ -131,6 +139,29 @@ class RenderComponentCatalogToolTest(unittest.TestCase):
 
         self.assertFalse(result["success"])
         self.assertEqual("COMPONENT_VERSION_MISSING", result["errorCode"])
+
+    def test_rejects_a_versioned_component_without_a_machine_readable_contract(self) -> None:
+        response = {
+            "success": True,
+            "data": {
+                "catalogRevision": "sha256:" + "c" * 64,
+                "components": [{
+                    "componentKey": "line-chart-renderer",
+                    "componentVersion": "1.0.0",
+                    "sourceRevision": "sha256:" + "d" * 64,
+                    "docMarkdown": None,
+                    "exampleJson": None,
+                }],
+            },
+        }
+        with patch(
+            "agent_provider.tools.render_component_catalog_tool.post_platform_json",
+            return_value=response,
+        ):
+            result = fetch_component_catalog({})
+
+        self.assertFalse(result["success"])
+        self.assertEqual("COMPONENT_CONTRACT_UNAVAILABLE", result["errorCode"])
 
     def test_rejects_non_array_component_key_json(self) -> None:
         keys, error = parse_component_keys_json('{"key":"line"}')

@@ -188,13 +188,15 @@ Skill 只保存流程、产物 Schema、检查清单和少量审核样例；实�
 | Tool | 阶段 | 责任 | 第一阶段状态 |
 |---|---|---|---|
 | `knowledge_base_search_tool` | 发现/诊断 | 按 Run 白名单检索上述 RAGFlow 知识库 | 已有，按 KB 建设接入 |
-| `data_preview_query_tool` | DataContract 验证 | 使用已发布虚拟模型与字段做限量只读预览，强制权限 | 待建设 |
-| `render_component_catalog_tool` | ApplicationPlan/校验 | 获取实时启用组件、版本、props、events、示例 | 待建设 |
+| `data_preview_query_tool` | DataContract 验证 | 使用已发布虚拟模型与字段做限量只读预览，强制权限 | 已实现 |
+| `render_component_catalog_tool` | ApplicationPlan/校验 | 获取实时启用组件、版本、props、events、示例 | 已实现 |
 | `render_json_validate_tool` | RenderDocument 校验 | 升级为协议、组件、绑定、安全的确定性校验 | 已有基础能力，待升级 |
 | `render_preview_tool` | 运行时验证 | 装载 Render JSON，返回渲染结果、截图或稳定错误码 | 待建设 |
 | `render_publish_tool` | 发布 | 校验发布前置证明后写入页面并创建快照 | 待建设 |
 
 `data_catalog_search_tool` 不在第一阶段建设。若未来 RAGFlow 同步存在明显延迟、模型数量过大或需要一次精确返回全量字段，再新增 `data_catalog_verify_tool`，仅用于对已选定的 `model + fields` 做实时确认，不承担自然语言语义搜索。
+
+Python Tool 不持有 DB Engine、Render 或网关地址。所有平台内部请求统一发送到本机 Chat Base URL；Chat 的固定 internal facade 校验子进程凭证、Agent runId 和请求边界，记录审计信息后，再同步调用 DB Engine 或 Render 的领域 API。第三方 Web Search 等明确的外部出网能力不属于该内部服务代理链路。
 
 ## 7. 分期实施计划
 

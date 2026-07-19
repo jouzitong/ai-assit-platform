@@ -1,17 +1,18 @@
 from __future__ import annotations
 
 import json
-import os
 import re
 from datetime import datetime
 from typing import Any
 
 from agents import function_tool
 
+from agent_provider.chat_endpoint import chat_endpoint
+
 from .platform_http import post_platform_json
 
 
-DEFAULT_DATA_PREVIEW_URL = "http://127.0.0.1:9764/dbEngine/internal/v1/data-preview/query"
+DATA_PREVIEW_CHAT_ROUTE = "/internal/v1/ai/agent-tools/data-preview/query"
 MAX_PREVIEW_ROWS = 100
 MAX_CONTRACT_BYTES = 256 * 1024
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}(?:\.[A-Za-z_][A-Za-z0-9_]{0,63})?$")
@@ -46,7 +47,7 @@ _FORBIDDEN_KEYS = {
 
 
 def _data_preview_url() -> str:
-    return (os.getenv("AI_AGENT_DATA_PREVIEW_URL") or DEFAULT_DATA_PREVIEW_URL).strip()
+    return chat_endpoint(DATA_PREVIEW_CHAT_ROUTE)
 
 
 def validate_data_contract(value: str | dict[str, Any], limit: int = 20) -> tuple[dict[str, Any] | None, list[dict[str, str]]]:

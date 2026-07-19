@@ -1,5 +1,7 @@
 package ai.platform.aiassit.chat;
 
+import ai.platform.aiassit.db.engine.api.DataPreviewApi;
+import ai.platform.aiassit.render.api.RenderComponentCatalogInternalApi;
 import ai.platform.aiassit.render.api.RenderInternalApi;
 import ai.platform.aiassit.service.ai.api.AiKnowledgeApi;
 import ai.platform.aiassit.service.ai.api.AiRetrievalExecutionApi;
@@ -23,6 +25,8 @@ import java.util.Map;
         AiKnowledgeApi.class,
         AiRetrievalExecutionApi.class,
         AiVectorExecutionApi.class,
+        DataPreviewApi.class,
+        RenderComponentCatalogInternalApi.class,
         RenderInternalApi.class,
         SystemSettingInternalApi.class
 })

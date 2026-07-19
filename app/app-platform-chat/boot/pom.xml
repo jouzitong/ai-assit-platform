@@ -46,6 +46,10 @@
         </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-db-engine-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ai.platform.aiassit</groupId>
             <artifactId>app-platform-user-system-settings-api</artifactId>
             <version>${project.version}</version>
         </dependency>

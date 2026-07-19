@@ -37,7 +37,8 @@ class ToolGatewayTest(unittest.TestCase):
             })
 
         with patch.dict(os.environ, {
-            "AI_AGENT_TOOL_GATEWAY_URL": "http://tool-gateway/base/",
+            "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
+            "AI_AGENT_TOOL_GATEWAY_URL": "http://tool-gateway/legacy-base/",
             "AI_AGENT_TOOL_GATEWAY_TOKEN": "token-value",
             "AI_AGENT_TOOL_APPROVAL": "approved-grant",
         }, clear=False), patch("agent_provider.gateway.request.urlopen", urlopen):
@@ -45,7 +46,7 @@ class ToolGatewayTest(unittest.TestCase):
 
         http_request, timeout = captured[0]
         self.assertEqual(
-            "http://tool-gateway/base/api/v1/ai/tool-gateway/issue-create/versions/4/invoke",
+            "http://chat.internal:13103/chat/api/v1/ai/tool-gateway/issue-create/versions/4/invoke",
             http_request.full_url,
         )
         self.assertEqual("Bearer token-value", http_request.get_header("Authorization"))
