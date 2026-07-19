@@ -6,6 +6,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertResponse;
 import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.db.engine.api.constant.DbEngineBizCodeConstant;
+import ai.platform.aiassit.db.engine.api.constant.DbEngineSystemSettingKeys;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableFieldMetaDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgePreviewDTO;
 import ai.platform.aiassit.db.engine.meta.entity.dto.DbTableKnowledgeSyncDTO;
@@ -37,7 +38,6 @@ import java.util.stream.Collectors;
 @Slf4j
 public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncService {
 
-    private static final String KB_ID_SETTING_KEY = "dbEngine.kb.kbId";
     private static final String SOURCE_SYSTEM = "dbEngine";
 
     private final DbTableMetaService tableMetaService;
@@ -133,13 +133,14 @@ public class DbTableKnowledgeSyncServiceImpl implements DbTableKnowledgeSyncServ
     }
 
     private String resolveKbId() {
-        R<String> response = systemSettingInternalApi.queryValueByKey(KB_ID_SETTING_KEY);
+        R<String> response = systemSettingInternalApi.queryValueByKey(DbEngineSystemSettingKeys.KNOWLEDGE_BASE_CODE);
         if (response == null || response.getCode() != 0 || !StringUtils.hasText(response.getData())) {
             log.error("failed to resolve knowledge base id, settingKey={}, responseCode={}, hasData={}",
-                    KB_ID_SETTING_KEY,
+                    DbEngineSystemSettingKeys.KNOWLEDGE_BASE_CODE,
                     response == null ? null : response.getCode(),
                     response != null && StringUtils.hasText(response.getData()));
-            throw BizException.of(DbEngineBizCodeConstant.KB_ID_SETTING_MISSING, KB_ID_SETTING_KEY);
+            throw BizException.of(DbEngineBizCodeConstant.KB_ID_SETTING_MISSING,
+                    DbEngineSystemSettingKeys.KNOWLEDGE_BASE_CODE);
         }
         return response.getData().trim();
     }

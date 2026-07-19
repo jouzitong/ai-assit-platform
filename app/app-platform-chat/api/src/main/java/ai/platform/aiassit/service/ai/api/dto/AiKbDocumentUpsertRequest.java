@@ -51,6 +51,13 @@ public class AiKbDocumentUpsertRequest implements Serializable {
     private Boolean canUpdate = Boolean.FALSE;
 
     /**
+     * 文档是否启用。
+     *
+     * <p>为空时新增文档默认启用、更新文档保持原状态；显式传 false 可用于创建尚未允许同步的草稿文档。</p>
+     */
+    private Boolean enabled;
+
+    /**
      * 扩展参数。
      */
     private Map<String, Object> ext = new LinkedHashMap<>();

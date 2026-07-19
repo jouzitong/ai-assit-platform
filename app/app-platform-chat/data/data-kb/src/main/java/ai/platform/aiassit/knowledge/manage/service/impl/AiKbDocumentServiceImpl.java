@@ -60,12 +60,12 @@ public class AiKbDocumentServiceImpl
             if (req.getId() != null) {
                 wrapper.lambda().eq(AiKbDocumentEntity::getId, req.getId());
             }
-            if (StringUtils.hasText(req.getKbCode())) {
-                wrapper.lambda().eq(AiKbDocumentEntity::getKbCode, req.getKbCode().trim());
-            }
-            if (StringUtils.hasText(req.getDocumentCode())) {
-                wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode().trim());
-            }
+//            if (StringUtils.hasText(req.getKbCode())) {
+//                wrapper.lambda().eq(AiKbDocumentEntity::getKbCode, req.getKbCode().trim());
+//            }
+//            if (StringUtils.hasText(req.getDocumentCode())) {
+//                wrapper.lambda().eq(AiKbDocumentEntity::getDocumentCode, req.getDocumentCode().trim());
+//            }
             if (req.getDocumentCodes() != null && !req.getDocumentCodes().isEmpty()) {
                 List<String> documentCodes = req.getDocumentCodes().stream()
                         .filter(StringUtils::hasText)

@@ -9,6 +9,7 @@ public record KnowledgeDocumentCommand(
         String documentName,
         String content,
         boolean updateAllowed,
+        boolean enabled,
         Map<String, Object> metadata
 ) {
     public KnowledgeDocumentCommand {

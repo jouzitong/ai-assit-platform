@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { Grid, Share } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { AppCodeEditor } from '../../../components'
 import { useAgentPageCapability } from '../../ai-assistant/composables/useAgentPageCapability'
@@ -10,7 +10,17 @@ import type {
   AgentPageActionExecutionContext,
   AgentPageActionResult,
 } from '../../ai-assistant/types'
-import { searchAiKbStores, type AiKbStoreItem } from '../api/aiPlatform'
+import {
+  createOrUpdateAiKbDocument,
+  getAiKbDocumentDetail,
+  getAiKbSyncTask,
+  searchAiKbDocuments,
+  syncAiKbDocuments,
+  updateAiKbDocumentContent,
+  updateAiKbDocumentStatus,
+  type AiKbDocumentDetail,
+  type AiKbDocumentItem,
+} from '../api/aiPlatform'
 import { searchDbDataSources, type DbDataSourceItem, type DbTableMetaItem } from '../api/dataSources'
 import {
   createVirtualBinding,
@@ -20,12 +30,12 @@ import {
   deleteVirtualBinding,
   deleteVirtualField,
   checkVirtualUnpublish,
-  getVirtualKnowledgeStatus,
+  getVirtualKnowledgeConfiguration,
   generateVirtualDescription,
   generateFieldTransformScript,
+  initializeVirtualKnowledge,
   previewVirtualKnowledge,
   publishVirtualCatalogBatch,
-  syncVirtualKnowledge,
   saveVirtualRelationsBatch,
   suggestVirtualRelations,
   unpublishVirtualCatalog,
@@ -46,7 +56,6 @@ import {
   type VirtualEntityItem,
   type VirtualEntityPayload,
   type VirtualFieldPayload,
-  type VirtualKnowledgeStatusItem,
   type VirtualRelationBatchSavePayload,
   type VirtualRelationSuggestion,
 } from '../api/virtualData'
@@ -77,6 +86,7 @@ const AGENT_SNAPSHOT_ENTITY_LIMIT = 30
 const AGENT_SNAPSHOT_FIELD_LIMIT = 400
 const AGENT_SNAPSHOT_FIELDS_PER_ENTITY_LIMIT = 40
 const AGENT_SNAPSHOT_RELATION_LIMIT = 120
+const KNOWLEDGE_BASE_SETTING_KEY = 'dbEngine.kb.kbId'
 
 const emptyOverview = (): VirtualCatalogOverview => ({ entities: [], fields: [], bindings: [], relations: [] })
 const emptyWorkspace = (): VirtualTableWorkspace => ({ fields: [], bindings: [], rules: [], ports: [], physicalFields: [] })
@@ -142,7 +152,9 @@ const catalogSource = ref(queryText(route.query.catalogSource))
 const catalogStatus = ref<CatalogStatus | ''>(queryCatalogStatus(route.query.catalogStatus))
 const catalogPage = ref(queryPositiveInteger(route.query.catalogPage, 1))
 const catalogPageSize = ref(queryCatalogPageSize(route.query.catalogPageSize))
-const knowledgeBaseCode = ref(queryText(route.query.catalogKb))
+const knowledgeBaseCode = ref('')
+const knowledgeBaseSettingKey = ref(KNOWLEDGE_BASE_SETTING_KEY)
+const knowledgeBaseConfigMessage = ref('')
 const relationKeyword = ref(queryText(route.query.relationKeyword))
 const relationSources = ref<string[]>(queryList(route.query.relationSources))
 const relationEntities = ref<string[]>(queryList(route.query.relationEntities))
@@ -151,8 +163,7 @@ const relationLineStyle = ref<RelationLineStyle>(queryRelationLineStyle(route.qu
 const overview = ref<VirtualCatalogOverview>(emptyOverview())
 const dataSources = ref<DbDataSourceItem[]>([])
 const physicalTables = ref<DbTableMetaItem[]>([])
-const knowledgeBases = ref<AiKbStoreItem[]>([])
-const knowledgeStatuses = ref<VirtualKnowledgeStatusItem[]>([])
+const knowledgeDocuments = ref<AiKbDocumentItem[]>([])
 const selectedEntity = ref<VirtualEntityItem | null>(null)
 const workspace = ref<VirtualTableWorkspace>(emptyWorkspace())
 const loading = ref(false)
@@ -168,18 +179,34 @@ const knowledgePreviewLoading = ref(false)
 const knowledgePreviewTitle = ref('知识库预览')
 const knowledgePreviewType = ref('markdown')
 const knowledgePreviewContent = ref('')
-const knowledgeSyncVisible = ref(false)
-const knowledgeSyncSubmitting = ref(false)
-const knowledgeSyncEntityIds = ref<VirtualDataId[]>([])
+const knowledgePreviewEntityId = ref<VirtualDataId | null>(null)
+const knowledgePreviewDocument = ref<AiKbDocumentDetail | null>(null)
+const knowledgePreviewEnabled = ref(false)
+const knowledgePreviewSaving = ref(false)
+const knowledgeInitializeVisible = ref(false)
+const knowledgeInitializeSubmitting = ref(false)
+const knowledgeInitializeEntityIds = ref<VirtualDataId[]>([])
 const descriptionGenerating = ref(false)
 const relationBatchActive = ref(false)
 const relationBatchDirty = ref(false)
 const relationCanvasRef = ref<VirtualRelationCanvasExpose | null>(null)
+let knowledgeSyncPollTimer: ReturnType<typeof window.setInterval> | undefined
 
-const knowledgeBaseOptions = computed(() => knowledgeBases.value
-  .filter(item => item.enabled !== false && item.kbCode)
-  .map(item => ({ code: item.kbCode || '', label: `${item.kbName || item.kbCode} · ${item.kbCode}` })))
 const knowledgePreviewFormat = computed(() => knowledgePreviewType.value === 'markdown' ? 'markdown' : 'text')
+const knowledgeDocumentByCode = computed(() => new Map<string, AiKbDocumentItem>(knowledgeDocuments.value
+  .map(item => [String(item.documentCode || ''), item] as const)))
+
+function virtualTableDocumentCode(entity: VirtualEntityItem) {
+  const entityCode = String(entity.entityCode || '').trim()
+  return entityCode ? `vt-${entityCode}` : ''
+}
+
+function knowledgeDocument(entity: VirtualEntityItem | undefined) {
+  if (!entity) return undefined
+  const standardCode = virtualTableDocumentCode(entity)
+  return (standardCode ? knowledgeDocumentByCode.value.get(standardCode) : undefined)
+    || knowledgeDocumentByCode.value.get(`virtual-table/${entity.id}`)
+}
 
 const summaries = computed<VirtualEntitySummary[]>(() => overview.value.entities.map((entity) => {
   const entityBindings = overview.value.bindings.filter(binding => String(binding.entityId) === String(entity.id))
@@ -396,7 +423,6 @@ function applyRouteState() {
   catalogStatus.value = queryCatalogStatus(route.query.catalogStatus)
   catalogPage.value = queryPositiveInteger(route.query.catalogPage, 1)
   catalogPageSize.value = queryCatalogPageSize(route.query.catalogPageSize)
-  knowledgeBaseCode.value = queryText(route.query.catalogKb)
   relationKeyword.value = queryText(route.query.relationKeyword)
   relationSources.value = queryList(route.query.relationSources)
   relationEntities.value = queryList(route.query.relationEntities)
@@ -413,7 +439,6 @@ function buildRouteQuery() {
   if (catalogStatus.value !== '') query.catalogStatus = String(catalogStatus.value)
   query.catalogPage = String(catalogPage.value)
   query.catalogPageSize = String(catalogPageSize.value)
-  if (knowledgeBaseCode.value) query.catalogKb = knowledgeBaseCode.value
   if (relationKeyword.value.trim()) query.relationKeyword = relationKeyword.value.trim()
   if (relationSources.value.length) query.relationSources = [...relationSources.value]
   if (relationEntities.value.length) query.relationEntities = [...relationEntities.value]
@@ -449,18 +474,14 @@ async function switchView(view: ActiveView) {
 async function loadPage() {
   loading.value = true
   try {
-    const [catalog, sourceResult, knowledgeBaseResult] = await Promise.all([
+    const [catalog, sourceResult] = await Promise.all([
       loadVirtualCatalogOverview(),
       searchDbDataSources({ page: 1, size: 1000, enabled: true }),
-      searchAiKbStores({ page: 1, size: 1000, enabled: true }).catch((error) => {
-        ElMessage.warning(error instanceof Error ? error.message : '可用知识库加载失败')
-        return { list: [] }
-      }),
+      loadKnowledgeBaseConfiguration(),
     ])
     overview.value = catalog
     dataSources.value = sourceResult?.list || []
-    knowledgeBases.value = knowledgeBaseResult?.list || []
-    await loadKnowledgeStatuses(catalog.entities)
+    await loadKnowledgeDocuments()
     if (selectedEntity.value) {
       selectedEntity.value = catalog.entities.find(item => String(item.id) === String(selectedEntity.value?.id)) || null
     }
@@ -476,8 +497,12 @@ async function loadPage() {
 async function refreshOverview() {
   loading.value = true
   try {
-    overview.value = await loadVirtualCatalogOverview()
-    await loadKnowledgeStatuses(overview.value.entities)
+    const [catalog] = await Promise.all([
+      loadVirtualCatalogOverview(),
+      loadKnowledgeBaseConfiguration(),
+    ])
+    overview.value = catalog
+    await loadKnowledgeDocuments()
     if (selectedEntity.value) {
       selectedEntity.value = overview.value.entities.find(item => String(item.id) === String(selectedEntity.value?.id)) || null
     }
@@ -490,17 +515,64 @@ async function refreshOverview() {
   }
 }
 
-async function loadKnowledgeStatuses(entities: VirtualEntityItem[]) {
-  if (!entities.length) {
-    knowledgeStatuses.value = []
+async function loadKnowledgeBaseConfiguration() {
+  try {
+    const configuration = await getVirtualKnowledgeConfiguration()
+    knowledgeBaseSettingKey.value = configuration?.settingKey || KNOWLEDGE_BASE_SETTING_KEY
+    knowledgeBaseCode.value = String(configuration?.kbCode || '').trim()
+    knowledgeBaseConfigMessage.value = knowledgeBaseCode.value
+      ? ''
+      : `请在系统参数中配置 ${knowledgeBaseSettingKey.value}`
+  }
+  catch (error) {
+    knowledgeBaseCode.value = ''
+    const detail = error instanceof Error ? error.message : ''
+    knowledgeBaseConfigMessage.value = detail.includes(KNOWLEDGE_BASE_SETTING_KEY)
+      ? `请在系统参数中配置 ${KNOWLEDGE_BASE_SETTING_KEY}`
+      : detail || `请在系统参数中配置 ${KNOWLEDGE_BASE_SETTING_KEY}`
+    ElMessage.warning(knowledgeBaseConfigMessage.value)
+  }
+}
+
+async function loadKnowledgeDocumentTab(kbCode: string, tab: 'current' | 'draft') {
+  const result: AiKbDocumentItem[] = []
+  let page = 1
+  const size = 200
+  while (true) {
+    const payload = await searchAiKbDocuments({
+      kbCode,
+      tab,
+      page,
+      size,
+    })
+    const rows = payload?.list || []
+    result.push(...rows)
+    const total = Number(payload?.pageInfo?.total || result.length)
+    if (!rows.length || result.length >= total) break
+    page += 1
+  }
+  return result
+}
+
+async function loadKnowledgeDocuments() {
+  const kbCode = knowledgeBaseCode.value
+  if (!kbCode) {
+    knowledgeDocuments.value = []
     return
   }
   try {
-    knowledgeStatuses.value = await getVirtualKnowledgeStatus(entities.map(entity => entity.id)) || []
+    const [activeDocuments, disabledDocuments] = await Promise.all([
+      loadKnowledgeDocumentTab(kbCode, 'current'),
+      loadKnowledgeDocumentTab(kbCode, 'draft'),
+    ])
+    if (knowledgeBaseCode.value !== kbCode) return
+    knowledgeDocuments.value = [...activeDocuments, ...disabledDocuments]
+      .filter(item => /^(vt-|virtual-table\/)/.test(String(item.documentCode || '')))
   }
   catch (error) {
-    knowledgeStatuses.value = []
-    ElMessage.warning(error instanceof Error ? error.message : '知识库同步状态加载失败')
+    if (knowledgeBaseCode.value !== kbCode) return
+    knowledgeDocuments.value = []
+    ElMessage.warning(error instanceof Error ? error.message : '知识文档状态加载失败')
   }
 }
 
@@ -801,75 +873,227 @@ async function unpublishEntities(ids: VirtualDataId[]) {
   }
 }
 
-async function prepareKnowledgeSync(ids: VirtualDataId[]) {
+async function prepareKnowledgeInitialization(ids: VirtualDataId[]) {
   const uniqueIds = [...new Set(ids.map(String))]
     .map(id => overview.value.entities.find(entity => String(entity.id) === id)?.id)
     .filter((id): id is VirtualDataId => id !== undefined)
   if (!uniqueIds.length) return
-  if (!knowledgeBaseOptions.value.length) {
-    ElMessage.warning('暂无可用知识库，请先在知识库管理中创建并启用知识库')
+  if (!knowledgeBaseCode.value) {
+    ElMessage.warning(`请先在系统参数中配置 ${knowledgeBaseSettingKey.value}`)
     return
   }
-  const unpublishedIds = uniqueIds.filter(id => overview.value.entities.find(entity => String(entity.id) === String(id))?.status !== 1)
-  if (unpublishedIds.length) {
-    try {
-      await ElMessageBox.confirm(
-        `所选虚拟表中有 ${unpublishedIds.length} 张尚未发布。知识库同步仅支持已发布虚拟表，是否先发布再继续？`,
-        '发布后同步',
-        { type: 'warning', confirmButtonText: '确认发布', cancelButtonText: '取消' },
-      )
-    }
-    catch {
-      return
-    }
-    if (!await publishEntities(unpublishedIds, true)) return
-  }
-  knowledgeSyncEntityIds.value = uniqueIds
-  if (!knowledgeBaseOptions.value.some(item => item.code === knowledgeBaseCode.value)) {
-    knowledgeBaseCode.value = knowledgeBaseOptions.value[0]?.code || ''
-  }
-  knowledgeSyncVisible.value = true
+  knowledgeInitializeEntityIds.value = uniqueIds
+  knowledgeInitializeVisible.value = true
 }
 
-async function submitKnowledgeSync() {
+async function submitKnowledgeInitialization() {
   if (!knowledgeBaseCode.value) {
-    ElMessage.warning('请选择目标知识库')
+    ElMessage.warning(`请先在系统参数中配置 ${knowledgeBaseSettingKey.value}`)
     return
   }
-  knowledgeSyncSubmitting.value = true
+  knowledgeInitializeSubmitting.value = true
   try {
-    const result = await syncVirtualKnowledge({
-      kbCode: knowledgeBaseCode.value,
-      entityIds: knowledgeSyncEntityIds.value,
+    const result = await initializeVirtualKnowledge({
+      entityIds: knowledgeInitializeEntityIds.value,
     })
-    ElMessage.success(`同步完成：新增 ${Number(result?.createdCount || 0)}，更新 ${Number(result?.updatedCount || 0)}，未变更 ${Number(result?.unchangedCount || 0)}`)
-    knowledgeSyncVisible.value = false
-    await loadKnowledgeStatuses(overview.value.entities)
+    ElMessage.success(`初始化完成：新增 ${Number(result?.createdCount || 0)}，已有并保留 ${Number(result?.unchangedCount || 0)}`)
+    knowledgeInitializeVisible.value = false
+    await loadKnowledgeDocuments()
   }
   catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '知识库同步失败')
+    ElMessage.error(error instanceof Error ? error.message : '知识文档初始化失败')
   }
   finally {
-    knowledgeSyncSubmitting.value = false
+    knowledgeInitializeSubmitting.value = false
+  }
+}
+
+function clearKnowledgeSyncPolling() {
+  if (knowledgeSyncPollTimer !== undefined) {
+    window.clearInterval(knowledgeSyncPollTimer)
+    knowledgeSyncPollTimer = undefined
+  }
+}
+
+async function pollKnowledgeSyncTask(taskCode: string) {
+  try {
+    const task = await getAiKbSyncTask(taskCode)
+    const status = Number(task?.status)
+    if (![3, 4, 5].includes(status)) return
+    clearKnowledgeSyncPolling()
+    operationLoading.value = false
+    await loadKnowledgeDocuments()
+    if (status === 3) {
+      ElMessage.success(`知识库同步完成：成功 ${Number(task?.resultJson?.successCount || 0)}，失败 ${Number(task?.resultJson?.failedCount || 0)}`)
+    }
+    else {
+      ElMessage.error(task?.errorMessage || '知识库同步任务未成功完成')
+    }
+  }
+  catch (error) {
+    clearKnowledgeSyncPolling()
+    operationLoading.value = false
+    ElMessage.error(error instanceof Error ? error.message : '知识库同步任务状态加载失败')
+  }
+}
+
+async function prepareKnowledgeSync(ids: VirtualDataId[]) {
+  if (!knowledgeBaseCode.value) {
+    ElMessage.warning(`请先在系统参数中配置 ${knowledgeBaseSettingKey.value}`)
+    return
+  }
+  const uniqueIds = [...new Set(ids.map(String))]
+  const documentCodes = uniqueIds
+    .map(id => overview.value.entities.find(entity => String(entity.id) === id))
+    .filter((entity): entity is VirtualEntityItem => entity?.status === 1)
+    .map(entity => knowledgeDocument(entity))
+    .filter((document): document is AiKbDocumentItem => Boolean(document)
+      && Number(document.status) === 1
+      && Number(document.providerSyncStatus) !== 2)
+    .map(document => document.documentCode || '')
+    .filter(Boolean)
+  if (!documentCodes.length) {
+    ElMessage.warning('所选虚拟表没有可同步的已发布、已启用知识文档')
+    return
+  }
+  try {
+    await ElMessageBox.confirm(
+      `确认将 ${documentCodes.length} 篇已启用文档同步到知识库 Provider 吗？`,
+      '同步知识库 Provider',
+      { type: 'warning', confirmButtonText: '确认同步', cancelButtonText: '取消' },
+    )
+  }
+  catch {
+    return
+  }
+  operationLoading.value = true
+  try {
+    const result = await syncAiKbDocuments({
+      kbCode: knowledgeBaseCode.value,
+      documentCodes,
+    })
+    if (!result?.taskCode) throw new Error('同步任务创建失败，未返回任务编码')
+    const taskCode = result.taskCode
+    ElMessage.success(`已创建同步任务，共 ${Number(result.acceptedCount || documentCodes.length)} 篇文档`)
+    clearKnowledgeSyncPolling()
+    void pollKnowledgeSyncTask(taskCode)
+    knowledgeSyncPollTimer = window.setInterval(() => {
+      void pollKnowledgeSyncTask(taskCode)
+    }, 1000)
+  }
+  catch (error) {
+    operationLoading.value = false
+    ElMessage.error(error instanceof Error ? error.message : '知识库同步任务创建失败')
   }
 }
 
 async function openKnowledgePreview(id: VirtualDataId) {
+  if (!knowledgeBaseCode.value) {
+    ElMessage.warning(`请先在系统参数中配置 ${knowledgeBaseSettingKey.value}`)
+    return
+  }
   const entity = overview.value.entities.find(item => String(item.id) === String(id))
-  knowledgePreviewTitle.value = `知识库预览 · ${entity?.entityName || entity?.entityCode || id}`
+  knowledgePreviewTitle.value = `知识文档 · ${entity?.entityName || entity?.entityCode || id}`
+  knowledgePreviewEntityId.value = id
+  knowledgePreviewDocument.value = null
+  knowledgePreviewEnabled.value = false
   knowledgePreviewVisible.value = true
   knowledgePreviewLoading.value = true
   knowledgePreviewContent.value = ''
   try {
-    const result = await previewVirtualKnowledge(id)
-    knowledgePreviewType.value = String(result?.type || 'markdown').toLowerCase()
-    knowledgePreviewContent.value = result?.content || ''
+    const storedDocument = knowledgeDocument(entity)
+    if (storedDocument?.documentCode) {
+      const detail = await getAiKbDocumentDetail(knowledgeBaseCode.value, storedDocument.documentCode)
+      knowledgePreviewDocument.value = detail
+      knowledgePreviewEnabled.value = Number(detail.status) === 1
+      knowledgePreviewType.value = 'markdown'
+      knowledgePreviewContent.value = detail.renderedContent || ''
+    }
+    else {
+      const result = await previewVirtualKnowledge(id)
+      knowledgePreviewType.value = String(result?.type || 'markdown').toLowerCase()
+      knowledgePreviewContent.value = result?.content || ''
+    }
   }
   catch (error) {
     ElMessage.error(error instanceof Error ? error.message : '知识库预览加载失败')
   }
   finally {
     knowledgePreviewLoading.value = false
+  }
+}
+
+async function saveKnowledgePreview() {
+  const entityId = knowledgePreviewEntityId.value
+  const entity = overview.value.entities.find(item => String(item.id) === String(entityId))
+  if (!entity || !knowledgeBaseCode.value) return
+  if (!knowledgePreviewContent.value.trim()) {
+    ElMessage.warning('知识文档内容不能为空')
+    return
+  }
+  knowledgePreviewSaving.value = true
+  try {
+    const documentCode = knowledgePreviewDocument.value?.documentCode || virtualTableDocumentCode(entity)
+    if (!documentCode) throw new Error('虚拟表编码为空，无法生成知识文档编码')
+    if (knowledgePreviewDocument.value) {
+      await updateAiKbDocumentContent({
+        documentId: knowledgePreviewDocument.value.id,
+        content: knowledgePreviewContent.value,
+      })
+    }
+    else {
+      await createOrUpdateAiKbDocument({
+        kbCode: knowledgeBaseCode.value,
+        documentId: documentCode,
+        documentName: entity.entityName || entity.entityCode || documentCode,
+        documentType: 1,
+        bizType: 1,
+        content: knowledgePreviewContent.value,
+        canUpdate: false,
+        enabled: false,
+        ext: {
+          sourceSystem: 'dataVirtualization',
+          virtualEntityId: entity.id,
+          virtualTableKey: entity.entityCode,
+          virtualTableName: entity.entityName,
+          catalogVersion: entity.catalogVersion,
+        },
+      })
+    }
+    const detail = await getAiKbDocumentDetail(knowledgeBaseCode.value, documentCode)
+    knowledgePreviewDocument.value = detail
+    knowledgePreviewEnabled.value = Number(detail.status) === 1
+    ElMessage.success('知识文档已保存')
+    await loadKnowledgeDocuments()
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '知识文档保存失败')
+  }
+  finally {
+    knowledgePreviewSaving.value = false
+  }
+}
+
+async function updateKnowledgePreviewStatus(enabled: boolean) {
+  const document = knowledgePreviewDocument.value
+  if (!document?.documentCode || !knowledgeBaseCode.value) return
+  knowledgePreviewSaving.value = true
+  try {
+    await updateAiKbDocumentStatus({
+      kbCode: knowledgeBaseCode.value,
+      documentCodes: [document.documentCode],
+      enabled,
+    })
+    document.status = enabled ? 1 : 2
+    ElMessage.success(enabled ? '知识文档已启用，可以同步到 Provider' : '知识文档已禁用')
+    await loadKnowledgeDocuments()
+  }
+  catch (error) {
+    knowledgePreviewEnabled.value = !enabled
+    ElMessage.error(error instanceof Error ? error.message : '知识文档状态更新失败')
+  }
+  finally {
+    knowledgePreviewSaving.value = false
   }
 }
 
@@ -903,15 +1127,15 @@ function updateRelationBatchState(active: boolean, dirty: boolean) {
 
 watch(() => route.query, applyRouteState, { deep: true })
 watch(
-  [catalogKeyword, catalogSource, catalogStatus, catalogPage, catalogPageSize, knowledgeBaseCode, relationKeyword, relationSources, relationEntities, relationLayoutMode, relationLineStyle],
+  [catalogKeyword, catalogSource, catalogStatus, catalogPage, catalogPageSize, relationKeyword, relationSources, relationEntities, relationLayoutMode, relationLineStyle],
   () => syncRouteState(),
   { deep: true },
 )
-
 onMounted(() => {
   syncRouteState()
   void loadPage()
 })
+onBeforeUnmount(clearKnowledgeSyncPolling)
 </script>
 
 <template>
@@ -958,10 +1182,11 @@ onMounted(() => {
         v-model:status="catalogStatus"
         v-model:current-page="catalogPage"
         v-model:page-size="catalogPageSize"
-        v-model:knowledge-base-code="knowledgeBaseCode"
         :rows="summaries"
-        :knowledge-statuses="knowledgeStatuses"
-        :knowledge-bases="knowledgeBaseOptions"
+        :knowledge-documents="knowledgeDocuments"
+        :knowledge-base-code="knowledgeBaseCode"
+        :knowledge-base-setting-key="knowledgeBaseSettingKey"
+        :knowledge-base-config-message="knowledgeBaseConfigMessage"
         :loading="loading"
         :operation-loading="operationLoading"
         @initialize="initializeVisible = true"
@@ -971,6 +1196,7 @@ onMounted(() => {
         @publish-entity="publishEntity"
         @batch-publish="publishEntities"
         @batch-unpublish="unpublishEntities"
+        @initialize-knowledge="prepareKnowledgeInitialization"
         @sync-knowledge="prepareKnowledgeSync"
         @preview-knowledge="openKnowledgePreview"
       />
@@ -1031,36 +1257,62 @@ onMounted(() => {
       @generate-description="generateDescription"
     />
 
-    <el-dialog v-model="knowledgeSyncVisible" title="同步虚拟表知识库" width="560px" append-to-body destroy-on-close>
+    <el-dialog v-model="knowledgeInitializeVisible" title="初始化知识文档" width="560px" append-to-body destroy-on-close>
       <section class="virtual-knowledge-sync-dialog">
-        <p>将以 Upsert 方式同步 {{ knowledgeSyncEntityIds.length }} 张已发布虚拟表：文档存在则更新，不存在则新增。</p>
-        <el-form label-position="top">
-          <el-form-item label="目标知识库" required>
-            <el-select v-model="knowledgeBaseCode" filterable placeholder="请选择知识库">
-              <el-option v-for="item in knowledgeBaseOptions" :key="item.code" :label="item.label" :value="item.code" />
-            </el-select>
-          </el-form-item>
-        </el-form>
+        <p>将根据 {{ knowledgeInitializeEntityIds.length }} 张虚拟表生成 Markdown 草稿并保存。新文档默认禁用；已有文档会保留，不会覆盖人工编辑内容。</p>
+        <div class="virtual-knowledge-sync-dialog__target">
+          <span>目标知识库</span>
+          <el-tag type="success" effect="light">{{ knowledgeBaseCode }}</el-tag>
+          <small>由系统参数 {{ knowledgeBaseSettingKey }} 指定</small>
+        </div>
       </section>
       <template #footer>
-        <el-button @click="knowledgeSyncVisible = false">取消</el-button>
-        <el-button type="primary" :loading="knowledgeSyncSubmitting" @click="submitKnowledgeSync">确认同步</el-button>
+        <el-button @click="knowledgeInitializeVisible = false">取消</el-button>
+        <el-button type="primary" :loading="knowledgeInitializeSubmitting" @click="submitKnowledgeInitialization">确认初始化</el-button>
       </template>
     </el-dialog>
 
-    <el-dialog v-model="knowledgePreviewVisible" :title="knowledgePreviewTitle" width="860px" append-to-body destroy-on-close>
+    <el-dialog
+      v-model="knowledgePreviewVisible"
+      :title="knowledgePreviewTitle"
+      class="virtual-knowledge-preview-dialog"
+      body-class="virtual-knowledge-preview-dialog__body"
+      width="min(960px, calc(100vw - 32px))"
+      top="5vh"
+      append-to-body
+      destroy-on-close
+    >
       <div v-loading="knowledgePreviewLoading" class="virtual-knowledge-preview">
+        <div v-if="!knowledgePreviewLoading" class="virtual-knowledge-preview__toolbar">
+          <div>
+            <el-tag v-if="knowledgePreviewDocument" size="small" effect="plain">已存储</el-tag>
+            <el-tag v-else size="small" effect="plain" type="info">生成预览，尚未存储</el-tag>
+            <span>{{ knowledgeBaseCode }}</span>
+          </div>
+          <el-switch
+            v-model="knowledgePreviewEnabled"
+            :disabled="!knowledgePreviewDocument || knowledgePreviewSaving"
+            active-text="启用"
+            inactive-text="禁用"
+            @change="updateKnowledgePreviewStatus"
+          />
+        </div>
         <AppCodeEditor
-          v-if="knowledgePreviewContent"
-          :model-value="knowledgePreviewContent"
+          v-if="!knowledgePreviewLoading"
+          v-model="knowledgePreviewContent"
           :format="knowledgePreviewFormat"
-          readonly
           :show-format-switcher="false"
           :toolbar-label="knowledgePreviewFormat === 'markdown' ? 'Markdown' : 'Text'"
-          min-height="460px"
+          height="100%"
+          min-height="0"
         />
-        <el-empty v-else-if="!knowledgePreviewLoading" description="暂无知识库预览内容" />
       </div>
+      <template #footer>
+        <el-button @click="knowledgePreviewVisible = false">关闭</el-button>
+        <el-button type="primary" :disabled="knowledgePreviewLoading || !knowledgePreviewContent.trim()" :loading="knowledgePreviewSaving" @click="saveKnowledgePreview">
+          {{ knowledgePreviewDocument ? '保存修改' : '保存为禁用草稿' }}
+        </el-button>
+      </template>
     </el-dialog>
   </section>
 </template>
@@ -1176,12 +1428,83 @@ onMounted(() => {
   line-height: 1.7;
 }
 
-.virtual-knowledge-sync-dialog :deep(.el-select) {
-  width: 100%;
+.virtual-knowledge-sync-dialog__target {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--app-space-2);
+  padding: var(--app-space-3);
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-control);
+  background: var(--app-surface-muted);
+}
+
+.virtual-knowledge-sync-dialog__target > span {
+  color: var(--app-text);
+  font-weight: 600;
+}
+
+.virtual-knowledge-sync-dialog__target small {
+  flex-basis: 100%;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
 }
 
 .virtual-knowledge-preview {
-  min-height: 460px;
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  gap: var(--app-space-3);
+  min-height: 0;
+  height: 100%;
+  overflow: hidden;
+}
+
+.virtual-knowledge-preview :deep(.app-code-editor-shell),
+.virtual-knowledge-preview :deep(.app-field-shell__control),
+.virtual-knowledge-preview :deep(.app-code-editor) {
+  min-height: 0;
+  height: 100%;
+}
+
+.virtual-knowledge-preview :deep(.app-field-shell__control),
+.virtual-knowledge-preview :deep(.app-code-editor) {
+  overflow: hidden;
+}
+
+.virtual-knowledge-preview__toolbar,
+.virtual-knowledge-preview__toolbar > div {
+  display: flex;
+  gap: var(--app-space-2);
+  align-items: center;
+}
+
+.virtual-knowledge-preview__toolbar {
+  justify-content: space-between;
+}
+
+.virtual-knowledge-preview__toolbar span {
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+}
+
+:global(.virtual-knowledge-preview-dialog) {
+  display: flex;
+  flex-direction: column;
+  height: min(90dvh, 920px);
+  max-height: 90dvh;
+  margin-bottom: 0;
+  overflow: hidden;
+}
+
+:global(.virtual-knowledge-preview-dialog .el-dialog__header),
+:global(.virtual-knowledge-preview-dialog .el-dialog__footer) {
+  flex: 0 0 auto;
+}
+
+:global(.virtual-knowledge-preview-dialog__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: hidden;
 }
 
 @media (max-width: 960px) {

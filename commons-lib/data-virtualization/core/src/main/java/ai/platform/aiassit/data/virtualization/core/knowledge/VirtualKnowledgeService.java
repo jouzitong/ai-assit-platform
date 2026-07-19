@@ -15,10 +15,13 @@ import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentPo
 import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentQuery;
 import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentRef;
 import ai.platform.aiassit.data.virtualization.spi.knowledge.KnowledgeDocumentUpsertResult;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -27,27 +30,30 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 @Service
 @Slf4j
 public class VirtualKnowledgeService {
 
     private static final String SOURCE_SYSTEM = "dataVirtualization";
-    private static final String DOCUMENT_PREFIX = "virtual-table/";
+    private static final String DOCUMENT_PREFIX = "vt-";
+    private static final String LEGACY_DOCUMENT_PREFIX = "virtual-table/";
 
     private final VirtualCatalogDataRepository repository;
     private final VirtualCatalogService catalogService;
     private final KnowledgeDocumentPort knowledgeDocumentPort;
+    private final ObjectMapper objectMapper;
 
     public VirtualKnowledgeService(
             VirtualCatalogDataRepository repository,
             VirtualCatalogService catalogService,
-            KnowledgeDocumentPort knowledgeDocumentPort
+            KnowledgeDocumentPort knowledgeDocumentPort,
+            ObjectMapper objectMapper
     ) {
         this.repository = repository;
         this.catalogService = catalogService;
         this.knowledgeDocumentPort = knowledgeDocumentPort;
+        this.objectMapper = objectMapper;
     }
 
     public VirtualKnowledgePreviewResponse preview(Long entityId) {
@@ -68,7 +74,13 @@ public class VirtualKnowledgeService {
             return List.of();
         }
         Map<String, Long> entityIdByDocumentCode = new LinkedHashMap<>();
-        ids.forEach(id -> entityIdByDocumentCode.put(documentCode(id), id));
+        ids.forEach(id -> {
+            VirtualEntityEntity entity = repository.entityById(id);
+            if (entity != null && StringUtils.hasText(entity.getEntityCode())) {
+                entityIdByDocumentCode.put(documentCode(entity), id);
+                entityIdByDocumentCode.put(legacyDocumentCode(entity), id);
+            }
+        });
 
         List<KnowledgeDocumentRef> documents = findDocuments(entityIdByDocumentCode.keySet());
         Map<Long, Set<String>> kbCodesByEntityId = new LinkedHashMap<>();
@@ -83,21 +95,21 @@ public class VirtualKnowledgeService {
                 .toList();
     }
 
-    public VirtualKnowledgeSyncResponse sync(VirtualKnowledgeSyncRequest request) {
-        if (request == null || !StringUtils.hasText(request.getKbCode())) {
-            throw new VirtualDataException("KNOWLEDGE_BASE_REQUIRED", "请选择目标知识库");
+    public VirtualKnowledgeSyncResponse initialize(String knowledgeBaseCode, List<Long> requestedEntityIds) {
+        if (!StringUtils.hasText(knowledgeBaseCode)) {
+            throw new VirtualDataException("KNOWLEDGE_BASE_REQUIRED", "未配置目标知识库");
         }
-        List<Long> entityIds = normalizeIds(request.getEntityIds());
+        List<Long> entityIds = normalizeIds(requestedEntityIds);
         if (entityIds.isEmpty()) {
-            throw new VirtualDataException("VIRTUAL_ENTITY_REQUIRED", "请选择要同步的虚拟表");
+            throw new VirtualDataException("VIRTUAL_ENTITY_REQUIRED", "请选择要初始化知识文档的虚拟表");
         }
 
-        String kbCode = request.getKbCode().trim();
+        String kbCode = knowledgeBaseCode.trim();
         int created = 0;
         int updated = 0;
         int unchanged = 0;
         for (Long entityId : entityIds) {
-            VirtualEntityEntity entity = requirePublishedEntity(entityId);
+            VirtualEntityEntity entity = requireEntity(entityId);
             KnowledgeDocumentUpsertResult result = upsert(kbCode, entity, preview(entityId).content());
             if (result.created()) {
                 created++;
@@ -116,11 +128,13 @@ public class VirtualKnowledgeService {
             throw new VirtualDataException("VIRTUAL_ENTITY_REQUIRED", "请选择要取消发布的虚拟表");
         }
 
-        List<String> documentCodes = ids.stream().map(this::documentCode).toList();
+        List<VirtualEntityEntity> entities = ids.stream().map(this::requireEntity).toList();
+        List<String> documentCodes = entities.stream()
+                .flatMap(entity -> List.of(documentCode(entity), legacyDocumentCode(entity)).stream())
+                .toList();
         int deletedDocuments = deleteDocuments(documentCodes);
         int unpublished = 0;
-        for (Long entityId : ids) {
-            VirtualEntityEntity entity = requireEntity(entityId);
+        for (VirtualEntityEntity entity : entities) {
             if (entity.getStatus() == CatalogStatus.PUBLISHED) {
                 entity.setStatus(CatalogStatus.DRAFT);
                 repository.updateEntity(entity);
@@ -140,16 +154,17 @@ public class VirtualKnowledgeService {
         ext.put("catalogVersion", entity.getCatalogVersion());
         KnowledgeDocumentCommand command = new KnowledgeDocumentCommand(
                 kbCode,
-                documentCode(entity.getId()),
+                documentCode(entity),
                 documentName(entity),
                 content,
-                true,
+                false,
+                false,
                 ext
         );
         KnowledgeDocumentUpsertResult result = knowledgeDocumentPort.upsert(command);
         if (result == null) {
-            log.error("virtual knowledge upsert failed, kbCode={}, entityId={}", kbCode, entity.getId());
-            throw new VirtualDataException("KNOWLEDGE_SYNC_FAILED", "虚拟表知识文档同步失败: " + entity.getEntityCode());
+            log.error("virtual knowledge initialize failed, kbCode={}, entityId={}", kbCode, entity.getId());
+            throw new VirtualDataException("KNOWLEDGE_INITIALIZE_FAILED", "虚拟表知识文档初始化失败: " + entity.getEntityCode());
         }
         return result;
     }
@@ -187,65 +202,109 @@ public class VirtualKnowledgeService {
             List<VirtualFieldEntity> fields,
             List<VirtualRelationEntity> relations
     ) {
-        Map<Long, Set<String>> relatedFields = relatedFields(entity, relations);
         StringBuilder content = new StringBuilder();
-        content.append("# ").append(markdown(firstNonBlank(entity.getEntityName(), entity.getEntityCode()))).append("\n\n");
-        content.append("## 数据表定义\n");
-        content.append("- **表 Key**: `").append(markdown(entity.getEntityCode())).append("`\n");
-        content.append("- **名称**: ").append(markdown(firstNonBlank(entity.getEntityName(), entity.getEntityCode()))).append("\n");
-        content.append("- **目录版本**: ").append(entity.getCatalogVersion() == null ? 0 : entity.getCatalogVersion()).append("\n\n");
-        content.append("### 说明\n\n");
-        content.append(knowledgeDescription(entity.getDescription())).append("\n\n");
-
-        content.append("## 字段\n");
-        content.append("| 字段 Key | 字段名称 | 逻辑类型 | 约束 | 关联字段 | 说明 |\n");
-        content.append("|---|---|---|---|---|---|\n");
-        for (VirtualFieldEntity field : fields) {
-            content.append("| ").append(markdown(field.getFieldCode()))
-                    .append(" | ").append(markdown(firstNonBlank(field.getFieldName(), field.getFieldCode())))
-                    .append(" | ").append(markdown(field.getLogicalType() == null ? "-" : field.getLogicalType().getName()))
-                    .append(" | ").append(markdown(fieldConstraint(field)))
-                    .append(" | ").append(relatedFieldLabel(relatedFields.get(field.getId())))
-                    .append(" | ").append(markdown(firstNonBlank(field.getRemark(), "-")))
-                    .append(" |\n");
-        }
-        if (fields.isEmpty()) {
-            content.append("| - | - | - | - | - | 暂无字段 |\n");
-        }
+        content.append("---\n");
+        content.append("documentType: data-semantic-model\n");
+        content.append("model: ").append(entity.getEntityCode()).append("\n");
+        content.append("modelAliases: ").append(yamlAliases(entity)).append("\n");
+        content.append("domain:\n");
+        content.append("description: ").append(yamlValue(knowledgeDescription(entity.getDescription()))).append("\n");
+        content.append("sourceRevision: ").append(sourceRevision(entity)).append("\n");
+        content.append("updatedAt: ").append(LocalDate.now()).append("\n");
+        content.append("owner:\n");
+        content.append("---\n\n");
+        content.append("# ").append(markdown(firstNonBlank(entity.getEntityName(), entity.getEntityCode())))
+                .append("（").append(markdown(entity.getEntityCode())).append("）\n\n");
+        content.append("## 字段目录（机器可读）\n\n");
+        content.append("```json\n").append(machineReadableCatalog(entity, fields, relations)).append("\n```\n\n");
+        content.append("## 值域与口径\n\n");
+        content.append("## 已审核示例\n");
         return content.toString().trim();
     }
 
-    private Map<Long, Set<String>> relatedFields(
+    private String machineReadableCatalog(
+            VirtualEntityEntity entity,
+            List<VirtualFieldEntity> fields,
+            List<VirtualRelationEntity> relations
+    ) {
+        Map<String, Object> catalog = new LinkedHashMap<>();
+        catalog.put("schemaVersion", "1.0");
+        catalog.put("model", entity.getEntityCode());
+        catalog.put("primaryKeys", fields.stream()
+                .filter(field -> Boolean.TRUE.equals(field.getPrimaryKey()))
+                .map(VirtualFieldEntity::getFieldCode)
+                .toList());
+        catalog.put("defaultTimeField", "");
+        catalog.put("fields", fields.stream().map(this::fieldCatalogItem).toList());
+        catalog.put("relations", relationCatalogItems(entity, relations));
+        try {
+            return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(catalog);
+        } catch (JsonProcessingException exception) {
+            throw new VirtualDataException("KNOWLEDGE_DOCUMENT_RENDER_FAILED", "虚拟表知识文档生成失败: " + entity.getEntityCode());
+        }
+    }
+
+    private Map<String, Object> fieldCatalogItem(VirtualFieldEntity field) {
+        Map<String, Object> item = new LinkedHashMap<>();
+        item.put("code", firstNonBlank(field.getFieldCode()));
+        item.put("name", firstNonBlank(field.getFieldName(), field.getFieldCode()));
+        item.put("aliases", List.of());
+        item.put("logicalType", logicalType(field));
+        item.put("description", firstNonBlank(field.getRemark()));
+        item.put("filterOperators", List.of());
+        item.put("example", null);
+        return item;
+    }
+
+    private List<Map<String, Object>> relationCatalogItems(
             VirtualEntityEntity entity,
             List<VirtualRelationEntity> relations
     ) {
-        Map<Long, Set<String>> relatedFields = new LinkedHashMap<>();
+        List<Map<String, Object>> items = new ArrayList<>();
         for (VirtualRelationEntity relation : relations) {
             boolean outgoing = Objects.equals(entity.getId(), relation.getSourceEntityId());
             Long localFieldId = outgoing ? relation.getSourceFieldId() : relation.getTargetFieldId();
             Long remoteEntityId = outgoing ? relation.getTargetEntityId() : relation.getSourceEntityId();
             Long remoteFieldId = outgoing ? relation.getTargetFieldId() : relation.getSourceFieldId();
             VirtualEntityEntity remoteEntity = repository.entityById(remoteEntityId);
+            VirtualFieldEntity localField = repository.fieldById(localFieldId);
             VirtualFieldEntity remoteField = repository.fieldById(remoteFieldId);
-            if (localFieldId == null || remoteEntity == null || remoteField == null
-                    || !StringUtils.hasText(remoteEntity.getEntityCode()) || !StringUtils.hasText(remoteField.getFieldCode())) {
+            if (remoteEntity == null || !StringUtils.hasText(remoteEntity.getEntityCode())) {
                 continue;
             }
-            relatedFields.computeIfAbsent(localFieldId, ignored -> new LinkedHashSet<>())
-                    .add(remoteEntity.getEntityCode().trim() + "." + remoteField.getFieldCode().trim());
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("key", firstNonBlank(relation.getRelationCode(), remoteEntity.getEntityCode()));
+            item.put("model", remoteEntity.getEntityCode());
+            item.put("type", "");
+            Map<String, String> on = new LinkedHashMap<>();
+            if (localField != null && remoteField != null
+                    && StringUtils.hasText(localField.getFieldCode()) && StringUtils.hasText(remoteField.getFieldCode())) {
+                on.put(localField.getFieldCode(), remoteField.getFieldCode());
+            }
+            item.put("on", on);
+            item.put("fields", List.of());
+            items.add(item);
         }
-        return relatedFields;
+        return items;
     }
 
-    private String relatedFieldLabel(Set<String> targets) {
-        if (targets == null || targets.isEmpty()) return "-";
-        return targets.stream()
-                .map(target -> "`" + markdown(target) + "`")
-                .collect(Collectors.joining("、"));
+    private String logicalType(VirtualFieldEntity field) {
+        if (field.getLogicalType() == null) return "";
+        return switch (field.getLogicalType()) {
+            case STRING -> "string";
+            case BOOLEAN -> "boolean";
+            case INTEGER -> "integer";
+            case LONG -> "long";
+            case DECIMAL -> "decimal";
+            case DATE -> "date";
+            case TIMESTAMP -> "datetime";
+            case JSON -> "json";
+            case BINARY -> "binary";
+        };
     }
 
     private String knowledgeDescription(String description) {
-        return firstNonBlank(description, "暂无说明")
+        return firstNonBlank(description)
                 .replace("虚拟表", "数据表")
                 .replace("虚拟字段", "字段")
                 .replace("虚拟实体", "数据对象")
@@ -260,20 +319,16 @@ public class VirtualKnowledgeService {
         return entity;
     }
 
-    private VirtualEntityEntity requirePublishedEntity(Long entityId) {
-        VirtualEntityEntity entity = requireEntity(entityId);
-        if (entity.getStatus() != CatalogStatus.PUBLISHED || !Boolean.TRUE.equals(entity.getEnabled())) {
-            throw new VirtualDataException("CATALOG_NOT_PUBLISHED", "仅已发布且启用的虚拟表可同步知识库: " + entity.getEntityCode());
-        }
-        return entity;
-    }
-
     private List<Long> normalizeIds(List<Long> entityIds) {
         return entityIds == null ? List.of() : entityIds.stream().filter(Objects::nonNull).distinct().toList();
     }
 
-    private String documentCode(Long entityId) {
-        return DOCUMENT_PREFIX + entityId;
+    private String documentCode(VirtualEntityEntity entity) {
+        return DOCUMENT_PREFIX + entity.getEntityCode().trim();
+    }
+
+    private String legacyDocumentCode(VirtualEntityEntity entity) {
+        return LEGACY_DOCUMENT_PREFIX + entity.getId();
     }
 
     private String documentName(VirtualEntityEntity entity) {
@@ -281,11 +336,25 @@ public class VirtualKnowledgeService {
         return Objects.equals(name, entity.getEntityCode()) ? name : entity.getEntityCode() + " - " + name;
     }
 
-    private String fieldConstraint(VirtualFieldEntity field) {
-        List<String> constraints = new ArrayList<>();
-        if (Boolean.TRUE.equals(field.getPrimaryKey())) constraints.add("主键");
-        constraints.add(Boolean.TRUE.equals(field.getNullable()) ? "可空" : "非空");
-        return String.join("；", constraints);
+    private String yamlAliases(VirtualEntityEntity entity) {
+        if (!StringUtils.hasText(entity.getEntityName()) || Objects.equals(entity.getEntityName().trim(), entity.getEntityCode().trim())) {
+            return "[]";
+        }
+        return "[" + yamlValue(entity.getEntityName()) + "]";
+    }
+
+    private String yamlValue(String value) {
+        if (!StringUtils.hasText(value)) return "";
+        return "\"" + value.trim()
+                .replace("\\", "\\\\")
+                .replace("\"", "\\\"")
+                .replace("\r", " ")
+                .replace("\n", "\\n") + "\"";
+    }
+
+    private String sourceRevision(VirtualEntityEntity entity) {
+        if (entity.getCatalogVersion() == null) return "";
+        return "virtual-model/" + entity.getEntityCode().trim() + "/v" + entity.getCatalogVersion();
     }
 
     private String firstNonBlank(String... values) {

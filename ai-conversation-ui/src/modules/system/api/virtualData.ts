@@ -262,8 +262,12 @@ export interface VirtualKnowledgeStatusItem {
 }
 
 export interface VirtualKnowledgeSyncPayload {
-  kbCode: string
   entityIds: VirtualDataId[]
+}
+
+export interface VirtualKnowledgeConfiguration {
+  settingKey?: string
+  kbCode?: string
 }
 
 export interface VirtualKnowledgeSyncResult {
@@ -478,8 +482,21 @@ export function getVirtualKnowledgeStatus(entityIds: VirtualDataId[]) {
   })
 }
 
+export function getVirtualKnowledgeConfiguration() {
+  return request<VirtualKnowledgeConfiguration>(`${VIRTUAL_DATA_API_PREFIX}/knowledge-configuration`, {
+    method: 'GET',
+  })
+}
+
 export function syncVirtualKnowledge(payload: VirtualKnowledgeSyncPayload) {
   return request<VirtualKnowledgeSyncResult>(`${VIRTUAL_DATA_API_PREFIX}/knowledge-sync`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function initializeVirtualKnowledge(payload: VirtualKnowledgeSyncPayload) {
+  return request<VirtualKnowledgeSyncResult>(`${VIRTUAL_DATA_API_PREFIX}/knowledge-initialize`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

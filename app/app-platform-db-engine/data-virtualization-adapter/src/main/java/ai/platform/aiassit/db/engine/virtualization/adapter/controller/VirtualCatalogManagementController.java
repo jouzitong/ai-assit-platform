@@ -11,10 +11,10 @@ import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualDescription
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualDescriptionGenerateResponse;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualDescriptionService;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeBatchRequest;
+import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeConfigurationResponse;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgePreviewResponse;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeService;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeStatusItem;
-import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeSyncRequest;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualKnowledgeSyncResponse;
 import ai.platform.aiassit.data.virtualization.core.knowledge.VirtualUnpublishResponse;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformManagementService;
@@ -22,6 +22,8 @@ import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformerRe
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformScriptGenerateRequest;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformScriptGenerateResponse;
 import ai.platform.aiassit.data.virtualization.core.transform.FieldTransformScriptService;
+import ai.platform.aiassit.db.engine.api.constant.DbEngineSystemSettingKeys;
+import ai.platform.aiassit.db.engine.virtualization.adapter.external.VirtualKnowledgeBaseSettingResolver;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -39,6 +41,7 @@ public class VirtualCatalogManagementController {
     private final VirtualCatalogPublisher publisher;
     private final FieldTransformManagementService transformService;
     private final VirtualKnowledgeService knowledgeService;
+    private final VirtualKnowledgeBaseSettingResolver knowledgeBaseSettingResolver;
     private final VirtualDescriptionService descriptionService;
     private final FieldTransformScriptService scriptService;
 
@@ -47,6 +50,7 @@ public class VirtualCatalogManagementController {
             VirtualCatalogPublisher publisher,
             FieldTransformManagementService transformService,
             VirtualKnowledgeService knowledgeService,
+            VirtualKnowledgeBaseSettingResolver knowledgeBaseSettingResolver,
             VirtualDescriptionService descriptionService,
             FieldTransformScriptService scriptService
     ) {
@@ -54,6 +58,7 @@ public class VirtualCatalogManagementController {
         this.publisher = publisher;
         this.transformService = transformService;
         this.knowledgeService = knowledgeService;
+        this.knowledgeBaseSettingResolver = knowledgeBaseSettingResolver;
         this.descriptionService = descriptionService;
         this.scriptService = scriptService;
     }
@@ -88,9 +93,22 @@ public class VirtualCatalogManagementController {
         return knowledgeService.status(entityIds(request));
     }
 
+    @GetMapping("/knowledge-configuration")
+    public VirtualKnowledgeConfigurationResponse knowledgeConfiguration() {
+        return new VirtualKnowledgeConfigurationResponse(
+                DbEngineSystemSettingKeys.KNOWLEDGE_BASE_CODE,
+                knowledgeBaseSettingResolver.resolve()
+        );
+    }
+
     @PostMapping("/knowledge-sync")
-    public VirtualKnowledgeSyncResponse knowledgeSync(@RequestBody VirtualKnowledgeSyncRequest request) {
-        return knowledgeService.sync(request);
+    public VirtualKnowledgeSyncResponse knowledgeSync(@RequestBody VirtualKnowledgeBatchRequest request) {
+        return knowledgeService.initialize(knowledgeBaseSettingResolver.resolve(), entityIds(request));
+    }
+
+    @PostMapping("/knowledge-initialize")
+    public VirtualKnowledgeSyncResponse knowledgeInitialize(@RequestBody VirtualKnowledgeBatchRequest request) {
+        return knowledgeService.initialize(knowledgeBaseSettingResolver.resolve(), entityIds(request));
     }
 
     @PostMapping("/unpublish-check")

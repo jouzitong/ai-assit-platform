@@ -20,6 +20,7 @@ import ai.platform.aiassit.service.ai.api.dto.KbDocument;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.KbUpsertResponse;
 import ai.platform.aiassit.service.ai.api.dto.AiKbCreateRequest;
+import ai.platform.aiassit.service.ai.api.dto.AiKbDocumentUpsertRequest;
 import ai.platform.aiassit.service.ai.api.dto.AiKbInfoDTO;
 import ai.platform.aiassit.service.ai.api.enums.AiKbBizType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbContentFormat;
@@ -208,6 +209,38 @@ class AiKnowledgeManageDomainServiceImplTest {
         ArgumentCaptor<AiKbDocumentDTO> documentCaptor = ArgumentCaptor.forClass(AiKbDocumentDTO.class);
         verify(documentService).update(eq(1L), documentCaptor.capture());
         assertEquals(AiKbDocumentStatus.DISABLED, documentCaptor.getValue().getStatus());
+    }
+
+    @Test
+    void shouldCreateDisabledDocumentWhenUpsertExplicitlyRequestsDraft() {
+        AiKbStoreDTO store = new AiKbStoreDTO();
+        store.setId(1L);
+        store.setKbCode("kb-1");
+        store.setProviderKbId("dataset-1");
+        store.setEnabled(true);
+        when(storeService.getByKbCode("kb-1")).thenReturn(store);
+        when(documentService.add(any())).thenAnswer(invocation -> {
+            AiKbDocumentDTO document = invocation.getArgument(0);
+            document.setId(1L);
+            return document;
+        });
+
+        AiKbDocumentUpsertRequest request = new AiKbDocumentUpsertRequest();
+        request.setKbCode("kb-1");
+        request.setDocumentId("virtual-table/1");
+        request.setDocumentName("订单");
+        request.setDocumentType(AiKbDocumentType.DB_TABLE);
+        request.setBizType(AiKbBizType.DB_DATA_SOURCE);
+        request.setContent("# 订单");
+        request.setCanUpdate(false);
+        request.setEnabled(false);
+
+        domainService.upsertDocument(request);
+
+        ArgumentCaptor<AiKbDocumentDTO> documentCaptor = ArgumentCaptor.forClass(AiKbDocumentDTO.class);
+        verify(documentService).add(documentCaptor.capture());
+        assertEquals(AiKbDocumentStatus.DISABLED, documentCaptor.getValue().getStatus());
+        assertEquals(AiKbProviderSyncStatus.PENDING, documentCaptor.getValue().getProviderSyncStatus());
     }
 
     private void mockSyncInputs(AiKbDocumentDTO document, AiKbDocumentContentDTO content) {

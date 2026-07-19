@@ -241,6 +241,7 @@ export interface AiKbDocumentUpsertPayload {
   bizType?: number
   content: string
   canUpdate?: boolean
+  enabled?: boolean
   ext?: Record<string, unknown>
 }
 

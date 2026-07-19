@@ -247,6 +247,9 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         String checksum = checksum(request.getContent());
         long contentSize = request.getContent().getBytes(StandardCharsets.UTF_8).length;
         boolean canUpdate = Boolean.TRUE.equals(request.getCanUpdate());
+        AiKbDocumentStatus requestedStatus = request.getEnabled() == null
+                ? null
+                : Boolean.TRUE.equals(request.getEnabled()) ? AiKbDocumentStatus.ACTIVE : AiKbDocumentStatus.DISABLED;
         log.info("ai kb upsert document start, kbCode={}, documentId={}, documentType={}, bizType={}, sourceKey={}, canUpdate={}",
                 kbCode, documentId, documentType, bizType, sourceKey, canUpdate);
 
@@ -263,7 +266,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
             document.setKbCode(kbCode);
             document.setDocumentCode(documentId);
             document.setDocumentVersionNo(1);
-            document.setStatus(AiKbDocumentStatus.ACTIVE);
+            document.setStatus(requestedStatus == null ? AiKbDocumentStatus.ACTIVE : requestedStatus);
         }
 
         boolean contentChanged = created || !Objects.equals(existing.getContentChecksum(), checksum);
@@ -272,7 +275,8 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                 || !Objects.equals(document.getDocumentType(), documentType)
                 || !Objects.equals(document.getBizType(), bizType)
                 || !Objects.equals(document.getBizKey(), documentBizKey)
-                || !Objects.equals(document.getMetaJson(), ext);
+                || !Objects.equals(document.getMetaJson(), ext)
+                || requestedStatus != null && document.getStatus() != requestedStatus;
         log.info("ai kb upsert document diff, kbCode={}, documentId={}, created={}, contentChanged={}, metadataChanged={}",
                 kbCode, documentId, created, contentChanged, metadataChanged);
 
@@ -294,6 +298,9 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
         document.setMetaJson(ext);
         document.setLastGeneratedAt(LocalDateTime.now());
         document.setLastError(null);
+        if (requestedStatus != null) {
+            document.setStatus(requestedStatus);
+        }
         if (created || updated) {
             document.setProviderSyncStatus(AiKbProviderSyncStatus.PENDING);
         }

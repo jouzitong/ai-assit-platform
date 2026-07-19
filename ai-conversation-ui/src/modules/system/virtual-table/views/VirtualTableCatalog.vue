@@ -3,14 +3,17 @@ import { Check, EditPen, Plus, Reading, RefreshRight, Search, UploadFilled } fro
 import { ElMessage } from 'element-plus'
 import { computed, nextTick, ref, watch } from 'vue'
 import { AppPagination } from '../../../../components'
-import type { CatalogStatus, VirtualDataId, VirtualKnowledgeStatusItem } from '../../api/virtualData'
+import type { AiKbDocumentItem } from '../../api/aiPlatform'
+import type { CatalogStatus, VirtualDataId } from '../../api/virtualData'
 import { catalogStatusLabel, catalogStatusOptions, catalogStatusType } from '../data/options'
 import type { VirtualEntitySummary } from '../data/types'
 
 const props = defineProps<{
   rows: VirtualEntitySummary[]
-  knowledgeStatuses?: VirtualKnowledgeStatusItem[]
-  knowledgeBases?: Array<{ code: string; label: string }>
+  knowledgeDocuments?: AiKbDocumentItem[]
+  knowledgeBaseCode?: string
+  knowledgeBaseSettingKey?: string
+  knowledgeBaseConfigMessage?: string
   loading?: boolean
   operationLoading?: boolean
 }>()
@@ -23,6 +26,7 @@ const emit = defineEmits<{
   publishEntity: [id: VirtualDataId]
   batchPublish: [ids: VirtualDataId[]]
   batchUnpublish: [ids: VirtualDataId[]]
+  initializeKnowledge: [ids: VirtualDataId[]]
   syncKnowledge: [ids: VirtualDataId[]]
   previewKnowledge: [id: VirtualDataId]
 }>()
@@ -32,7 +36,7 @@ const sourceKey = defineModel<string>('sourceKey', { default: '' })
 const status = defineModel<CatalogStatus | ''>('status', { default: '' })
 const currentPage = defineModel<number>('currentPage', { default: 1 })
 const pageSize = defineModel<number>('pageSize', { default: 20 })
-const knowledgeBaseCode = defineModel<string>('knowledgeBaseCode', { default: '' })
+const knowledgeBaseCode = computed(() => props.knowledgeBaseCode || '')
 const tableRef = ref<{ clearSelection: () => void; toggleRowSelection: (row: VirtualEntitySummary, selected: boolean) => void } | null>(null)
 const selectedIdKeys = ref<Set<string>>(new Set())
 let syncingPageSelection = false
@@ -53,22 +57,35 @@ const pagedRows = computed(() => {
 })
 const selectedRows = computed(() => props.rows.filter(row => selectedIdKeys.value.has(String(row.id))))
 const selectedIds = computed(() => selectedRows.value.map(row => row.id))
-const statusByEntityId = computed(() => new Map((props.knowledgeStatuses || []).map(item => [String(item.entityId), item])))
+const documentByCode = computed(() => new Map<string, AiKbDocumentItem>((props.knowledgeDocuments || [])
+  .map(item => [String(item.documentCode || ''), item] as const)))
 
-function isKnowledgeSynced(row: VirtualEntitySummary) {
-  if (!knowledgeBaseCode.value) return false
-  return statusByEntityId.value.get(String(row.id))?.kbCodes?.includes(knowledgeBaseCode.value) === true
+function knowledgeDocument(row: VirtualEntitySummary) {
+  const entityCode = String(row.entityCode || '').trim()
+  return (entityCode ? documentByCode.value.get(`vt-${entityCode}`) : undefined)
+    || documentByCode.value.get(`virtual-table/${row.id}`)
 }
 
 function knowledgeStatusLabel(row: VirtualEntitySummary) {
-  if (row.status !== 1) return '需先发布'
-  if (!knowledgeBaseCode.value) return '请选择知识库'
-  return isKnowledgeSynced(row) ? '已同步' : '未同步'
+  if (!knowledgeBaseCode.value) return '知识库未配置'
+  const document = knowledgeDocument(row)
+  if (!document) return '未初始化'
+  if (Number(document.status) === 2) return '草稿 / 已禁用'
+  const syncStatus = Number(document.providerSyncStatus)
+  if (syncStatus === 2) return '同步中'
+  if (syncStatus === 3) return '已同步'
+  if (syncStatus === 4) return '同步失败'
+  return '待同步'
 }
 
 function knowledgeStatusType(row: VirtualEntitySummary) {
-  if (row.status !== 1 || !knowledgeBaseCode.value) return 'info'
-  return isKnowledgeSynced(row) ? 'success' : 'warning'
+  if (!knowledgeBaseCode.value) return 'info'
+  const document = knowledgeDocument(row)
+  if (!document || Number(document.status) === 2) return 'info'
+  const syncStatus = Number(document.providerSyncStatus)
+  if (syncStatus === 3) return 'success'
+  if (syncStatus === 4) return 'danger'
+  return 'warning'
 }
 
 function syncPageSelection() {
@@ -91,20 +108,21 @@ function handleSelectionChange(rows: VirtualEntitySummary[]) {
   selectedIdKeys.value = next
 }
 
-function selectAllUnsynced() {
+function selectAllUninitialized() {
   if (!knowledgeBaseCode.value) {
-    ElMessage.warning('请先选择知识库，再选择全部未同步虚拟表')
+    ElMessage.warning(props.knowledgeBaseConfigMessage || `请先配置系统参数 ${props.knowledgeBaseSettingKey || 'dbEngine.kb.kbId'}`)
     return
   }
-  const rows = filteredRows.value.filter(row => row.status === 1 && !isKnowledgeSynced(row))
+  const rows = filteredRows.value.filter(row => !knowledgeDocument(row))
   selectedIdKeys.value = new Set(rows.map(row => String(row.id)))
-  ElMessage.success(`已选择 ${rows.length} 张已发布且未同步的虚拟表`)
+  ElMessage.success(`已选择 ${rows.length} 张未初始化知识文档的虚拟表`)
 }
 
 function handleBatchCommand(command: string) {
   if (!selectedIds.value.length) return
   if (command === 'publish') emit('batchPublish', selectedIds.value)
   if (command === 'unpublish') emit('batchUnpublish', selectedIds.value)
+  if (command === 'initialize-knowledge') emit('initializeKnowledge', selectedIds.value)
   if (command === 'sync') emit('syncKnowledge', selectedIds.value)
 }
 
@@ -166,7 +184,7 @@ watch(() => props.rows, (rows) => {
       <div class="virtual-catalog__bulkbar">
         <div class="virtual-catalog__bulk-actions">
           <span>已选择 <strong>{{ selectedIds.length }}</strong> 张虚拟表</span>
-          <el-button :disabled="operationLoading || !knowledgeBaseCode" @click="selectAllUnsynced">选择全部未同步</el-button>
+          <el-button :disabled="operationLoading || !knowledgeBaseCode" @click="selectAllUninitialized">选择全部未初始化</el-button>
           <el-dropdown :disabled="operationLoading || !selectedIds.length" @command="handleBatchCommand">
             <el-button type="primary" plain :loading="operationLoading">
               批量操作<el-icon class="el-icon--right"><UploadFilled /></el-icon>
@@ -175,14 +193,19 @@ watch(() => props.rows, (rows) => {
               <el-dropdown-menu>
                 <el-dropdown-item command="publish">发布</el-dropdown-item>
                 <el-dropdown-item command="unpublish" divided>取消发布</el-dropdown-item>
-                <el-dropdown-item command="sync">同步知识库</el-dropdown-item>
+                <el-dropdown-item command="initialize-knowledge" divided :disabled="!knowledgeBaseCode">初始化知识文档</el-dropdown-item>
+                <el-dropdown-item command="sync" :disabled="!knowledgeBaseCode">同步到知识库 Provider</el-dropdown-item>
               </el-dropdown-menu>
             </template>
           </el-dropdown>
         </div>
-        <el-select v-model="knowledgeBaseCode" clearable filterable placeholder="选择知识库查看同步状态" aria-label="目标知识库">
-          <el-option v-for="item in knowledgeBases" :key="item.code" :label="item.label" :value="item.code" />
-        </el-select>
+        <div class="virtual-catalog__knowledge-target" aria-label="目标知识库">
+          <span>目标知识库</span>
+          <el-tag v-if="knowledgeBaseCode" type="success" effect="light">{{ knowledgeBaseCode }}</el-tag>
+          <el-tooltip v-else :content="knowledgeBaseConfigMessage || `请配置系统参数 ${knowledgeBaseSettingKey || 'dbEngine.kb.kbId'}`" placement="top">
+            <el-tag type="danger" effect="light">未配置 {{ knowledgeBaseSettingKey || 'dbEngine.kb.kbId' }}</el-tag>
+          </el-tooltip>
+        </div>
       </div>
 
       <el-table ref="tableRef" v-loading="loading" :data="pagedRows" row-key="id" class="virtual-catalog__table" height="100%" scrollbar-always-on @selection-change="handleSelectionChange">
@@ -226,7 +249,7 @@ watch(() => props.rows, (rows) => {
           <template #default="{ row }">
             <div class="virtual-catalog__row-actions">
               <el-button text type="primary" :icon="EditPen" @click="emit('openEntity', row.id)">模型配置</el-button>
-              <el-button text :icon="Reading" @click="emit('previewKnowledge', row.id)">知识预览</el-button>
+              <el-button text :icon="Reading" @click="emit('previewKnowledge', row.id)">知识文档</el-button>
               <el-button text :icon="Check" @click="emit('validateEntity', row.id)">校验</el-button>
               <el-button v-if="row.status !== 1" text type="success" :icon="UploadFilled" @click="emit('publishEntity', row.id)">发布</el-button>
               <el-button v-else text type="danger" @click="emit('batchUnpublish', [row.id])">取消发布</el-button>
@@ -291,13 +314,25 @@ watch(() => props.rows, (rows) => {
   background: var(--app-surface-muted);
 }
 
-.virtual-catalog__bulkbar > :deep(.el-select) {
-  width: 260px;
-}
-
 .virtual-catalog__bulk-actions > span {
   color: var(--app-text-muted);
   font-size: var(--app-font-size-caption);
+}
+
+.virtual-catalog__knowledge-target {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--app-space-2);
+  min-width: 0;
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+}
+
+.virtual-catalog__knowledge-target :deep(.el-tag) {
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .virtual-catalog__bulk-actions strong {
@@ -398,8 +433,13 @@ watch(() => props.rows, (rows) => {
 @media (max-width: 760px) {
   .virtual-catalog__filters,
   .virtual-catalog__actions,
-  .virtual-catalog__bulkbar {
+  .virtual-catalog__bulkbar,
+  .virtual-catalog__knowledge-target {
     flex-wrap: wrap;
+  }
+
+  .virtual-catalog__knowledge-target {
+    justify-content: flex-start;
   }
 }
 </style>

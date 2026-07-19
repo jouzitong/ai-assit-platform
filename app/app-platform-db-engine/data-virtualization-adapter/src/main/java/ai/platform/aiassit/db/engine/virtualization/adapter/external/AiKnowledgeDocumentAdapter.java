@@ -61,9 +61,10 @@ public class AiKnowledgeDocumentAdapter implements KnowledgeDocumentPort {
         request.setBizType(AiKbBizType.DB_DATA_SOURCE);
         request.setContent(command.content());
         request.setCanUpdate(command.updateAllowed());
+        request.setEnabled(command.enabled());
         request.setExt(command.metadata());
         AiKbDocumentUpsertResponse data = requiredData(
-                knowledgeApi.upsertDocument(request), "同步知识库文档失败");
+                knowledgeApi.upsertDocument(request), "保存知识库文档失败");
         return new KnowledgeDocumentUpsertResult(
                 Boolean.TRUE.equals(data.getCreated()),
                 Boolean.TRUE.equals(data.getUpdated())
