@@ -3,6 +3,7 @@ import BlankLayout from '../layouts/BlankLayout/index.vue'
 import ChatLayout from '../layouts/ChatLayout/index.vue'
 import DefaultLayout from '../layouts/DefaultLayout/index.vue'
 import { setupRouterGuards } from './guards'
+import { appRoutes } from './routes/app'
 import { aiRoutes } from './routes/ai'
 import { dataRoutes } from './routes/data'
 import { systemRoutes } from './routes/system'
@@ -62,6 +63,11 @@ const routes: RouteRecordRaw[] = [
         component: () => import('../modules/system/views/SystemSettingsView.vue'),
       },
     ],
+  },
+  {
+    path: '/app',
+    component: BlankLayout,
+    children: [...appRoutes],
   },
   {
     path: '/',

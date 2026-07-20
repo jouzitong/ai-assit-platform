@@ -181,6 +181,15 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - 同一渲染树只设置一个连续缩放宿主；Select、Popover、DatePicker 等浮层和拖拽坐标通过响应式上下文继承 overlay target 与逻辑缩放比例。
 - Application 的主题 Token、缩放计算、配置扩展和验收要求统一遵循 [前端主题与容器响应式开发规范](./responsive-theme.md)。
 
+### 8.1 动态应用路由与宿主模式
+
+- 正式动态应用入口统一使用 `/app/{mode}/{renderJsonCode}.json`；`.json` 是 URL 表达，加载 Render Meta 前应从 code 中移除。
+- `mode` 只决定页面宿主行为，不替代 Render JSON 内部 Layout。首批稳定值为 `standard`、`dashboard`、`report`、`embedded`。
+- `standard` 使用自然文档流；`dashboard` 使用唯一 `ResponsiveViewport`；`report` 提供自然排版和打印规则；`embedded` 使用最小页面外壳并跟随父容器。
+- Render JSON 可以在 `presentation` 中声明 `defaultMode`、`allowedModes`、`title`、`description`、`refreshInterval`、`responsivePreset`。显式路由 mode 优先，但必须通过 `allowedModes` 校验。
+- 内部容器继续使用 Layout Registry 的稳定 key，例如 `zg-stack-layout`、`zg-grid-layout`、`zg-split-layout`、`zg-section-layout`、`zg-sheet-layout`，禁止把这些 key 扩展成路由 mode。
+- 历史裸 renderer schema 可以在 Runtime Loader 中归一化为标准 `RenderDocument.root`，Renderer 和 Layout 不承担历史协议兼容。
+
 ## 9. 数据与动作
 
 - 列表查询、表单提交、动作执行由页面 service 或运行时容器负责。

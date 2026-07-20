@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, reactive, ref, watch, type CSSProperties } from 'vue'
+import { findApplicationLayout } from '../layout'
 import { findApplicationRenderer } from '../registry'
 import { createDefaultQueryState } from '../renderers/list/schema'
 import type { RendererQueryState } from '../renderers/list/types'
@@ -23,9 +24,10 @@ const props = defineProps<{
 const definition = computed(() => findApplicationRenderer(props.node.component))
 const componentKey = computed(() => props.node.component || '')
 const normalizedComponentKey = computed(() => componentKey.value.toLowerCase())
+const layoutDefinition = computed(() => findApplicationLayout(normalizedComponentKey.value))
 const isText = computed(() => normalizedComponentKey.value === 'text')
 const isHeading = computed(() => ['heading', 'title'].includes(normalizedComponentKey.value))
-const isLayout = computed(() => ['page', 'container', 'section', 'grid', 'stack'].includes(normalizedComponentKey.value))
+const isLayout = computed(() => Boolean(layoutDefinition.value))
 const rawNodeProps = computed(() => props.node.props || {})
 const schema = computed<Record<string, unknown> | null>(() => {
   const value = rawNodeProps.value.schema
@@ -72,16 +74,8 @@ const nodeStyle = computed<CSSProperties>(() => {
   const layout = props.node.layout || {}
   const style: CSSProperties = {}
   const allowed = [
-    'display',
-    'gridTemplateColumns',
-    'gridTemplateRows',
     'gridColumn',
     'gridRow',
-    'gap',
-    'padding',
-    'alignItems',
-    'justifyItems',
-    'justifyContent',
     'width',
     'height',
     'minHeight',
@@ -92,12 +86,6 @@ const nodeStyle = computed<CSSProperties>(() => {
       Object.assign(style, { [key]: value })
     }
   })
-  if (props.node.children?.length && !style.display) {
-    style.display = normalizedComponentKey.value === 'grid' ? 'grid' : 'flex'
-    if (style.display === 'flex') {
-      style.flexDirection = 'column'
-    }
-  }
   return style
 })
 
@@ -183,13 +171,18 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   <div class="render-json-runtime-node" :style="nodeStyle" :data-component="componentKey">
     <p v-if="isText" class="render-json-runtime-node__text">{{ textValue }}</p>
     <h2 v-else-if="isHeading" class="render-json-runtime-node__heading">{{ textValue }}</h2>
-    <template v-else-if="isLayout">
+    <component
+      :is="layoutDefinition.component"
+      v-else-if="isLayout && layoutDefinition"
+      :kind="layoutDefinition.kind"
+      :layout="node.layout"
+    >
       <RenderJsonRuntimeNode
         v-for="child in node.children || []"
         :key="child.id || child.component"
         :node="child"
       />
-    </template>
+    </component>
     <template v-else-if="definition">
       <div v-if="rendererError" class="render-json-runtime-node__error" role="alert">
         {{ rendererError }}
