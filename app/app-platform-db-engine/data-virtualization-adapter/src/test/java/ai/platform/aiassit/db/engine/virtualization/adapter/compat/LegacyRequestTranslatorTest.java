@@ -128,6 +128,68 @@ class LegacyRequestTranslatorTest {
     }
 
     @Test
+    void ignoresUnknownProjectionFilterAndSortFields() {
+        DbQueryListRequest source = new DbQueryListRequest();
+        source.setModel("orders");
+        source.setFilterDict(new LinkedHashMap<>(Map.of(
+                "status", "ACTIVE",
+                "version", 1
+        )));
+        source.setFilterExpr("status and version");
+        source.getExt().setFields(List.of("id", "version"));
+        source.getExt().setSorts(List.of(sort("version", "desc"), sort("name", "asc")));
+
+        LegacyRequestTranslator.Translation translation = translator.translateList(source);
+        VirtualQueryRequest target = translation.request();
+
+        assertEquals(List.of("id"), target.getFields());
+        assertEquals(List.of("id"), translation.outputFields());
+        assertEquals(List.of("status"), new ArrayList<>(predicatesByField(target.getFilter()).keySet()));
+        assertEquals(List.of("name", "id"), target.getSorts().stream().map(item -> item.getField()).toList());
+    }
+
+    @Test
+    void ignoresUnknownFieldsAcrossGetTreeAndAggregateTranslations() {
+        DbQueryGetRequest get = new DbQueryGetRequest();
+        get.setModel("orders");
+        get.setFilterDict(Map.of("version", 1));
+        DbQueryGetExt getExt = new DbQueryGetExt();
+        getExt.setFields(List.of("name", "version"));
+        get.setExt(getExt);
+        LegacyRequestTranslator.Translation getTranslation = translator.translateGet(get);
+        assertEquals(List.of("name"), getTranslation.outputFields());
+        assertNull(getTranslation.request().getFilter());
+
+        DbQueryTreeRequest tree = new DbQueryTreeRequest();
+        tree.setModel("orders");
+        tree.setFields(List.of("status", "version"));
+        LegacyRequestTranslator.Translation treeTranslation = translator.translateTree(tree);
+        assertEquals(List.of("id", "parent_id", "name", "status"), treeTranslation.outputFields());
+
+        DbQueryAggregateRequest aggregate = new DbQueryAggregateRequest();
+        aggregate.setModel("orders");
+        aggregate.setDimensions(List.of(
+                dimension("region", "region_name"),
+                dimension("version", "version_name")
+        ));
+        aggregate.setMetrics(List.of(
+                metric("amount", "sum", "sales"),
+                metric("version", "sum", "version_total")
+        ));
+        aggregate.setHaving(Map.of(
+                "sales", condition("gt", 0),
+                "version_total", condition("gt", 0)
+        ));
+        aggregate.setSorts(List.of(sort("version_total", "desc"), sort("sales", "desc")));
+
+        VirtualQueryRequest aggregateTarget = translator.translateAggregate(aggregate).request();
+        assertEquals(List.of("region"), aggregateTarget.getGroupBy());
+        assertEquals(List.of("sales"), aggregateTarget.getAggregates().stream().map(item -> item.getAlias()).toList());
+        assertEquals("sales", aggregateTarget.getHaving().getField());
+        assertEquals(List.of("sales"), aggregateTarget.getSorts().stream().map(item -> item.getField()).toList());
+    }
+
+    @Test
     void expandsAllEnabledFieldsAndOnlyDefaultForwardRelationsWhenFieldsAndRelationsAreEmpty() {
         when(catalogGateway.describePublished("bidirectional_orders", null))
                 .thenReturn(bidirectionalOrdersCatalog());
@@ -439,7 +501,7 @@ class LegacyRequestTranslatorTest {
     }
 
     @Test
-    void validatesOnFieldsAndProjectedRemoteFieldsAgainstPublishedCatalogs() {
+    void keepsRelationJoinFieldsStrictAndIgnoresUnknownProjectedRemoteFields() {
         assertRelationError(
                 relation("warehouse", "warehouses", Map.of("wrong_local", "id")),
                 LegacyRequestTranslator.INVALID_FIELD
@@ -452,38 +514,28 @@ class LegacyRequestTranslatorTest {
         DbQueryListRequest source = new DbQueryListRequest();
         source.setModel("orders");
         source.getExt().setRelations(List.of(relation("buyer", "customers", Map.of())));
-        source.getExt().setFields(List.of("buyer.unknown"));
+        source.getExt().setFields(List.of("id", "buyer.unknown"));
 
-        LegacyQueryCompatibilityException exception = assertThrows(
-                LegacyQueryCompatibilityException.class,
-                () -> translator.translateList(source)
-        );
-        assertEquals(LegacyRequestTranslator.INVALID_FIELD, exception.getCode());
+        LegacyRequestTranslator.Translation translation = translator.translateList(source);
+        assertEquals(List.of("id"), translation.request().getFields());
+        assertEquals(List.of("id"), translation.outputFields());
     }
 
     @Test
-    void rejectsHavingAndAggregateSortOutsidePublishedAliases() {
+    void ignoresHavingAndAggregateSortOutsidePublishedAliases() {
         DbQueryAggregateRequest invalidHaving = new DbQueryAggregateRequest();
         invalidHaving.setModel("orders");
         invalidHaving.setMetrics(List.of(metric("amount", "sum", "sales")));
         invalidHaving.setHaving(Map.of("amount", condition("gt", 0)));
 
-        LegacyQueryCompatibilityException havingException = assertThrows(
-                LegacyQueryCompatibilityException.class,
-                () -> translator.translateAggregate(invalidHaving)
-        );
-        assertEquals(LegacyRequestTranslator.INVALID_FIELD, havingException.getCode());
+        assertNull(translator.translateAggregate(invalidHaving).request().getHaving());
 
         DbQueryAggregateRequest invalidSort = new DbQueryAggregateRequest();
         invalidSort.setModel("orders");
         invalidSort.setMetrics(List.of(metric("amount", "sum", "sales")));
         invalidSort.setSorts(List.of(sort("amount", "desc")));
 
-        LegacyQueryCompatibilityException sortException = assertThrows(
-                LegacyQueryCompatibilityException.class,
-                () -> translator.translateAggregate(invalidSort)
-        );
-        assertEquals(LegacyRequestTranslator.INVALID_FIELD, sortException.getCode());
+        assertTrue(translator.translateAggregate(invalidSort).request().getSorts().isEmpty());
     }
 
     private void assertRelationError(DbQueryRelation relation, String expectedCode) {

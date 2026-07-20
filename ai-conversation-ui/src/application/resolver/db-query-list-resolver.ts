@@ -5,11 +5,13 @@ import {
 } from '../data-requester'
 import type {
   DirectJsonListDatasource,
+  DbQueryListDatasource,
   DbQueryListRequest,
   DbQueryFilterValue,
   DbQueryListResponse,
   ListRendererData,
   ListRendererSchema,
+  RendererField,
   RendererFilter,
   RendererQueryState,
 } from '../schema'
@@ -125,12 +127,48 @@ function shouldKeepFilterCondition(value: { op?: string; value?: unknown }) {
   return true
 }
 
+function resolveRendererFieldPath(field: RendererField) {
+  const segments = field.field
+    ?.map(segment => segment.trim())
+    .filter(Boolean)
+
+  if (segments?.length) {
+    return segments.join('.')
+  }
+
+  return field.key?.trim() || ''
+}
+
+function resolveRequestFields(
+  datasource: DbQueryListDatasource,
+  rendererFields: RendererField[] = [],
+) {
+  const result = new Set<string>()
+  const datasourceFields = datasource.ext?.fields || []
+
+  datasourceFields.forEach((field) => {
+    const normalized = field?.trim()
+    if (normalized) {
+      result.add(normalized)
+    }
+  })
+
+  rendererFields.forEach((field) => {
+    const resolved = resolveRendererFieldPath(field)
+    if (resolved) {
+      result.add(resolved)
+    }
+  })
+
+  return [...result]
+}
+
 export function buildDbQueryListRequest(
   schema: ListRendererSchema,
   query: Partial<RendererQueryState> = {},
 ): DbQueryListRequest | null {
   const datasource = schema.datasource
-  if (!datasource?.model) {
+  if (!datasource || isDirectJsonDatasource(datasource) || !datasource.model) {
     return null
   }
 
@@ -138,6 +176,13 @@ export function buildDbQueryListRequest(
   const pageSize = query.pageSize || pagination?.pageSize || datasource.page_size || 10
   const runtimeFilterDict = buildRuntimeFilterDict(schema.filters, query.filters)
   const runtimeFilterKeys = Object.keys(runtimeFilterDict)
+  const requestFields = resolveRequestFields(datasource, schema.fields)
+  const ext = datasource.ext || requestFields.length
+    ? {
+        ...datasource.ext,
+        ...(requestFields.length ? { fields: requestFields } : {}),
+      }
+    : undefined
 
   return {
     title: datasource.title || schema.title,
@@ -147,7 +192,7 @@ export function buildDbQueryListRequest(
       ...runtimeFilterDict,
     },
     filterExpr: mergeFilterExpr(datasource.filterExpr, runtimeFilterKeys),
-    ext: datasource.ext,
+    ext,
     page: query.page || datasource.page || 1,
     page_size: pageSize,
   }
