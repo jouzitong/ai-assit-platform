@@ -1,11 +1,15 @@
 import { LIST_RENDERER_DEFINITION } from './list'
+import { FORM_RENDERER_DEFINITION } from './form'
+import { CHART_RENDERER_DEFINITIONS } from './charts'
 import type { ApplicationRendererDefinition } from './types'
 
 const APPLICATION_RENDERER_DEFINITIONS = [
   LIST_RENDERER_DEFINITION,
-] as const satisfies readonly ApplicationRendererDefinition[]
+  FORM_RENDERER_DEFINITION,
+  ...CHART_RENDERER_DEFINITIONS,
+] as const satisfies readonly ApplicationRendererDefinition<any>[]
 
-const APPLICATION_RENDERER_MAP = new Map<string, ApplicationRendererDefinition>()
+const APPLICATION_RENDERER_MAP = new Map<string, ApplicationRendererDefinition<any>>()
 
 for (const definition of APPLICATION_RENDERER_DEFINITIONS) {
   APPLICATION_RENDERER_MAP.set(definition.key, definition)
@@ -35,3 +39,5 @@ export function resolveApplicationRenderer(rendererKey?: string) {
 
 export type { ApplicationRendererDefinition } from './types'
 export { LIST_RENDERER_DEFINITION, LIST_RENDERER_KEY } from './list'
+export { FORM_RENDERER_DEFINITION, FORM_RENDERER_KEY } from './form'
+export { CHART_RENDERER_DEFINITIONS } from './charts'

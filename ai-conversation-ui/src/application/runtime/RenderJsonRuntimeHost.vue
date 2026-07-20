@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import RenderJsonRuntimeNode from './RenderJsonRuntimeNode.vue'
 
 interface RenderJsonRuntimeDocument {
   protocol?: string
@@ -45,7 +46,7 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
       </div>
 
       <div v-else-if="hasRootNode" class="render-json-runtime-host__state">
-        已接收 `{{ protocolLabel }}` 文档，等待节点解析和渲染接入。
+        <RenderJsonRuntimeNode :node="document!.root!" />
       </div>
 
       <div v-else class="render-json-runtime-host__state">
@@ -66,14 +67,15 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
 }
 
 .render-json-runtime-host__state {
-  padding: var(--app-space-5) var(--app-space-6);
-  border: 1px dashed var(--el-border-color);
-  border-radius: var(--app-radius-xl);
-  background: var(--el-bg-color-page);
+  width: 100%;
+  min-height: 100%;
   color: var(--el-text-color-regular);
 }
 
 .render-json-runtime-host__state--error {
+  padding: var(--app-space-5) var(--app-space-6);
+  border: 0.0625rem dashed var(--el-color-danger-light-5);
+  border-radius: var(--app-radius-xl);
   border-color: var(--el-color-danger-light-5);
   color: var(--el-color-danger);
   background: var(--el-color-danger-light-9);

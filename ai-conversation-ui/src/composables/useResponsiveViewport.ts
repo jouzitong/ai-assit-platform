@@ -7,6 +7,7 @@ export interface ResponsiveViewportContext {
   rawScale: Readonly<Ref<number>>
   scale: Readonly<Ref<number>>
   isUnderflow: ComputedRef<boolean>
+  isOverflowing: ComputedRef<boolean>
   preset: ComputedRef<string>
   overlayTarget: Readonly<Ref<HTMLElement | null>>
   config: ComputedRef<ResponsiveViewportConfig>

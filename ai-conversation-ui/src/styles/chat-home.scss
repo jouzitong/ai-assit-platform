@@ -13,12 +13,22 @@
   grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
 }
 
+.chat-home-shell.has-artifact-workspace,
+.chat-home-shell.is-sidebar-collapsed.has-artifact-workspace {
+  grid-template-columns: var(--chat-sidebar-width) minmax(24rem, 34rem) minmax(0, 1fr);
+}
+
 .chat-home-shell.has-thinking-drawer {
   grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
 }
 
 .chat-home-shell.is-sidebar-collapsed.has-thinking-drawer {
   grid-template-columns: var(--chat-sidebar-width) minmax(0, 1fr);
+}
+
+.chat-home-shell.has-thinking-drawer.has-artifact-workspace,
+.chat-home-shell.is-sidebar-collapsed.has-thinking-drawer.has-artifact-workspace {
+  grid-template-columns: var(--chat-sidebar-width) minmax(24rem, 34rem) minmax(0, 1fr);
 }
 
 .chat-home-sidebar {
@@ -1973,7 +1983,9 @@
 @media (max-width: 960px) {
   .chat-home-shell,
   .chat-home-shell.has-thinking-drawer,
-  .chat-home-shell.is-sidebar-collapsed.has-thinking-drawer {
+  .chat-home-shell.is-sidebar-collapsed.has-thinking-drawer,
+  .chat-home-shell.has-artifact-workspace,
+  .chat-home-shell.is-sidebar-collapsed.has-artifact-workspace {
     grid-template-columns: 1fr;
   }
 

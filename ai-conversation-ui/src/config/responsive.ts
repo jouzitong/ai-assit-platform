@@ -137,6 +137,16 @@ export const RESPONSIVE_VIEWPORT_GLOBAL_OPTIONS = defineResponsiveViewportOption
         },
       },
     },
+    chatArtifactPreview: {
+      extends: 'dashboard',
+      config: {
+        minScale: 0.2,
+        maxScale: 1.5,
+        fit: 'contain',
+        underflow: 'scroll',
+        align: 'center',
+      },
+    },
   },
 })
 

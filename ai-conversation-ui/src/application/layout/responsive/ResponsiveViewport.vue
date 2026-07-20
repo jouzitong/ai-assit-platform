@@ -21,11 +21,17 @@ interface Props {
   preset?: string
   config?: ResponsiveViewportConfigOverrides
   options?: ResponsiveViewportGlobalOptions
+  scaleMultiplier?: number
 }
 
 const props = withDefaults(defineProps<Props>(), {
   config: () => ({}),
+  scaleMultiplier: 1,
 })
+
+const emit = defineEmits<{
+  'scale-change': [payload: { scale: number; rawScale: number; multiplier: number }]
+}>()
 
 const viewportRef = ref<HTMLElement | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
@@ -42,6 +48,13 @@ const resolvedConfig = computed(() => resolvedViewport.value.config)
 const resolvedPreset = computed(() => resolvedViewport.value.preset)
 const isUnderflow = computed(() => (
   rawScale.value > 0 && rawScale.value < resolvedConfig.value.minScale
+))
+const isOverflowing = computed(() => (
+  scale.value > 0
+  && (
+    resolvedConfig.value.referenceSize.width * scale.value > containerWidth.value + 0.5
+    || resolvedConfig.value.referenceSize.height * scale.value > containerHeight.value + 0.5
+  )
 ))
 
 let resizeObserver: ResizeObserver | null = null
@@ -81,7 +94,11 @@ const updateScale = (width: number, height: number) => {
   )
 
   rawScale.value = nextRawScale
-  scale.value = Math.min(config.maxScale, Math.max(config.minScale, nextRawScale))
+  const multiplier = Number.isFinite(props.scaleMultiplier) && props.scaleMultiplier > 0
+    ? props.scaleMultiplier
+    : 1
+  const requestedScale = nextRawScale * multiplier
+  scale.value = Math.min(config.maxScale, Math.max(config.minScale, requestedScale))
 }
 
 const measureViewport = () => {
@@ -118,12 +135,20 @@ provide(responsiveViewportKey, {
   rawScale: readonly(rawScale),
   scale: readonly(scale),
   isUnderflow,
+  isOverflowing,
   preset: resolvedPreset,
   overlayTarget: readonly(overlayRef),
   config: resolvedConfig,
 })
 
-watch(resolvedConfig, measureViewport, { deep: true })
+watch([resolvedConfig, () => props.scaleMultiplier], measureViewport, { deep: true })
+watch(scale, (value) => {
+  emit('scale-change', {
+    scale: value,
+    rawScale: rawScale.value,
+    multiplier: props.scaleMultiplier,
+  })
+}, { immediate: true })
 
 onMounted(() => {
   measureViewport()
@@ -153,6 +178,7 @@ onBeforeUnmount(() => {
     :data-align="resolvedConfig.align"
     :data-underflow="resolvedConfig.underflow"
     :data-underflow-active="isUnderflow"
+    :data-overflow-active="isOverflowing"
     :data-scale="scale"
   >
     <div class="responsive-viewport__stage" :style="stageStyle">
@@ -163,6 +189,7 @@ onBeforeUnmount(() => {
           :raw-scale="rawScale"
           :scale="scale"
           :is-underflow="isUnderflow"
+          :is-overflowing="isOverflowing"
           :preset="resolvedPreset"
           :config="resolvedConfig"
         />
@@ -188,7 +215,8 @@ onBeforeUnmount(() => {
   place-items: start;
 }
 
-.responsive-viewport[data-underflow='scroll'][data-underflow-active='true'] {
+.responsive-viewport[data-underflow='scroll'][data-underflow-active='true'],
+.responsive-viewport[data-underflow='scroll'][data-overflow-active='true'] {
   overflow: auto;
   place-items: start;
 }
