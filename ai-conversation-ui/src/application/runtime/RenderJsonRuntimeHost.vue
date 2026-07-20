@@ -1,6 +1,8 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { RendererAction } from '../renderers/list/types'
 import RenderJsonRuntimeNode from './RenderJsonRuntimeNode.vue'
+import type { RenderRuntimeNodeScope } from './observability'
 
 interface RenderJsonRuntimeDocument {
   protocol?: string
@@ -15,13 +17,22 @@ const props = withDefaults(
     document?: RenderJsonRuntimeDocument | null
     loading?: boolean
     error?: string | null
+    observe?: boolean
+    developerActions?: RendererAction[]
   }>(),
   {
     document: null,
     loading: false,
     error: null,
+    observe: false,
+    developerActions: () => [],
   },
 )
+
+const emit = defineEmits<{
+  'scope-change': [scope: RenderRuntimeNodeScope]
+  'developer-action': [action: RendererAction]
+}>()
 
 const hasRootNode = computed(() => Boolean(props.document?.root))
 const protocolLabel = computed(() => props.document?.protocol || 'render-json')
@@ -46,7 +57,13 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
       </div>
 
       <div v-else-if="hasRootNode" class="render-json-runtime-host__state">
-        <RenderJsonRuntimeNode :node="document!.root!" />
+        <RenderJsonRuntimeNode
+          :node="document!.root!"
+          :observe="observe"
+          :developer-actions="developerActions"
+          @scope-change="emit('scope-change', $event)"
+          @developer-action="emit('developer-action', $event)"
+        />
       </div>
 
       <div v-else class="render-json-runtime-host__state">
@@ -58,6 +75,8 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
 
 <style scoped>
 .render-json-runtime-host {
+  display: flex;
+  flex: 1 1 auto;
   width: 100%;
   max-width: 100%;
   height: 100%;

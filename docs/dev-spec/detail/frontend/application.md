@@ -189,6 +189,9 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - Render JSON 可以在 `presentation` 中声明 `defaultMode`、`allowedModes`、`title`、`description`、`refreshInterval`、`responsivePreset`。显式路由 mode 优先，但必须通过 `allowedModes` 校验。
 - 内部容器继续使用 Layout Registry 的稳定 key，例如 `zg-stack-layout`、`zg-grid-layout`、`zg-split-layout`、`zg-section-layout`、`zg-sheet-layout`，禁止把这些 key 扩展成路由 mode。
 - 历史裸 renderer schema 可以在 Runtime Loader 中归一化为标准 `RenderDocument.root`，Renderer 和 Layout 不承担历史协议兼容。
+- 开发者模式下，正式动态应用入口应提供 Render Meta 编辑和页面级 SCOPE 查看；节点观测仅在开发者模式开启，SCOPE 必须汇总真实的 `query`、`requestPlans`、`data`、`state` 和事件，不再复制测试页的手工请求链路。
+- Renderer 已提供页面标题和头部动作区时，标准宿主不重复渲染标题；开发者入口优先作为 Runtime-only 动作进入 Renderer 头部，不写回 Render JSON，只有缺少可承载动作区时才使用浮动入口。
+- `standard` 宿主和列表类 Renderer 应保持从宿主到 Runtime 节点的完整高度链。列表布局按 Header 与 ListTable 两个主区域组织：Header 承载标题、页面动作、页签和过滤条件；ListTable 位于 Main，承载汇总、列表内容及其分页 Footer；可选 Aside 与 ListTable 并列。Main 承担剩余空间，避免数据较少时页面上下形成无意义空白区。
 
 ## 9. 数据与动作
 

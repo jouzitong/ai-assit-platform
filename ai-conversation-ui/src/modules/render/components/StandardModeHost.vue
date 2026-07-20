@@ -5,34 +5,59 @@ defineProps<RenderModeHostProps>()
 </script>
 
 <template>
-  <main class="standard-mode-host">
-    <header v-if="title || description" class="standard-mode-host__header">
-      <h1 v-if="title">{{ title }}</h1>
-      <p v-if="description">{{ description }}</p>
-    </header>
-    <section class="standard-mode-host__content">
-      <slot />
-    </section>
-  </main>
+  <el-container class="standard-mode-host">
+    <el-aside v-if="$slots.aside" class="standard-mode-host__aside">
+      <slot name="aside" />
+    </el-aside>
+
+    <el-container direction="vertical" class="standard-mode-host__frame">
+      <el-header
+        v-if="title || description || $slots.header"
+        height="auto"
+        class="standard-mode-host__header"
+      >
+        <slot name="header">
+          <h1 v-if="title">{{ title }}</h1>
+          <p v-if="description">{{ description }}</p>
+        </slot>
+      </el-header>
+
+      <el-main class="standard-mode-host__main">
+        <section class="standard-mode-host__content">
+          <slot />
+        </section>
+      </el-main>
+
+      <el-footer v-if="$slots.footer" height="auto" class="standard-mode-host__footer">
+        <slot name="footer" />
+      </el-footer>
+    </el-container>
+  </el-container>
 </template>
 
 <style scoped>
 .standard-mode-host {
   width: 100%;
-  min-height: 100dvh;
-  padding: var(--app-space-6);
+  height: 100dvh;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
   background: var(--app-body-bg);
   color: var(--app-text);
 }
 
-.standard-mode-host__header,
+.standard-mode-host__aside,
+.standard-mode-host__frame,
+.standard-mode-host__main,
 .standard-mode-host__content {
-  width: min(100%, 1440px);
-  margin: 0 auto;
+  min-width: 0;
+  min-height: 0;
 }
 
 .standard-mode-host__header {
-  padding: 0 var(--app-space-1) var(--app-space-5);
+  flex: 0 0 auto;
+  padding: var(--app-space-4) var(--app-space-4) 0;
+  background: transparent;
 }
 
 .standard-mode-host__header h1 {
@@ -49,14 +74,36 @@ defineProps<RenderModeHostProps>()
   line-height: var(--app-line-height-body);
 }
 
+.standard-mode-host__main {
+  display: flex;
+  flex: 1 1 auto;
+  padding: var(--app-space-4);
+  overflow: auto;
+}
+
 .standard-mode-host__content {
-  min-width: 0;
-  min-height: 0;
+  display: flex;
+  flex: 1 1 auto;
+  width: 100%;
+}
+
+.standard-mode-host__footer {
+  flex: 0 0 auto;
+  padding: 0 var(--app-space-4) var(--app-space-4);
+  background: transparent;
 }
 
 @media (max-width: 768px) {
-  .standard-mode-host {
-    padding: var(--app-space-4);
+  .standard-mode-host__header {
+    padding: var(--app-space-3) var(--app-space-3) 0;
+  }
+
+  .standard-mode-host__main {
+    padding: var(--app-space-3);
+  }
+
+  .standard-mode-host__footer {
+    padding: 0 var(--app-space-3) var(--app-space-3);
   }
 }
 </style>

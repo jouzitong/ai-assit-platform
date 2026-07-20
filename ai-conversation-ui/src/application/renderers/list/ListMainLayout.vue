@@ -27,12 +27,16 @@ const props = withDefaults(
     treeData?: RendererTreeNode[]
     loading?: boolean
     total?: number
+    developerMode?: boolean
+    developerActions?: RendererAction[]
   }>(),
   {
     records: () => [],
     treeData: () => [],
     loading: false,
     total: 0,
+    developerMode: false,
+    developerActions: () => [],
   },
 )
 
@@ -132,7 +136,12 @@ const handlePageSizeChange = (pageSize: number) => {
     :pagination-enabled="paginationEnabled"
   >
     <template #header>
-      <ListHeaderBar :schema="normalizedSchema" @action="handleAction" />
+      <ListHeaderBar
+        :schema="normalizedSchema"
+        :developer-mode="developerMode"
+        :developer-actions="developerActions"
+        @action="handleAction"
+      />
     </template>
 
     <template #tabs>

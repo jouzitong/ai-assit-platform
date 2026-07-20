@@ -31,9 +31,9 @@ import type {
   RendererQueryState,
 } from '../../../application/renderers/list/types'
 import type { RuntimeRendererEvent } from '../../../application/runtime'
+import { getDeveloperModeEnabled } from '../../../utils/developerMode'
 
 const RENDER_META_CODE = 'default_config.meta.list.test'
-const DEVELOPER_MODE_STORAGE_KEY = 'ai-conversation-ui-developer-mode'
 
 const baseSchema: ListRendererSchema = {
   id: 'render-runtime-default-config-list',
@@ -467,7 +467,7 @@ function isForceReload(eventOrOptions?: RuntimeRendererEvent | { force?: boolean
 }
 
 onMounted(async () => {
-  developerModeEnabled.value = readDeveloperModeEnabled()
+  developerModeEnabled.value = getDeveloperModeEnabled()
 
   try {
     await loadRuntimeDocument()
@@ -551,10 +551,6 @@ function buildRuntimeEventSource(event: string) {
     componentId: normalizedSchema.value.id,
     event,
   }
-}
-
-function readDeveloperModeEnabled() {
-  return window.localStorage.getItem(DEVELOPER_MODE_STORAGE_KEY) === '1'
 }
 
 const runtimeEventDispatcher = createRuntimeEventDispatcher({

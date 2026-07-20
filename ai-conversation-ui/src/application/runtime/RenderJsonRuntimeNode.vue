@@ -3,7 +3,12 @@ import { computed, reactive, ref, watch, type CSSProperties } from 'vue'
 import { findApplicationLayout } from '../layout'
 import { findApplicationRenderer } from '../registry'
 import { createDefaultQueryState } from '../renderers/list/schema'
-import type { RendererQueryState } from '../renderers/list/types'
+import type { RendererAction, RendererQueryState } from '../renderers/list/types'
+import type {
+  RenderRuntimeNodeEvent,
+  RenderRuntimeNodeKind,
+  RenderRuntimeNodeScope,
+} from './observability'
 import { resolveRendererRuntimeData } from './resolveRendererRuntimeData'
 
 defineOptions({ name: 'RenderJsonRuntimeNode' })
@@ -17,8 +22,20 @@ interface RuntimeNode {
   children?: RuntimeNode[]
 }
 
-const props = defineProps<{
+const props = withDefaults(defineProps<{
   node: RuntimeNode
+  observe?: boolean
+  path?: string
+  developerActions?: RendererAction[]
+}>(), {
+  observe: false,
+  path: 'root',
+  developerActions: () => [],
+})
+
+const emit = defineEmits<{
+  'scope-change': [scope: RenderRuntimeNodeScope]
+  'developer-action': [action: RendererAction]
 }>()
 
 const definition = computed(() => findApplicationRenderer(props.node.component))
@@ -41,6 +58,8 @@ const schema = computed<Record<string, unknown> | null>(() => {
 })
 const queryState = reactive<Partial<RendererQueryState>>({})
 const resolvedData = ref<Record<string, unknown>>({ records: [], total: 0, treeData: [] })
+const requestPlans = ref<unknown[]>([])
+const nodeEvents = ref<RenderRuntimeNodeEvent[]>([])
 const rendererLoading = ref(false)
 const rendererError = ref('')
 let requestSequence = 0
@@ -67,6 +86,12 @@ const runtimeProps = computed(() => {
     records: resolvedData.value.records || [],
     treeData: resolvedData.value.treeData || [],
     total: resolvedData.value.total || 0,
+    ...(definition.value?.key === 'zg-list-main-layout' && props.observe
+      ? {
+          developerMode: true,
+          developerActions: props.developerActions,
+        }
+      : {}),
   }
 })
 
@@ -95,6 +120,33 @@ const textValue = computed(() => String(
     ?? rawNodeProps.value.title
     ?? '',
 ))
+const nodeScopeId = computed(() => props.node.id?.trim() || props.path)
+const nodeKind = computed<RenderRuntimeNodeKind>(() => {
+  if (isLayout.value) return 'layout'
+  if (definition.value) return 'renderer'
+  if (isText.value || isHeading.value) return 'static'
+  return 'unknown'
+})
+const scopeSnapshot = computed<RenderRuntimeNodeScope>(() => ({
+  id: nodeScopeId.value,
+  component: componentKey.value,
+  kind: nodeKind.value,
+  path: props.path,
+  schema: schema.value,
+  query: { ...queryState },
+  requestPlans: [...requestPlans.value],
+  data: resolvedData.value,
+  state: rendererState.value,
+  events: [...nodeEvents.value],
+}))
+
+watch(
+  [() => props.observe, scopeSnapshot],
+  ([observe, snapshot]) => {
+    if (observe) emit('scope-change', snapshot)
+  },
+  { deep: true, immediate: true },
+)
 
 watch(
   () => JSON.stringify({ component: props.node.component, schema: schema.value }),
@@ -115,10 +167,12 @@ async function loadData(query: Partial<RendererQueryState>) {
     || !isRecord(schema.value.datasource)
   ) {
     rendererError.value = ''
+    requestPlans.value = []
     resolvedData.value = resolveInlineData(rawNodeProps.value)
     return
   }
   const sequence = ++requestSequence
+  requestPlans.value = []
   rendererLoading.value = true
   rendererError.value = ''
   try {
@@ -127,7 +181,11 @@ async function loadData(query: Partial<RendererQueryState>) {
       query,
     })
     if (sequence !== requestSequence) return
-    const resolved = payload.resolved as { data?: Record<string, unknown> } | null
+    const resolved = payload.resolved as {
+      data?: Record<string, unknown>
+      requestPlans?: unknown[]
+    } | null
+    requestPlans.value = resolved?.requestPlans || []
     resolvedData.value = resolved?.data || resolveInlineData(rawNodeProps.value)
   } catch (error) {
     if (sequence !== requestSequence) return
@@ -139,11 +197,42 @@ async function loadData(query: Partial<RendererQueryState>) {
 
 function handleQueryChange(query: RendererQueryState) {
   Object.assign(queryState, query)
+  recordNodeEvent('queryChange', query)
 }
 
 function handleReload(query: RendererQueryState) {
   Object.assign(queryState, query)
+  recordNodeEvent('reload', query)
   void loadData(queryState)
+}
+
+function handleAction(action: RendererAction) {
+  recordNodeEvent('action', action)
+  if (props.developerActions.some(candidate => candidate.key === action.key)) {
+    emit('developer-action', action)
+  }
+}
+
+function recordNodeEvent(type: string, payload?: unknown) {
+  if (!props.observe) {
+    return
+  }
+  nodeEvents.value = [
+    ...nodeEvents.value,
+    {
+      type,
+      timestamp: new Date().toISOString(),
+      ...(payload === undefined ? {} : { payload }),
+    },
+  ].slice(-20)
+}
+
+function forwardScope(scope: RenderRuntimeNodeScope) {
+  emit('scope-change', scope)
+}
+
+function forwardDeveloperAction(action: RendererAction) {
+  emit('developer-action', action)
 }
 
 function mergeDatasource(value: Record<string, unknown>) {
@@ -178,9 +267,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
       :layout="node.layout"
     >
       <RenderJsonRuntimeNode
-        v-for="child in node.children || []"
-        :key="child.id || child.component"
+        v-for="(child, index) in node.children || []"
+        :key="child.id || `${child.component}-${index}`"
         :node="child"
+        :observe="observe"
+        :path="`${path}.${index}`"
+        :developer-actions="developerActions"
+        @scope-change="forwardScope"
+        @developer-action="forwardDeveloperAction"
       />
     </component>
     <template v-else-if="definition">
@@ -192,11 +286,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         v-bind="runtimeProps"
         @query-change="handleQueryChange"
         @reload="handleReload"
+        @action="handleAction"
       />
       <RenderJsonRuntimeNode
-        v-for="child in node.children || []"
-        :key="child.id || child.component"
+        v-for="(child, index) in node.children || []"
+        :key="child.id || `${child.component}-${index}`"
         :node="child"
+        :observe="observe"
+        :path="`${path}.${index}`"
+        :developer-actions="developerActions"
+        @scope-change="forwardScope"
+        @developer-action="forwardDeveloperAction"
       />
     </template>
     <div v-else class="render-json-runtime-node__error" role="alert">
@@ -207,7 +307,10 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 <style scoped>
 .render-json-runtime-node {
+  width: 100%;
+  height: 100%;
   min-width: 0;
+  min-height: 0;
 }
 
 .render-json-runtime-node__text,

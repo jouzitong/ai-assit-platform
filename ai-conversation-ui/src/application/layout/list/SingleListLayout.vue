@@ -15,37 +15,41 @@ withDefaults(
 
 <template>
   <section class="single-list-layout" :class="`single-list-layout--${variant}`">
-    <slot name="header" />
+    <el-container direction="vertical" class="single-list-layout__shell">
+      <el-header height="auto" class="single-list-layout__header">
+        <slot name="header" />
+        <slot name="tabs" />
+        <slot name="filters" />
+      </el-header>
 
-    <slot name="tabs" />
+      <el-container class="single-list-layout__body" :class="{ 'single-list-layout__body--tree': showTree }">
+        <el-aside v-if="showTree" class="single-list-layout__tree">
+          <slot name="tree" />
+        </el-aside>
 
-    <div class="single-list-layout__body" :class="{ 'single-list-layout__body--tree': showTree }">
-      <aside v-if="showTree" class="single-list-layout__tree">
-        <slot name="tree" />
-      </aside>
+        <el-main class="single-list-layout__main">
+          <el-card
+            shadow="never"
+            class="single-list-layout__content-card single-list-layout__list-table"
+          >
+            <slot name="summary" />
 
-      <div class="single-list-layout__content">
-        <el-card shadow="never" class="single-list-layout__content-card">
-          <slot name="filters" />
+            <slot />
 
-          <slot name="summary" />
-
-          <slot />
-
-          <div v-if="paginationEnabled" class="single-list-layout__pagination">
-            <slot name="pagination" />
-          </div>
-        </el-card>
-      </div>
-    </div>
+            <footer v-if="paginationEnabled" class="single-list-layout__list-table-footer">
+              <slot name="pagination" />
+            </footer>
+          </el-card>
+        </el-main>
+      </el-container>
+    </el-container>
   </section>
 </template>
 
 <style scoped>
 .single-list-layout {
   display: flex;
-  flex-direction: column;
-  gap: var(--app-space-5);
+  flex: 1 1 auto;
   width: 100%;
   height: 100%;
   min-height: 0;
@@ -55,6 +59,21 @@ withDefaults(
   container: application-list-layout / inline-size;
 }
 
+.single-list-layout__shell {
+  gap: var(--app-space-1);
+  min-width: 0;
+  min-height: 0;
+}
+
+.single-list-layout__header {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--app-space-3);
+  padding: 0;
+  background: transparent;
+}
+
 .single-list-layout--workbench {
   min-height: 100%;
   background: var(--workbench-shell-bg);
@@ -62,31 +81,44 @@ withDefaults(
 
 .single-list-layout__body {
   display: flex;
-  flex: 1;
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
 }
 
 .single-list-layout__body--tree {
-  display: grid;
-  grid-template-columns: 280px minmax(0, 1fr);
   gap: var(--app-space-5);
 }
 
 .single-list-layout__tree,
-.single-list-layout__content {
-  flex: 1;
+.single-list-layout__main {
   min-width: 0;
   min-height: 0;
 }
 
+.single-list-layout__tree {
+  flex: 0 0 280px;
+  width: 280px;
+  overflow: auto;
+}
+
+.single-list-layout__main {
+  display: flex;
+  flex: 1 1 auto;
+  padding: 0;
+  overflow: hidden;
+}
+
 .single-list-layout__content-card {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  gap: var(--app-space-3);
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
   border-radius: var(--app-radius-shell);
-  display: flex;
-  flex-direction: column;
-  gap: var(--app-space-5);
 }
 
 .single-list-layout--workbench .single-list-layout__content-card {
@@ -129,20 +161,25 @@ withDefaults(
   display: flex;
   flex: 1;
   flex-direction: column;
-  gap: var(--app-space-5);
+  gap: var(--app-space-3);
   min-height: 0;
   padding: var(--app-space-compact);
 }
 
-.single-list-layout__pagination {
+.single-list-layout__list-table-footer {
   display: flex;
+  flex: 0 0 auto;
   justify-content: flex-end;
-  margin-top: 20px;
 }
 
 @container application-list-layout (max-width: 960px) {
   .single-list-layout__body--tree {
-    grid-template-columns: 1fr;
+    flex-direction: column;
+  }
+
+  .single-list-layout__tree {
+    flex-basis: auto;
+    width: 100%;
   }
 }
 </style>

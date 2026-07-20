@@ -1,14 +1,28 @@
 <script setup lang="ts">
 import { Operation } from '@element-plus/icons-vue'
+import { computed } from 'vue'
 import type { ListRendererSchema, RendererAction } from '../types'
 
-defineProps<{
+const props = withDefaults(defineProps<{
   schema: ListRendererSchema
-}>()
+  developerMode?: boolean
+  developerActions?: RendererAction[]
+}>(), {
+  developerMode: false,
+  developerActions: () => [],
+})
 
 const emit = defineEmits<{
   action: [action: RendererAction]
 }>()
+
+const actions = computed(() => {
+  const runtimeActionKeys = new Set(props.developerActions.map(action => action.key))
+  return [
+    ...(props.schema.actions || []).filter(action => !runtimeActionKeys.has(action.key)),
+    ...props.developerActions,
+  ]
+})
 
 const toButtonType = (type?: RendererAction['type']) => type || 'default'
 const resolveActionIcon = (action: RendererAction) => {
@@ -25,14 +39,16 @@ const resolveActionIcon = (action: RendererAction) => {
       <div>
         <h2 class="list-header-bar__title">{{ schema.title }}</h2>
       </div>
-      <div v-if="schema.actions?.length" class="list-header-bar__actions">
+      <div v-if="developerMode || actions.length" class="list-header-bar__actions">
+        <el-tag v-if="developerMode" type="warning" effect="dark">开发模式</el-tag>
         <el-button
-          v-for="action in schema.actions"
+          v-for="action in actions"
           :key="action.key"
           :type="toButtonType(action.type)"
           :disabled="action.disabled"
           :circle="Boolean(resolveActionIcon(action) && !action.name)"
-          :title="action.name"
+          :title="action.title || action.name"
+          :aria-label="action.title || action.name || action.key"
           @click="emit('action', action)"
         >
           <el-icon v-if="resolveActionIcon(action)">
@@ -68,6 +84,7 @@ const resolveActionIcon = (action: RendererAction) => {
 
 .list-header-bar__actions {
   display: flex;
+  align-items: center;
   flex-wrap: wrap;
   justify-content: flex-end;
   gap: var(--app-space-3);

@@ -3,6 +3,7 @@ import type { DbQueryListDatasource, DbQueryOperation } from './db-query'
 export interface RendererAction {
   key: string
   name: string
+  title?: string
   action: string
   type?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | ''
   icon?: 'operation' | string
@@ -179,4 +180,6 @@ export interface ListRendererRuntimeProps {
   schema: ListRendererSchema
   data?: Partial<ListRendererData>
   state?: ApplicationRendererState
+  developerMode?: boolean
+  developerActions?: RendererAction[]
 }

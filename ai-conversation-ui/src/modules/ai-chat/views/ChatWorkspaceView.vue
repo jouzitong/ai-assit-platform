@@ -31,6 +31,7 @@ import brandLogo from '../../../assets/icons/brand-logo.svg'
 import brandMark from '../../../assets/icons/brand-mark.svg'
 import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
+import { getDeveloperModeEnabled, setDeveloperModeEnabled } from '../../../utils/developerMode'
 import { clearSession, getStoredUser } from '../../../utils/session'
 import ChatMessageErrorCard from '../components/ChatMessageErrorCard.vue'
 import ChatArtifactList from '../components/ChatArtifactList.vue'
@@ -92,6 +93,7 @@ const activeNav = ref('chats')
 const sidebarExpanded = ref(true)
 const activeUserMenu = ref<'topbar' | 'sidebar' | null>(null)
 const activeTheme = ref<'dark' | 'light'>('light')
+const developerModeEnabled = ref(false)
 const conversationList = ref<ChatSessionItem[]>([])
 const chatMessages = ref<ChatUiMessage[]>([])
 const activeRenderArtifact = ref<ChatArtifact | null>(null)
@@ -1190,6 +1192,12 @@ function selectTheme(theme: 'dark' | 'light') {
   activeTheme.value = applyTheme(theme)
 }
 
+function toggleDeveloperMode() {
+  developerModeEnabled.value = !developerModeEnabled.value
+  setDeveloperModeEnabled(developerModeEnabled.value)
+  ElMessage.success(developerModeEnabled.value ? '已进入开发者模式' : '已退出开发者模式')
+}
+
 async function handleUserMenuAction(key: string) {
   if (key === 'system-settings') {
     closeUserMenu()
@@ -1232,6 +1240,7 @@ function handleDocumentClick(event: MouseEvent) {
 
 onMounted(() => {
   document.addEventListener('click', handleDocumentClick)
+  developerModeEnabled.value = getDeveloperModeEnabled()
   activeTheme.value = getSavedTheme()
   void loadEnabledModelList()
   void loadConversationList()
@@ -1445,6 +1454,10 @@ watch(route, () => {
             </div>
 
             <div class="chat-home-user-menu__list">
+              <button class="chat-home-user-menu__item" type="button" @click="toggleDeveloperMode">
+                <el-icon><Operation /></el-icon>
+                <span>{{ developerModeEnabled ? '退出开发者模式' : '进入开发者模式' }}</span>
+              </button>
               <button
                 v-for="item in userMenuItems"
                 :key="item.key"
@@ -1536,6 +1549,10 @@ watch(route, () => {
               </div>
 
               <div class="chat-home-user-menu__list">
+                <button class="chat-home-user-menu__item" type="button" @click="toggleDeveloperMode">
+                  <el-icon><Operation /></el-icon>
+                  <span>{{ developerModeEnabled ? '退出开发者模式' : '进入开发者模式' }}</span>
+                </button>
                 <button
                   v-for="item in userMenuItems"
                   :key="item.key"
