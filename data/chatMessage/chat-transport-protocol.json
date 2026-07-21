@@ -1,0 +1,1053 @@
+{
+  "schemaVersion": "chat-transport-protocol.v2",
+  "name": "AI Chat Round Transport Protocol",
+  "implementation": {
+    "eventSchemaVersion": "chat-event.v2",
+    "eventIdRule": "运行内主序号；一个内部事件投影为多个协议事件时使用 {sequence}.{subSequence}",
+    "identifierOwnership": "sessionCode 为空时由后端创建；roundCode 可由前端提供，为空时由后端创建",
+    "compatibility": "SSE 与 WebSocket 使用同一事件包络；SSE id/event 与 data.eventId/data.eventType 保持一致",
+    "terminalEvents": [
+      "round.completed",
+      "round.failed",
+      "round.cancelled",
+      "assistant.input_required"
+    ],
+    "successTerminalEvent": "round.completed",
+    "transportEndRule": "EOF、HTTP 200、读取超时和 WebSocket close 均不是业务终态；未收到 terminalEvents 时必须进入 RECONNECTING。"
+  },
+  "transport": {
+    "supported": [
+      "sse",
+      "websocket"
+    ],
+    "sse": {
+      "method": "POST",
+      "endpoint": "/api/chat/sessions/{sessionCode}/rounds/stream",
+      "newSessionEndpoint": "/api/chat/rounds/stream",
+      "reconnectEndpoint": "/api/chat/stream/reconnect",
+      "requestContentType": "application/json",
+      "responseContentType": "text/event-stream",
+      "heartbeat": {
+        "frame": ": heartbeat\\n\\n",
+        "recommendedIntervalMs": 15000,
+        "hasEventId": false,
+        "advancesLastEventId": false
+      },
+      "eventFrame": {
+        "id": "eventId",
+        "event": "eventType",
+        "data": "json payload"
+      }
+    },
+    "websocket": {
+      "endpoint": "/ws/chat",
+      "clientMessageType": "chat.user_message",
+      "clientMessageTypes": [
+        "chat.user_message",
+        "chat.reconnect",
+        "chat.stop"
+      ],
+      "serverEnvelopeField": "eventType"
+    }
+  },
+  "clientRequest": {
+    "type": "chat.user_message",
+    "requestId": "req_20260708_225812_001",
+    "sessionCode": "static-risk-session",
+    "roundCode": "risk-round-2",
+    "modelId": 1001,
+    "message": {
+      "id": "risk-user-1",
+      "role": "user",
+      "createdAt": "2026-07-08T22:58:12+08:00",
+      "content": [
+        {
+          "type": "text",
+          "text": "帮我按优先级列出需要排查的事项。"
+        }
+      ]
+    },
+    "clientContext": {
+      "timezone": "Asia/Shanghai",
+      "locale": "zh-CN",
+      "route": "/test/chat",
+      "renderCapabilities": [
+        "markdown",
+        "dashboardCanvas",
+        "line-chart",
+        "common-list",
+        "zg-common-info"
+      ]
+    }
+  },
+  "eventEnvelope": {
+    "eventId": "evt_000001",
+    "eventType": "round.initialized",
+    "schemaVersion": "chat-event.v2",
+    "runId": "run_01j2example",
+    "requestId": "req_20260708_225812_001",
+    "sessionCode": "static-risk-session",
+    "roundCode": "risk-round-2",
+    "timestamp": "2026-07-08T22:58:12.180+08:00",
+    "payload": {}
+  },
+  "eventTypes": [
+    {
+      "eventType": "run.accepted",
+      "description": "任务已进入后端运行池，payload.run.id 即后续重连、状态查询和中断使用的 runId。"
+    },
+    {
+      "eventType": "run.started",
+      "description": "后端任务线程已经开始执行；业务助手占位仍由 assistant.started 创建。"
+    },
+    {
+      "eventType": "session.initialized",
+      "description": "确认或创建会话。只有新会话或首轮对话需要出现，前端据此建立 sessionCode、标题和模型信息。"
+    },
+    {
+      "eventType": "round.initialized",
+      "description": "初始化新一轮对话，包含用户消息。前端立即追加用户消息并创建 round 状态。"
+    },
+    {
+      "eventType": "assistant.started",
+      "description": "助手接管本轮任务。前端创建助手占位，并把 round/assistant 置为 running。"
+    },
+    {
+      "eventType": "thinking.started",
+      "description": "AI 开始思考。前端显示“思考中”，打开思考过程弹窗，并初始化 thinking 面板。"
+    },
+    {
+      "eventType": "thinking.updated",
+      "description": "思考过程增量更新。意图分析、规划、执行、检查、节点状态变化都统一走这个事件。"
+    },
+    {
+      "eventType": "thinking.completed",
+      "description": "思考过程结束。前端关闭思考过程弹窗，保留顶部思考过程入口，详情通过 sessionCode + roundCode 查询。"
+    },
+    {
+      "eventType": "assistant.message.delta",
+      "description": "后端推送完整消息块，不要求 token 级增量。前端可自行做打字机效果，避免后端逐字输出导致乱码或 markdown 半截。"
+    },
+    {
+      "eventType": "artifacts.build",
+      "description": "后端生成可独立存在的 artifact 引用，例如 render JSON 的 codeRef。完整 render JSON 通过 codeRef 查询。"
+    },
+    {
+      "eventType": "round.completed",
+      "description": "本轮唯一成功终态，返回最终 round 快照。前端用它校准前面事件产生的本地状态。"
+    },
+    {
+      "eventType": "assistant.input_required",
+      "description": "当前流的交互终态，任务进入 WAITING_INPUT；它不是成功或失败终态。当前实现通过新一轮补充输入，WebSocket 可在后续版本中基于同一 run 继续交互。"
+    },
+    {
+      "eventType": "round.failed",
+      "description": "本轮失败终态，payload.error 使用安全错误结构；已生成内容和活动应保留，错误卡展示在对应 round 底部而非页面级全局区域。"
+    },
+    {
+      "eventType": "round.cancelled",
+      "description": "本轮取消终态，由用户或系统中断；与失败分开展示，中断操作是幂等的。"
+    }
+  ],
+  "queryContracts": {
+    "reconnect": {
+      "method": "POST",
+      "endpoint": "/api/chat/stream/reconnect",
+      "request": {
+        "type": "chat.reconnect",
+        "runId": "run_01j2example",
+        "lastEventId": "12.2",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2"
+      },
+      "description": "优先按 runId 重新订阅；若 lastEventId 含子序号，将从同一主序号恢复且过滤已确认的子事件。运行缓存过期时，使用 sessionCode + roundCode 回放 chat-event.v2 持久化快照。"
+    },
+    "runStatus": {
+      "method": "GET",
+      "endpoint": "/api/chat/runs/{runId}",
+      "description": "查询任务池中的当前运行状态。"
+    },
+    "stopRun": {
+      "method": "POST",
+      "endpoint": "/api/chat/runs/{runId}/stop",
+      "description": "幂等中断任务；Redis 模式支持跨后端实例中断。"
+    },
+    "thinkingDetail": {
+      "method": "GET",
+      "endpoint": "/api/chat/sessions/{sessionCode}/rounds/{roundCode}/thinking",
+      "description": "按 sessionCode + roundCode 获取完整思考过程。",
+      "responseSchemaVersion": "round-thinking.v1"
+    },
+    "renderArtifact": {
+      "method": "GET",
+      "endpoint": "/api/chat/render-artifacts/{codeRef}",
+      "description": "按 codeRef 获取可独立存在的完整 render JSON。",
+      "responseSchemaVersion": "render-artifact.v1"
+    }
+  },
+  "recoveryPolicy": {
+    "deduplicationKey": [
+      "runId",
+      "eventId"
+    ],
+    "persistentReplayDeduplicationKey": [
+      "payload.replay.replayId",
+      "eventId"
+    ],
+    "persistentReplayFallback": "缺少 replayId 时按 sessionCode + roundCode + eventType + 业务对象 id 幂等覆盖快照。",
+    "eventIdComparison": "按 {sequence}.{subSequence} 数字分段比较，不能按字符串比较。",
+    "acknowledgeRule": "事件 JSON 解析并成功应用到本地状态后才能推进 lastEventId。",
+    "singleActiveSubscriptionPerRun": true,
+    "inactivityTimeoutMs": 30000,
+    "inactivityMeaning": "仅表示连接可能失活，不表示任务失败、取消或完成。",
+    "maxAutomaticRetries": 3,
+    "backoffMs": [
+      1000,
+      2000,
+      4000
+    ],
+    "jitter": true,
+    "retryableTransportConditions": [
+      "network_error",
+      "timeout",
+      "http_408",
+      "http_429",
+      "http_5xx"
+    ],
+    "beforeReconnect": "先查询 runStatus；活动任务使用 runId + lastEventId 重连，WAITING_INPUT 停止加载并等待输入，终态或缓存过期时请求持久化快照。",
+    "afterRetryExhausted": "保留已接收内容和活动，显示连接已中断，并提供重新连接和停止任务操作。"
+  },
+  "persistentReplay": {
+    "schemaVersion": "chat-event.v2",
+    "lookup": [
+      "sessionCode",
+      "roundCode"
+    ],
+    "trigger": "运行任务或有限事件缓存已过期。",
+    "minimumSnapshotEvents": [
+      "session.initialized",
+      "round.initialized",
+      "assistant.message.delta",
+      "one terminal event"
+    ],
+    "thinkingRecovery": "回放已持久化活动，或返回可查询 thinkingDetail 的引用。",
+    "messageApplyMode": "snapshot_replace",
+    "optionalReplayMetadata": {
+      "replayId": "replay_01j2example",
+      "mode": "PERSISTED_SNAPSHOT",
+      "source": "CONVERSATION_HISTORY",
+      "snapshot": true
+    },
+    "compatibility": "payload.replay 为可选字段，旧客户端可以忽略；回放 eventId 可重新编号，但同一回放流内必须单调递增；缺少 replayId 时按业务对象幂等覆盖。"
+  },
+  "errorContract": {
+    "payloadField": "payload.error",
+    "legacyField": "message",
+    "displayScope": "round_footer",
+    "fields": {
+      "code": "稳定、可枚举的机器错误码，不使用异常类名。",
+      "userMessage": "面向用户的中文友好主文案，说明本轮未完成及可采取的下一步，不直接使用后端原始报错。",
+      "retryable": "服务端是否建议重试，客户端仍执行有限重试。",
+      "traceId": "排障关联标识，建议与 requestId 一致。",
+      "detail": "可选的后端脱敏、截断异常摘要，前端默认折叠展示，部署方可以按权限隐藏。"
+    },
+    "errorCard": {
+      "position": "对应 sessionCode + roundCode 的 round 内容底部",
+      "primaryText": "payload.error.userMessage",
+      "diagnosticFields": [
+        "code",
+        "traceId"
+      ],
+      "detailPresentation": "collapsed",
+      "retryAction": "仅 retryable=true 时显示“重试本轮”；使用原用户输入创建新执行请求，模型参数按客户端当前选择或轮次上下文策略确定，不复用 FAILED 任务。"
+    },
+    "globalErrorScope": "仅会话列表、会话详情、模型列表或页面初始化等不归属于具体 round 的加载错误可以使用页面级全局提示。",
+    "persistence": {
+      "requiredForNewFailures": true,
+      "newTableRequired": false,
+      "messageType": "ERROR_MESSAGE",
+      "storageField": "extJson.error",
+      "contentCompatibility": "ERROR_MESSAGE.content 可以保存 userMessage 作为兼容摘要。",
+      "snapshotFields": [
+        "code",
+        "userMessage",
+        "retryable",
+        "traceId",
+        "detail"
+      ],
+      "detailRule": "写库前必须脱敏、截断；禁止保存完整堆栈、密钥、认证头、完整提示词或敏感工具输出。",
+      "idempotency": "同一失败终态只保存一份最终快照；重试产生新执行请求，不覆盖原失败轮次。",
+      "restoreRule": "刷新、会话详情和持久化回放从对应 round 的 ERROR_MESSAGE.extJson.error 还原错误卡。",
+      "legacyFallback": "旧数据缺少结构化错误快照时使用“本轮处理失败，请稍后重试。”，不得直接展示原始异常字符串。",
+      "writeFailureRule": "写入失败时记录告警并继续发送实时 round.failed，不得覆盖原始业务错误。"
+    },
+    "forbiddenDetail": [
+      "api_key",
+      "authorization_header",
+      "raw_stack_trace",
+      "full_model_prompt",
+      "unredacted_tool_output"
+    ],
+    "fallbackUserMessage": "本轮处理失败，请稍后重试。"
+  },
+  "activityFailurePolicy": {
+    "statuses": [
+      "pending",
+      "running",
+      "completed",
+      "failed",
+      "interrupted",
+      "waiting_input"
+    ],
+    "onRoundFailed": "明确失败的活动置为 failed；结果未知但被终止的活动置为 interrupted。",
+    "onRoundCancelled": "仍在 running 的活动置为 interrupted，并记录取消来源。",
+    "onInputRequired": "仍在 running 的活动置为 interrupted 或 waiting_input，不得标记为 completed。",
+    "persistence": "活动持久化默认 best-effort、异步或 outbox；持久化失败应告警并可标记 persistenceStatus=degraded，但不能隐式导致 round.failed。",
+    "security": "活动摘要和详情在持久化与发送前必须裁剪敏感输入和工具输出。"
+  },
+  "sampleEventStream": [
+    {
+      "id": "evt_000001",
+      "event": "session.initialized",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "timestamp": "2026-07-08T22:58:11.000+08:00",
+        "payload": {
+          "conversation": {
+            "schemaVersion": "chat-round.v4",
+            "sessionCode": "static-risk-session",
+            "id": "static-risk-session",
+            "title": "风控日报分析",
+            "model": {
+              "id": "zg-gpt-static",
+              "label": "ZG GPT-Static",
+              "avatarText": "pr"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_000002",
+      "event": "round.initialized",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:12.000+08:00",
+        "payload": {
+          "round": {
+            "id": "risk-round-2",
+            "roundCode": "risk-round-2",
+            "createdAt": "2026-07-08T22:58:12+08:00",
+            "userMessage": {
+              "id": "risk-user-1",
+              "role": "user",
+              "createdAt": "2026-07-08T22:58:12+08:00",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "帮我按优先级列出需要排查的事项。"
+                }
+              ]
+            },
+            "assistant": {
+              "id": "risk-assistant-round-2",
+              "role": "assistant",
+              "status": "pending",
+              "messages": [],
+              "artifacts": []
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_000003",
+      "event": "assistant.started",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:13.000+08:00",
+        "payload": {
+          "assistant": {
+            "id": "risk-assistant-round-2",
+            "role": "assistant",
+            "status": "running",
+            "createdAt": "2026-07-08T22:58:12.260+08:00"
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_000004",
+      "event": "thinking.started",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:14.000+08:00",
+        "payload": {
+          "thinking": {
+            "id": "risk-thinking-artifact",
+            "type": "roundThinking",
+            "summary": "思考过程",
+            "statusText": "思考中",
+            "status": "running",
+            "activityCount": 0,
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            },
+            "uiAction": {
+              "openDrawer": true
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_000005",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:15.000+08:00",
+        "payload": {
+          "action": "nodes.initialized",
+          "thinking": {
+            "statusText": "准备任务",
+            "activityCount": 5,
+            "currentActivityId": null,
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "intent-analysis",
+              "title": "意图分析",
+              "status": "pending",
+              "description": "识别用户目标、业务域和期望输出。"
+            },
+            {
+              "id": "task-planning",
+              "title": "任务规划",
+              "status": "pending",
+              "description": "规划摘要、看板和后续排查步骤。"
+            },
+            {
+              "id": "risk-priority-analysis",
+              "title": "排查优先级分析",
+              "status": "pending",
+              "description": "比较提现拦截率、登录失败率和工单响应时长的风险权重。"
+            },
+            {
+              "id": "render-build",
+              "title": "构建看板",
+              "status": "pending",
+              "description": "生成 dashboardCanvas render JSON。"
+            },
+            {
+              "id": "final-check",
+              "title": "最终检查",
+              "status": "pending",
+              "description": "检查摘要内容和产物引用是否完整。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000006",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:16.000+08:00",
+        "payload": {
+          "action": "node.started",
+          "thinking": {
+            "statusText": "意图分析中",
+            "activityCount": 5,
+            "currentActivityId": "intent-analysis",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "intent-analysis",
+              "title": "意图分析",
+              "status": "running",
+              "description": "正在识别用户输入，并读取当前会话上下文。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000007",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:17.000+08:00",
+        "payload": {
+          "action": "activity.updated",
+          "thinking": {
+            "statusText": "意图分析中",
+            "activityCount": 5,
+            "currentActivityId": "intent-analysis",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "intent-analysis",
+              "title": "意图分析",
+              "status": "running",
+              "description": "识别为风控日报优先级分析，用户需要按优先级整理排查事项。",
+              "result": {
+                "intent": "risk_daily_priority_analysis",
+                "confidence": 0.94
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000008",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:18.000+08:00",
+        "payload": {
+          "action": "node.completed",
+          "thinking": {
+            "statusText": "意图分析完成",
+            "activityCount": 5,
+            "currentActivityId": "intent-analysis",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "intent-analysis",
+              "title": "意图分析",
+              "status": "completed",
+              "description": "已确认业务域为风控日报分析，输出目标为优先级排查清单。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000009",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:19.000+08:00",
+        "payload": {
+          "action": "node.started",
+          "thinking": {
+            "statusText": "任务规划中",
+            "activityCount": 5,
+            "currentActivityId": "task-planning",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "task-planning",
+              "title": "任务规划",
+              "status": "running",
+              "description": "正在规划先输出执行摘要，再生成看板产物引用。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000010",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:20.000+08:00",
+        "payload": {
+          "action": "activity.updated",
+          "thinking": {
+            "statusText": "任务规划中",
+            "activityCount": 5,
+            "currentActivityId": "task-planning",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "task-planning",
+              "title": "任务规划",
+              "status": "running",
+              "description": "规划结果：先比较关键异常指标，再输出摘要，最后构建 dashboardCanvas。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000011",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:21.000+08:00",
+        "payload": {
+          "action": "node.completed",
+          "thinking": {
+            "statusText": "任务规划完成",
+            "activityCount": 5,
+            "currentActivityId": "task-planning",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "task-planning",
+              "title": "任务规划",
+              "status": "completed",
+              "description": "已确定优先输出执行摘要，并生成看板产物引用。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000012",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:22.000+08:00",
+        "payload": {
+          "action": "node.started",
+          "thinking": {
+            "statusText": "排查优先级分析中",
+            "activityCount": 5,
+            "currentActivityId": "risk-priority-analysis",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "risk-priority-analysis",
+              "title": "排查优先级分析",
+              "status": "running",
+              "description": "正在比较提现拦截率、登录失败率和工单响应时长的风险权重。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000013",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:23.000+08:00",
+        "payload": {
+          "action": "activity.updated",
+          "thinking": {
+            "statusText": "排查优先级分析中",
+            "activityCount": 5,
+            "currentActivityId": "risk-priority-analysis",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "risk-priority-analysis",
+              "title": "排查优先级分析",
+              "status": "running",
+              "description": "提现拦截规则命中来源权重最高，其次是登录失败地区分布，最后是客服工单样本。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000014",
+      "event": "assistant.message.delta",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:24.000+08:00",
+        "payload": {
+          "message": {
+            "id": "risk-summary-message",
+            "createdAt": "2026-07-08T22:59:02.100+08:00",
+            "displayMode": "typewriter",
+            "content": [
+              {
+                "type": "markdown",
+                "markdown": "### 执行完成摘要\n\n- **优先排查提现拦截规则命中来源**：重点核对高频小额提现、新设备登录后提现两个规则命中来源。\n- **其次核对登录失败地区分布**：当前异常集中在 `APAC-East` 与 `EU-West`，建议按地区、渠道、设备维度拆分。\n- **最后查看客服工单样本**：用工单用户与异常用户做交叉验证，确认是否为同一批用户触发。\n\n> 建议输出负责人、截止时间和复盘口径，形成完整处置计划。"
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_000015",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:25.000+08:00",
+        "payload": {
+          "action": "node.completed",
+          "thinking": {
+            "statusText": "排查优先级分析完成",
+            "activityCount": 5,
+            "currentActivityId": "risk-priority-analysis",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "risk-priority-analysis",
+              "title": "排查优先级分析",
+              "status": "completed",
+              "description": "已完成优先级排序，提现拦截规则命中来源优先级最高。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000016",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:26.000+08:00",
+        "payload": {
+          "action": "node.started",
+          "thinking": {
+            "statusText": "构建看板中",
+            "activityCount": 5,
+            "currentActivityId": "render-build",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "render-build",
+              "title": "构建看板",
+              "status": "running",
+              "description": "正在生成 dashboardCanvas render JSON。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000017",
+      "event": "artifacts.build",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:27.000+08:00",
+        "payload": {
+          "artifact": {
+            "id": "risk-dashboard-artifact",
+            "type": "render",
+            "renderType": "dashboardCanvas",
+            "codeRef": "7f4d2a4e-0c9a-4b45-9ef9-91eec0d4b2e1",
+            "status": "completed",
+            "fetch": {
+              "method": "GET",
+              "endpoint": "/api/chat/render-artifacts/7f4d2a4e-0c9a-4b45-9ef9-91eec0d4b2e1"
+            }
+          }
+        }
+      }
+    },
+    {
+      "id": "evt_000018",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:28.000+08:00",
+        "payload": {
+          "action": "node.completed",
+          "thinking": {
+            "statusText": "构建看板完成",
+            "activityCount": 5,
+            "currentActivityId": "render-build",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "render-build",
+              "title": "构建看板",
+              "status": "completed",
+              "description": "dashboardCanvas render JSON 已生成，可通过 codeRef 获取。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000019",
+      "event": "thinking.updated",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:29.000+08:00",
+        "payload": {
+          "action": "node.started",
+          "thinking": {
+            "statusText": "最终检查中",
+            "activityCount": 5,
+            "currentActivityId": "final-check",
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            }
+          },
+          "nodes": [
+            {
+              "id": "final-check",
+              "title": "最终检查",
+              "status": "running",
+              "description": "正在检查摘要内容和 render artifact 引用。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000020",
+      "event": "thinking.completed",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:30.000+08:00",
+        "payload": {
+          "thinking": {
+            "id": "risk-thinking-artifact",
+            "type": "roundThinking",
+            "summary": "思考过程",
+            "statusText": "已处理",
+            "status": "completed",
+            "activityCount": 5,
+            "query": {
+              "sessionCode": "static-risk-session",
+              "roundCode": "risk-round-2"
+            },
+            "uiAction": {
+              "closeDrawer": true
+            }
+          },
+          "nodes": [
+            {
+              "id": "final-check",
+              "title": "最终检查",
+              "status": "completed",
+              "description": "已检查摘要和 render artifact 引用，准备结束本轮任务。"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "evt_000021",
+      "event": "round.completed",
+      "data": {
+        "schemaVersion": "chat-event.v2",
+        "requestId": "req_20260708_225812_001",
+        "sessionCode": "static-risk-session",
+        "roundCode": "risk-round-2",
+        "timestamp": "2026-07-08T22:58:31.000+08:00",
+        "payload": {
+          "round": {
+            "id": "risk-round-2",
+            "roundCode": "risk-round-2",
+            "createdAt": "2026-07-08T22:58:12+08:00",
+            "userMessage": {
+              "id": "risk-user-1",
+              "role": "user",
+              "createdAt": "2026-07-08T22:58:12+08:00",
+              "content": [
+                {
+                  "type": "text",
+                  "text": "帮我按优先级列出需要排查的事项。"
+                }
+              ]
+            },
+            "assistant": {
+              "id": "risk-assistant-round-2",
+              "role": "assistant",
+              "status": "completed",
+              "createdAt": "2026-07-08T22:58:12.260+08:00",
+              "thinking": {
+                "id": "risk-thinking-artifact",
+                "type": "roundThinking",
+                "summary": "思考过程",
+                "statusText": "已处理",
+                "status": "completed",
+                "activityCount": 5,
+                "query": {
+                  "sessionCode": "static-risk-session",
+                  "roundCode": "risk-round-2"
+                }
+              },
+              "messages": [
+                {
+                  "id": "risk-summary-message",
+                  "createdAt": "2026-07-08T22:59:02.100+08:00",
+                  "content": [
+                    {
+                      "type": "markdown",
+                      "markdown": "### 执行完成摘要\n\n- **优先排查提现拦截规则命中来源**：重点核对高频小额提现、新设备登录后提现两个规则命中来源。\n- **其次核对登录失败地区分布**：当前异常集中在 `APAC-East` 与 `EU-West`，建议按地区、渠道、设备维度拆分。\n- **最后查看客服工单样本**：用工单用户与异常用户做交叉验证，确认是否为同一批用户触发。\n\n> 建议输出负责人、截止时间和复盘口径，形成完整处置计划。"
+                    }
+                  ]
+                }
+              ],
+              "artifacts": [
+                {
+                  "id": "risk-dashboard-artifact",
+                  "type": "render",
+                  "renderType": "dashboardCanvas",
+                  "codeRef": "7f4d2a4e-0c9a-4b45-9ef9-91eec0d4b2e1",
+                  "status": "completed"
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  ],
+  "stateApplyRules": [
+    {
+      "event": "session.initialized",
+      "rule": "仅新会话或首轮出现。按 sessionCode 初始化会话元信息。"
+    },
+    {
+      "event": "round.initialized",
+      "rule": "按 sessionCode + roundCode 新增 round；若已存在则按 eventId 幂等忽略。"
+    },
+    {
+      "event": "assistant.started",
+      "rule": "把 round.assistant.status 置为 running，并创建助手占位。"
+    },
+    {
+      "event": "thinking.started",
+      "rule": "初始化 round.assistant.thinking，显示“思考中 已处理0秒”，打开思考过程弹窗，并由前端启动本地计时。"
+    },
+    {
+      "event": "thinking.updated",
+      "rule": "按 action 更新 thinking 节点和活动描述。action=activity.updated 时按 payload.activity.activityCode 合并同一活动的开始、更新、完成或失败状态。"
+    },
+    {
+      "event": "assistant.message.delta",
+      "rule": "按 message.id 写入完整消息块；前端可使用 displayMode=typewriter 自行模拟流式输出。"
+    },
+    {
+      "event": "artifacts.build",
+      "rule": "把 artifact 引用追加或更新到 round.assistant.artifacts；完整 render JSON 由 codeRef 查询。"
+    },
+    {
+      "event": "thinking.completed",
+      "rule": "停止前端本地计时，把 thinking 置为 completed，关闭思考过程弹窗，保留思考入口和最终耗时。"
+    },
+    {
+      "event": "round.completed",
+      "rule": "用完整 round 快照校准本地状态，并展示固定的喜欢、反馈按钮。"
+    },
+    {
+      "event": "assistant.input_required",
+      "rule": "进入 WAITING_INPUT，停止旋转加载态并展示补充输入提示；保留上下文，不得标记 completed 或 failed。"
+    },
+    {
+      "event": "round.failed",
+      "rule": "进入 FAILED，保留部分回答和活动；在对应 round 底部展示以中文 userMessage 为主文案的错误卡，默认折叠 detail，展示 code/traceId，并且仅 retryable=true 时提供“重试本轮”。不得提升为页面级全局异常。"
+    },
+    {
+      "event": "round.cancelled",
+      "rule": "进入 CANCELLED，将仍在运行的活动标记为 interrupted，与失败状态分开展示。"
+    },
+    {
+      "event": "transport.eof",
+      "rule": "这是客户端传输信号而非 chat-event.v2 业务事件；若未收到交互终态，进入 RECONNECTING 并执行 recoveryPolicy。"
+    }
+  ]
+}

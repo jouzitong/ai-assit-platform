@@ -2,10 +2,19 @@ from __future__ import annotations
 
 import asyncio
 import json
+import re
+import uuid
 from dataclasses import dataclass
 from typing import Any
 
 from ..tools import available_knowledge_bases, search_authorized_knowledge_base
+
+
+MIN_ANSWER_COMPLETENESS = 0.5
+MAX_EVIDENCE_ITEMS = 6
+MAX_EVIDENCE_CONTENT_CHARS = 3_000
+MAX_EVIDENCE_METADATA_CHARS = 500
+MAX_EVIDENCE_QUERY_CHARS = 300
 
 
 @dataclass(frozen=True)
@@ -96,15 +105,17 @@ async def guard_output(
         return GuardedOutput(candidate, None, 0, 0)
 
     knowledge_bases = available_knowledge_bases(graph.payload.get("run", {}))
+    guard_scope = _guard_scope(compiled_agent)
+    assessment_code = f"confidence-assessment:{guard_scope}"
     _audit(emitter, policy, "confidence.assessment.started", compiled_agent, "评估回答可信度", {
-        "activityCode": "confidence-assessment",
+        "activityCode": assessment_code,
         "activityType": "CONFIDENCE_ASSESSMENT",
         "activityName": "评估回答可信度",
         "inputSummary": "正在检查当前回答是否具备足够的事实依据。",
     }, status="RUNNING")
     assessment = await _assess(candidate, original_task, knowledge_bases, compiled_agent.model, evidence=None)
     _audit(emitter, policy, "confidence.assessment.completed", compiled_agent, "评估回答可信度", {
-        "activityCode": "confidence-assessment",
+        "activityCode": assessment_code,
         "activityType": "CONFIDENCE_ASSESSMENT",
         "activityName": "评估回答可信度",
         **_assessment_detail(assessment, policy.threshold),
@@ -115,14 +126,13 @@ async def guard_output(
 
     retrieval_attempts = 0
     reanalysis_attempts = 0
-    best_candidate = candidate
-    best_assessment = assessment
+    accumulated_evidence: dict[str, Any] | None = None
     for attempt in range(1, policy.max_retries + 1):
-        evidence: dict[str, Any] | None = None
+        new_evidence: dict[str, Any] | None = None
         if policy.retrieval_enabled and knowledge_bases:
             kb_code = _resolve_kb_code(assessment.knowledge_base_code, knowledge_bases)
             query = assessment.retrieval_query or original_task
-            retrieval_code = f"confidence-retrieval:{attempt}"
+            retrieval_code = f"confidence-retrieval:{guard_scope}:{attempt}"
             _audit(emitter, policy, "confidence.retrieval.started", compiled_agent, "补充知识依据", {
                 "activityCode": retrieval_code,
                 "activityType": "KNOWLEDGE_RETRIEVAL",
@@ -132,95 +142,146 @@ async def guard_output(
                 "query": query,
                 "inputSummary": f"检索知识库“{kb_code}”：{query}",
             }, status="RUNNING")
-            evidence = await asyncio.to_thread(
-                search_authorized_knowledge_base,
-                graph.payload["run"],
-                kb_code,
-                query,
-                policy.retrieval_top_k,
-                "ai-agent-confidence-guard",
-            )
-            evidence["query"] = query
             retrieval_attempts += 1
-            hit_count = len(evidence.get("items", []))
+            try:
+                result = await asyncio.to_thread(
+                    search_authorized_knowledge_base,
+                    graph.payload["run"],
+                    kb_code,
+                    query,
+                    policy.retrieval_top_k,
+                    "ai-agent-confidence-guard",
+                )
+                new_evidence = dict(result) if isinstance(result, dict) else {
+                    "success": False,
+                    "error": "Knowledge-base search returned an invalid result.",
+                    "items": [],
+                }
+            except Exception as exc:
+                # Grounding is a guardrail. A transient KB failure must not discard an otherwise completed answer.
+                new_evidence = {
+                    "success": False,
+                    "error": type(exc).__name__,
+                    "items": [],
+                }
+            new_evidence["kbCode"] = new_evidence.get("kbCode") or kb_code
+            new_evidence["query"] = query
+            accumulated_evidence = _merge_evidence(accumulated_evidence, new_evidence)
+            hit_count = len(new_evidence.get("items", [])) if isinstance(new_evidence.get("items"), list) else 0
+            search_succeeded = bool(new_evidence.get("success"))
+            evidence_found = _has_evidence(new_evidence)
             _audit(emitter, policy, "confidence.retrieval.completed", compiled_agent, "补充知识依据", {
                        "activityCode": retrieval_code,
                        "activityType": "KNOWLEDGE_RETRIEVAL",
                        "activityName": "补充知识依据",
                        "attempt": attempt,
                        "kbCode": kb_code,
-                       "success": bool(evidence.get("success")),
+                       "success": search_succeeded,
                        "hitCount": hit_count,
                        "outputSummary": (
                            f"知识库检索完成，获得 {hit_count} 条可用于回答的参考信息。"
-                           if evidence.get("success")
-                           else "知识库检索失败，本次未获得可用的补充依据。"
+                           if evidence_found
+                           else "知识库检索完成，但未获得可核验回答的有效依据。"
+                           if search_succeeded
+                           else "知识库检索失败，已保留当前回答和原可信度。"
                        ),
-                   }, status="SUCCESS" if evidence.get("success") else "FAILED")
+                   }, status="SUCCESS" if search_succeeded else "FAILED")
         elif policy.retrieval_enabled:
             _audit(emitter, policy, "confidence.retrieval.skipped", compiled_agent, "补充知识依据", {
-                "activityCode": f"confidence-retrieval:{attempt}",
+                "activityCode": f"confidence-retrieval:{guard_scope}:{attempt}",
                 "activityType": "KNOWLEDGE_RETRIEVAL",
                 "activityName": "补充知识依据",
                 "attempt": attempt,
                 "outputSummary": "当前没有可用的授权知识库，已跳过知识检索。",
             })
 
-        if not policy.reanalysis_enabled:
+        if not policy.reanalysis_enabled or not _has_evidence(accumulated_evidence):
             break
-        reanalysis_code = f"confidence-reanalysis:{attempt}"
+        reanalysis_code = f"confidence-reanalysis:{guard_scope}:{attempt}"
         _audit(emitter, policy, "confidence.reanalysis.started", compiled_agent, "重新分析回答", {
             "activityCode": reanalysis_code,
             "activityType": "ANSWER_REANALYSIS",
             "activityName": "重新分析回答",
             "attempt": attempt,
             "inputSummary": (
-                f"第 {attempt} 次重新分析，将结合 {len(evidence.get('items', [])) if evidence else 0} 条补充依据修正回答。"
+                f"第 {attempt} 次重新分析，将结合 "
+                f"{len(accumulated_evidence.get('items', [])) if accumulated_evidence else 0} 条补充依据修正回答。"
             ),
         }, status="RUNNING")
-        reanalysis_attempts += 1
-        revised = await _reanalyze(sdk_agent, original_task, candidate, evidence, graph.max_turns)
-        if revised:
-            candidate = revised
-        assessment = await _assess(
+        # Scores can only be compared when both candidates are evaluated against the same evidence set.
+        baseline_assessment = await _assess(
             candidate,
             original_task,
             knowledge_bases,
             compiled_agent.model,
-            evidence=evidence,
+            evidence=accumulated_evidence,
         )
-        improved = assessment.score > best_assessment.score + 0.001
-        tied = abs(assessment.score - best_assessment.score) <= 0.001
-        retained_assessment = assessment if improved or tied else best_assessment
-        retained_candidate = candidate if improved or tied else best_candidate
-        if improved or tied:
-            best_assessment = assessment
-            best_candidate = candidate
-        summary = _assessment_summary(assessment, policy.threshold, prefix="回答修正完成")
-        if not improved:
-            if tied:
-                summary += " 本次评分未提升，已停止继续重试。"
-            else:
-                summary += (
-                    f" 本次评分低于此前的 {_percentage(best_assessment.score)}，"
-                    "未采用本次结果，并已停止继续重试。"
-                )
+        if baseline_assessment.score >= policy.threshold:
+            assessment = baseline_assessment
+            _audit(emitter, policy, "confidence.reanalysis.completed", compiled_agent, "重新分析回答", {
+                       "activityCode": reanalysis_code,
+                       "activityType": "ANSWER_REANALYSIS",
+                       "activityName": "重新分析回答",
+                       "attempt": attempt,
+                       **_assessment_detail(assessment, policy.threshold),
+                       "scoreImproved": True,
+                       "outputSummary": _assessment_summary(
+                           assessment,
+                           policy.threshold,
+                           prefix="证据复评完成，无需修改回答",
+                       ),
+                   })
+            break
+
+        reanalysis_attempts += 1
+        revised = await _reanalyze(sdk_agent, original_task, candidate, accumulated_evidence, graph.max_turns)
+        if not revised:
+            assessment = baseline_assessment
+            _audit(emitter, policy, "confidence.reanalysis.completed", compiled_agent, "重新分析回答", {
+                       "activityCode": reanalysis_code,
+                       "activityType": "ANSWER_REANALYSIS",
+                       "activityName": "重新分析回答",
+                       "attempt": attempt,
+                       **_assessment_detail(assessment, policy.threshold),
+                       "scoreImproved": False,
+                       "outputSummary": "回答修正失败，已保留修正前回答及其证据复评分。",
+                   }, status="FAILED")
+            break
+
+        revised_assessment = await _assess(
+            revised,
+            original_task,
+            knowledge_bases,
+            compiled_agent.model,
+            evidence=accumulated_evidence,
+        )
+        improved = revised_assessment.score > baseline_assessment.score + 0.001
+        if improved:
+            candidate = revised
+            assessment = revised_assessment
+            summary = _assessment_summary(assessment, policy.threshold, prefix="回答修正完成")
+        else:
+            assessment = baseline_assessment
+            summary = (
+                f"本次修正可信度 {_percentage(revised_assessment.score)}，"
+                f"未超过修正前的 {_percentage(baseline_assessment.score)}；"
+                "已保留修正前回答并停止继续重试。"
+            )
         _audit(emitter, policy, "confidence.reanalysis.completed", compiled_agent, "重新分析回答", {
                    "activityCode": reanalysis_code,
                    "activityType": "ANSWER_REANALYSIS",
                    "activityName": "重新分析回答",
                    "attempt": attempt,
                    **_assessment_detail(assessment, policy.threshold),
-                   "retainedConfidence": retained_assessment.score,
+                   "evaluatedConfidence": revised_assessment.score,
+                   "retainedConfidence": assessment.score,
                    "scoreImproved": improved,
                    "outputSummary": summary,
                })
-        candidate = retained_candidate
-        assessment = retained_assessment
         if assessment.score >= policy.threshold or not improved:
             break
 
-    return _guarded_output(best_candidate, best_assessment, reanalysis_attempts, retrieval_attempts)
+    return _guarded_output(candidate, assessment, reanalysis_attempts, retrieval_attempts)
 
 
 def _guarded_output(
@@ -359,14 +420,19 @@ def _grounded_confidence(
 ) -> float:
     """Use explainable dimensions after retrieval; retain the evaluator score before retrieval."""
 
-    if not _has_evidence(evidence):
+    if evidence is None:
         return reported_confidence
-    if evidence_coverage is None or evidence_consistency is None:
-        return reported_confidence
-    completeness = answer_completeness if answer_completeness is not None else reported_confidence
+    if (
+        not _has_evidence(evidence)
+        or evidence_coverage is None
+        or evidence_consistency is None
+        or answer_completeness is None
+        or answer_completeness < MIN_ANSWER_COMPLETENESS
+    ):
+        return 0.0
     return _bounded_float(
-        evidence_coverage * 0.45 + evidence_consistency * 0.45 + completeness * 0.10,
-        reported_confidence,
+        evidence_coverage * 0.45 + evidence_consistency * 0.45 + answer_completeness * 0.10,
+        0.0,
     )
 
 
@@ -405,6 +471,59 @@ def _resolve_kb_code(requested: str | None, knowledge_bases: list[dict[str, Any]
     return knowledge_bases[0]["kbCode"]
 
 
+def _guard_scope(compiled_agent: Any) -> str:
+    code = _text(getattr(compiled_agent, "code", None)) or "agent"
+    normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", code).strip("-") or "agent"
+    return f"{normalized[:40]}-{uuid.uuid4().hex[:10]}"
+
+
+def _merge_evidence(
+    current: dict[str, Any] | None,
+    incoming: dict[str, Any] | None,
+) -> dict[str, Any] | None:
+    if not isinstance(current, dict) and not isinstance(incoming, dict):
+        return None
+    sources = [value for value in (current, incoming) if isinstance(value, dict)]
+    items: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    queries: list[str] = []
+    kb_codes: list[str] = []
+    errors: list[str] = []
+    for source in sources:
+        query = _text(source.get("query"))
+        if query and query not in queries:
+            queries.append(query)
+        kb_code = _text(source.get("kbCode"))
+        if kb_code and kb_code not in kb_codes:
+            kb_codes.append(kb_code)
+        error = _text(source.get("error"))
+        if error:
+            errors.append(error[:300])
+        if not source.get("success"):
+            continue
+        values = source.get("items") if isinstance(source.get("items"), list) else []
+        for value in values:
+            if not isinstance(value, dict):
+                continue
+            document_id = _text(value.get("documentId")) or ""
+            content = _text(value.get("content")) or ""
+            key = (document_id, content)
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append(value)
+    items.sort(key=_evidence_rank, reverse=True)
+    return {
+        "success": any(bool(source.get("success")) for source in sources),
+        "kbCode": kb_codes[-1] if kb_codes else None,
+        "kbCodes": kb_codes,
+        "query": queries[-1] if queries else None,
+        "queries": queries,
+        "items": items,
+        "errors": errors,
+    }
+
+
 def _evidence_text(evidence: dict[str, Any] | None) -> str:
     return json.dumps(_compact_evidence(evidence), ensure_ascii=False)
 
@@ -414,7 +533,7 @@ def _compact_evidence(evidence: dict[str, Any] | None) -> dict[str, Any]:
         return {"available": False, "success": False, "items": []}
     values = evidence.get("items") if isinstance(evidence.get("items"), list) else []
     items: list[dict[str, Any]] = []
-    for value in values[:10]:
+    for value in values[:MAX_EVIDENCE_ITEMS]:
         if not isinstance(value, dict):
             continue
         content = _text(value.get("content"))
@@ -423,14 +542,26 @@ def _compact_evidence(evidence: dict[str, Any] | None) -> dict[str, Any]:
         items.append({
             "documentId": value.get("documentId"),
             "score": value.get("score"),
-            "content": content[:4_000] if content else None,
-            "metadata": metadata if len(metadata_text) <= 2_000 else {"summary": metadata_text[:2_000]},
+            "content": content[:MAX_EVIDENCE_CONTENT_CHARS] if content else None,
+            "metadata": (
+                metadata
+                if len(metadata_text) <= MAX_EVIDENCE_METADATA_CHARS
+                else {"summary": metadata_text[:MAX_EVIDENCE_METADATA_CHARS]}
+            ),
         })
     return {
         "available": bool(evidence.get("success")) and _has_evidence(evidence),
         "success": bool(evidence.get("success")),
         "kbCode": evidence.get("kbCode"),
-        "query": evidence.get("query"),
+        "kbCodes": evidence.get("kbCodes"),
+        "query": (_text(evidence.get("query")) or "")[:MAX_EVIDENCE_QUERY_CHARS] or None,
+        "queries": [
+            query[:MAX_EVIDENCE_QUERY_CHARS]
+            for query in evidence.get("queries", [])
+            if isinstance(query, str)
+        ][:4]
+        if isinstance(evidence.get("queries"), list)
+        else None,
         "items": items,
     }
 
@@ -440,6 +571,13 @@ def _has_evidence(evidence: dict[str, Any] | None) -> bool:
         return False
     items = evidence.get("items") if isinstance(evidence.get("items"), list) else []
     return any(isinstance(item, dict) and bool(_text(item.get("content"))) for item in items)
+
+
+def _evidence_rank(item: dict[str, Any]) -> float:
+    try:
+        return float(item.get("score"))
+    except (TypeError, ValueError):
+        return float("-inf")
 
 
 def _audit(
