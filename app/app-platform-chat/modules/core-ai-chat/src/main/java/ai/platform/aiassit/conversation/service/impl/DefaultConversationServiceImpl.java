@@ -88,11 +88,12 @@ public class DefaultConversationServiceImpl implements ConversationService {
         if (session == null) {
             throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND);
         }
+        List<ConversationRoundDTO> rounds = roundService.queryAll(query);
         response.setSession(session);
         response.setRounds(buildRoundDetails(
-                roundService.queryAll(query),
+                rounds,
                 messageService.queryAll(query),
-                artifactService.queryAll(query),
+                artifactService.queryByRoundCodes(roundCodes(rounds)),
                 activityService.queryAll(query)
         ));
         return response;
@@ -157,12 +158,13 @@ public class DefaultConversationServiceImpl implements ConversationService {
 
     private void deleteConversationHistory(String sessionCode, Long userId) {
         ConversationHistoryQueryRequest query = buildHistoryQuery(sessionCode, userId);
+        List<ConversationRoundDTO> rounds = roundService.queryAll(query);
         for (ConversationMessageDTO message : messageService.queryAll(query)) {
             if (message.getId() != null) {
                 messageService.delete(message.getId());
             }
         }
-        artifactService.queryAll(query).forEach(artifact -> {
+        artifactService.queryByRoundCodes(roundCodes(rounds)).forEach(artifact -> {
             if (artifact.getId() != null) {
                 artifactService.delete(artifact.getId());
             }
@@ -172,7 +174,7 @@ public class DefaultConversationServiceImpl implements ConversationService {
                 activityService.delete(activity.getId());
             }
         });
-        for (ConversationRoundDTO round : roundService.queryAll(query)) {
+        for (ConversationRoundDTO round : rounds) {
             if (round.getId() != null) {
                 roundService.delete(round.getId());
             }
@@ -202,6 +204,17 @@ public class DefaultConversationServiceImpl implements ConversationService {
 
     private long resolveUserId(Long userId) {
         return userId == null ? 0L : userId;
+    }
+
+    private List<String> roundCodes(List<ConversationRoundDTO> rounds) {
+        if (rounds == null) {
+            return List.of();
+        }
+        return rounds.stream()
+                .map(ConversationRoundDTO::getRoundCode)
+                .filter(StringUtils::hasText)
+                .distinct()
+                .toList();
     }
 
     private String generateCode(String prefix) {
@@ -254,8 +267,7 @@ public class DefaultConversationServiceImpl implements ConversationService {
         }
         boolean hasRenderableArtifact = detail.getArtifacts().stream()
                 .anyMatch(artifact -> artifact != null
-                        && StringUtils.hasText(artifact.getArtifactType())
-                        && StringUtils.hasText(artifact.getContentFormat()));
+                        && "RENDER_JSON".equalsIgnoreCase(artifact.getArtifactType()));
         if (hasRenderableArtifact) {
             detail.setRenderType("TODO");
         }

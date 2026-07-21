@@ -1,5 +1,15 @@
 export type AppOverlaySize = 'small' | 'medium' | 'large' | 'extra-large'
 export type AppDialogActionMode = 'confirm' | 'close' | 'none'
+export type AppDialogPosition =
+  | 'center'
+  | 'top'
+  | 'top-left'
+  | 'top-right'
+  | 'left'
+  | 'right'
+  | 'bottom'
+  | 'bottom-left'
+  | 'bottom-right'
 
 export interface AppDialogProps {
   modelValue?: boolean
@@ -8,6 +18,8 @@ export interface AppDialogProps {
   size?: AppOverlaySize
   width?: string | number
   height?: string | number
+  position?: AppDialogPosition
+  offset?: string | number
   fullscreen?: boolean
   modal?: boolean
   lockScroll?: boolean

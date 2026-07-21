@@ -63,12 +63,12 @@ Render JSON 不应包含：
 
 | 入口     | 内容来源              | 前端入口                         | 是否写入 Render 页面表 |
 |--------|-------------------|------------------------------|-----------------|
-| 正式动态应用 | Render 服务中的页面当前内容 | `/app/{mode}/{code}.json`    | 是               |
+| 正式动态应用 | Render 服务中的页面当前内容 | `/app/{mode}/{pageCode}`    | 是               |
 | 元数据预览  | 正式内容的内存副本，可替换预览模型 | 同上，带 `preview=1&model=...`   | 否               |
-| 聊天生成产物 | 会话 Artifact       | `GeneratedArtifactWorkspace` | 否               |
+| 聊天生成产物 | Artifact 中的 `{pageCode, layout}` 引用 | `GeneratedArtifactWorkspace` | 是，由 Chat 写入草稿页面 |
 
-需要特别注意：聊天中生成的 `RENDER_JSON` Artifact 不会自动发布为正式 Render 页面。当前 Agent
-提示也明确禁止声称已经发布或部署。若后续需要“从聊天产物发布页面”，应新增显式审核与发布流程，而不是复用会话持久化作为页面存储。
+需要特别注意：聊天中生成的完整 Render JSON 会写入 Render 服务的草稿页面，但不会自动发布。会话 Artifact 只保存
+`{pageCode, layout}`，页面内容和快照仍由 Render 服务负责。
 
 ## 5. 分层模型
 
@@ -142,4 +142,3 @@ flowchart TB
 - Agent Render 校验：
   `app/app-platform-chat/providers/ai-provider-ai-agent/src/main/python/agent_provider/tools/render_validation.py`
 - 会话 Artifact 持久化：`app/app-platform-chat/modules/core-ai-chat/.../DefaultConversationExecutionServiceImpl.java`
-

@@ -1,8 +1,13 @@
 <script setup lang="ts">
-import { MoreFilled, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { MoreFilled, Plus, RefreshRight, Search, View } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
-import { AppPagination } from '../../../../components'
+import { useRouter } from 'vue-router'
+import { AppDialog, AppPagination } from '../../../../components'
+import {
+  searchVirtualEntities,
+  type VirtualEntityItem,
+} from '../../api/virtualData'
 import {
   createRenderPage,
   createRenderPageCategory,
@@ -33,12 +38,26 @@ type MetadataTreeNode = {
   children?: MetadataTreeNode[]
 }
 
+type RenderPreviewLayout = 'standard' | 'dashboard' | 'report' | 'embedded'
+
 const UNCLASSIFIED_CATEGORY_KEY = '__uncategorized__'
 const ALL_CATEGORY_KEY = 'all'
 const EFFECTIVE_STATUS_DRAFT = 1
 const EFFECTIVE_STATUS_PUBLISHED = 2
 const EFFECTIVE_STATUS_DISABLED = 3
+const PREVIEW_MODEL_PAGE_SIZE = 500
+const previewLayoutOptions: Array<{
+  value: RenderPreviewLayout
+  label: string
+  description: string
+}> = [
+  { value: 'standard', label: '普通布局', description: '适合列表、表单和常规业务页面' },
+  { value: 'dashboard', label: '看板布局', description: '适合指标、图表和监控大屏' },
+  { value: 'report', label: '报表布局', description: '适合报表阅读、汇总和打印场景' },
+  { value: 'embedded', label: '嵌入布局', description: '适合嵌入其他页面或工作区' },
+]
 
+const router = useRouter()
 const metadataKeyword = ref('')
 const activeCategory = ref('all')
 const pageSize = ref(20)
@@ -59,6 +78,11 @@ const metadataDialogVisible = ref(false)
 const metadataDialogMode = ref<'create' | 'edit'>('edit')
 const metadataSubmitting = ref(false)
 const editingMetadataId = ref<string | number | null>(null)
+const previewDialogVisible = ref(false)
+const previewModelsLoading = ref(false)
+const previewModelsLoaded = ref(false)
+const previewRecord = ref<RenderPageItem | null>(null)
+const previewModels = ref<VirtualEntityItem[]>([])
 const summary = ref({
   total: 0,
   published: 0,
@@ -85,6 +109,20 @@ const metadataForm = reactive({
   status: EFFECTIVE_STATUS_DRAFT as RenderPageStatus,
   content: '',
 })
+const previewForm = reactive({
+  model: '',
+  layout: 'standard' as RenderPreviewLayout,
+})
+
+const previewModelOptions = computed(() => previewModels.value
+  .filter(item => Boolean(item.entityCode?.trim()))
+  .map(item => ({
+    value: item.entityCode!.trim(),
+    label: item.entityName?.trim()
+      ? `${item.entityName.trim()}（${item.entityCode!.trim()}）`
+      : item.entityCode!.trim(),
+  }))
+  .sort((left, right) => left.label.localeCompare(right.label, 'zh-CN')))
 
 const categoryTreeData = computed<MetadataTreeNode[]>(() => [
   {
@@ -400,6 +438,116 @@ function openEditMetadataDialog(record: {
   metadataForm.status = raw?.status ?? EFFECTIVE_STATUS_DRAFT
   metadataForm.content = raw?.content ? JSON.stringify(raw.content, null, 2) : ''
   metadataDialogVisible.value = true
+}
+
+async function loadPreviewModels() {
+  if (previewModelsLoaded.value || previewModelsLoading.value) {
+    return
+  }
+  previewModelsLoading.value = true
+  try {
+    const result = await searchVirtualEntities({
+      page: 1,
+      size: PREVIEW_MODEL_PAGE_SIZE,
+      enabled: true,
+    })
+    previewModels.value = result?.list || []
+    previewModelsLoaded.value = true
+  }
+  catch (error) {
+    previewModels.value = []
+    ElMessage.error(error instanceof Error ? error.message : '虚拟模型加载失败')
+  }
+  finally {
+    previewModelsLoading.value = false
+  }
+}
+
+function openPreviewDialog(record: { id: string | number; code: string }) {
+  const raw = metadataRecords.value.find(item => item.id === record.id)
+  if (!raw?.code?.trim()) {
+    ElMessage.warning('当前元数据缺少可预览的编码')
+    return
+  }
+  previewRecord.value = raw
+  previewForm.model = resolvePreviewModel(raw.content)
+  previewForm.layout = resolvePreviewLayout(raw.content)
+  previewDialogVisible.value = true
+  void loadPreviewModels()
+}
+
+function resetPreviewForm() {
+  previewRecord.value = null
+  previewForm.model = ''
+  previewForm.layout = 'standard'
+}
+
+function submitPreview() {
+  const code = previewRecord.value?.code?.trim()
+  if (!code) {
+    ElMessage.warning('当前元数据缺少可预览的编码')
+    return
+  }
+  if (!previewForm.model) {
+    ElMessage.warning('请选择用于绑定 :model 的虚拟模型')
+    return
+  }
+
+  const target = router.resolve({
+    name: 'render-app',
+    params: {
+      mode: previewForm.layout,
+      code,
+    },
+    query: {
+      model: previewForm.model,
+      preview: '1',
+    },
+  })
+  window.open(target.href, '_blank', 'noopener,noreferrer')
+  previewDialogVisible.value = false
+}
+
+function resolvePreviewLayout(content?: RenderPageContent): RenderPreviewLayout {
+  const presentation = isRecord(content?.presentation)
+    ? content.presentation
+    : isRecord(content?.page) ? content.page : undefined
+  const value = presentation?.defaultMode
+  return previewLayoutOptions.some(option => option.value === value)
+    ? value as RenderPreviewLayout
+    : 'standard'
+}
+
+function resolvePreviewModel(content?: RenderPageContent) {
+  if (!content) {
+    return ''
+  }
+  const pending: unknown[] = [content]
+  while (pending.length) {
+    const current = pending.shift()
+    if (Array.isArray(current)) {
+      pending.push(...current)
+      continue
+    }
+    if (!isRecord(current)) {
+      continue
+    }
+    if (
+      typeof current.type === 'string'
+      && ['db-query-list', 'semantic-query'].includes(current.type)
+      && typeof current.model === 'string'
+      && current.model.trim()
+      && current.model.trim() !== ':model'
+    ) {
+      return current.model.trim()
+    }
+    pending.push(...Object.values(current))
+  }
+  return ''
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }
 
 async function handleDeleteMetadata(record: { id: string | number; name: string }) {
@@ -749,6 +897,12 @@ onMounted(() => {
                   <p>{{ record.contentPreview }}</p>
                 </div>
               </div>
+              <div class="component-manage-card__footer">
+                <el-button link type="primary" @click="openPreviewDialog(record)">
+                  <el-icon><View /></el-icon>
+                  预览
+                </el-button>
+              </div>
             </div>
           </div>
         </el-main>
@@ -837,6 +991,54 @@ onMounted(() => {
       </div>
     </template>
   </el-dialog>
+
+  <AppDialog
+    v-model="previewDialogVisible"
+    title="预览元数据"
+    :description="previewRecord ? `选择 ${previewRecord.name || previewRecord.code} 的模型与布局。` : ''"
+    size="small"
+    action-mode="confirm"
+    confirm-text="新页签预览"
+    :confirm-disabled="previewModelsLoading || !previewForm.model || !previewForm.layout"
+    @confirm="submitPreview"
+    @closed="resetPreviewForm"
+  >
+    <el-form label-position="top" class="metadata-preview-form">
+      <el-form-item label=":model" required>
+        <el-select
+          v-model="previewForm.model"
+          filterable
+          :loading="previewModelsLoading"
+          placeholder="请选择虚拟模型"
+        >
+          <el-option
+            v-for="option in previewModelOptions"
+            :key="option.value"
+            :label="option.label"
+            :value="option.value"
+          />
+        </el-select>
+        <div class="metadata-preview-form__hint">
+          仅用于本次预览，绑定 Render JSON 中的 :model，不会修改元数据原文。
+        </div>
+      </el-form-item>
+      <el-form-item label="Layout 类型" required>
+        <el-select v-model="previewForm.layout" placeholder="请选择布局类型">
+          <el-option
+            v-for="option in previewLayoutOptions"
+            :key="option.value"
+            :label="`${option.label}（${option.value}）`"
+            :value="option.value"
+          >
+            <div class="metadata-preview-layout-option">
+              <span>{{ option.label }}</span>
+              <small>{{ option.description }}</small>
+            </div>
+          </el-option>
+        </el-select>
+      </el-form-item>
+    </el-form>
+  </AppDialog>
 </template>
 
 <style scoped>
@@ -1194,7 +1396,41 @@ onMounted(() => {
 
 .component-manage-card__content {
   display: grid;
+  flex: 1;
   gap: 12px;
+}
+
+.component-manage-card__footer {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: var(--app-space-1);
+  border-top: 1px solid var(--system-border-subtle);
+}
+
+.component-manage-card__footer :deep(.el-button) {
+  font-weight: 600;
+}
+
+.metadata-preview-form :deep(.el-select) {
+  width: 100%;
+}
+
+.metadata-preview-form__hint {
+  margin-top: var(--app-space-1);
+  color: var(--app-text-muted);
+  font-size: var(--app-font-size-caption);
+  line-height: var(--app-line-height-body);
+}
+
+.metadata-preview-layout-option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+}
+
+.metadata-preview-layout-option small {
+  color: var(--app-text-muted);
 }
 
 .component-manage-card__section {

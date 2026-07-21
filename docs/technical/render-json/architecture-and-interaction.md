@@ -26,7 +26,7 @@ flowchart LR
 - Chat 服务管理 AI 生成过程、SSE 事件和会话级 Artifact。
 - AI Agent Provider 负责生成 RenderDocument，并调用确定性工具校验。
 
-正式页面内容和聊天 Artifact 是两套独立存储，不存在自动互转。
+完整 Render JSON 由 Render 服务保存；聊天 Artifact 只保存页面引用和展示布局。
 
 ## 2. 正式动态应用加载
 
@@ -35,16 +35,16 @@ flowchart LR
 正式入口为：
 
 ```text
-/app/{mode}/{renderJsonCode}.json
+/app/{mode}/{pageCode}
 ```
 
 前端路由实际匹配 `/app/:mode/:code`。`normalizeRenderAppCode` 会：
 
-1. 去掉 code 末尾的 `.json`。
+1. 保留完整 pageCode，不添加或裁剪 `.json` 等后缀。
 2. 限制 code 只能包含字母、数字、点、下划线和短横线。
 3. 检查 mode 是否属于 `standard`、`dashboard`、`report`、`embedded`。
 
-`.json` 是页面 URL 的表达形式，不表示浏览器直接下载静态 JSON 文件。
+pageCode 直接用于查询 Render Meta。
 
 ### 2.2 加载时序
 
@@ -58,7 +58,7 @@ sequenceDiagram
     participant Content as render_page_content
     participant Runtime as Render Runtime
 
-    Browser->>Browser: 解析 mode 和 code，移除 .json
+    Browser->>Browser: 解析 mode 和完整 pageCode
     Browser->>Request: GET /render/api/v1/render/meta/{code}
     Request->>Request: 附加 Bearer Token 与 X-Trace-Id
     Request->>Gateway: HTTP GET
@@ -101,7 +101,7 @@ sequenceDiagram
 元数据预览支持：
 
 ```text
-/app/{mode}/{code}.json?preview=1&model={virtualEntityCode}
+/app/{mode}/{pageCode}?preview=1&model={virtualEntityCode}
 ```
 
 当且仅当 `preview=1` 且 model 非空时，`applyRenderPreviewModel` 会在内存副本中：
@@ -307,7 +307,16 @@ sequenceDiagram
 
 ## 9. 聊天 Render Artifact 交互
 
-聊天中的 Render JSON 不经过 Render Meta 接口：
+聊天 Artifact 不复制完整 Render JSON；Chat 服务先把完整文档写入 Render 服务，再保存最小引用：
+
+```json
+{
+  "pageCode": "完整页面编码",
+  "layout": "standard"
+}
+```
+
+`layout` 缺失或无效时归一为 `standard`，`pageCode` 全链路原样传递。
 
 ```mermaid
 sequenceDiagram
@@ -315,6 +324,7 @@ sequenceDiagram
     participant Chat as Chat 服务
     participant Agent as AI Agent Provider
     participant Tool as render_json_validate_tool
+    participant Render as Render 服务
     participant History as 会话 Artifact 表
     participant Preview as GeneratedArtifactWorkspace
 
@@ -323,23 +333,26 @@ sequenceDiagram
     Agent->>Tool: 校验完整 RenderDocument
     Tool-->>Agent: ValidationReport
     Agent-->>Chat: finalOutput + artifacts
-    Chat->>History: 保存 RENDER_JSON Artifact
+    Chat->>Render: 按完整 pageCode upsert RenderDocument
+    Chat->>History: 保存 {pageCode, layout}
     Chat-->>UI: round.completed
     UI->>Chat: 刷新会话详情
-    Chat-->>UI: 带 content 的历史 Artifact
-    UI->>UI: normalizeRenderArtifact
+    Chat-->>UI: 带页面引用的历史 Artifact
+    UI->>Render: 按 pageCode 加载 Render Meta
+    UI->>UI: normalizeRenderRuntimeDocument
     UI->>Preview: RenderJsonRuntimeHost(document)
 ```
 
-Provider 运行期间发出的 `artifact.created` 事件主要携带 artifactCode、artifactType、contentFormat 等元数据；完整 content 由最终结果持久化。当前前端在 `round.completed` 后刷新会话详情，从历史 Artifact 取得完整内容。
+Provider 运行期间发出的 `artifact.created` 事件主要携带 artifactCode、artifactType、contentFormat 等元数据。当前前端在 `round.completed` 后刷新会话详情，从历史 Artifact 取得 `{pageCode, layout}`，再从 Render 服务加载完整内容。
 
-聊天预览的 `normalizeRenderArtifact` 与正式页面 `normalizeRenderRuntimeDocument` 是两套归一化函数：
+聊天预览先通过 `normalizeRenderArtifact` 解析引用，再复用正式页面的 `normalizeRenderRuntimeDocument`：
 
 - 会检查 Artifact 类型是否为 `RENDER_JSON`。
 - 支持 content 是 JSON 字符串或对象。
-- 支持完整文档和裸节点。
-- 补齐 pageId、componentVersion 和节点 id。
-- 不读取正式页面的 `presentation`，也不检查页面 mode。
+- 新结构只接受 `{pageCode, layout}`，layout 默认 `standard`。
+- pageCode 原样传给 Render Meta 接口。
+- 历史内联完整文档仍可直接归一化展示。
+- 根据 layout 选择 `standard`、`dashboard`、`report` 或 `embedded` 宿主，并校验页面允许的 mode。
 
 两者最终都进入 `RenderJsonRuntimeHost`，因此组件递归和数据请求能力可以复用。
 
@@ -353,5 +366,4 @@ Provider 运行期间发出的 `artifact.created` 事件主要携带 artifactCod
 | 数据请求 | DB Query 失败、虚拟模型无效 | 节点 `rendererError`，保留页面其他节点 |
 | 保存 | JSON 解析失败、模式不允许、接口失败 | Element Plus 消息提示，不替换当前文档 |
 | Agent 校验 | JSON、协议、组件、安全校验失败 | Agent 根据稳定错误码有限修复，失败则不应声称成功 |
-| 聊天预览 | Artifact 非 JSON 或缺少 component | 产物工作区显示归一化错误 |
-
+| 聊天预览 | 引用非法、页面不存在或文档缺少 root | 产物工作区显示加载/归一化错误 |

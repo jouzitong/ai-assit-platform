@@ -281,33 +281,26 @@ CREATE TABLE IF NOT EXISTS conversation_message
 
 CREATE TABLE IF NOT EXISTS conversation_artifact
 (
-    id                   BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
-    artifact_code        VARCHAR(64) NOT NULL COMMENT '产物编码',
-    session_code         VARCHAR(64) NOT NULL COMMENT '会话编码',
-    round_code           VARCHAR(64)          DEFAULT NULL COMMENT '轮次编码',
-    user_id              BIGINT      NOT NULL DEFAULT 0 COMMENT '用户ID',
-    related_message_code VARCHAR(64)          DEFAULT NULL COMMENT '关联消息编码',
-    artifact_type        VARCHAR(32) NOT NULL COMMENT '产物类型',
-    stage                VARCHAR(32) NOT NULL COMMENT '流程阶段',
-    producer_type        VARCHAR(32) NOT NULL DEFAULT 'SYSTEM' COMMENT '产物生产者',
-    visible_flag         TINYINT     NOT NULL DEFAULT 0 COMMENT '是否对前端可见',
-    title                VARCHAR(128)         DEFAULT NULL COMMENT '产物标题',
-    content              MEDIUMTEXT  NOT NULL COMMENT '产物内容',
-    content_format       VARCHAR(32) NOT NULL DEFAULT 'PLAIN_TEXT' COMMENT '内容格式',
-    status               VARCHAR(32) NOT NULL DEFAULT 'SUCCESS' COMMENT '产物状态',
-    seq_no               INT         NOT NULL DEFAULT 1 COMMENT '会话内顺序',
-    ext_json             MEDIUMTEXT           DEFAULT NULL COMMENT '扩展信息',
-    create_time          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    update_time          DATETIME    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    created_by           BIGINT      NOT NULL DEFAULT 0 COMMENT '创建者',
-    updated_by           BIGINT      NOT NULL DEFAULT 0 COMMENT '更新者',
-    version              BIGINT      NOT NULL DEFAULT 1 COMMENT '版本号',
-    deleted              TINYINT     NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    id             BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT '主键ID',
+    artifact_code  VARCHAR(64)  NOT NULL COMMENT '产物编码',
+    round_code     VARCHAR(64)  NOT NULL COMMENT '轮次编码',
+    artifact_type  INT          NOT NULL COMMENT '产物类型：1=文件,2=图片,3=Render JSON',
+    stage          VARCHAR(32)  NOT NULL COMMENT '流程阶段',
+    title          VARCHAR(128)          DEFAULT NULL COMMENT '产物标题',
+    content        MEDIUMTEXT   NOT NULL COMMENT '产物内容',
+    content_format VARCHAR(32)  NOT NULL DEFAULT 'JSON' COMMENT '内容格式',
+    seq_no         INT          NOT NULL DEFAULT 1 COMMENT '轮次内顺序',
+    ext_json       MEDIUMTEXT            DEFAULT NULL COMMENT '扩展信息',
+    create_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    update_time    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    created_by     BIGINT       NOT NULL DEFAULT 0 COMMENT '创建者',
+    updated_by     BIGINT       NOT NULL DEFAULT 0 COMMENT '更新者',
+    version        BIGINT       NOT NULL DEFAULT 1 COMMENT '版本号',
+    deleted        TINYINT      NOT NULL DEFAULT 0 COMMENT '软删除标记',
+    CONSTRAINT conversation_artifact_chk_artifact_type CHECK (artifact_type IN (1, 2, 3)),
     UNIQUE KEY uk_artifact_code (artifact_code),
-    KEY idx_artifact_session_code (session_code),
-    KEY idx_artifact_round_code (round_code),
-    KEY idx_artifact_message_code (related_message_code)
-) COMMENT ='会话过程产物表';
+    KEY idx_artifact_round_seq (round_code, seq_no)
+) COMMENT ='会话非文本产物表';
 
 CREATE TABLE IF NOT EXISTS conversation_activity
 (

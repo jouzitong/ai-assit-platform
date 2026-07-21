@@ -28,6 +28,8 @@
 - `extra-large`：大型预览和复杂工作区。
 - 只有业务内容存在明确固定尺寸要求时才传入 `width`；常规页面使用尺寸枚举。
 - `AppDialog` 的 `width` 与 `height` 支持百分比字符串；配置固定高度后，头部和底部操作区固定，只有内容区滚动。
+- `AppDialog` 默认使用 `position="center"` 在当前浮层容器中水平、垂直居中；需要改变位置时使用九宫格位置值：`top-left`、`top`、`top-right`、`left`、`center`、`right`、`bottom-left`、`bottom`、`bottom-right`。
+- 位置与容器边缘的距离默认使用公共间距 Token；业务确有需要时可通过 `offset` 传入 CSS 尺寸或数字像素值。尺寸仍优先使用 `size`，明确固定尺寸时使用 `width`、`height`。
 - `AppDrawer` 只支持左右方向并始终占满容器高度，仅通过尺寸预设或 `width` 配置宽度。
 - 小容器内由公共组件自动限制最大宽高，业务页面不重复编写视口计算样式。
 

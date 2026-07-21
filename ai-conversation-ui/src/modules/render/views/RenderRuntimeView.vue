@@ -14,6 +14,7 @@ import RenderDeveloperTools from '../components/RenderDeveloperTools.vue'
 import RenderModeHost from '../components/RenderModeHost.vue'
 import RenderRuntimeState from '../components/RenderRuntimeState.vue'
 import {
+  applyRenderPreviewModel,
   assertRenderModeAllowed,
   isRenderAppMode,
   normalizeRenderAppCode,
@@ -114,7 +115,7 @@ const runtimeScope = computed(() => {
 })
 
 watch(
-  () => [route.params.mode, route.params.code],
+  () => [route.params.mode, route.params.code, route.query.preview, route.query.model],
   () => {
     void loadRuntimeDocument()
   },
@@ -166,7 +167,8 @@ async function loadRuntimeDocument() {
       throw new Error('Render Meta 返回的数据格式不正确')
     }
 
-    const documentValue = normalizeRenderRuntimeDocument(content, code)
+    const runtimeContent = resolveRuntimeContent(content)
+    const documentValue = normalizeRenderRuntimeDocument(runtimeContent, code)
     assertRenderModeAllowed(modeValue, documentValue.presentation)
 
     if (sequence !== loadSequence) {
@@ -257,12 +259,9 @@ async function saveMetadata(content: Record<string, unknown>) {
     assertRenderModeAllowed(renderMode.value, draftDocument.presentation)
     const saved = await upsertRenderMetaContent(renderCode.value, content)
     const savedContent = isRecord(saved) ? saved : content
-    const documentValue = savedContent === content
-      ? draftDocument
-      : normalizeRenderRuntimeDocument(savedContent, renderCode.value)
-    if (documentValue !== draftDocument) {
-      assertRenderModeAllowed(renderMode.value, documentValue.presentation)
-    }
+    const runtimeContent = resolveRuntimeContent(savedContent)
+    const documentValue = normalizeRenderRuntimeDocument(runtimeContent, renderCode.value)
+    assertRenderModeAllowed(renderMode.value, documentValue.presentation)
     renderMetaContent.value = savedContent
     renderDocument.value = documentValue
     metadataDraft.value = JSON.stringify(savedContent, null, 2)
@@ -302,6 +301,14 @@ function readRouteParam(value: unknown) {
     return typeof value[0] === 'string' ? value[0] : ''
   }
   return typeof value === 'string' ? value : ''
+}
+
+function resolveRuntimeContent(content: Record<string, unknown>) {
+  const preview = readRouteParam(route.query.preview)
+  const model = readRouteParam(route.query.model).trim()
+  return preview === '1' && model
+    ? applyRenderPreviewModel(content, model)
+    : content
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

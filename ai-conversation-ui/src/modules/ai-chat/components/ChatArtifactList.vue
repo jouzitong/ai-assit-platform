@@ -1,13 +1,10 @@
 <script setup lang="ts">
+import GeneratedArtifactWorkspace from './GeneratedArtifactWorkspace.vue'
 import type { ChatArtifact } from '../types'
 import { isRenderJsonArtifact } from '../utils/renderArtifact'
 
 defineProps<{
   artifacts: ChatArtifact[]
-}>()
-
-const emit = defineEmits<{
-  'open-render-artifact': [artifact: ChatArtifact]
 }>()
 
 function displayContent(content: unknown) {
@@ -23,32 +20,28 @@ function displayContent(content: unknown) {
 
 <template>
   <div class="chat-artifact-list" aria-label="Agent 产物">
-    <article
+    <template
       v-for="(artifact, index) in artifacts"
       :key="artifact.artifactCode || artifact.codeRef || index"
-      class="chat-artifact-list__item"
     >
-      <header>
-        <div>
-          <span>{{ artifact.artifactType || 'ARTIFACT' }}</span>
-          <strong>{{ artifact.title || artifact.artifactCode || artifact.codeRef || 'Agent 产物' }}</strong>
-        </div>
-        <small>{{ artifact.status || artifact.stage || '' }}</small>
-      </header>
-      <button
+      <GeneratedArtifactWorkspace
         v-if="isRenderJsonArtifact(artifact)"
-        class="chat-artifact-list__open"
-        type="button"
-        @click="emit('open-render-artifact', artifact)"
-      >
-        <span>打开生成页面</span>
-        <small>支持等比例缩放与全屏查看</small>
-      </button>
-      <pre v-else-if="displayContent(artifact.content)">{{ displayContent(artifact.content) }}</pre>
-      <div v-else-if="artifact.codeRef || artifact.artifactCode" class="chat-artifact-list__reference">
-        {{ artifact.codeRef || artifact.artifactCode }}
-      </div>
-    </article>
+        :artifact="artifact"
+      />
+      <article v-else class="chat-artifact-list__item">
+        <header>
+          <div>
+            <span>{{ artifact.artifactType || 'ARTIFACT' }}</span>
+            <strong>{{ artifact.title || artifact.artifactCode || artifact.codeRef || 'Agent 产物' }}</strong>
+          </div>
+          <small>{{ artifact.status || artifact.stage || '' }}</small>
+        </header>
+        <pre v-if="displayContent(artifact.content)">{{ displayContent(artifact.content) }}</pre>
+        <div v-else-if="artifact.codeRef || artifact.artifactCode" class="chat-artifact-list__reference">
+          {{ artifact.codeRef || artifact.artifactCode }}
+        </div>
+      </article>
+    </template>
   </div>
 </template>
 
@@ -103,37 +96,4 @@ function displayContent(content: unknown) {
 }
 
 .chat-artifact-list__reference { margin-top: 0.5rem; }
-
-.chat-artifact-list__open {
-  display: grid;
-  width: 100%;
-  gap: 0.25rem;
-  margin-top: 0.625rem;
-  padding: 0.75rem;
-  border: 0.0625rem solid var(--el-color-primary-light-5);
-  border-radius: 0.625rem;
-  background: var(--el-color-primary-light-9);
-  color: var(--el-color-primary);
-  text-align: left;
-  cursor: pointer;
-}
-
-.chat-artifact-list__open span {
-  font-size: 0.8125rem;
-  font-weight: 700;
-}
-
-.chat-artifact-list__open small {
-  color: var(--chat-text-muted);
-  font-size: 0.6875rem;
-}
-
-.chat-artifact-list__open:hover {
-  border-color: var(--el-color-primary);
-}
-
-.chat-artifact-list__open:focus-visible {
-  outline: 0.125rem solid var(--el-color-primary);
-  outline-offset: 0.125rem;
-}
 </style>

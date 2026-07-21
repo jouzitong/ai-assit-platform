@@ -6,6 +6,7 @@ import ai.platform.aiassit.conversation.data.entity.dto.ConversationActivityDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
 import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
 import ai.platform.aiassit.conversation.data.enums.ConversationActorType;
+import ai.platform.aiassit.conversation.data.enums.ConversationArtifactType;
 import ai.platform.aiassit.conversation.data.enums.ConversationContentFormat;
 import ai.platform.aiassit.conversation.data.enums.ConversationDisplayLevel;
 import ai.platform.aiassit.conversation.data.enums.ConversationMessageType;
@@ -183,29 +184,20 @@ public class AgentConversationHistoryRecorder {
     }
 
     public ConversationArtifactDTO saveArtifact(ConversationRuntimeContext context,
-                                          String artifactType,
-                                          String stage,
-                                          String title,
-                                          Object content,
-                                          String contentFormat,
-                                          boolean visible,
-                                          String status,
-                                          String relatedMessageCode,
-                                          Object ext) {
+                                                 ConversationArtifactType artifactType,
+                                                 String stage,
+                                                 String title,
+                                                 Object content,
+                                                 String contentFormat,
+                                                 Object ext) {
         ConversationArtifactDTO artifact = new ConversationArtifactDTO();
         artifact.setArtifactCode(generateCode("artifact"));
-        artifact.setSessionCode(context.getSession().getSessionCode());
-        artifact.setRoundCode(context.getRound() == null ? null : context.getRound().getRoundCode());
-        artifact.setUserId(context.getSession().getUserId());
-        artifact.setRelatedMessageCode(relatedMessageCode);
-        artifact.setArtifactType(artifactType);
+        artifact.setRoundCode(context.getRound().getRoundCode());
+        artifact.setArtifactType(artifactType.name());
         artifact.setStage(stage);
-        artifact.setProducerType(visible ? ConversationActorType.AI.name() : ConversationActorType.SYSTEM.name());
-        artifact.setVisibleFlag(visible);
         artifact.setTitle(title);
         artifact.setContent(stringifyContent(content));
         artifact.setContentFormat(contentFormat);
-        artifact.setStatus(status);
         artifact.setSeqNo(nextArtifactSeqNo(context));
         artifact.setExtJson(toJson(ext));
         ConversationArtifactDTO created = artifactService.add(artifact);

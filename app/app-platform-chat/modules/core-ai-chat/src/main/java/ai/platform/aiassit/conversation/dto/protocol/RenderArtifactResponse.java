@@ -24,7 +24,5 @@ public class RenderArtifactResponse {
 
     private Object content;
 
-    private String status;
-
     private Map<String, Object> ext = new LinkedHashMap<>();
 }

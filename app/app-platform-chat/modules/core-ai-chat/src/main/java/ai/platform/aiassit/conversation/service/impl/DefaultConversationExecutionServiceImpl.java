@@ -5,6 +5,7 @@ import ai.platform.aiassit.agent.runtime.AgentConversationRequest;
 import ai.platform.aiassit.agent.runtime.AgentConversationRunner;
 import ai.platform.aiassit.agent.runtime.AgentTarget;
 import ai.platform.aiassit.conversation.data.enums.ConversationActorType;
+import ai.platform.aiassit.conversation.data.enums.ConversationArtifactType;
 import ai.platform.aiassit.conversation.data.enums.ConversationContentFormat;
 import ai.platform.aiassit.conversation.data.enums.ConversationDisplayLevel;
 import ai.platform.aiassit.conversation.data.enums.ConversationMessageType;
@@ -28,10 +29,15 @@ import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
+import ai.platform.aiassit.render.api.RenderInternalApi;
+import ai.platform.aiassit.render.api.dto.RenderUpsertRequest;
+import ai.platform.aiassit.render.api.enums.EffectiveStatus;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.dto.ChatMessage;
 import ai.platform.aiassit.service.ai.api.enums.MessageRole;
 import ai.platform.aiassit.service.ai.spi.agent.AgentRunEvent;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
@@ -43,6 +49,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 @Service
 @Slf4j
@@ -50,6 +57,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     private static final int MAX_HISTORY_MESSAGES = 40;
     private static final int MAX_HISTORY_CHARACTERS = 60_000;
+    private static final Set<String> RENDER_LAYOUTS = Set.of("standard", "dashboard", "report", "embedded");
+    private static final Set<String> RENDER_REFERENCE_KEYS = Set.of("pageCode", "layout");
 
     private final AgentConversationRunner agentConversationRunner;
     private final ConversationPreparationService preparationService;
@@ -58,6 +67,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     private final ConversationRoundService roundService;
     private final ConversationMessageService messageService;
     private final AiKbStoreService kbStoreService;
+    private final RenderInternalApi renderInternalApi;
+    private final ObjectMapper objectMapper;
 
     public DefaultConversationExecutionServiceImpl(AgentConversationRunner agentConversationRunner,
                                                    ConversationPreparationService preparationService,
@@ -65,7 +76,9 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                                                    ConversationSessionService sessionService,
                                                    ConversationRoundService roundService,
                                                    ConversationMessageService messageService,
-                                                   AiKbStoreService kbStoreService) {
+                                                   AiKbStoreService kbStoreService,
+                                                   RenderInternalApi renderInternalApi,
+                                                   ObjectMapper objectMapper) {
         this.agentConversationRunner = agentConversationRunner;
         this.preparationService = preparationService;
         this.historyRecorder = historyRecorder;
@@ -73,6 +86,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         this.roundService = roundService;
         this.messageService = messageService;
         this.kbStoreService = kbStoreService;
+        this.renderInternalApi = renderInternalApi;
+        this.objectMapper = objectMapper;
     }
 
     @Override
@@ -311,7 +326,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         }
         context.setRenderedAnswer(answer);
         ConversationMessageDTO current = context.getOrCreateUserMessageContext().getCurrentMessage();
-        ConversationMessageDTO assistant = historyRecorder.saveMessage(
+        historyRecorder.saveMessage(
                 context,
                 context.getRound().getRoundCode(),
                 "ASSISTANT",
@@ -327,7 +342,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                 current == null ? null : current.getMessageCode(),
                 agentTrace(outcome)
         );
-        persistArtifacts(context, outcome, assistant);
+        persistArtifacts(context, outcome);
         updateRoundAgentSnapshot(context, outcome);
         if (!"INPUT_REQUIRED".equalsIgnoreCase(outcome.getStatus())) {
             context.publishEvent("answer", ConversationEventSources.AI_AGENT, ConversationEventPhases.READY,
@@ -336,8 +351,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     }
 
     private void persistArtifacts(ConversationRuntimeContext context,
-                                  AgentConversationOutcome outcome,
-                                  ConversationMessageDTO assistant) {
+                                  AgentConversationOutcome outcome) {
         if (outcome.getArtifacts() == null) {
             return;
         }
@@ -345,70 +359,120 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
             if (artifact == null) {
                 continue;
             }
-            String artifactType = text(artifact.get("artifactType"), artifact.get("type"), "AGENT_OUTPUT");
+            ConversationArtifactType artifactType = supportedArtifactType(artifact);
+            if (artifactType == null || !shouldPersistArtifact(artifact)) {
+                continue;
+            }
             String contentFormat = text(artifact.get("contentFormat"), artifact.get("format"), "JSON");
             Object content = artifact.containsKey("content") ? artifact.get("content") : artifact;
-            boolean visible = persistedArtifactVisible(
-                    artifact,
-                    content,
-                    assistant == null ? null : assistant.getContent()
-            );
+            String title = text(artifact.get("title"), artifact.get("artifactCode"), artifactType.name());
+            if (artifactType == ConversationArtifactType.RENDER_JSON) {
+                content = persistRenderPage(artifact, content, title);
+                contentFormat = ConversationContentFormat.JSON.name();
+            }
             historyRecorder.saveArtifact(
                     context,
                     artifactType,
                     text(artifact.get("stage"), "FINAL"),
-                    text(artifact.get("title"), artifact.get("artifactCode"), artifactType),
+                    title,
                     content,
                     contentFormat,
-                    visible,
-                    text(artifact.get("status"), "SUCCESS"),
-                    assistant == null ? null : assistant.getMessageCode(),
                     agentTrace(outcome)
             );
         }
     }
 
-    static boolean persistedArtifactVisible(Map<String, Object> artifact,
-                                            Object content,
-                                            String assistantAnswer) {
-        return !Boolean.FALSE.equals(artifact.get("visible"))
-                && !duplicatesAssistantFinalAnswer(artifact, content, assistantAnswer);
-    }
-
-    private static boolean duplicatesAssistantFinalAnswer(Map<String, Object> artifact,
-                                                           Object content,
-                                                           String assistantAnswer) {
-        String logicalCode = text(
-                artifact.get("artifactCode"),
-                artifact.get("code"),
-                artifact.get("title")
-        );
-        if (!isFinalAnswerCode(logicalCode)) {
-            return false;
-        }
-        String artifactContent = comparableText(content);
-        String assistantContent = comparableText(assistantAnswer);
-        return StringUtils.hasText(artifactContent)
-                && StringUtils.hasText(assistantContent)
-                && artifactContent.equals(assistantContent);
-    }
-
-    private static boolean isFinalAnswerCode(String value) {
+    static ConversationArtifactType supportedArtifactType(Map<String, Object> artifact) {
+        String value = text(artifact == null ? null : artifact.get("artifactType"),
+                artifact == null ? null : artifact.get("type"));
         if (!StringUtils.hasText(value)) {
-            return false;
-        }
-        String canonical = value.trim()
-                .toLowerCase(Locale.ROOT)
-                .replace('_', '-')
-                .replace(' ', '-');
-        return "final-answer".equals(canonical);
-    }
-
-    private static String comparableText(Object value) {
-        if (!(value instanceof CharSequence content)) {
             return null;
         }
-        return content.toString().replace("\r\n", "\n").trim();
+        try {
+            return ConversationArtifactType.valueOf(value.toUpperCase(Locale.ROOT));
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
+    }
+
+    static boolean shouldPersistArtifact(Map<String, Object> artifact) {
+        if (artifact == null || Boolean.FALSE.equals(artifact.get("visible"))) {
+            return false;
+        }
+        String status = text(artifact.get("status"));
+        return !StringUtils.hasText(status)
+                || "SUCCESS".equalsIgnoreCase(status)
+                || "SUCCEEDED".equalsIgnoreCase(status)
+                || "COMPLETED".equalsIgnoreCase(status);
+    }
+
+    private Map<String, Object> persistRenderPage(Map<String, Object> artifact, Object rawContent, String title) {
+        Map<String, Object> content = objectContent(rawContent);
+        Map<String, Object> presentation = mapValue(content.get("presentation"));
+        String pageCode = text(
+                content.get("pageCode"),
+                artifact.get("pageCode"),
+                artifact.get("renderPageCode"),
+                content.get("pageId")
+        );
+        if (!StringUtils.hasText(pageCode)) {
+            throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
+                    "RENDER_JSON artifact requires pageCode or pageId");
+        }
+        String layout = normalizeRenderLayout(text(
+                content.get("layout"),
+                artifact.get("layout"),
+                presentation.get("defaultMode")
+        ));
+
+        if (!isRenderReference(content)) {
+            RenderUpsertRequest request = new RenderUpsertRequest();
+            request.setCode(pageCode);
+            request.setName(StringUtils.hasText(title) ? title : pageCode);
+            request.setStatus(EffectiveStatus.DRAFT);
+            request.setContent(content);
+            renderInternalApi.upsert(request);
+        }
+
+        Map<String, Object> reference = new LinkedHashMap<>();
+        reference.put("pageCode", pageCode);
+        reference.put("layout", layout);
+        return reference;
+    }
+
+    static boolean isRenderReference(Map<String, Object> content) {
+        return StringUtils.hasText(text(content.get("pageCode")))
+                && content.keySet().stream().allMatch(RENDER_REFERENCE_KEYS::contains);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> objectContent(Object content) {
+        if (content instanceof Map<?, ?> map) {
+            return new LinkedHashMap<>((Map<String, Object>) map);
+        }
+        if (content instanceof String text && StringUtils.hasText(text)) {
+            try {
+                Object value = objectMapper.readValue(text, Object.class);
+                if (value instanceof Map<?, ?> map) {
+                    return new LinkedHashMap<>((Map<String, Object>) map);
+                }
+            } catch (JsonProcessingException ex) {
+                throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
+                        "RENDER_JSON artifact content is not valid JSON");
+            }
+        }
+        throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
+                "RENDER_JSON artifact content must be a JSON object");
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> mapValue(Object value) {
+        return value instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+    }
+
+    private String normalizeRenderLayout(String layout) {
+        String normalized = StringUtils.hasText(layout) ? layout.trim().toLowerCase(Locale.ROOT) : "standard";
+        return RENDER_LAYOUTS.contains(normalized) ? normalized : "standard";
     }
 
     private void updateRoundAgentSnapshot(ConversationRuntimeContext context, AgentConversationOutcome outcome) {

@@ -39,6 +39,8 @@ export interface RenderModeHostProps {
 const RENDER_APP_MODE_SET = new Set<string>(RENDER_APP_MODES)
 const RENDER_APP_CODE_PATTERN = /^[A-Za-z0-9._-]+$/
 const SUPPORTED_PROTOCOL_MAJOR = '1'
+const PREVIEW_MODEL_DATASOURCE_TYPES = new Set(['db-query-list', 'semantic-query'])
+const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
 export function isRenderAppMode(value: unknown): value is RenderAppMode {
   return typeof value === 'string' && RENDER_APP_MODE_SET.has(value)
@@ -49,7 +51,7 @@ export function normalizeRenderAppCode(value: unknown) {
     throw new Error('Render JSON code 不能为空')
   }
 
-  const code = value.trim().replace(/\.json$/i, '')
+  const code = value.trim()
   if (!code || !RENDER_APP_CODE_PATTERN.test(code)) {
     throw new Error('Render JSON code 仅支持字母、数字、点、下划线和短横线')
   }
@@ -88,6 +90,50 @@ export function normalizeRenderRuntimeDocument(
     ...(hasPresentationValue(presentation) ? { presentation } : {}),
     root,
   }
+}
+
+/**
+ * 为元数据预览创建运行时副本：替换 :model 占位符，并将查询型 datasource
+ * 绑定到本次选择的虚拟模型。原始 Render Meta 不会被修改。
+ */
+export function applyRenderPreviewModel(
+  content: Record<string, unknown>,
+  model: string,
+): Record<string, unknown> {
+  const normalizedModel = model.trim()
+  if (!normalizedModel) {
+    return content
+  }
+
+  const transform = (value: unknown): unknown => {
+    if (typeof value === 'string') {
+      return value.includes(':model')
+        ? value.replaceAll(':model', normalizedModel)
+        : value
+    }
+    if (Array.isArray(value)) {
+      return value.map(transform)
+    }
+    if (!isRecord(value)) {
+      return value
+    }
+
+    const result: Record<string, unknown> = {}
+    Object.entries(value).forEach(([key, child]) => {
+      if (!UNSAFE_OBJECT_KEYS.has(key)) {
+        result[key] = transform(child)
+      }
+    })
+    if (
+      typeof result.type === 'string'
+      && PREVIEW_MODEL_DATASOURCE_TYPES.has(result.type)
+    ) {
+      result.model = normalizedModel
+    }
+    return result
+  }
+
+  return transform(content) as Record<string, unknown>
 }
 
 export function resolveRenderDocumentPresentation(

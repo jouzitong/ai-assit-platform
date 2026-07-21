@@ -1,13 +1,11 @@
 package ai.platform.aiassit.conversation.service.impl;
 
-import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
 import ai.platform.aiassit.conversation.data.entity.req.ConversationHistoryQueryRequest;
 import ai.platform.aiassit.conversation.data.enums.ConversationBusinessType;
 import ai.platform.aiassit.conversation.data.enums.ConversationRoundType;
-import ai.platform.aiassit.conversation.data.service.ConversationArtifactService;
 import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
@@ -38,18 +36,15 @@ public class ConversationPreparationService {
 
     private final ConversationSessionService sessionService;
     private final ConversationMessageService messageService;
-    private final ConversationArtifactService artifactService;
     private final ConversationRoundService roundService;
     private final AgentConversationHistoryRecorder historyRecorder;
 
     public ConversationPreparationService(ConversationSessionService sessionService,
-                                                ConversationMessageService messageService,
-                                                ConversationArtifactService artifactService,
-                                                ConversationRoundService roundService,
-                                                AgentConversationHistoryRecorder historyRecorder) {
+                                          ConversationMessageService messageService,
+                                          ConversationRoundService roundService,
+                                          AgentConversationHistoryRecorder historyRecorder) {
         this.sessionService = sessionService;
         this.messageService = messageService;
-        this.artifactService = artifactService;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
     }
@@ -74,11 +69,9 @@ public class ConversationPreparationService {
 
         ConversationSessionDTO session;
         List<ConversationMessageDTO> sessionMessages;
-        List<ConversationArtifactDTO> sessionArtifacts;
         if (!org.springframework.util.StringUtils.hasText(sessionCode)) {
             session = createSession(command, userId);
             sessionMessages = List.of();
-            sessionArtifacts = List.of();
             command.setSessionCode(session.getSessionCode());
         } else {
             session = loadSession(sessionCode, userId);
@@ -87,11 +80,10 @@ public class ConversationPreparationService {
             }
             validateSessionBusinessType(session, command);
             sessionMessages = loadSessionMessages(sessionCode, userId);
-            sessionArtifacts = loadSessionArtifacts(sessionCode, userId);
         }
 
         context.setSession(session);
-        context.setSessionArtifacts(sessionArtifacts);
+        context.setSessionArtifacts(List.of());
         context.getOrCreateUserMessageContext().setSessionMessages(sessionMessages);
 
         ConversationRoundDTO round = createRound(session, command, userId);
@@ -141,13 +133,6 @@ public class ConversationPreparationService {
         return messageService.queryAll(query).stream()
                 .sorted(Comparator.comparing(ConversationMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
-    }
-
-    private List<ConversationArtifactDTO> loadSessionArtifacts(String sessionCode, Long userId) {
-        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
-        query.setSessionCode(sessionCode);
-        query.setUserId(userId);
-        return artifactService.queryAll(query);
     }
 
     private ConversationRoundDTO createRound(ConversationSessionDTO session, ConversationQueryCommand command, Long userId) {

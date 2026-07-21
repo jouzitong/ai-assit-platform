@@ -8,6 +8,7 @@ import {
   LayoutFormGridItem,
   LayoutLabelValue,
   useAppConfirm,
+  type AppDialogPosition,
   type AppOverlaySize,
 } from '../../../components'
 
@@ -27,6 +28,7 @@ const dialogTypes: Array<{
 
 const activeType = ref<DialogType>('form')
 const size = ref<AppOverlaySize>('medium')
+const position = ref<AppDialogPosition>('center')
 const draggable = ref(false)
 const fullscreen = ref(false)
 const closeOnClickModal = ref(false)
@@ -142,6 +144,20 @@ function resetDrawerFilters() {
               <span>{{ activeType === 'drawer' ? '自定义宽度' : '自定义宽高' }}</span>
               <el-switch v-model="customDimensions" />
             </label>
+            <label v-if="activeType !== 'drawer' && activeType !== 'confirm'">
+              <span>弹窗位置</span>
+              <el-select v-model="position">
+                <el-option label="居中" value="center" />
+                <el-option label="顶部居中" value="top" />
+                <el-option label="右上角" value="top-right" />
+                <el-option label="右侧居中" value="right" />
+                <el-option label="右下角" value="bottom-right" />
+                <el-option label="底部居中" value="bottom" />
+                <el-option label="左下角" value="bottom-left" />
+                <el-option label="左侧居中" value="left" />
+                <el-option label="左上角" value="top-left" />
+              </el-select>
+            </label>
             <label v-if="activeType !== 'confirm' && customDimensions">
               <span>宽度（%）</span>
               <span class="test-dialog-view__percent-input">
@@ -228,6 +244,7 @@ function resetDrawerFilters() {
       :size="size"
       :width="dialogWidth"
       :height="dialogHeight"
+      :position="position"
       :fullscreen="fullscreen"
       :draggable="draggable"
       :close-on-click-modal="closeOnClickModal"
@@ -271,6 +288,7 @@ function resetDrawerFilters() {
       :size="size"
       :width="dialogWidth"
       :height="dialogHeight"
+      :position="position"
       :fullscreen="fullscreen"
       :draggable="draggable"
       :close-on-click-modal="closeOnClickModal"

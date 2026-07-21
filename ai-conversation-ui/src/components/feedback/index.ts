@@ -4,6 +4,7 @@ export { default as AppEmpty } from './AppEmpty/index.vue'
 export { appConfirm, useAppConfirm } from './appConfirm'
 export type {
   AppDialogActionMode,
+  AppDialogPosition,
   AppDialogProps,
   AppDrawerProps,
   AppOverlaySize,

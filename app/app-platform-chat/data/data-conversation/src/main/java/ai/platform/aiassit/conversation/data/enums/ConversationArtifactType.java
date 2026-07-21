@@ -5,24 +5,15 @@ import lombok.Getter;
 import org.arthena.framework.common.enums.IEnum;
 
 /**
- * 工作流内部产物类型。
+ * 会话非文本产物类型。
+ *
+ * <p>文本、Markdown 和工具文本结果由会话消息承载；这里只保留需要独立展示或引用的产物。</p>
  */
 @Getter
 public enum ConversationArtifactType implements IEnum {
-    INTENT_REWRITE(1, "意图重写"),
-    QUERY_PLAN(2, "查询计划"),
-    CLARIFY_CANDIDATE(3, "澄清候选"),
-    KNOWLEDGE_QUERY(4, "知识查询"),
-    KNOWLEDGE_RESULT(5, "知识结果"),
-    SKILL_CALL(6, "技能调用"),
-    SKILL_RESULT(7, "技能结果"),
-    SQL_DRAFT(8, "SQL草稿"),
-    SQL_VALIDATION(9, "SQL验证"),
-    SQL_VALIDATED(10, "SQL验证通过"),
-    SQL_EXEC_RESULT(11, "SQL执行结果"),
-    MODEL_REQUEST_SNAPSHOT(12, "模型请求快照"),
-    MODEL_RESPONSE_SNAPSHOT(13, "模型响应快照"),
-    WORKFLOW_ERROR(14, "工作流错误"),
+    FILE(1, "文件"),
+    IMAGE(2, "图片"),
+    RENDER_JSON(3, "Render JSON"),
     ;
 
     @JsonValue

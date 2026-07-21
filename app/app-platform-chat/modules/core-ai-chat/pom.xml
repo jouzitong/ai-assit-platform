@@ -45,6 +45,10 @@
             <artifactId>app-platform-chat-api</artifactId>
         </dependency>
         <dependency>
+            <groupId>ai.platform.aiassit</groupId>
+            <artifactId>app-platform-render-api</artifactId>
+        </dependency>
+        <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>

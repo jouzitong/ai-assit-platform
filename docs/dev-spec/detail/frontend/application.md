@@ -183,13 +183,15 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 
 ### 8.1 动态应用路由与宿主模式
 
-- 正式动态应用入口统一使用 `/app/{mode}/{renderJsonCode}.json`；`.json` 是 URL 表达，加载 Render Meta 前应从 code 中移除。
+- 正式动态应用入口统一使用 `/app/{mode}/{pageCode}`；`pageCode` 是 Render 服务中的完整编码，路由和加载链路不得补充或裁剪 `.json` 等后缀。
 - `mode` 只决定页面宿主行为，不替代 Render JSON 内部 Layout。首批稳定值为 `standard`、`dashboard`、`report`、`embedded`。
 - `standard` 使用自然文档流；`dashboard` 使用唯一 `ResponsiveViewport`；`report` 提供自然排版和打印规则；`embedded` 使用最小页面外壳并跟随父容器。
 - Render JSON 可以在 `presentation` 中声明 `defaultMode`、`allowedModes`、`title`、`description`、`refreshInterval`、`responsivePreset`。显式路由 mode 优先，但必须通过 `allowedModes` 校验。
 - 内部容器继续使用 Layout Registry 的稳定 key，例如 `zg-stack-layout`、`zg-grid-layout`、`zg-split-layout`、`zg-section-layout`、`zg-sheet-layout`，禁止把这些 key 扩展成路由 mode。
 - 历史裸 renderer schema 可以在 Runtime Loader 中归一化为标准 `RenderDocument.root`，Renderer 和 Layout 不承担历史协议兼容。
 - 开发者模式下，正式动态应用入口应提供 Render Meta 编辑和页面级 SCOPE 查看；节点观测仅在开发者模式开启，SCOPE 必须汇总真实的 `query`、`requestPlans`、`data`、`state` 和事件，不再复制测试页的手工请求链路。
+- 元数据配置页的预览统一复用正式 `/app/{mode}/{pageCode}` 路由，并通过新页签打开；预览选择的虚拟模型使用 `preview=1&model={entityCode}` 查询参数传入，不依赖页面级全局状态。
+- 预览期的 `:model` 只在 Runtime 内存副本中解析：字符串占位符应替换为所选模型，查询型 datasource 应绑定该模型；原始 Render Meta 保持不变，不能把预览参数写回持久化元数据。
 - Renderer 已提供页面标题和头部动作区时，标准宿主不重复渲染标题；开发者入口优先作为 Runtime-only 动作进入 Renderer 头部，不写回 Render JSON，只有缺少可承载动作区时才使用浮动入口。
 - `standard` 宿主和列表类 Renderer 应保持从宿主到 Runtime 节点的完整高度链。列表布局按 Header 与 ListTable 两个主区域组织：Header 承载标题、页面动作、页签和过滤条件；ListTable 位于 Main，承载汇总、列表内容及其分页 Footer；可选 Aside 与 ListTable 并列。Main 承担剩余空间，避免数据较少时页面上下形成无意义空白区。
 

@@ -58,8 +58,7 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
                 .max(Comparator.comparing(ConversationRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
                 .orElseThrow(() -> BizException.of(AiChatBizCodeConstant.CONVERSATION_ROUND_NOT_FOUND));
 
-        List<ConversationArtifactDTO> artifacts = artifactService.queryAll(query).stream()
-                .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
+        List<ConversationArtifactDTO> artifacts = artifactService.queryByRoundCodes(List.of(roundCode)).stream()
                 .sorted(Comparator.comparing(ConversationArtifactDTO::getSeqNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
         List<ConversationActivityDTO> activities = activityService.queryAll(query).stream()
@@ -106,21 +105,30 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setArtifactCode(codeRef);
         ConversationArtifactDTO artifact = artifactService.queryAll(query).stream()
-                .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
+                .filter(Objects::nonNull)
                 .findFirst()
                 .orElseThrow(() -> BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND));
+        ConversationRoundDTO round = ownedRound(artifact.getRoundCode(), userId);
 
         RenderArtifactResponse response = new RenderArtifactResponse();
         response.setCodeRef(artifact.getArtifactCode());
-        response.setSessionCode(artifact.getSessionCode());
+        response.setSessionCode(round.getSessionCode());
         response.setRoundCode(artifact.getRoundCode());
         response.setArtifactType(artifact.getArtifactType());
         response.setTitle(artifact.getTitle());
         response.setContentFormat(artifact.getContentFormat());
         response.setContent(parseContent(artifact.getContent(), artifact.getContentFormat()));
-        response.setStatus(artifact.getStatus());
         response.getExt().putAll(parseMap(artifact.getExtJson()));
         return response;
+    }
+
+    private ConversationRoundDTO ownedRound(String roundCode, Long userId) {
+        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
+        query.setRoundCode(roundCode);
+        return roundService.queryAll(query).stream()
+                .filter(item -> item != null && Objects.equals(userId, item.getUserId()))
+                .findFirst()
+                .orElseThrow(() -> BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND));
     }
 
     private Map<String, Object> agent(String agentCode,
@@ -165,8 +173,6 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         artifact.put("stage", record.getStage());
         artifact.put("title", record.getTitle());
         artifact.put("contentFormat", record.getContentFormat());
-        artifact.put("status", record.getStatus());
-        artifact.put("visible", record.getVisibleFlag());
         artifact.put("seqNo", record.getSeqNo());
         return artifact;
     }

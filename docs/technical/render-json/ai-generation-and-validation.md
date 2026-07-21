@@ -227,13 +227,15 @@ Agent Run 完成后，`DefaultConversationExecutionServiceImpl`：
 
 1. 保存 Assistant 最终消息。
 2. 遍历 `AgentConversationOutcome.artifacts`。
-3. 解析 artifactType、contentFormat、content、title、status 和 visible。
-4. 调用 `AgentConversationHistoryRecorder.saveArtifact`。
-5. 将 content 序列化后保存到会话 Artifact 数据表。
+3. 只接受 `FILE`、`IMAGE`、`RENDER_JSON` 三类成功且可见的非文本产物。
+4. 对 `RENDER_JSON` 提取完整 pageCode，将 RenderDocument upsert 到 Render 服务。
+5. 在会话 Artifact 表中只保存 `{pageCode, layout}`；layout 缺失或非法时使用 `standard`。
+6. 调用 `AgentConversationHistoryRecorder.saveArtifact` 保存精简后的产物记录。
 
 平台会重新生成持久化 `artifactCode`，因此 Provider Artifact 中的逻辑 code 主要用于标题和输出识别，不能假设与数据库 artifactCode 相同。
 
-如果 `final-answer` Artifact 与 Assistant 最终文本重复，持久化逻辑会将其隐藏，避免聊天界面重复展示同一答案。`RENDER_JSON` 等独立产物保持可见。
+文本、Markdown、`final-answer`、查询计划和校验报告等内容不进入 Artifact 表；需要进入聊天记录的文本由
+`ConversationMessageEntity` 承载。Artifact 表只负责文件、图片和 Render 页面引用。
 
 ## 8. SSE 与前端回放
 
@@ -250,13 +252,16 @@ Agent Run 完成后，`DefaultConversationExecutionServiceImpl`：
 ```text
 ConversationArtifact.content
   -> normalizeRenderArtifact
-  -> RenderJsonDocument
-  -> ResponsiveViewport
+  -> {pageCode, layout}
+  -> loadRenderMetaContent(pageCode)
+  -> normalizeRenderRuntimeDocument
+  -> RenderModeHost(layout)
   -> RenderJsonRuntimeHost
   -> RenderJsonRuntimeNode
 ```
 
-聊天产物工作区提供缩放、适应空间和全屏操作；参考尺寸默认是 `1200 x 720`，也可以从 `root.layout.referenceSize` 读取。
+聊天产物工作区按 layout 选择宿主并提供全屏操作；非 dashboard 模式还提供缩放和适应空间，参考尺寸默认是
+`1200 x 720`，也可以从 `root.layout.referenceSize` 读取。pageCode 是完整编码，加载时不会添加或移除 `.json` 后缀。
 
 ## 9. 与正式页面发布的边界
 
@@ -300,4 +305,3 @@ Agent 读取的是后端已发布组件目录，Runtime 使用的是前端静态
 ### 10.4 接入通用 Event Dispatcher
 
 只有通用事件链真实接入节点执行后，Render JSON 中的 events/actions 才能形成稳定能力。接入时仍需白名单 Action Executor 和权限判断，不能执行配置中的任意函数。
-

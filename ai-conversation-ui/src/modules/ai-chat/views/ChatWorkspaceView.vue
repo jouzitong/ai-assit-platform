@@ -35,7 +35,6 @@ import { getDeveloperModeEnabled, setDeveloperModeEnabled } from '../../../utils
 import { clearSession, getStoredUser } from '../../../utils/session'
 import ChatMessageErrorCard from '../components/ChatMessageErrorCard.vue'
 import ChatArtifactList from '../components/ChatArtifactList.vue'
-import GeneratedArtifactWorkspace from '../components/GeneratedArtifactWorkspace.vue'
 import RunActivityTimeline from '../components/RunActivityTimeline.vue'
 import {
   activityFromTransportEvent,
@@ -46,7 +45,6 @@ import {
   upsertRunActivity,
 } from '../composables/useChatRun'
 import { renderMarkdown } from '../utils/markdown'
-import { isRenderJsonArtifact } from '../utils/renderArtifact'
 import {
   fetchConversationDetail,
   fetchConversationList,
@@ -63,7 +61,6 @@ import {
 } from '../api'
 import type {
   ChatConversationRound,
-  ChatArtifact,
   ChatEnabledModel,
   ChatSessionItem,
   ChatTransportEvent,
@@ -96,7 +93,6 @@ const activeTheme = ref<'dark' | 'light'>('light')
 const developerModeEnabled = ref(false)
 const conversationList = ref<ChatSessionItem[]>([])
 const chatMessages = ref<ChatUiMessage[]>([])
-const activeRenderArtifact = ref<ChatArtifact | null>(null)
 const currentRoundCode = ref('')
 const currentSessionName = ref('')
 const pendingSessionCode = ref('')
@@ -756,10 +752,6 @@ function handleStreamEvent(
       assistantMessage?.artifacts || [],
     )
     upsertAssistantMessage(assistantMessageId, { artifacts })
-    const newestRenderArtifact = [...eventArtifacts].reverse().find(isRenderJsonArtifact)
-    if (newestRenderArtifact) {
-      activeRenderArtifact.value = newestRenderArtifact
-    }
   }
 
   if (eventName === 'run.accepted') {
@@ -1259,13 +1251,7 @@ watch(isConversationMode, () => {
   void syncTextareaHeights()
 }, { immediate: true })
 
-watch(currentSessionCode, (sessionCode, previousSessionCode) => {
-  if (
-    sessionCode !== previousSessionCode
-    && !(isStreaming.value && sessionCode === pendingSessionCode.value)
-  ) {
-    activeRenderArtifact.value = null
-  }
+watch(currentSessionCode, (sessionCode) => {
   if (!sessionCode) {
     chatMessages.value = []
     currentRoundCode.value = ''
@@ -1293,10 +1279,9 @@ watch(route, () => {
       'chat-home-shell',
       {
         'is-sidebar-collapsed': !sidebarExpanded,
-        'has-artifact-workspace': activeRenderArtifact,
       },
     ]"
-    :style="{ '--chat-sidebar-width': sidebarExpanded ? '13.125rem' : '5.5rem' }"
+    :style="{ '--chat-sidebar-width': sidebarExpanded ? '13.125rem' : '3rem' }"
   >
     <aside class="chat-home-sidebar">
       <div class="chat-home-brand">
@@ -1739,7 +1724,6 @@ watch(route, () => {
                     <ChatArtifactList
                       v-if="message.artifacts?.length"
                       :artifacts="message.artifacts"
-                      @open-render-artifact="activeRenderArtifact = $event"
                     />
                     <ChatMessageErrorCard
                       v-if="message.error"
@@ -1846,11 +1830,6 @@ watch(route, () => {
         </div>
       </section>
     </main>
-    <GeneratedArtifactWorkspace
-      v-if="activeRenderArtifact"
-      :artifact="activeRenderArtifact"
-      @close="activeRenderArtifact = null"
-    />
   </div>
 
   <el-dialog v-model="renameDialogVisible" title="重命名会话" width="420px" @closed="resetRenameConversation">

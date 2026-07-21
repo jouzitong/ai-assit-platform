@@ -13,6 +13,7 @@ const props = withDefaults(defineProps<AppDialogProps>(), {
   title: '',
   description: '',
   size: 'medium',
+  position: 'center',
   fullscreen: false,
   modal: true,
   lockScroll: true,
@@ -52,6 +53,10 @@ const widthTokens: Record<AppOverlaySize, string> = {
 
 const resolvedWidth = computed(() => props.width || widthTokens[props.size])
 const overlayTarget = computed(() => responsiveOverlayTarget.value || 'body')
+const positionManaged = computed(() => props.alignCenter && !props.fullscreen)
+const resolvedModalClass = computed(() => positionManaged.value
+  ? `app-overlay-mask app-dialog-overlay app-dialog-overlay--${props.position}`
+  : 'app-overlay-mask')
 const shouldRenderFooter = computed(() => (
   props.actionMode !== 'none'
   || Boolean(slots.footer)
@@ -63,6 +68,16 @@ const resolvedHeight = computed(() => {
   }
   return typeof props.height === 'number' ? `${props.height}px` : props.height
 })
+const dialogStyle = computed(() => ({
+  height: resolvedHeight.value,
+  ...(props.offset === undefined || props.offset === ''
+    ? {}
+    : { '--app-dialog-position-offset': toCssSize(props.offset) }),
+}))
+
+function toCssSize(value: string | number) {
+  return typeof value === 'number' ? `${value}px` : value
+}
 
 function cancel() {
   emit('cancel')
@@ -78,9 +93,12 @@ function close() {
 <template>
   <el-dialog
     class="app-dialog-shell"
-    :class="{ 'app-dialog-shell--fixed-height': resolvedHeight }"
-    :style="{ height: resolvedHeight }"
-    modal-class="app-overlay-mask"
+    :class="{
+      'app-dialog-shell--fixed-height': resolvedHeight,
+      'app-dialog-shell--positioned': positionManaged,
+    }"
+    :style="dialogStyle"
+    :modal-class="resolvedModalClass"
     :model-value="modelValue"
     :width="resolvedWidth"
     :fullscreen="fullscreen"
@@ -92,7 +110,7 @@ function close() {
     :close-on-click-modal="closeOnClickModal"
     :close-on-press-escape="closeOnPressEscape"
     :show-close="showClose"
-    :align-center="alignCenter"
+    :align-center="false"
     :append-to="overlayTarget"
     :append-to-body="overlayTarget === 'body'"
     body-class="app-dialog-shell__body"
@@ -166,9 +184,17 @@ function close() {
   box-shadow: var(--app-dialog-shadow);
 }
 
+.app-dialog-shell--positioned.el-dialog {
+  --app-dialog-position-offset: var(--app-space-6);
+  max-width: calc(100cqw - var(--app-dialog-position-offset) - var(--app-dialog-position-offset));
+  max-height: calc(100cqh - var(--app-dialog-position-offset) - var(--app-dialog-position-offset));
+  margin: var(--app-dialog-position-offset);
+}
+
 .app-dialog-shell.el-dialog.is-fullscreen {
   max-width: none;
   max-height: none;
+  margin: 0;
   border: 0;
   border-radius: 0;
 }
@@ -266,10 +292,54 @@ function close() {
   backdrop-filter: blur(2px);
 }
 
+.app-dialog-overlay .el-overlay-dialog {
+  display: flex;
+  box-sizing: border-box;
+}
+
+.app-dialog-overlay--center .el-overlay-dialog {
+  align-items: center;
+  justify-content: center;
+}
+
+.app-dialog-overlay--top .el-overlay-dialog,
+.app-dialog-overlay--top-left .el-overlay-dialog,
+.app-dialog-overlay--top-right .el-overlay-dialog {
+  align-items: flex-start;
+}
+
+.app-dialog-overlay--bottom .el-overlay-dialog,
+.app-dialog-overlay--bottom-left .el-overlay-dialog,
+.app-dialog-overlay--bottom-right .el-overlay-dialog {
+  align-items: flex-end;
+}
+
+.app-dialog-overlay--left .el-overlay-dialog,
+.app-dialog-overlay--right .el-overlay-dialog {
+  align-items: center;
+}
+
+.app-dialog-overlay--top .el-overlay-dialog,
+.app-dialog-overlay--center .el-overlay-dialog,
+.app-dialog-overlay--bottom .el-overlay-dialog {
+  justify-content: center;
+}
+
+.app-dialog-overlay--top-left .el-overlay-dialog,
+.app-dialog-overlay--left .el-overlay-dialog,
+.app-dialog-overlay--bottom-left .el-overlay-dialog {
+  justify-content: flex-start;
+}
+
+.app-dialog-overlay--top-right .el-overlay-dialog,
+.app-dialog-overlay--right .el-overlay-dialog,
+.app-dialog-overlay--bottom-right .el-overlay-dialog {
+  justify-content: flex-end;
+}
+
 @container (max-width: 720px) {
-  .app-dialog-shell.el-dialog:not(.is-fullscreen) {
-    max-width: calc(100cqw - var(--app-space-4) * 2);
-    max-height: calc(100cqh - var(--app-space-4) * 2);
+  .app-dialog-shell--positioned.el-dialog:not(.is-fullscreen) {
+    --app-dialog-position-offset: var(--app-space-4);
   }
 }
 </style>

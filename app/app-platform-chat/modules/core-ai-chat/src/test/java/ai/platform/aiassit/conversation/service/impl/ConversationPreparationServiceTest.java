@@ -12,7 +12,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class ConversationPreparationServiceTest {
 
     private final ConversationPreparationService service = new ConversationPreparationService(
-            null, null, null, null, null);
+            null, null, null, null);
 
     @Test
     void pageAssistantOnlyContinuesPageAssistantSession() {
