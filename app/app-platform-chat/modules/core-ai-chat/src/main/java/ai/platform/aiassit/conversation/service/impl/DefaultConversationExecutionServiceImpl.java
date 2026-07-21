@@ -21,6 +21,7 @@ import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancellatio
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationEventPublisher;
 import ai.platform.aiassit.conversation.workflow.support.AgentConversationHistoryRecorder;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationMessageDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationRoundDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
@@ -309,6 +310,11 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                 defaultStatus(event.getStatus()),
                 ext
         );
+        // Provider 此时只识别出产物元数据，尚未完成持久化，不能作为前端可展示的 artifact.created。
+        // persistArtifacts 会在保存成功后发布包含完整内容的权威事件。
+        if ("artifact.created".equalsIgnoreCase(eventType)) {
+            return;
+        }
         context.publishEvent(eventType, ConversationEventSources.AI_AGENT,
                 phase(eventType, event.getStatus()), event.getMessage(), null, null,
                 defaultStatus(event.getStatus()), ext);
@@ -370,7 +376,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                 content = persistRenderPage(artifact, content, title);
                 contentFormat = ConversationContentFormat.JSON.name();
             }
-            historyRecorder.saveArtifact(
+            ConversationArtifactDTO created = historyRecorder.saveArtifact(
                     context,
                     artifactType,
                     text(artifact.get("stage"), "FINAL"),
@@ -379,7 +385,33 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                     contentFormat,
                     agentTrace(outcome)
             );
+            publishPersistedArtifact(context, created);
         }
+    }
+
+    private void publishPersistedArtifact(ConversationRuntimeContext context, ConversationArtifactDTO artifact) {
+        if (artifact == null) {
+            return;
+        }
+        context.publishEvent("artifact.created", ConversationEventSources.AI_AGENT,
+                ConversationEventPhases.COMPLETED, "artifact persisted", null, null, "SUCCESS",
+                artifactEventPayload(artifact));
+    }
+
+    static Map<String, Object> artifactEventPayload(ConversationArtifactDTO artifact) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        if (artifact == null) {
+            return payload;
+        }
+        putIfPresent(payload, "artifactCode", artifact.getArtifactCode());
+        putIfPresent(payload, "artifactType", artifact.getArtifactType());
+        putIfPresent(payload, "stage", artifact.getStage());
+        putIfPresent(payload, "title", artifact.getTitle());
+        putIfPresent(payload, "content", artifact.getContent());
+        putIfPresent(payload, "contentFormat", artifact.getContentFormat());
+        putIfPresent(payload, "seqNo", artifact.getSeqNo());
+        putIfPresent(payload, "extJson", artifact.getExtJson());
+        return payload;
     }
 
     static ConversationArtifactType supportedArtifactType(Map<String, Object> artifact) {
@@ -518,7 +550,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         return StringUtils.hasText(status) ? status : "RUNNING";
     }
 
-    private void putIfPresent(Map<String, Object> target, String key, Object value) {
+    private static void putIfPresent(Map<String, Object> target, String key, Object value) {
         if (value != null && (!(value instanceof String text) || StringUtils.hasText(text))) {
             target.put(key, value);
         }

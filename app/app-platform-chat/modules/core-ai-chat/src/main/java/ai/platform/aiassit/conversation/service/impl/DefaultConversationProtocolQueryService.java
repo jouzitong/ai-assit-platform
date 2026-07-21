@@ -159,6 +159,7 @@ public class DefaultConversationProtocolQueryService implements ConversationProt
         activity.put("outputSummary", record.getOutputSummary());
         activity.put("durationMs", record.getDurationMs());
         activity.put("seqNo", record.getSeqNo());
+        activity.put("timestamp", record.getCreateTime());
         Map<String, Object> detail = parseMap(record.getDetailJson());
         if (!detail.isEmpty()) {
             activity.put("detail", detail);

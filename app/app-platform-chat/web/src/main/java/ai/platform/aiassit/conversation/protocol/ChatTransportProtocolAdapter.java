@@ -73,7 +73,7 @@ public class ChatTransportProtocolAdapter {
                     projection("round.completed", roundTerminalPayload(event, "completed"))
             );
         }
-        if ("answer_delta".equals(type)) {
+        if ("answer.delta".equals(type) || "assistant.message.delta".equals(type)) {
             return List.of(projection("assistant.message.delta", answerPayload(event, event.getDelta(), true)));
         }
         if ("answer".equals(type)) {
@@ -95,6 +95,13 @@ public class ChatTransportProtocolAdapter {
         }
         if ("progress".equals(type)) {
             return List.of(projection("thinking.updated", thinkingUpdatedPayload(event)));
+        }
+        // Provider 运行时的 round.* 只表示 Provider 自身结束，不能冒充浏览器协议终态。
+        // 会话层会在持久化和收口完成后统一发布 complete/error/run.cancelled。
+        if ("round.completed".equals(type)
+                || "round.failed".equals(type)
+                || "round.cancelled".equals(type)) {
+            return List.of();
         }
         return List.of(projection(type, genericPayload(event)));
     }

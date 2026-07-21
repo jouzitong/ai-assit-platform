@@ -82,10 +82,12 @@ def emit_sdk_event(
         compiled = agent_lookup(new_agent)
         if compiled is not None and compiled.code in (hidden_agent_codes or set()):
             return
+        agent_name = getattr(new_agent, "name", None)
+        display_name = f"“{agent_name}”" if agent_name else "另一个"
         emitter.event(
             "agent.changed",
             status="RUNNING",
-            message=f"Execution moved to {getattr(new_agent, 'name', None) or 'another Agent'}",
+            message=f"已切换至{display_name}智能体执行",
             agent=compiled or new_agent,
         )
         return
@@ -118,19 +120,19 @@ def map_run_item_event(
     item = getattr(event, "item", None)
     ext = _item_ext(item, name, tool_lookup)
     if name in {"tool_called", "tool_search_called"}:
-        return "tool.started", "RUNNING", "Agent tool execution started", ext
+        return "tool.started", "RUNNING", "开始调用工具", ext
     if name in {"tool_output", "tool_search_output_created"}:
         failed = _is_failed_tool_output(item)
         return (
             "tool.failed" if failed else "tool.completed",
             "FAILED" if failed else "SUCCESS",
-            "Agent tool execution failed" if failed else "Agent tool execution completed",
+            "工具调用失败" if failed else "工具调用完成",
             ext,
         )
     if name == "handoff_requested":
-        return "handoff.requested", "RUNNING", "Agent handoff requested", ext
+        return "handoff.requested", "RUNNING", "正在将任务交接给协作智能体", ext
     if name in {"handoff_occured", "handoff_occurred"}:
-        return "handoff.completed", "SUCCESS", "Agent handoff completed", ext
+        return "handoff.completed", "SUCCESS", "协作智能体交接完成", ext
     return None
 
 

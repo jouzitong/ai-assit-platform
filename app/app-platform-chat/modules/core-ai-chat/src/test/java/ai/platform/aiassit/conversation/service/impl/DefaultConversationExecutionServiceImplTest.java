@@ -1,6 +1,7 @@
 package ai.platform.aiassit.conversation.service.impl;
 
 import ai.platform.aiassit.conversation.data.enums.ConversationArtifactType;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationArtifactDTO;
 import org.junit.jupiter.api.Test;
 
 import java.util.Map;
@@ -39,5 +40,27 @@ class DefaultConversationExecutionServiceImplTest {
                 Map.of("pageCode", "complete.page-code"))).isTrue();
         assertThat(DefaultConversationExecutionServiceImpl.isRenderReference(
                 Map.of("pageCode", "complete.page-code", "root", Map.of("component", "text")))).isFalse();
+    }
+
+    @Test
+    void buildsAuthoritativeArtifactEventPayloadFromPersistedRecord() {
+        ConversationArtifactDTO artifact = new ConversationArtifactDTO();
+        artifact.setArtifactCode("artifact-1");
+        artifact.setArtifactType("RENDER_JSON");
+        artifact.setStage("FINAL");
+        artifact.setTitle("系统配置");
+        artifact.setContent("{\"pageCode\":\"complete-code\",\"layout\":\"standard\"}");
+        artifact.setContentFormat("JSON");
+        artifact.setSeqNo(1);
+        artifact.setExtJson("{\"agentCode\":\"render-agent\"}");
+
+        assertThat(DefaultConversationExecutionServiceImpl.artifactEventPayload(artifact))
+                .containsEntry("artifactCode", "artifact-1")
+                .containsEntry("artifactType", "RENDER_JSON")
+                .containsEntry("stage", "FINAL")
+                .containsEntry("title", "系统配置")
+                .containsEntry("content", "{\"pageCode\":\"complete-code\",\"layout\":\"standard\"}")
+                .containsEntry("contentFormat", "JSON")
+                .containsEntry("seqNo", 1);
     }
 }

@@ -335,15 +335,14 @@ sequenceDiagram
     Agent-->>Chat: finalOutput + artifacts
     Chat->>Render: 按完整 pageCode upsert RenderDocument
     Chat->>History: 保存 {pageCode, layout}
-    Chat-->>UI: round.completed
-    UI->>Chat: 刷新会话详情
-    Chat-->>UI: 带页面引用的历史 Artifact
+    Chat-->>UI: artifact.created（完整持久化引用）
     UI->>Render: 按 pageCode 加载 Render Meta
-    UI->>UI: normalizeRenderRuntimeDocument
-    UI->>Preview: RenderJsonRuntimeHost(document)
+    UI->>Preview: 直接展示生成页面
+    Chat-->>UI: round.completed
+    UI->>Chat: 查询会话详情并按稳定编码校准
 ```
 
-Provider 运行期间发出的 `artifact.created` 事件主要携带 artifactCode、artifactType、contentFormat 等元数据。当前前端在 `round.completed` 后刷新会话详情，从历史 Artifact 取得 `{pageCode, layout}`，再从 Render 服务加载完整内容。
+Provider 运行期间识别出的不完整 Artifact 元数据不会直接作为浏览器可展示事件发送。Chat 服务完成 Render upsert 和 Artifact 持久化后，发送权威 `artifact.created`，其中包含数据库 artifactCode 以及完整 `{pageCode, layout}` 引用。前端据此直接展示，`round.completed` 后的详情查询只用于丢包恢复和持久化校准。
 
 聊天预览先通过 `normalizeRenderArtifact` 解析引用，再复用正式页面的 `normalizeRenderRuntimeDocument`：
 

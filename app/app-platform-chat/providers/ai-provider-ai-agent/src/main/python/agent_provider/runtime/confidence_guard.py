@@ -84,7 +84,7 @@ async def guard_output(
 
     knowledge_bases = available_knowledge_bases(graph.payload.get("run", {}))
     assessment = await _assess(candidate, original_task, knowledge_bases, compiled_agent.model)
-    _audit(emitter, policy, "confidence.assessment.completed", compiled_agent, "Completed confidence assessment", {
+    _audit(emitter, policy, "confidence.assessment.completed", compiled_agent, "可信度评估完成", {
         "confidence": assessment.score,
         "threshold": policy.threshold,
     })
@@ -98,7 +98,7 @@ async def guard_output(
         if policy.retrieval_enabled and knowledge_bases:
             kb_code = _resolve_kb_code(assessment.knowledge_base_code, knowledge_bases)
             query = assessment.retrieval_query or original_task
-            _audit(emitter, policy, "confidence.retrieval.started", compiled_agent, "Retrieving knowledge for low-confidence result", {
+            _audit(emitter, policy, "confidence.retrieval.started", compiled_agent, "正在检索知识库以补充回答依据", {
                 "attempt": attempt,
                 "kbCode": kb_code,
             })
@@ -112,7 +112,7 @@ async def guard_output(
             )
             retrieval_attempts += 1
             _audit(emitter, policy, "confidence.retrieval.completed", compiled_agent,
-                   "Knowledge retrieval completed" if evidence.get("success") else "Knowledge retrieval failed", {
+                   "知识库检索完成" if evidence.get("success") else "知识库检索失败", {
                        "attempt": attempt,
                        "kbCode": kb_code,
                        "success": bool(evidence.get("success")),
@@ -120,19 +120,19 @@ async def guard_output(
                    }, status="SUCCESS" if evidence.get("success") else "FAILED")
         elif policy.retrieval_enabled:
             _audit(emitter, policy, "confidence.retrieval.skipped", compiled_agent,
-                   "No authorized knowledge base is available", {"attempt": attempt})
+                   "当前没有可用的授权知识库", {"attempt": attempt})
 
         if not policy.reanalysis_enabled:
             break
         _audit(emitter, policy, "confidence.reanalysis.started", compiled_agent,
-               "Reanalyzing low-confidence result", {"attempt": attempt})
+               "正在重新分析低可信度回答", {"attempt": attempt})
         reanalysis_attempts += 1
         revised = await _reanalyze(sdk_agent, original_task, candidate, evidence, graph.max_turns)
         if revised:
             candidate = revised
         assessment = await _assess(candidate, original_task, knowledge_bases, compiled_agent.model)
         _audit(emitter, policy, "confidence.reanalysis.completed", compiled_agent,
-               "Reanalysis completed", {
+               "重新分析完成", {
                    "attempt": attempt,
                    "confidence": assessment.score,
                    "threshold": policy.threshold,

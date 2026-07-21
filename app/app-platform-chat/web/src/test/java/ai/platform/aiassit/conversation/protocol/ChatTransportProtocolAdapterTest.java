@@ -61,6 +61,25 @@ class ChatTransportProtocolAdapterTest {
     }
 
     @Test
+    void projectsAnswerDeltaToAssistantMessageDelta() {
+        ConversationQueryStreamEvent event = event("answer_delta", "7");
+        event.setDelta("正在生成");
+        event.setStatus("RUNNING");
+
+        ChatEventEnvelope result = adapter.adapt(event).get(0);
+
+        assertThat(result.getEventType()).isEqualTo("assistant.message.delta");
+        assertThat(result.getPayload().toString()).contains("正在生成", "append=true");
+    }
+
+    @Test
+    void suppressesProviderRoundTerminalEvents() {
+        assertThat(adapter.adapt(event("round.completed", "8.1"))).isEmpty();
+        assertThat(adapter.adapt(event("round.failed", "8.2"))).isEmpty();
+        assertThat(adapter.adapt(event("round.cancelled", "8.3"))).isEmpty();
+    }
+
+    @Test
     void projectsCompleteToThinkingAndRoundCompletion() {
         ConversationQueryStreamEvent event = event("complete", "12");
         event.setStatus("SUCCESS");

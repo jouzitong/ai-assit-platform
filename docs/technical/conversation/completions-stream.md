@@ -250,10 +250,10 @@ data: {"protocolVersion":"1.0","runId":"run_xxx","eventId":"4",...}
 | Tool             | `tool.started`、`tool.completed`、`tool.failed`                                        | 转成 `kind=tool`；展示工具名、输入/输出摘要和成功/失败状态。                                          |
 | Handoff          | `handoff.requested`、`handoff.completed`                                              | 转成 `kind=handoff` 活动。当前本地定义主要使用 Agent-as-Tool，Handoff 基础设施已存在。                 |
 | Skill            | `skill.loaded`                                                                       | 转成 `kind=skill`；展示已按需读取的 Skill 和资源路径。                                          |
-| Artifact         | `artifact.created`、`artifact.repair.requested`；适配器还支持 `artifacts.build`              | 既可进入活动时间线，也可在包含 Artifact 身份时更新产物列表；`artifacts.build` 当前属于已实现但标准回答链路通常未触发的投影能力。 |
+| Artifact         | 持久化后的 `artifact.created`、`artifact.repair.requested`；适配器还支持 `artifacts.build`       | `artifact.created` 携带完整可展示记录并实时更新产物列表；Provider 的不完整发现事件不对浏览器暴露。`artifacts.build` 保留兼容。 |
 | Acceptance Check | `check.started`、`check.completed`                                                    | 转成 `kind=check`，显示校验状态和摘要。                                                     |
 | Thinking         | `thinking.analysis.started`、`thinking.conclusion.completed`                          | 后端保留审计事件；当前前端只有事件含 Activity 结构时才显示，普通 Thinking 摘要不进入时间线。                       |
-| Confidence       | `confidence.assessment.completed`、`confidence.retrieval.*`、`confidence.reanalysis.*` | 后端保留审计事件；当前前端没有 `confidence` 类型的专门可视化。                                         |
+| Confidence       | `confidence.assessment.completed`、`confidence.retrieval.*`、`confidence.reanalysis.*` | 转成思考活动；展示中文说明、活动时间和评分阈值，并将 `0..1` 的 `confidence` 转成百分比可信度。                    |
 
 Python Worker 的 `round.failed`/`round.cancelled` 也可能先作为通用 Agent 事件透传，随后会话层再发布规范 `error`/
 `run.cancelled` 终态。客户端应以结构化终态 Payload 和最终 Run 状态为准，并按 `eventId` 去重。
@@ -269,7 +269,7 @@ Python Worker 的 `round.failed`/`round.cancelled` 也可能先作为通用 Agen
 5. 持续保存 `runId/sessionCode/roundCode/lastEventId`。
 6. 只把 `round.completed`、`round.failed`、`round.cancelled`、`assistant.input_required` 视为协议终态。
 7. EOF 前未收到终态时抛出 `ChatStreamInterruptedError`，而不是误判成功。
-8. 重连仍失败时查询 `/api/chat/runs/{runId}`；若 Run 已结束，再刷新会话详情恢复最终持久化状态。
+8. 重连仍失败时查询 `/api/chat/runs/{runId}`；若 Run 已结束，再查询会话详情并按稳定编码合并，校准最终持久化状态。
 
 `EventSource` 不适用于这里，因为浏览器原生 `EventSource` 只支持 GET，而当前协议必须 POST JSON 请求体并携带鉴权请求头。
 

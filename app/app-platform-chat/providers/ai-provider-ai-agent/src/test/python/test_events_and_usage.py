@@ -37,6 +37,7 @@ class EventsAndUsageTest(unittest.TestCase):
 
         self.assertEqual("tool.failed", mapped[0])
         self.assertEqual("FAILED", mapped[1])
+        self.assertEqual("工具调用失败", mapped[2])
         self.assertEqual("call-1", mapped[3]["callId"])
 
     def test_maps_gateway_sdk_names_back_to_versioned_platform_tool_identity(self) -> None:

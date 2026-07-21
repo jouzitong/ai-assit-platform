@@ -55,7 +55,7 @@ export function mapSdkStreamEvent(
     const agent = agentLookup(value.agent ?? value.newAgent ?? value.new_agent);
     return platformEvent(graph, "agent.changed", {
       status: "RUNNING",
-      message: `Execution moved to ${agent?.name ?? "another Agent"}`,
+      message: `已切换至${agent?.name ? `“${agent.name}”` : "另一个"}智能体执行`,
       agent,
     });
   }
@@ -75,7 +75,7 @@ export function mapSdkStreamEvent(
   };
   if (gatewayTool) ext.toolVersion = gatewayTool.version;
   if (name === "tool_called" || name === "tool_search_called") {
-    return platformEvent(graph, "tool.started", { status: "RUNNING", message: "Agent tool execution started", agent, ext });
+    return platformEvent(graph, "tool.started", { status: "RUNNING", message: "开始调用工具", agent, ext });
   }
   if (name === "tool_output" || name === "tool_search_output_created") {
     const output = decodedRecord(item.output);
@@ -85,16 +85,16 @@ export function mapSdkStreamEvent(
       || ["FAILED", "ERROR", "CANCELLED"].includes(outputStatus);
     return platformEvent(graph, failed ? "tool.failed" : "tool.completed", {
       status: failed ? "FAILED" : "SUCCESS",
-      message: failed ? "Agent tool execution failed" : "Agent tool execution completed",
+      message: failed ? "工具调用失败" : "工具调用完成",
       agent,
       ext,
     });
   }
   if (name === "handoff_requested") {
-    return platformEvent(graph, "handoff.requested", { status: "RUNNING", message: "Agent handoff requested", agent, ext });
+    return platformEvent(graph, "handoff.requested", { status: "RUNNING", message: "正在将任务交接给协作智能体", agent, ext });
   }
   if (name === "handoff_occured" || name === "handoff_occurred") {
-    return platformEvent(graph, "handoff.completed", { status: "SUCCESS", message: "Agent handoff completed", agent, ext });
+    return platformEvent(graph, "handoff.completed", { status: "SUCCESS", message: "协作智能体交接完成", agent, ext });
   }
   return undefined;
 }

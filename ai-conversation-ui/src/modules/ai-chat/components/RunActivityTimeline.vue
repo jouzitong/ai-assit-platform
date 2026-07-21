@@ -68,10 +68,38 @@ function statusLabel(status?: string) {
     pending: '待处理',
     running: '进行中',
     success: '已完成',
+    succeeded: '已完成',
+    complete: '已完成',
+    completed: '已完成',
+    done: '已完成',
+    error: '失败',
     failed: '失败',
     cancelled: '已取消',
+    canceled: '已取消',
   }
-  return status ? labels[status] || status : '待处理'
+  return status ? labels[status.toLowerCase()] || '处理中' : '待处理'
+}
+
+function activityTimeText(activity: ChatRunActivity) {
+  const timestamp = Date.parse(activity.timestamp || '')
+  if (!Number.isFinite(timestamp)) return ''
+  const date = new Date(timestamp)
+  const part = (value: number) => String(value).padStart(2, '0')
+  return `${part(date.getHours())}:${part(date.getMinutes())}:${part(date.getSeconds())}`
+}
+
+function durationLabel(durationMs?: number) {
+  if (durationMs === undefined || !Number.isFinite(durationMs) || durationMs < 0) return ''
+  if (durationMs < 1000) return `${Math.round(durationMs)}毫秒`
+  const seconds = durationMs / 1000
+  return `${seconds >= 10 ? Math.round(seconds) : Number(seconds.toFixed(1))}秒`
+}
+
+function percentageLabel(value?: number) {
+  if (value === undefined || !Number.isFinite(value)) return ''
+  const percentage = value >= 0 && value <= 1 ? value * 100 : value
+  const normalized = Math.min(100, Math.max(0, percentage))
+  return `${Number(normalized.toFixed(1))}%`
 }
 
 function isMeaningfulActivity(activity: ChatRunActivity) {
@@ -151,6 +179,19 @@ function timelineStatus(activity: ChatRunActivity) {
             <span class="run-activity-drawer__status">{{ statusLabel(displayedStatus(activity)) }}</span>
           </div>
           <p v-if="activity.detail" class="run-activity-drawer__detail">{{ activity.detail }}</p>
+          <div class="run-activity-drawer__meta" aria-label="活动执行信息">
+            <time v-if="activityTimeText(activity)" :datetime="activity.timestamp">
+              时间 {{ activityTimeText(activity) }}
+            </time>
+            <span v-else>时间待同步</span>
+            <span v-if="durationLabel(activity.durationMs)">耗时 {{ durationLabel(activity.durationMs) }}</span>
+            <span class="run-activity-drawer__confidence">
+              可信度 {{ percentageLabel(activity.confidence) || '未评分' }}
+            </span>
+            <span v-if="percentageLabel(activity.confidenceThreshold)">
+              评分阈值 {{ percentageLabel(activity.confidenceThreshold) }}
+            </span>
+          </div>
         </div>
         <p v-if="!visibleActivities.length" class="run-activity-drawer__empty">
           本轮未记录可展示的分析活动。
@@ -331,6 +372,21 @@ function timelineStatus(activity: ChatRunActivity) {
   font-size: 13px;
   line-height: 1.7;
   overflow-wrap: anywhere;
+}
+
+.run-activity-drawer__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 6px;
+  color: var(--chat-text-subtle);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.run-activity-drawer__confidence {
+  color: var(--chat-text-primary);
+  font-weight: 600;
 }
 
 .run-activity-drawer__empty {

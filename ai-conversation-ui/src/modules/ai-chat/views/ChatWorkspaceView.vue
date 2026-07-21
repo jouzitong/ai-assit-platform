@@ -60,8 +60,10 @@ import {
   streamChatTransport,
 } from '../api'
 import type {
+  ChatArtifact,
   ChatConversationRound,
   ChatEnabledModel,
+  ChatRunActivity,
   ChatSessionItem,
   ChatTransportEvent,
   ChatTransportStreamResult,
@@ -117,7 +119,6 @@ type ChatInteractionState =
 const MAX_RECONNECT_ATTEMPTS = 3
 const ASSISTANT_PLACEHOLDERS = new Set(['正在连接 AI...', '正在思考...', '正在生成回复...', '正在处理...'])
 const interactionState = ref<ChatInteractionState>('idle')
-const reconnectAttempt = ref(0)
 const activeAssistantMessageId = ref('')
 const stopRequested = ref(false)
 let activeStreamController: AbortController | null = null
@@ -214,29 +215,6 @@ const modelAvailabilityMessage = computed(() => {
   }
   return ''
 })
-const interactionStatusText = computed(() => {
-  switch (interactionState.value) {
-    case 'connecting':
-      return '正在连接 AI...'
-    case 'thinking':
-      return 'AI 正在思考和处理...'
-    case 'streaming':
-      return 'AI 正在生成回复...'
-    case 'reconnecting':
-      return `连接中断，正在恢复（${reconnectAttempt.value}/${MAX_RECONNECT_ATTEMPTS}）...`
-    case 'stopping':
-      return '正在停止本轮任务...'
-    case 'waiting_input':
-      return 'AI 需要你补充信息后才能继续。'
-    case 'cancelled':
-      return '本轮对话已取消。'
-    default:
-      return ''
-  }
-})
-const isInteractionBusy = computed(() =>
-  ['connecting', 'thinking', 'streaming', 'reconnecting', 'stopping'].includes(interactionState.value),
-)
 const isPrimaryActionDisabled = computed(() => {
   if (isStreaming.value) {
     return interactionState.value === 'stopping'
@@ -448,6 +426,53 @@ function flattenRoundsToMessages(rounds: ChatConversationRound[]) {
     })
     return messages
   })
+}
+
+function mergeActivities(current: ChatRunActivity[] = [], persisted: ChatRunActivity[] = []) {
+  return persisted.reduce((items, activity) => upsertRunActivity(items, activity), current)
+}
+
+function mergeArtifacts(current: ChatArtifact[] = [], persisted: ChatArtifact[] = []) {
+  return persisted.reduce((items, artifact) => upsertArtifact(items, artifact), current)
+}
+
+function mergeConversationMessages(current: ChatUiMessage[], persisted: ChatUiMessage[]) {
+  const matchedCurrentIndexes = new Set<number>()
+  const merged = persisted.map((persistedMessage) => {
+    let currentIndex = current.findIndex((message, index) => (
+      !matchedCurrentIndexes.has(index) && message.id === persistedMessage.id
+    ))
+    if (currentIndex < 0 && persistedMessage.roundCode) {
+      currentIndex = current.findIndex((message, index) => (
+        !matchedCurrentIndexes.has(index)
+        && message.roundCode === persistedMessage.roundCode
+        && message.role === persistedMessage.role
+      ))
+    }
+    if (currentIndex < 0) {
+      currentIndex = current.findIndex((message, index) => (
+        !matchedCurrentIndexes.has(index)
+        && message.role === persistedMessage.role
+        && message.content === persistedMessage.content
+      ))
+    }
+    if (currentIndex < 0) {
+      return persistedMessage
+    }
+
+    matchedCurrentIndexes.add(currentIndex)
+    const currentMessage = current[currentIndex]
+    return {
+      ...currentMessage,
+      ...persistedMessage,
+      activities: mergeActivities(currentMessage?.activities, persistedMessage.activities),
+      artifacts: mergeArtifacts(currentMessage?.artifacts, persistedMessage.artifacts),
+    }
+  })
+  return [
+    ...merged,
+    ...current.filter((_, index) => !matchedCurrentIndexes.has(index)),
+  ]
 }
 
 function upsertAssistantMessage(messageId: string, payload: Partial<ChatUiMessage>) {
@@ -693,7 +718,10 @@ async function loadConversationDetail(sessionCode: string, preserveMessagesOnErr
   try {
     const detail = await fetchConversationDetail({ sessionCode })
     currentSessionName.value = detail.session?.sessionName || ''
-    chatMessages.value = flattenRoundsToMessages(detail.rounds || [])
+    const persistedMessages = flattenRoundsToMessages(detail.rounds || [])
+    chatMessages.value = preserveMessagesOnError
+      ? mergeConversationMessages(chatMessages.value, persistedMessages)
+      : persistedMessages
     const lastRound = [...(detail.rounds || [])].reverse().find((item) => item.round?.roundCode)
     currentRoundCode.value = lastRound?.round?.roundCode || ''
   } catch (error) {
@@ -712,7 +740,8 @@ function handleStreamEvent(
   event: { id: string; event: string; data: ChatTransportEvent },
   assistantMessageId: string,
 ) {
-  const { event: eventName, data } = event
+  const { data } = event
+  const eventName = data.eventType?.trim() || event.event
   const payload = data.payload || {}
   lastEventId.value = data.eventId || event.id || lastEventId.value
   if (data.runId) {
@@ -731,6 +760,10 @@ function handleStreamEvent(
   }
   if (data.roundCode) {
     currentRoundCode.value = data.roundCode
+  }
+  if (eventName === 'session.initialized') {
+    const conversation = payload.conversation as { title?: string } | undefined
+    currentSessionName.value = conversation?.title || currentSessionName.value
   }
 
   const assistantMessage = findAssistantMessage(assistantMessageId)
@@ -762,6 +795,12 @@ function handleStreamEvent(
     return
   }
 
+  if (eventName === 'session.initialized' || eventName === 'round.initialized') {
+    conversationError.value = ''
+    interactionState.value = stopRequested.value ? 'stopping' : 'thinking'
+    return
+  }
+
   if (eventName === 'run.started' || eventName === 'assistant.started' || eventName === 'thinking.started') {
     conversationError.value = ''
     interactionState.value = stopRequested.value ? 'stopping' : 'thinking'
@@ -775,6 +814,10 @@ function handleStreamEvent(
   if (eventName === 'thinking.updated') {
     conversationError.value = ''
     interactionState.value = stopRequested.value ? 'stopping' : 'thinking'
+    return
+  }
+
+  if (eventName === 'thinking.completed') {
     return
   }
 
@@ -933,7 +976,6 @@ async function streamWithRecovery(
         break
       }
 
-      reconnectAttempt.value = attempt
       interactionState.value = 'reconnecting'
       conversationError.value = ''
       await waitForReconnect(attempt * 500, controller.signal)
@@ -1001,7 +1043,6 @@ async function submitChatMessage(message: string) {
   activeAssistantMessageId.value = assistantMessageId
   currentRunId.value = ''
   lastEventId.value = ''
-  reconnectAttempt.value = 0
   activeSeenEventIds = new Set<string>()
   stopRequested.value = false
   const streamController = new AbortController()
@@ -1574,10 +1615,6 @@ watch(route, () => {
             <span>{{ modelAvailabilityMessage }}</span>
             <button type="button" @click="loadEnabledModelList">重新加载模型</button>
           </div>
-          <div v-if="interactionStatusText" class="chat-workspace-status" aria-live="polite">
-            <el-icon v-if="isInteractionBusy" class="is-loading"><Loading /></el-icon>
-            <span>{{ interactionStatusText }}</span>
-          </div>
           <div class="chat-home-composer chat-home-composer--floating chat-home-composer--welcome chat-home-composer--model-selectable">
             <textarea
               ref="welcomeTextarea"
@@ -1695,11 +1732,6 @@ watch(route, () => {
             <span>{{ conversationError }}</span>
           </div>
           <div v-else-if="isLoadingDetail" class="chat-home-feedback">会话加载中...</div>
-          <div v-if="interactionStatusText" class="chat-workspace-status" aria-live="polite">
-            <el-icon v-if="isInteractionBusy" class="is-loading"><Loading /></el-icon>
-            <span>{{ interactionStatusText }}</span>
-          </div>
-
           <div class="chat-home-message-list">
             <article
               v-for="message in chatMessages"
@@ -1850,8 +1882,7 @@ watch(route, () => {
 <style scoped lang="scss">
 @use '../../../styles/chat-home';
 
-.chat-workspace-alert,
-.chat-workspace-status {
+.chat-workspace-alert {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1881,8 +1912,7 @@ watch(route, () => {
   outline: none;
 }
 
-.chat-home-welcome-stage > .chat-workspace-alert,
-.chat-home-welcome-stage > .chat-workspace-status {
+.chat-home-welcome-stage > .chat-workspace-alert {
   align-self: center;
 }
 

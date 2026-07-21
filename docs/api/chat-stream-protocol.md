@@ -491,7 +491,7 @@ progress 子类型：
 
 - `progressType = PLAN`：初始化或更新本轮意图、工作流和计划节点列表。
 - `progressType = NODE`：按 `ext.nodeCode` 更新节点状态。
-- `progressType = ACTIVITY`：按 `activity.activityCode` 合并同一活动的开始/完成状态，挂载到 `nodeCode` 对应节点下，展示活动类型、输入摘要、输出摘要、产物和耗时。
+- `progressType = ACTIVITY`：按 `activity.activityCode` 合并同一活动的开始/完成状态，挂载到 `nodeCode` 对应节点下，展示中文活动说明、事件时间、输入/输出摘要、产物和耗时。若扩展字段包含 `confidence` 或 `threshold`，其 `0..1` 小数值由前端转换成百分比可信度和评分阈值。
 - 历史或兼容事件如果没有 `progressType`，前端可按 `NODE` 或普通过程消息兜底处理。
 
 ### 6.3 `answer_delta`
@@ -668,7 +668,7 @@ phase = COMPLETED
 
 - workflow 已正常结束。
 - 后端已完成会话轮次状态更新。
-- 前端可以刷新会话详情、历史列表和产物列表。
+- 前端可以查询会话详情、历史列表和产物列表做持久化校准，但实时展示仍以 SSE 为主。
 
 示例：
 
@@ -687,7 +687,7 @@ phase = COMPLETED
 
 - 停止当前轮次加载态。
 - 标记执行完成。
-- 使用 `sessionCode`、`roundCode` 刷新会话详情。
+- 使用 `sessionCode`、`roundCode` 查询会话详情，并按稳定编码幂等合并；不得整体覆盖已经消费的 SSE 状态。
 - 不要用 `complete` 表示 Render JSON 或某个 workflow 节点完成。
 
 ### 6.8 交互终态与运行终态
@@ -773,7 +773,7 @@ answer_delta   追加输出内容
 answer         覆盖或确认当前完整回答
 clarification  停止当前轮，展示补充确认问题
 error          标记对应 round 失败，在该 round 底部展示错误卡
-complete       标记整轮完成，刷新会话详情
+complete       标记整轮完成，查询详情并幂等校准
 run.accepted   保存 runId，任务进入已接收状态
 run.started    任务进入执行状态
 run.cancelled  标记用户取消并停止加载态
@@ -957,7 +957,7 @@ event: complete
 data: {"eventType":"complete","source":"CONVERSATION","phase":"COMPLETED","requestId":"trace-001","sessionCode":"session-a001","sessionName":"统计本月每天的订单数","roundCode":"round-a001","answer":"{\"component\":\"Chart\",\"props\":{\"type\":\"line\",\"title\":\"本月每日订单数与成交金额\",\"series\":[]}}","status":"SUCCESS","message":"conversation completed","ext":{}}
 ```
 
-前端收到 `complete` 后，应停止当前轮加载态，并刷新会话详情、历史列表和产物列表。
+前端收到 `complete` 后，应停止当前轮加载态，并查询会话详情、历史列表和产物列表做幂等校准；不得把详情查询当成回答或产物的首次展示来源。
 
 ### 12.2 简单对话流程
 

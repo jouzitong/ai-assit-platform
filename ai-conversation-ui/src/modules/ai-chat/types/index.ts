@@ -135,6 +135,9 @@ export interface ChatRunActivity {
   agentCode?: string
   agentVersion?: number
   timestamp?: string
+  durationMs?: number
+  confidence?: number
+  confidenceThreshold?: number
   metadata?: Record<string, unknown>
 }
 
@@ -147,6 +150,7 @@ export interface ChatArtifact {
   contentFormat?: string
   status?: string
   stage?: string
+  seqNo?: number
   visibleFlag?: boolean | null
   visible?: boolean | null
   extJson?: string | null

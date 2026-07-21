@@ -111,6 +111,10 @@ function parseSseChunk(chunk: string) {
 
 export type ChatTransportStreamEvent = { id: string; event: string; data: ChatTransportEvent }
 
+export function resolveChatTransportEventType(event: ChatTransportStreamEvent) {
+  return event.data.eventType?.trim() || event.event?.trim() || 'message'
+}
+
 const CHAT_TRANSPORT_TERMINAL_EVENTS = new Set<ChatTransportTerminalEventName>([
   'round.completed',
   'round.failed',
@@ -166,7 +170,9 @@ export async function consumeChatTransportStream(
       return
     }
 
-    const eventId = resolveEventId(event)
+    const eventType = resolveChatTransportEventType(event)
+    const normalizedEvent = event.event === eventType ? event : { ...event, event: eventType }
+    const eventId = resolveEventId(normalizedEvent)
     if (eventId && seenEventIds.has(eventId)) {
       return
     }
@@ -175,14 +181,14 @@ export async function consumeChatTransportStream(
       result.lastEventId = eventId
     }
 
-    result.runId = event.data.runId || result.runId
-    result.sessionCode = event.data.sessionCode || result.sessionCode
-    result.roundCode = event.data.roundCode || result.roundCode
-    if (CHAT_TRANSPORT_TERMINAL_EVENTS.has(event.event as ChatTransportTerminalEventName)) {
+    result.runId = normalizedEvent.data.runId || result.runId
+    result.sessionCode = normalizedEvent.data.sessionCode || result.sessionCode
+    result.roundCode = normalizedEvent.data.roundCode || result.roundCode
+    if (CHAT_TRANSPORT_TERMINAL_EVENTS.has(eventType as ChatTransportTerminalEventName)) {
       result.terminalEventReceived = true
-      result.terminalEventName = event.event as ChatTransportTerminalEventName
+      result.terminalEventName = eventType as ChatTransportTerminalEventName
     }
-    onEvent(event)
+    onEvent(normalizedEvent)
   }
 
   try {

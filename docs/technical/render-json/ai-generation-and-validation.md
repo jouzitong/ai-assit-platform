@@ -219,7 +219,7 @@ Agent 最终输出使用 JSON Artifact Envelope。至少应包含：
 }
 ```
 
-Provider 从最终输出中提取 artifacts，并为每项发送 `artifact.created` 运行事件。该事件主要用于执行时间线和产物可用性提示，完整 Artifact 仍以最终 Provider 结果为准。
+Provider 从最终输出中提取 artifacts。Provider 阶段的不完整元数据只用于内部执行记录；Chat 服务完成持久化后再发送权威 `artifact.created`，事件携带数据库 artifactCode、stage、title、content、contentFormat、seqNo 和 extJson，前端可直接展示。
 
 ## 7. Chat 服务持久化
 
@@ -243,9 +243,9 @@ Agent Run 完成后，`DefaultConversationExecutionServiceImpl`：
 
 1. SSE 中的 `artifact.*` 事件通过 `artifactsFromTransportEvent` 归一化并 upsert。
 2. 如果事件已经携带可见 `RENDER_JSON`，界面可以打开生成产物工作区。
-3. 收到 `round.completed` 后，前端重新加载会话详情。
-4. `normalizeHistoricalArtifacts` 从历史轮次中恢复完整 Artifact content。
-5. 用户点击 Render Artifact 后，由 `GeneratedArtifactWorkspace` 展示。
+3. 权威 `artifact.created` 到达后，前端立即从事件恢复完整 Artifact content 并直接展示。
+4. 收到 `round.completed` 后，前端查询会话详情，并按 messageCode、roundCode、artifactCode、activityCode 幂等合并校准。
+5. `normalizeHistoricalArtifacts` 继续用于页面刷新、重连丢包和历史轮次恢复。
 
 会话产物预览链：
 
