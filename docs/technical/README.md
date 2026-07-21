@@ -4,6 +4,12 @@
 
 ## 专题索引
 
+### Conversation 与 Python Agent
+
+- [Conversation 技术文档总览](./conversation/README.md)
+- [IConversationController 与 completionsStream](./conversation/completions-stream.md)
+- [Python Agent 架构与扩展指南](./conversation/python-agent-extension.md)
+
 ### Render JSON
 
 - [Render JSON 技术文档总览](./render-json/README.md)
@@ -21,4 +27,3 @@
 - 关键源码索引，以及与开发规范、接口文档之间的链接。
 
 实现发生变化时，优先更新对应专题，不在阶段性 `plans/` 文档中覆盖长期技术说明。
-
