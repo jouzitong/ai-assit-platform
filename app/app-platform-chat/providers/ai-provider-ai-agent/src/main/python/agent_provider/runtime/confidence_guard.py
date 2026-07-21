@@ -83,10 +83,20 @@ async def guard_output(
         return GuardedOutput(candidate, None, 0, 0)
 
     knowledge_bases = available_knowledge_bases(graph.payload.get("run", {}))
+    _audit(emitter, policy, "confidence.assessment.started", compiled_agent, "评估回答可信度", {
+        "activityCode": "confidence-assessment",
+        "activityType": "CONFIDENCE_ASSESSMENT",
+        "activityName": "评估回答可信度",
+        "inputSummary": "正在检查当前回答是否具备足够的事实依据。",
+    }, status="RUNNING")
     assessment = await _assess(candidate, original_task, knowledge_bases, compiled_agent.model)
-    _audit(emitter, policy, "confidence.assessment.completed", compiled_agent, "可信度评估完成", {
+    _audit(emitter, policy, "confidence.assessment.completed", compiled_agent, "评估回答可信度", {
+        "activityCode": "confidence-assessment",
+        "activityType": "CONFIDENCE_ASSESSMENT",
+        "activityName": "评估回答可信度",
         "confidence": assessment.score,
         "threshold": policy.threshold,
+        "outputSummary": _assessment_summary(assessment.score, policy.threshold),
     })
     if assessment.score >= policy.threshold:
         return GuardedOutput(candidate, assessment.score, 0, 0)
@@ -98,10 +108,16 @@ async def guard_output(
         if policy.retrieval_enabled and knowledge_bases:
             kb_code = _resolve_kb_code(assessment.knowledge_base_code, knowledge_bases)
             query = assessment.retrieval_query or original_task
-            _audit(emitter, policy, "confidence.retrieval.started", compiled_agent, "正在检索知识库以补充回答依据", {
+            retrieval_code = f"confidence-retrieval:{attempt}"
+            _audit(emitter, policy, "confidence.retrieval.started", compiled_agent, "补充知识依据", {
+                "activityCode": retrieval_code,
+                "activityType": "KNOWLEDGE_RETRIEVAL",
+                "activityName": "补充知识依据",
                 "attempt": attempt,
                 "kbCode": kb_code,
-            })
+                "query": query,
+                "inputSummary": f"检索知识库“{kb_code}”：{query}",
+            }, status="RUNNING")
             evidence = await asyncio.to_thread(
                 search_authorized_knowledge_base,
                 graph.payload["run"],
@@ -111,36 +127,67 @@ async def guard_output(
                 "ai-agent-confidence-guard",
             )
             retrieval_attempts += 1
-            _audit(emitter, policy, "confidence.retrieval.completed", compiled_agent,
-                   "知识库检索完成" if evidence.get("success") else "知识库检索失败", {
+            hit_count = len(evidence.get("items", []))
+            _audit(emitter, policy, "confidence.retrieval.completed", compiled_agent, "补充知识依据", {
+                       "activityCode": retrieval_code,
+                       "activityType": "KNOWLEDGE_RETRIEVAL",
+                       "activityName": "补充知识依据",
                        "attempt": attempt,
                        "kbCode": kb_code,
                        "success": bool(evidence.get("success")),
-                       "hitCount": len(evidence.get("items", [])),
+                       "hitCount": hit_count,
+                       "outputSummary": (
+                           f"知识库检索完成，获得 {hit_count} 条可用于回答的参考信息。"
+                           if evidence.get("success")
+                           else "知识库检索失败，本次未获得可用的补充依据。"
+                       ),
                    }, status="SUCCESS" if evidence.get("success") else "FAILED")
         elif policy.retrieval_enabled:
-            _audit(emitter, policy, "confidence.retrieval.skipped", compiled_agent,
-                   "当前没有可用的授权知识库", {"attempt": attempt})
+            _audit(emitter, policy, "confidence.retrieval.skipped", compiled_agent, "补充知识依据", {
+                "activityCode": f"confidence-retrieval:{attempt}",
+                "activityType": "KNOWLEDGE_RETRIEVAL",
+                "activityName": "补充知识依据",
+                "attempt": attempt,
+                "outputSummary": "当前没有可用的授权知识库，已跳过知识检索。",
+            })
 
         if not policy.reanalysis_enabled:
             break
-        _audit(emitter, policy, "confidence.reanalysis.started", compiled_agent,
-               "正在重新分析低可信度回答", {"attempt": attempt})
+        reanalysis_code = f"confidence-reanalysis:{attempt}"
+        _audit(emitter, policy, "confidence.reanalysis.started", compiled_agent, "重新分析回答", {
+            "activityCode": reanalysis_code,
+            "activityType": "ANSWER_REANALYSIS",
+            "activityName": "重新分析回答",
+            "attempt": attempt,
+            "inputSummary": (
+                f"第 {attempt} 次重新分析，将结合 {len(evidence.get('items', [])) if evidence else 0} 条补充依据修正回答。"
+            ),
+        }, status="RUNNING")
         reanalysis_attempts += 1
         revised = await _reanalyze(sdk_agent, original_task, candidate, evidence, graph.max_turns)
         if revised:
             candidate = revised
         assessment = await _assess(candidate, original_task, knowledge_bases, compiled_agent.model)
-        _audit(emitter, policy, "confidence.reanalysis.completed", compiled_agent,
-               "重新分析完成", {
+        _audit(emitter, policy, "confidence.reanalysis.completed", compiled_agent, "重新分析回答", {
+                   "activityCode": reanalysis_code,
+                   "activityType": "ANSWER_REANALYSIS",
+                   "activityName": "重新分析回答",
                    "attempt": attempt,
                    "confidence": assessment.score,
                    "threshold": policy.threshold,
+                   "outputSummary": _assessment_summary(assessment.score, policy.threshold, prefix="回答修正完成"),
                })
         if assessment.score >= policy.threshold:
             break
 
     return GuardedOutput(candidate, assessment.score, reanalysis_attempts, retrieval_attempts)
+
+
+def _assessment_summary(score: float, threshold: float, *, prefix: str = "可信度评估完成") -> str:
+    score_text = f"{score * 100:.1f}".rstrip("0").rstrip(".")
+    threshold_text = f"{threshold * 100:.1f}".rstrip("0").rstrip(".")
+    comparison = "达到" if score >= threshold else "低于"
+    return f"{prefix}：可信度 {score_text}%，{comparison} {threshold_text}% 的评分阈值。"
 
 
 async def _assess(

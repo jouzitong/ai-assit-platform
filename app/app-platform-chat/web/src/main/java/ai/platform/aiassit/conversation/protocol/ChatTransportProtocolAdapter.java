@@ -221,6 +221,8 @@ public class ChatTransportProtocolAdapter {
         put(activity, "status", lower(event.getStatus()));
         put(activity, "inputSummary", firstText(activity.get("inputSummary"), ext.get("inputSummary")));
         put(activity, "outputSummary", firstText(activity.get("outputSummary"), ext.get("outputSummary")));
+        put(activity, "startedAt", firstText(activity.get("startedAt"), ext.get("startedAt")));
+        put(activity, "finishedAt", firstText(activity.get("finishedAt"), ext.get("finishedAt")));
         if (ext.get("durationMs") != null) {
             activity.putIfAbsent("durationMs", ext.get("durationMs"));
         }

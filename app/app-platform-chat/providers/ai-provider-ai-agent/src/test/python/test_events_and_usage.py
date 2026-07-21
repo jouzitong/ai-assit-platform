@@ -54,6 +54,23 @@ class EventsAndUsageTest(unittest.TestCase):
         self.assertEqual("issue-create", mapped[3]["toolCode"])
         self.assertEqual(4, mapped[3]["toolVersion"])
 
+    def test_tool_lifecycle_keeps_one_code_and_real_summaries(self) -> None:
+        started_item = SimpleNamespace(
+            raw_item=SimpleNamespace(name="validator", call_id="call-3", arguments='{"value":1}'),
+        )
+        completed_item = SimpleNamespace(
+            raw_item=SimpleNamespace(type="function_call_output", call_id="call-3"),
+            output={"success": True, "count": 3},
+        )
+
+        started = map_run_item_event(SimpleNamespace(name="tool_called", item=started_item))
+        completed = map_run_item_event(SimpleNamespace(name="tool_output", item=completed_item))
+
+        self.assertEqual("call-3", started[3]["activityCode"])
+        self.assertEqual("call-3", completed[3]["activityCode"])
+        self.assertEqual('{"value":1}', started[3]["inputSummary"])
+        self.assertEqual('{"success": true, "count": 3}', completed[3]["outputSummary"])
+
     def test_extracts_actual_usage_from_sdk_context(self) -> None:
         usage = SimpleNamespace(input_tokens=11, output_tokens=7, total_tokens=18)
         result = SimpleNamespace(context_wrapper=SimpleNamespace(usage=usage))

@@ -44,7 +44,20 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         application_input,
         max_turns=graph.max_turns,
     )
+    analysis_completed = False
     async for event in result.stream_events():
+        if not analysis_completed:
+            decision_summary = _analysis_decision_summary(event, graph)
+            if decision_summary:
+                _emit_execution_note(
+                    emitter,
+                    event_type="thinking.analysis.completed",
+                    status="SUCCESS",
+                    activity_code="main-agent-request-analysis",
+                    activity_name="分析用户请求",
+                    output_summary=decision_summary,
+                )
+                analysis_completed = True
         emit_sdk_event(
             event,
             emitter,
@@ -52,6 +65,16 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             lambda name: _gateway_tool_identity(graph, name),
             hidden_agent_codes={root.code},
             emit_output_deltas=not confidence_policy.requires_guard,
+        )
+
+    if not analysis_completed:
+        _emit_execution_note(
+            emitter,
+            event_type="thinking.analysis.completed",
+            status="SUCCESS",
+            activity_code="main-agent-request-analysis",
+            activity_name="分析用户请求",
+            output_summary=_request_analysis_result(graph, root, confidence_policy),
         )
 
     final_output = result.final_output
@@ -153,6 +176,48 @@ def _request_analysis_summary(graph: CompiledGraph) -> str:
         f"收到用户请求：{_compact_summary(request, 360)}。"
         "将识别任务目标，并判断是否需要知识库、工具或专业 Agent 协作。"
     )
+
+
+def _request_analysis_result(
+    graph: CompiledGraph,
+    root: Any,
+    confidence_policy: ConfidencePolicy,
+) -> str:
+    request = _latest_user_request(graph)
+    target = _compact_summary(request, 240) if request else "继续处理当前对话任务"
+    tool_count = len(getattr(root, "tool_names", []) or [])
+    collaboration_count = len(getattr(root, "agent_tools", []) or []) + len(getattr(root, "handoffs", []) or [])
+    capabilities: list[str] = []
+    if tool_count:
+        capabilities.append(f"{tool_count} 个可用工具")
+    if collaboration_count:
+        capabilities.append(f"{collaboration_count} 个协作智能体入口")
+    if confidence_policy.requires_guard:
+        capabilities.append("回答可信度校验")
+    capability_text = "、".join(capabilities) if capabilities else "当前智能体自身能力"
+    return f"已识别任务目标：{target}。本轮将由“{root.name}”处理，可使用{capability_text}。"
+
+
+def _analysis_decision_summary(event: Any, graph: CompiledGraph) -> str | None:
+    event_type = str(getattr(event, "type", "") or "")
+    if event_type == "run_item_stream_event":
+        name = str(getattr(event, "name", "") or "")
+        item = getattr(event, "item", None)
+        raw_item = getattr(item, "raw_item", None)
+        if name in {"tool_called", "tool_search_called"}:
+            sdk_name = getattr(raw_item, "name", None) or getattr(item, "name", None)
+            descriptor = _gateway_tool_identity(graph, str(sdk_name) if sdk_name else None)
+            tool_name = (descriptor or {}).get("name") or (descriptor or {}).get("code") or sdk_name or "可用工具"
+            return f"分析结果：本轮需要调用“{tool_name}”获取或校验必要信息，然后再形成回答。"
+        if name == "handoff_requested":
+            return "分析结果：本轮需要交由协作智能体继续处理，以使用更匹配的专业能力。"
+    if event_type == "agent_updated_stream_event":
+        return "分析结果：本轮需要由协作智能体继续处理，以使用更匹配的专业能力。"
+    if event_type == "raw_response_event":
+        data = getattr(event, "data", None)
+        if getattr(data, "type", None) == "response.output_text.delta":
+            return "分析结果：当前上下文足以形成回答，本轮将直接整理并输出结论。"
+    return None
 
 
 def _latest_user_request(graph: CompiledGraph) -> str | None:

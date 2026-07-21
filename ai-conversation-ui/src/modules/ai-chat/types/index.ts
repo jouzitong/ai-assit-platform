@@ -131,10 +131,14 @@ export interface ChatRunActivity {
   kind: ChatRunActivityKind
   title: string
   detail?: string
+  inputSummary?: string
+  outputSummary?: string
   status?: 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | string
   agentCode?: string
   agentVersion?: number
   timestamp?: string
+  startedAt?: string
+  finishedAt?: string
   durationMs?: number
   confidence?: number
   confidenceThreshold?: number

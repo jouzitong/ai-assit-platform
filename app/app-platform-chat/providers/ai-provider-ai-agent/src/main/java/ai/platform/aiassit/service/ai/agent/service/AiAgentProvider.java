@@ -332,6 +332,7 @@ public class AiAgentProvider implements AiChatService, AgentRuntime {
         event.setMessage(text(frame, "message"));
         event.setTimestamp(parseInstant(text(frame, "timestamp")));
         copyObject(frame.get("ext"), event.getExt());
+        event.getExt().put("platformEventType", eventType);
         copyIfPresent(frame, event.getExt(), "source", "activityCode", "activityType", "toolCode", "callId",
                 "artifactCode", "artifactType", "summary");
         return event;

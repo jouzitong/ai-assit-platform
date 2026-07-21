@@ -147,14 +147,22 @@ def _item_ext(
         or getattr(item, "name", None)
         or getattr(raw_item, "type", None)
     )
+    if _is_generic_output_type(tool_name):
+        tool_name = None
     call_id = getattr(raw_item, "call_id", None) or getattr(item, "call_id", None)
     gateway_identity = tool_lookup(str(tool_name) if tool_name else None) if tool_lookup else None
+    platform_tool_code = gateway_identity.get("code") if gateway_identity else tool_name
+    display_name = gateway_identity.get("name") if gateway_identity else platform_tool_code
     ext: dict[str, Any] = {
-        "activityCode": call_id or f"{event_name}:{tool_name or 'agent'}",
+        "activityCode": call_id or _fallback_activity_code(event_name, platform_tool_code),
         "activityType": "TOOL_CALL" if "tool" in event_name else "AGENT_HANDOFF",
-        "toolCode": gateway_identity.get("code") if gateway_identity else tool_name,
+        "toolCode": platform_tool_code,
         "callId": call_id,
     }
+    if "tool" in event_name and display_name:
+        ext["activityName"] = f"调用工具：{display_name}"
+    elif "handoff" in event_name:
+        ext["activityName"] = "智能体协作交接"
     if gateway_identity:
         ext["toolVersion"] = gateway_identity.get("version")
     input_summary = _summary(raw_item, "arguments", "input")
@@ -164,6 +172,22 @@ def _item_ext(
     if output_summary:
         ext["outputSummary"] = output_summary
     return ext
+
+
+def _fallback_activity_code(event_name: str, tool_code: Any) -> str:
+    """Keep lifecycle events mergeable even when an SDK item omits call_id."""
+
+    identity = str(tool_code or "agent")
+    if "tool" in event_name:
+        return f"tool:{identity}"
+    if "handoff" in event_name:
+        return f"handoff:{identity}"
+    return f"activity:{identity}"
+
+
+def _is_generic_output_type(value: Any) -> bool:
+    normalized = str(value or "").lower()
+    return normalized.endswith("_output") or normalized in {"function_call_output", "tool_output"}
 
 
 def _agent_identity(agent: Any) -> dict[str, Any]:
@@ -222,6 +246,12 @@ def _summary(value: Any, *attributes: str) -> str | None:
         if text:
             text = re.sub(r"(?i)bearer\s+[^\s,;]+", "Bearer [REDACTED]", text)
             text = re.sub(r"\bsk-[A-Za-z0-9_-]{8,}\b", "[REDACTED_OPENAI_KEY]", text)
+            text = re.sub(
+                r'''(?i)(["']?(?:authorization|api[ _-]?key|secret|password|access[_-]?token|'''
+                r'''refresh[_-]?token|token)["']?\s*[:=]\s*["']?)([^"'\s,;}]+)''',
+                r"\1[REDACTED]",
+                text,
+            )
             return text[:1000]
     return None
 

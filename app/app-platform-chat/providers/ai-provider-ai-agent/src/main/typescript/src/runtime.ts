@@ -57,6 +57,17 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
 
   const rootSpec = byKey.get(graph.rootAgent)!;
   const root = build(graph.rootAgent);
+  write(platformEvent(graph, "thinking.analysis.started", {
+    status: "RUNNING",
+    message: "分析用户请求",
+    agent: rootSpec,
+    ext: {
+      activityCode: "main-agent-request-analysis",
+      activityType: "THINKING",
+      activityName: "分析用户请求",
+      inputSummary: requestAnalysisSummary(graph),
+    },
+  }));
   write(platformEvent(graph, "agent.started", {
     status: "RUNNING",
     message: `${rootSpec.name} started`,
@@ -68,7 +79,25 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
     buildApplicationInput(graph.payload.messages, graph.payload.run.input, graph.payload.run.context),
     { stream: true, maxTurns: graph.maxTurns },
   );
+  let analysisCompleted = false;
   for await (const event of result) {
+    if (!analysisCompleted) {
+      const decisionSummary = analysisDecisionSummary(event, gatewayBySdkName);
+      if (decisionSummary) {
+        write(platformEvent(graph, "thinking.analysis.completed", {
+          status: "SUCCESS",
+          message: "分析用户请求",
+          agent: rootSpec,
+          ext: {
+            activityCode: "main-agent-request-analysis",
+            activityType: "THINKING",
+            activityName: "分析用户请求",
+            outputSummary: decisionSummary,
+          },
+        }));
+        analysisCompleted = true;
+      }
+    }
     const mapped = mapSdkStreamEvent(
       graph,
       event,
@@ -76,6 +105,19 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
       (name) => name ? gatewayBySdkName.get(name) : undefined,
     );
     if (mapped) write(mapped);
+  }
+  if (!analysisCompleted) {
+    write(platformEvent(graph, "thinking.analysis.completed", {
+      status: "SUCCESS",
+      message: "分析用户请求",
+      agent: rootSpec,
+      ext: {
+        activityCode: "main-agent-request-analysis",
+        activityType: "THINKING",
+        activityName: "分析用户请求",
+        outputSummary: requestAnalysisResult(graph, rootSpec),
+      },
+    }));
   }
   if (result.completed) await result.completed;
   const finalOutput = result.finalOutput ?? result.final_output ?? "";
@@ -128,6 +170,72 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
       lastAgent: lastAgent.code,
     },
   };
+}
+
+function requestAnalysisSummary(graph: CompiledGraph): string {
+  const request = latestUserRequest(graph);
+  if (!request) return "识别本轮目标、可用上下文以及是否需要工具或协作智能体。";
+  return `收到用户请求：${compact(request, 360)}。将识别任务目标，并判断是否需要工具或协作智能体。`;
+}
+
+function requestAnalysisResult(graph: CompiledGraph, root: CompiledAgent): string {
+  const target = compact(latestUserRequest(graph) ?? "继续处理当前对话任务", 240);
+  const collaborationCount = root.agentTools.length + root.handoffs.length;
+  const capabilities: string[] = [];
+  if (root.tools.length) capabilities.push(`${root.tools.length} 个可用工具`);
+  if (collaborationCount) capabilities.push(`${collaborationCount} 个协作智能体入口`);
+  const capabilityText = capabilities.length ? capabilities.join("、") : "当前智能体自身能力";
+  return `已识别任务目标：${target}。本轮将由“${root.name}”处理，可使用${capabilityText}。`;
+}
+
+function analysisDecisionSummary(
+  event: unknown,
+  gatewayBySdkName: Map<string, JsonRecord>,
+): string | undefined {
+  const value = asRecord(event);
+  const eventType = String(value.type ?? "");
+  if (eventType === "run_item_stream_event") {
+    const name = String(value.name ?? "");
+    const item = asRecord(value.item);
+    const rawItem = asRecord(item.rawItem ?? item.raw_item);
+    if (name === "tool_called" || name === "tool_search_called") {
+      const sdkName = text(rawItem.name, item.name);
+      const descriptor = sdkName ? gatewayBySdkName.get(sdkName) : undefined;
+      const toolName = text(descriptor?.name, descriptor?.code, sdkName) ?? "可用工具";
+      return `分析结果：本轮需要调用“${toolName}”获取或校验必要信息，然后再形成回答。`;
+    }
+    if (name === "handoff_requested") {
+      return "分析结果：本轮需要交由协作智能体继续处理，以使用更匹配的专业能力。";
+    }
+  }
+  if (eventType === "agent_updated_stream_event") {
+    return "分析结果：本轮需要由协作智能体继续处理，以使用更匹配的专业能力。";
+  }
+  if (eventType === "raw_model_stream_event" || eventType === "raw_response_event") {
+    const data = asRecord(value.data);
+    const dataType = String(data.type ?? "");
+    if (dataType === "output_text_delta" || dataType === "response.output_text.delta") {
+      return "分析结果：当前上下文足以形成回答，本轮将直接整理并输出结论。";
+    }
+  }
+  return undefined;
+}
+
+function latestUserRequest(graph: CompiledGraph): string | undefined {
+  const runInput = graph.payload.run.input;
+  if (typeof runInput === "string" && runInput.trim()) return runInput.trim();
+  for (const message of [...graph.payload.messages].reverse()) {
+    const value = message as JsonRecord;
+    if (String(value.role ?? "").toLowerCase() !== "user") continue;
+    const content = text(value.content, value.text);
+    if (content) return content;
+  }
+  return undefined;
+}
+
+function compact(value: string, limit: number): string {
+  const normalized = value.replace(/\s+/g, " ").trim();
+  return normalized.length <= limit ? normalized : `${normalized.slice(0, limit - 1)}…`;
 }
 
 function buildFunctionToolRegistry(sdk: any, graph: CompiledGraph): Map<string, any> {
@@ -221,11 +329,15 @@ function buildSkillTool(sdk: any, graph: CompiledGraph, write: Writer, owner: Co
       }
       write(platformEvent(graph, "skill.loaded", {
         status: "SUCCESS",
-        message: `Loaded ${text(skill.name, skill.ref)}/${resourcePath}`,
+        message: `已加载技能：${text(skill.name, skill.ref)}`,
         agent: owner,
         ext: {
+          activityCode: `skill:${text(skill.ref) ?? skillRef}:${resourcePath}`,
+          activityType: "SKILL_LOAD",
+          activityName: `加载技能：${text(skill.name, skill.ref)}`,
           skillRef: text(skill.ref), skillName: text(skill.name), resourcePath,
           contentHash: text(skill.contentHash, skill.checksum),
+          outputSummary: `已加载技能“${text(skill.name, skill.ref)}”的资源：${resourcePath}。`,
         },
       }));
       return {

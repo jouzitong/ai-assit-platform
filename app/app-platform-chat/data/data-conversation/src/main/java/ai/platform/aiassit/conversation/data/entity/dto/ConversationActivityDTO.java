@@ -4,6 +4,8 @@ import lombok.Data;
 import lombok.EqualsAndHashCode;
 import org.athena.framework.data.mybatis.entity.dto.AuditableDTO;
 
+import java.time.Instant;
+
 @Data
 @EqualsAndHashCode(callSuper = true)
 public class ConversationActivityDTO extends AuditableDTO {
@@ -23,6 +25,8 @@ public class ConversationActivityDTO extends AuditableDTO {
     private String inputSummary;
     private String outputSummary;
     private Long durationMs;
+    private Instant startedAt;
+    private Instant finishedAt;
     private String requestId;
     private Integer seqNo;
     private String detailJson;

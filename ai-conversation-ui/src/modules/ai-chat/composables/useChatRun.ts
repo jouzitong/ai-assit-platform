@@ -56,28 +56,32 @@ type ActivityCopy = {
 }
 
 const ACTIVITY_COPY_BY_EVENT: Record<string, ActivityCopy> = {
+  'confidence.assessment.started': {
+    title: '评估回答可信度',
+    detail: '正在检查当前回答是否具备足够的事实依据。',
+  },
   'confidence.assessment.completed': {
-    title: '可信度评估完成',
+    title: '评估回答可信度',
     detail: '已完成当前回答的可信度评分。',
   },
   'confidence.retrieval.started': {
-    title: '正在补充知识依据',
+    title: '补充知识依据',
     detail: '正在检索授权知识库，以补充低可信度回答的事实依据。',
   },
   'confidence.retrieval.completed': {
-    title: '知识库检索完成',
+    title: '补充知识依据',
     detail: '已完成知识库检索。',
   },
   'confidence.retrieval.skipped': {
-    title: '已跳过知识库检索',
+    title: '补充知识依据',
     detail: '当前没有可用的授权知识库。',
   },
   'confidence.reanalysis.started': {
-    title: '正在重新分析',
+    title: '重新分析回答',
     detail: '正在根据补充依据重新分析低可信度回答。',
   },
   'confidence.reanalysis.completed': {
-    title: '重新分析完成',
+    title: '重新分析回答',
     detail: '已完成回答修正和可信度复评。',
   },
   'tool.started': { title: '开始调用工具', detail: '正在执行本轮所需工具。' },
@@ -124,9 +128,11 @@ function activityKind(eventName: string, activity: Record<string, unknown>): Cha
 }
 
 function activityTitle(kind: ChatRunActivityKind, eventName: string, source: Record<string, unknown>) {
+  const stableName = text(source.activityName, source.title)
+  if (stableName) return stableName
   const localized = activityCopy(eventName, source)
   if (localized) return localized.title
-  const explicit = text(source.title, source.activityName, source.statusText, source.message)
+  const explicit = text(source.statusText, source.message)
   if (explicit) return explicit
   const labels: Record<ChatRunActivityKind, string> = {
     agent: eventName.endsWith('completed') ? '智能体执行完成' : '智能体正在执行',
@@ -161,10 +167,17 @@ export function activityFromTransportEvent(
   const nestedActivity = asRecord(payload.activity)
   const thinking = asRecord(payload.thinking)
   const persistedDetail = asRecord(nestedActivity.detail)
+  const hasActivityIdentity = Boolean(text(
+    payload.activityCode,
+    payload.callId,
+    payload.nodeCode,
+    payload.activityType,
+  ))
   if (
     eventName.startsWith('thinking.')
     && eventName !== 'thinking.updated'
     && !Object.keys(nestedActivity).length
+    && !hasActivityIdentity
     && payload.progressType !== 'ACTIVITY'
     && payload.action !== 'activity.updated'
   ) {
@@ -200,24 +213,35 @@ export function activityFromTransportEvent(
     `${eventName}:${timestamp || Date.now()}`,
   ) as string
   const localized = activityCopy(eventName, source)
-  const detail = safeDetail(localized?.detail || text(
-    source.outputSummary,
-    source.inputSummary,
+  const inputSummary = safeDetail(text(source.inputSummary))
+  const outputSummary = safeDetail(text(source.outputSummary))
+  const detail = safeDetail(text(
+    outputSummary,
+    inputSummary,
     source.description,
     source.resourcePath,
     source.statusText,
     source.message,
+    localized?.detail,
   ))
+  const status = normalizedStatus(eventName, source.status)
+  const startedAt = text(source.startedAt) || (status === 'running' ? timestamp : undefined)
+  const finishedAt = text(source.finishedAt)
+    || (['success', 'failed', 'cancelled'].includes(status) ? timestamp : undefined)
 
   return {
     id: identity,
     kind,
     title: activityTitle(kind, eventName, source),
     detail,
-    status: normalizedStatus(eventName, source.status),
+    inputSummary,
+    outputSummary,
+    status,
     agentCode,
     agentVersion: numberValue(source.agentVersion),
-    timestamp,
+    timestamp: startedAt || timestamp,
+    startedAt,
+    finishedAt,
     durationMs: numberValue(source.durationMs),
     confidence: numberValue(source.confidence),
     confidenceThreshold: numberValue(source.threshold),
@@ -287,7 +311,26 @@ export function upsertRunActivity(items: ChatRunActivity[], next: ChatRunActivit
   const index = items.findIndex(item => item.id === next.id && item.kind === next.kind)
   if (index < 0) return [...items, next]
   const updated = [...items]
-  updated[index] = { ...updated[index], ...next }
+  const current = updated[index]
+  const startedAt = current.startedAt || next.startedAt || current.timestamp || next.timestamp
+  const finishedAt = next.finishedAt || current.finishedAt
+  const measuredDuration = startedAt && finishedAt
+    ? Math.max(0, Date.parse(finishedAt) - Date.parse(startedAt))
+    : undefined
+  updated[index] = {
+    ...current,
+    ...next,
+    title: text(next.metadata?.activityName, next.metadata?.title) ? next.title : current.title || next.title,
+    inputSummary: next.inputSummary || current.inputSummary,
+    outputSummary: next.outputSummary || current.outputSummary,
+    startedAt,
+    finishedAt,
+    timestamp: startedAt,
+    durationMs: next.durationMs ?? current.durationMs ?? (
+      measuredDuration !== undefined && Number.isFinite(measuredDuration) ? measuredDuration : undefined
+    ),
+    metadata: { ...current.metadata, ...next.metadata },
+  }
   return updated
 }
 
@@ -321,7 +364,7 @@ export function normalizeHistoricalArtifacts(value: unknown): ChatArtifact[] {
 
 export function normalizeHistoricalActivities(value: unknown): ChatRunActivity[] {
   if (!Array.isArray(value)) return []
-  return value.flatMap((item, index) => {
+  const activities = value.flatMap((item, index) => {
     const source = asRecord(item)
     const activity = activityFromTransportEvent(
       'thinking.updated',
@@ -331,4 +374,8 @@ export function normalizeHistoricalActivities(value: unknown): ChatRunActivity[]
     )
     return activity ? [activity] : []
   })
+  return activities.reduce<ChatRunActivity[]>(
+    (items, activity) => upsertRunActivity(items, activity),
+    [],
+  )
 }

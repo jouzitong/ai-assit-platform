@@ -20,12 +20,16 @@ def build_skill_tool(
             emitter.event(
                 "skill.loaded",
                 status="SUCCESS",
-                message=f"Loaded {record.name}/{relative}",
+                message=f"已加载技能：{record.name}",
                 ext={
+                    "activityCode": f"skill:{record.ref}:{relative}",
+                    "activityType": "SKILL_LOAD",
+                    "activityName": f"加载技能：{record.name}",
                     "skillRef": record.ref,
                     "skillName": record.name,
                     "resourcePath": relative,
                     "contentHash": record.content_hash,
+                    "outputSummary": f"已加载技能“{record.name}”的资源：{relative}。",
                 },
             )
 

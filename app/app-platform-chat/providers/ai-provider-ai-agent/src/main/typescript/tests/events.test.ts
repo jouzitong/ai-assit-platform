@@ -89,3 +89,29 @@ test("maps a Gateway SDK name back to versioned platform Tool identity", () => {
   assert.equal(event?.ext.toolCode, "issue-create");
   assert.equal(event?.ext.toolVersion, 4);
 });
+
+test("keeps one tool activity identity and returns useful input/output summaries", () => {
+  const started = mapSdkStreamEvent(
+    graph,
+    {
+      type: "run_item_stream_event",
+      name: "tool_called",
+      item: { rawItem: { name: "validator", arguments: '{"value":1}', callId: "call-3" } },
+    },
+    () => undefined,
+  );
+  const completed = mapSdkStreamEvent(
+    graph,
+    {
+      type: "run_item_stream_event",
+      name: "tool_output",
+      item: { rawItem: { type: "function_call_output", callId: "call-3" }, output: { success: true, count: 3 } },
+    },
+    () => undefined,
+  );
+
+  assert.equal(started?.ext.activityCode, "call-3");
+  assert.equal(completed?.ext.activityCode, "call-3");
+  assert.equal(started?.ext.inputSummary, '{"value":1}');
+  assert.equal(completed?.ext.outputSummary, '{"success":true,"count":3}');
+});

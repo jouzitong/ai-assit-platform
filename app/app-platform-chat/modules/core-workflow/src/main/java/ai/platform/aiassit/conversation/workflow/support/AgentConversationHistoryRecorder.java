@@ -19,6 +19,8 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.util.CollectionUtils;
 
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -136,10 +138,10 @@ public class AgentConversationHistoryRecorder {
     }
 
     /**
-     * 按事件时间线尽力持久化Agent 运行活动。
+     * 按活动生命周期尽力持久化 Agent 运行活动。
      *
      * <p>活动属于可观测数据，持久化故障不能中断 AI 回答或实时事件发布。
-     * correlationCode 用于前端合并同一活动的开始/完成状态。</p>
+     * correlationCode 相同时，开始、更新、完成或失败事件更新同一条记录。</p>
      */
     public Optional<ConversationActivityDTO> saveActivity(ConversationRuntimeContext context,
                                                     String source,
@@ -153,29 +155,45 @@ public class AgentConversationHistoryRecorder {
                 activity.get("activityCode"), detail.get("activityCode"), detail.get("callId"),
                 activity.get("callId"), detail.get("activity"), detail.get("toolName"));
         try {
-            ConversationActivityDTO record = new ConversationActivityDTO();
-            record.setActivityCode(generateCode("activity"));
-            record.setSessionCode(context.getSession().getSessionCode());
-            record.setRoundCode(context.getRound().getRoundCode());
-            record.setUserId(context.getSession().getUserId());
+            ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
+            query.setSessionCode(context.getSession().getSessionCode());
+            query.setRoundCode(context.getRound().getRoundCode());
+            List<ConversationActivityDTO> currentActivities = activityService.queryAll(query);
+            ConversationActivityDTO existing = findActivity(currentActivities, correlationCode);
+            ConversationActivityDTO record = existing == null ? new ConversationActivityDTO() : existing;
+            if (existing == null) {
+                record.setActivityCode(generateCode("activity"));
+                record.setSessionCode(context.getSession().getSessionCode());
+                record.setRoundCode(context.getRound().getRoundCode());
+                record.setUserId(context.getSession().getUserId());
+                record.setSeqNo(currentActivities.size() + 1);
+            }
             record.setAgentCode(truncate(firstText(
-                    detail.get("agentCode"), activity.get("agentCode"), detail.get("rootAgentCode")), 64));
+                    detail.get("agentCode"), activity.get("agentCode"), detail.get("rootAgentCode"),
+                    record.getAgentCode()), 64));
             record.setCorrelationCode(truncate(correlationCode, 128));
             record.setActivityType(truncate(defaultText(
-                    firstText(activity.get("activityType"), detail.get("activityType")), "AI_AGENT_ACTIVITY"), 32));
+                    firstText(activity.get("activityType"), detail.get("activityType"), record.getActivityType()),
+                    "AI_AGENT_ACTIVITY"), 32));
             record.setActivityName(truncate(defaultText(firstText(
-                    activity.get("activityName"), detail.get("activityName"), detail.get("toolName"), message), "AI 执行活动"), 128));
-            record.setSource(truncate(defaultText(source, "AI_AGENT"), 64));
-            record.setPhase(truncate(phase, 32));
+                    activity.get("activityName"), detail.get("activityName"), detail.get("toolName"),
+                    record.getActivityName(), message), "AI 执行活动"), 128));
+            record.setSource(truncate(defaultText(firstText(source, record.getSource()), "AI_AGENT"), 64));
+            record.setPhase(truncate(firstText(phase, record.getPhase()), 32));
             record.setStatus(truncate(defaultText(status, "RUNNING"), 32));
-            record.setMessage(truncate(message, 512));
-            record.setInputSummary(firstText(activity.get("inputSummary"), detail.get("inputSummary")));
-            record.setOutputSummary(firstText(activity.get("outputSummary"), detail.get("outputSummary")));
-            record.setDurationMs(longValue(activity.get("durationMs"), detail.get("durationMs")));
-            record.setRequestId(truncate(context.getCommand() == null ? null : context.getCommand().getTraceId(), 128));
-            record.setSeqNo(nextActivitySeqNo(context));
-            record.setDetailJson(toJson(detail));
-            return Optional.ofNullable(activityService.add(record));
+            record.setMessage(truncate(firstText(message, record.getMessage()), 512));
+            record.setInputSummary(firstText(
+                    activity.get("inputSummary"), detail.get("inputSummary"), record.getInputSummary()));
+            record.setOutputSummary(firstText(
+                    activity.get("outputSummary"), detail.get("outputSummary"), record.getOutputSummary()));
+            updateActivityTiming(record, status, activity, detail);
+            record.setRequestId(truncate(firstText(
+                    context.getCommand() == null ? null : context.getCommand().getTraceId(), record.getRequestId()), 128));
+            record.setDetailJson(toJson(mergeDetail(record.getDetailJson(), detail)));
+            ConversationActivityDTO saved = existing == null
+                    ? activityService.add(record)
+                    : activityService.update(existing.getId(), record);
+            return Optional.ofNullable(saved);
         } catch (RuntimeException ex) {
             log.warn("AI activity persistence degraded, sessionCode={}, roundCode={}, source={}, phase={}, correlationCode={}",
                     sessionCode(context), roundCode(context), source, phase, correlationCode, ex);
@@ -229,11 +247,107 @@ public class AgentConversationHistoryRecorder {
         return CollectionUtils.isEmpty(context.getSessionArtifacts()) ? 1 : context.getSessionArtifacts().size() + 1;
     }
 
-    private int nextActivitySeqNo(ConversationRuntimeContext context) {
-        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
-        query.setSessionCode(context.getSession().getSessionCode());
-        query.setRoundCode(context.getRound().getRoundCode());
-        return activityService.queryAll(query).size() + 1;
+    private ConversationActivityDTO findActivity(List<ConversationActivityDTO> activities, String correlationCode) {
+        if (correlationCode == null || correlationCode.isBlank() || CollectionUtils.isEmpty(activities)) {
+            return null;
+        }
+        for (int index = activities.size() - 1; index >= 0; index--) {
+            ConversationActivityDTO candidate = activities.get(index);
+            if (candidate != null && correlationCode.equals(candidate.getCorrelationCode())) {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private void updateActivityTiming(ConversationActivityDTO record,
+                                      String status,
+                                      Map<String, Object> activity,
+                                      Map<String, Object> detail) {
+        Instant explicitStartedAt = instantValue(activity.get("startedAt"), detail.get("startedAt"));
+        Instant eventAt = instantValue(activity.get("timestamp"), detail.get("timestamp"));
+        if (record.getStartedAt() == null && (isRunning(status) || explicitStartedAt != null)) {
+            record.setStartedAt(explicitStartedAt != null ? explicitStartedAt
+                    : eventAt != null ? eventAt : Instant.now());
+        }
+        Long suppliedDuration = longValue(activity.get("durationMs"), detail.get("durationMs"));
+        if (suppliedDuration != null) {
+            record.setDurationMs(suppliedDuration);
+        }
+        if (!isTerminal(status)) {
+            return;
+        }
+        Instant finishedAt = instantValue(activity.get("finishedAt"), detail.get("finishedAt"));
+        record.setFinishedAt(finishedAt != null ? finishedAt : eventAt != null ? eventAt : Instant.now());
+        if (record.getDurationMs() == null && record.getStartedAt() != null) {
+            record.setDurationMs(Math.max(0L, Duration.between(record.getStartedAt(), record.getFinishedAt()).toMillis()));
+        }
+    }
+
+    private boolean isRunning(String status) {
+        return status == null || status.isBlank()
+                || "RUNNING".equalsIgnoreCase(status)
+                || "STARTED".equalsIgnoreCase(status)
+                || "PENDING".equalsIgnoreCase(status);
+    }
+
+    private boolean isTerminal(String status) {
+        if (status == null) {
+            return false;
+        }
+        return switch (status.trim().toUpperCase(Locale.ROOT)) {
+            case "SUCCESS", "SUCCEEDED", "COMPLETE", "COMPLETED", "DONE", "FAILED", "ERROR",
+                    "CANCELLED", "CANCELED" -> true;
+            default -> false;
+        };
+    }
+
+    private Instant instantValue(Object... values) {
+        if (values == null) {
+            return null;
+        }
+        for (Object value : values) {
+            if (value instanceof Instant instant) {
+                return instant;
+            }
+            if (value instanceof Number number) {
+                return Instant.ofEpochMilli(number.longValue());
+            }
+            if (value instanceof String text && !text.isBlank()) {
+                try {
+                    return Instant.parse(text.trim());
+                } catch (RuntimeException ignored) {
+                    // Try the next compatible value.
+                }
+            }
+        }
+        return null;
+    }
+
+    private Map<String, Object> mergeDetail(String currentJson, Map<String, Object> incoming) {
+        Map<String, Object> merged = new LinkedHashMap<>(jsonMap(currentJson));
+        Map<String, Object> currentActivity = mapValue(merged.get("activity"));
+        Map<String, Object> incomingActivity = mapValue(incoming.get("activity"));
+        merged.putAll(incoming);
+        if (!currentActivity.isEmpty() || !incomingActivity.isEmpty()) {
+            Map<String, Object> mergedActivity = new LinkedHashMap<>(currentActivity);
+            mergedActivity.putAll(incomingActivity);
+            merged.put("activity", mergedActivity);
+        }
+        return merged;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> jsonMap(String value) {
+        if (value == null || value.isBlank()) {
+            return Map.of();
+        }
+        try {
+            Object decoded = objectMapper.readValue(value, Object.class);
+            return decoded instanceof Map<?, ?> map ? (Map<String, Object>) map : Map.of();
+        } catch (JsonProcessingException ignored) {
+            return Map.of();
+        }
     }
 
     @SuppressWarnings("unchecked")

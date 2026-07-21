@@ -116,6 +116,12 @@ function isMeaningfulActivity(activity: ChatRunActivity) {
   return true
 }
 
+function activityDetail(activity: ChatRunActivity) {
+  if (activity.outputSummary) return `结果：${activity.outputSummary}`
+  if (activity.inputSummary) return `执行内容：${activity.inputSummary}`
+  return activity.detail || ''
+}
+
 function displayedStatus(activity: ChatRunActivity) {
   if (runCompleted.value && (!activity.status || activity.status === 'pending' || activity.status === 'running')) {
     return 'success'
@@ -178,7 +184,7 @@ function timelineStatus(activity: ChatRunActivity) {
             <strong>{{ activity.title }}</strong>
             <span class="run-activity-drawer__status">{{ statusLabel(displayedStatus(activity)) }}</span>
           </div>
-          <p v-if="activity.detail" class="run-activity-drawer__detail">{{ activity.detail }}</p>
+          <p v-if="activityDetail(activity)" class="run-activity-drawer__detail">{{ activityDetail(activity) }}</p>
           <div class="run-activity-drawer__meta" aria-label="活动执行信息">
             <time v-if="activityTimeText(activity)" :datetime="activity.timestamp">
               时间 {{ activityTimeText(activity) }}

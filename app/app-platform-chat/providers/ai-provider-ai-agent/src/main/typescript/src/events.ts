@@ -64,16 +64,25 @@ export function mapSdkStreamEvent(
   const item = asRecord(value.item);
   const rawItem = asRecord(item.rawItem ?? item.raw_item);
   const agent = agentLookup(value.agent ?? item.agent ?? item.sourceAgent ?? item.source_agent);
-  const toolCode = text(rawItem.name, item.name, rawItem.type);
+  const rawToolCode = text(rawItem.name, item.name, rawItem.type);
+  const toolCode = isGenericOutputType(rawToolCode) ? undefined : rawToolCode;
   const gatewayTool = toolLookup(toolCode);
   const callId = text(rawItem.callId, rawItem.call_id, item.callId, item.call_id);
+  const platformToolCode = gatewayTool?.code ?? toolCode;
+  const displayName = gatewayTool?.name ?? platformToolCode ?? "未命名工具";
   const ext: JsonRecord = {
-    activityCode: callId ?? `${name}:${toolCode ?? "agent"}`,
+    activityCode: callId ?? fallbackActivityCode(name, platformToolCode),
     activityType: name.includes("tool") ? "TOOL_CALL" : "AGENT_HANDOFF",
-    toolCode: gatewayTool?.code ?? toolCode,
+    toolCode: platformToolCode,
     callId,
   };
+  if (name.includes("tool") && platformToolCode) ext.activityName = `调用工具：${displayName}`;
+  else if (name.includes("handoff")) ext.activityName = "智能体协作交接";
   if (gatewayTool) ext.toolVersion = gatewayTool.version;
+  const inputSummary = summary(rawItem.arguments ?? rawItem.input ?? item.input);
+  const outputSummary = summary(item.output ?? item.result ?? rawItem.output ?? rawItem.result);
+  if (inputSummary) ext.inputSummary = inputSummary;
+  if (outputSummary) ext.outputSummary = outputSummary;
   if (name === "tool_called" || name === "tool_search_called") {
     return platformEvent(graph, "tool.started", { status: "RUNNING", message: "开始调用工具", agent, ext });
   }
@@ -97,6 +106,41 @@ export function mapSdkStreamEvent(
     return platformEvent(graph, "handoff.completed", { status: "SUCCESS", message: "协作智能体交接完成", agent, ext });
   }
   return undefined;
+}
+
+function fallbackActivityCode(eventName: string, toolCode: string | undefined): string {
+  const identity = toolCode ?? "agent";
+  if (eventName.includes("tool")) return `tool:${identity}`;
+  if (eventName.includes("handoff")) return `handoff:${identity}`;
+  return `activity:${identity}`;
+}
+
+function isGenericOutputType(value: string | undefined): boolean {
+  const normalized = value?.toLowerCase() ?? "";
+  return normalized.endsWith("_output") || normalized === "function_call_output" || normalized === "tool_output";
+}
+
+function summary(value: unknown): string | undefined {
+  if (value === undefined || value === null) return undefined;
+  let normalized: string;
+  if (typeof value === "string") {
+    normalized = value.trim();
+  } else {
+    try {
+      normalized = JSON.stringify(value);
+    } catch {
+      normalized = String(value);
+    }
+  }
+  if (!normalized) return undefined;
+  const redacted = normalized
+    .replace(/\bbearer\s+[a-z0-9._~+/=-]+/gi, "Bearer [已隐藏]")
+    .replace(/\bsk-[a-z0-9_-]+\b/gi, "[已隐藏]")
+    .replace(
+      /(["']?(?:authorization|api[ _-]?key|secret|password|access[_-]?token|refresh[_-]?token|token)["']?\s*[:=]\s*["']?)([^"'\s,;}]+)/gi,
+      "$1[已隐藏]",
+    );
+  return redacted.slice(0, 1000);
 }
 
 function decodedRecord(value: unknown): JsonRecord {

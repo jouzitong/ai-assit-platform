@@ -7,7 +7,9 @@ import lombok.EqualsAndHashCode;
 import org.athena.framework.data.jdbc.annotations.JdbcColumn;
 import org.athena.framework.data.mybatis.entity.AuditableEntity;
 
-/** AI 对话执行活动事件；同一活动的开始、更新和完成分别按时间线留痕。 */
+import java.time.Instant;
+
+/** AI 对话执行活动；同一协议 activityCode（correlationCode）的生命周期维护在同一条记录中。 */
 @Data
 @EqualsAndHashCode(callSuper = true)
 @TableName("conversation_activity")
@@ -72,6 +74,14 @@ public class ConversationActivityEntity extends AuditableEntity {
     @JdbcColumn(name = "duration_ms", dataType = "BIGINT", nullable = true, comment = "耗时毫秒")
     @TableField("duration_ms")
     private Long durationMs;
+
+    @JdbcColumn(name = "started_at", dataType = "DATETIME", nullable = true, comment = "活动开始时间")
+    @TableField("started_at")
+    private Instant startedAt;
+
+    @JdbcColumn(name = "finished_at", dataType = "DATETIME", nullable = true, comment = "活动结束时间")
+    @TableField("finished_at")
+    private Instant finishedAt;
 
     @JdbcColumn(name = "request_id", dataType = "VARCHAR(128)", length = 128, nullable = true, comment = "请求追踪编码")
     @TableField("request_id")
