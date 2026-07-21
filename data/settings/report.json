@@ -1,0 +1,206 @@
+{
+  "id": "UUID",
+  "protocol": "render-json",
+  "protocolVersion": "2.0.0",
+  "pageId": "account-operation-dashboard",
+  "revision": "2026-07-21.4",
+  "presentation": {
+    "defaultMode": "dashboard",
+    "allowedModes": [
+      "dashboard",
+      "report"
+    ],
+    "title": "账户运营看板",
+    "description": "展示账户明细、账户类型统计、状态分布和最新账户信息",
+    "refreshInterval": 60,
+    "responsivePreset": "dashboard",
+    "readonly": true
+  },
+  "root": {
+    "id": "account-operation-dashboard-root",
+    "component": "zg-grid-layout",
+    "componentVersion": "1.0.0",
+    "layout": {
+      "columns": 12,
+      "rowHeight": 80,
+      "gap": 16,
+      "padding": 16
+    }
+  },
+  "actions": [
+    {
+      "id": "account-operation-dashboard-refresh",
+      "key": "refresh",
+      "name": "刷新",
+      "icon": "refresh",
+      "type": "primary",
+      "action": "RELOAD",
+      "targets": [
+        "*"
+      ]
+    },
+    {
+      "id": "account-operation-dashboard-print",
+      "key": "print",
+      "name": "打印",
+      "icon": "print",
+      "action": "PRINT"
+    },
+    {
+      "id": "account-operation-dashboard-export",
+      "key": "export",
+      "name": "导出",
+      "icon": "download",
+      "funcRef": "account-operation-dashboard.export",
+      "params": {
+        "format": "xlsx"
+      }
+    }
+  ],
+  "filters": [
+    {
+      "key": "year",
+      "label": "年",
+      "component": "zg-input-year",
+      "props": {
+        "format": "YYYY",
+        "valueFormat": "YYYY",
+        "clearable": true
+      },
+      "defaultValue": null
+    }
+  ],
+  "components": [
+    {
+      "id": "account-type-overview",
+      "component": "combo-chart-renderer",
+      "componentVersion": "1.0.0",
+      "title": "账户类型余额与数量",
+      "datasources": [
+        {
+          "key": "account-balance-by-type",
+          "type": "db-query-aggregate",
+          "title": "按账户类型统计余额",
+          "model": "ods_trade_user_account",
+          "filterExpr": "deleted and update_time",
+          "filter_dict": {
+            "deleted": 0,
+            "update_time": {
+              "op": "prefix_like",
+              "value": "$filters.year"
+            }
+          },
+          "dimensions": [
+            {
+              "field": "account_type",
+              "alias": "accountType"
+            }
+          ],
+          "metrics": [
+            {
+              "field": "balance",
+              "func": "sum",
+              "alias": "balanceAmount"
+            }
+          ],
+          "sorts": [
+            {
+              "field": "accountType",
+              "order": "asc"
+            }
+          ],
+          "page": 1,
+          "page_size": 100
+        },
+        {
+          "key": "account-count-by-type",
+          "type": "db-query-aggregate",
+          "title": "按账户类型统计数量",
+          "model": "ods_trade_user_account",
+          "filterExpr": "deleted and update_time",
+          "filter_dict": {
+            "deleted": 0,
+            "update_time": {
+              "op": "prefix_like",
+              "value": "$filters.year"
+            }
+          },
+          "dimensions": [
+            {
+              "field": "account_type",
+              "alias": "accountType"
+            }
+          ],
+          "metrics": [
+            {
+              "field": "id",
+              "func": "count",
+              "alias": "accountCount"
+            }
+          ],
+          "sorts": [
+            {
+              "field": "accountType",
+              "order": "asc"
+            }
+          ],
+          "page": 1,
+          "page_size": 100
+        }
+      ],
+      "props": {
+        "height": "100%",
+        "leftUnit": "元",
+        "rightUnit": "个",
+        "legend": true,
+        "barSeries": [
+          {
+            "name": "账户余额",
+            "data": []
+          }
+        ],
+        "lineSeries": [
+          {
+            "name": "账户数量",
+            "data": [],
+            "yAxisIndex": 1
+          }
+        ]
+      },
+      "bindings": {
+        "fields": [
+          {
+            "key": "categories",
+            "datasourceKey": "account-balance-by-type",
+            "field": [
+              "accountType"
+            ],
+            "mode": "pluck"
+          },
+          {
+            "key": "barSeries.0.data",
+            "datasourceKey": "account-balance-by-type",
+            "field": [
+              "balanceAmount"
+            ],
+            "mode": "pluck"
+          },
+          {
+            "key": "lineSeries.0.data",
+            "datasourceKey": "account-count-by-type",
+            "field": [
+              "accountCount"
+            ],
+            "mode": "pluck"
+          }
+        ]
+      },
+      "layout": [
+        1,
+        1,
+        8,
+        4
+      ]
+    }
+  ]
+}
