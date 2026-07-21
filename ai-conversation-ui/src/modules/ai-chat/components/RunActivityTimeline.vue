@@ -117,7 +117,7 @@ function isMeaningfulActivity(activity: ChatRunActivity) {
 }
 
 function activityDetail(activity: ChatRunActivity) {
-  if (activity.outputSummary) return `结果：${activity.outputSummary}`
+  if (activity.outputSummary) return activity.outputSummary
   if (activity.inputSummary) return `执行内容：${activity.inputSummary}`
   return activity.detail || ''
 }
