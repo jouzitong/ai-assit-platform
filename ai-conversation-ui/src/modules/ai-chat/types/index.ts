@@ -124,7 +124,16 @@ export type ChatTransportContentBlock = {
   markdown?: string
 }
 
-export type ChatRunActivityKind = 'agent' | 'handoff' | 'tool' | 'skill' | 'artifact' | 'check' | 'thinking'
+export type ChatRunActivityKind =
+  | 'agent'
+  | 'handoff'
+  | 'tool'
+  | 'skill'
+  | 'artifact'
+  | 'check'
+  | 'repair'
+  | 'execution'
+  | 'thinking'
 
 export interface ChatRunActivity {
   id: string
@@ -142,6 +151,9 @@ export interface ChatRunActivity {
   durationMs?: number
   confidence?: number
   confidenceThreshold?: number
+  confidenceBasis?: string[]
+  executionReadiness?: number
+  analysis?: Record<string, unknown>
   metadata?: Record<string, unknown>
 }
 

@@ -18,6 +18,14 @@ class DefaultArtifactAcceptanceServiceTest {
         ArtifactAcceptanceResult result = service.accept(Map.of(), List.of(), "Completed result");
 
         assertThat(result.isAccepted()).isTrue();
+        assertThat(result.getChecks())
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.getCheckCode()).isEqualTo("required-final-answer");
+                    assertThat(check.getCheckerType()).isEqualTo("REQUIRED");
+                    assertThat(check.getStatus()).isEqualTo("PASSED");
+                    assertThat(check.isPassed()).isTrue();
+                });
         assertThat(result.getArtifacts())
                 .singleElement()
                 .satisfies(artifact -> assertThat(artifact)
@@ -60,11 +68,16 @@ class DefaultArtifactAcceptanceServiceTest {
 
         assertThat(result.isAccepted()).isTrue();
         assertThat(result.getChecks())
+                .filteredOn(check -> "schema-final-answer".equals(check.getCheckCode()))
                 .singleElement()
                 .satisfies(check -> {
                     assertThat(check.getTargetArtifact()).isEqualTo("final-answer");
                     assertThat(check.isPassed()).isTrue();
                 });
+        assertThat(result.getChecks())
+                .filteredOn(check -> "required-final-answer".equals(check.getCheckCode()))
+                .singleElement()
+                .satisfies(check -> assertThat(check.getStatus()).isEqualTo("PASSED"));
         assertThat(result.getArtifacts())
                 .singleElement()
                 .satisfies(artifact -> assertThat(artifact).containsEntry("visible", false));
@@ -84,6 +97,7 @@ class DefaultArtifactAcceptanceServiceTest {
 
         assertThat(result.isAccepted()).isFalse();
         assertThat(result.getChecks())
+                .filteredOn(check -> "quality-review".equals(check.getCheckCode()))
                 .singleElement()
                 .satisfies(check -> {
                     assertThat(check.isBlocking()).isTrue();

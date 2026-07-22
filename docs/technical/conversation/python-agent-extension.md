@@ -104,6 +104,88 @@ stdout 是一行一个 JSON Frame：
 
 stderr 只用于进程诊断。`AiAgentProcessExecutor` 会并行读取 stdout/stderr，收到 `error` Frame、非零退出码、超时或空结果时终止本轮并生成失败事件。
 
+### 2.3 `thinking.analysis` 结构化可审计摘要
+
+Python Runtime 在主 Agent 开始执行前发布一组请求分析事件：
+
+1. `thinking.analysis.started` 表示预执行分析已经开始。
+2. 独立分析器基于当前请求、近期对话、页面上下文，以及本轮实际可达的 Agent、已安装 Tool 和已授权知识库形成结构化摘要。
+3. `thinking.analysis.completed` 必须先于主 Agent 的 SDK 执行产生。
+
+这里的“分析”是给用户和审计系统使用的**决策摘要**，不是模型私有 chain-of-thought。允许输出目标、交付物、约束、信息缺口、建议路线、置信度依据、执行就绪度、成功标准、验证计划和补救建议；不得输出逐 Token 推理、隐藏提示词或内部思维过程。
+
+`thinking.analysis.completed.ext` 的当前契约如下：
+
+| 字段 | 类型 | 语义 |
+| --- | --- | --- |
+| `analysisSchemaVersion` | `int` | 结构化分析 Schema 版本，当前为 `1`。 |
+| `analysisStatus` | `SUCCESS \| DEGRADED` | 分析内容质量状态；分析超时、结构错误或能力校验降级时为 `DEGRADED`。 |
+| `routeNature` | `RECOMMENDATION` | 路线只是经过校验的建议，不代表 Tool、知识库或协作 Agent 已经实际执行。 |
+| `confidenceKind` | `REQUEST_ROUTING` | `confidence` 衡量请求理解和路线匹配，不是最终回答的事实可信度。 |
+| `confidence` / `confidenceBasis` | `0..1` / `string[]` | 请求分析总体置信度及简洁、可审计的依据。 |
+| `executionReadiness` / `executionReadinessLevel` | `0..1` / `READY \| PARTIAL \| LOW` | 当前上下文和能力是否足以可靠开始执行。 |
+| `durationMs` / `analysisUsage` | `int` / Token Usage | 预分析耗时和独立 Token 用量；总结果 Usage 会合并预分析与主执行用量。 |
+| `analysis` | `object` | 完整结构化摘要，字段见下方示例。 |
+
+```json
+{
+  "eventType": "thinking.analysis.completed",
+  "status": "SUCCESS",
+  "ext": {
+    "activityCode": "main-agent-request-analysis:1",
+    "activityType": "THINKING",
+    "activityName": "分析用户请求",
+    "outputSummary": "目标：识别订单异常原因。建议路线：先查询已授权数据……",
+    "analysisSchemaVersion": 1,
+    "analysisStatus": "SUCCESS",
+    "routeNature": "RECOMMENDATION",
+    "confidenceKind": "REQUEST_ROUTING",
+    "confidence": 0.82,
+    "confidenceBasis": ["目标和交付物明确", "统计范围仍待确认"],
+    "executionReadiness": 0.68,
+    "executionReadinessLevel": "PARTIAL",
+    "durationMs": 438,
+    "analysisUsage": {"inputTokens": 320, "outputTokens": 110, "totalTokens": 430},
+    "analysis": {
+      "status": "SUCCESS",
+      "goal": "识别订单异常的原因与影响范围",
+      "deliverable": "异常结论、证据和后续建议",
+      "constraints": ["只使用已授权数据"],
+      "gaps": ["尚未确认统计时间范围"],
+      "route": {
+        "mode": "TOOL",
+        "agentCode": "root-agent",
+        "toolCodes": ["data_preview_query_tool"],
+        "knowledgeBaseCodes": [],
+        "rationale": "先取得可验证数据，再形成结论。"
+      },
+      "confidence": {
+        "overall": 0.82,
+        "intentClarity": 0.9,
+        "contextSufficiency": 0.62,
+        "routeFit": 0.88,
+        "basis": ["目标和交付物明确", "统计范围仍待确认"]
+      },
+      "executionReadiness": {
+        "score": 0.68,
+        "level": "PARTIAL",
+        "reason": "可以开始取数，但形成最终结论前需要确认统计范围。"
+      },
+      "successCriteria": ["异常原因有数据依据"],
+      "validationPlan": ["核对工具结果与用户范围"],
+      "lowReadinessRemediation": [
+        {"action": "ASK_USER", "description": "向用户确认统计时间范围。"}
+      ],
+      "validationWarnings": []
+    }
+  }
+}
+```
+
+事件顶层 `status=SUCCESS` 只表示“分析活动正常结束并产生了可消费结果”。分析器失败时会产生安全降级摘要，顶层仍可为 `SUCCESS`，但 `ext.analysisStatus=DEGRADED`，并在 `analysis.degradedReason` 和 `validationWarnings` 中说明降级类型。这样预分析失败不会阻断主任务。
+
+分析器有独立的短超时，超时后立即降级并把大部分运行预算留给实际执行。所有 Agent、Tool、知识库和补救目标都必须再次通过本轮可达性与授权校验。`lowReadinessRemediation` 当前也是建议：只有后续真实出现对应 `tool.*`、`agent.*`、`handoff.*` 或知识库检索事件，才能认定补救动作已经发生。初始执行和 Artifact Repair 重跑分别使用 `run.context.executionAttempt=1,2,...`，该值进入 `activityCode` 后缀，防止不同尝试的分析活动互相覆盖。最终 Worker Result 的 `providerMeta.requestAnalysis` 还会保留 `status`、`durationMs` 和独立 Usage。
+
 ## 3. Agent 定义与扩展
 
 ### 3.1 当前 Agent 模型
@@ -319,7 +401,7 @@ Python 只看到版本化 Tool 契约，不直接持有 MCP Server 凭证和任�
 6. Run 结束、超时或取消时关闭 MCP 连接；设置并发、响应大小和资源读取上限。
 7. 增加恶意 Tool 描述、Prompt Injection、Schema 变更、越权 Tool、断线和重复调用测试。
 
-## 7. Artifact、校验与修复
+## 7. Artifact、校验、修复与权威执行结果
 
 Python 最终输出可以包含 `artifacts`。Java 不直接信任这些产物：
 
@@ -330,6 +412,73 @@ Python 最终输出可以包含 `artifacts`。Java 不直接信任这些产物�
 5. 接受后才把 Artifact 交给会话层持久化；需要用户补充时返回 `INPUT_REQUIRED`。
 
 Render JSON Artifact 还会通过 `RenderInternalApi` 保存正式 Render Page 引用。详见 [AI 生成、校验与聊天产物](../render-json/ai-generation-and-validation.md)。
+
+### 7.1 事件权威层级
+
+各事件表达的事实层级不同，消费方不能把“建议”或“某一步完成”误当作整轮成功：
+
+| 事件 | 表达的事实 | 是否是最终权威结果 |
+| --- | --- | --- |
+| `thinking.analysis.completed` | 执行前的目标、缺口和建议路线 | 否，`routeNature=RECOMMENDATION`。 |
+| `tool.*`、`agent.*`、`handoff.*` | 某个实际调用或协作生命周期 | 否，只能证明对应动作发生。 |
+| `check.completed` | 某次 Acceptance Attempt 中单个检查的结果 | 否，是最终聚合结果的证据。 |
+| `artifact.repair.completed` | 一次修复 Runtime 已返回，接下来需要重新验收 | 否，不代表修复产物已经通过检查。 |
+| `execution.result.completed` | Java 完成执行、检查、修复和 Acceptance 后的聚合裁决 | **是**，以 `ext.authoritative=true` 标识。 |
+
+Python `result.data.finalOutput`、`outputs` 和 `artifacts` 使用 Confidence Guard 之后的规范化输出，但在 Java Acceptance 完成前仍是候选结果。跨端展示、持久化和后续动作应以 `execution.result.completed` 的裁决字段为准。
+
+### 7.2 Check 事件契约
+
+每个检查按 `check.started` → `check.completed` 发布，两者使用相同的
+`activityCode=artifact-check:{checkCode}:attempt:{acceptanceAttempt}`。主要 `ext` 字段包括：
+
+- `attempt`：Acceptance Attempt，从 `1` 开始。
+- `repairAttempt`：产生本次候选结果的修复次数，初始候选为 `0`。
+- `checkCode`、`targetArtifact`、`checkerType`、`severity`。
+- `blocking`、`retryable`、`passed`、`checkStatus`。
+- `inputSummary`；完成事件另外包含 `outputSummary`。
+
+`check.completed.status=FAILED` 只表示该检查未通过。非阻断检查失败时，最终结果仍可能是 `PARTIAL`，不能仅根据单个检查推断整轮 `FAILED`。
+
+### 7.3 Repair 事件契约
+
+一次自动修复使用稳定的 `activityCode=artifact-repair:attempt:{repairAttempt}`，事件可能为：
+
+- `artifact.repair.requested`：准备使用验收返回的修复说明再次调用 Agent。
+- `artifact.repair.completed`：Agent 修复调用已经返回，`artifactCount` 是该次 Runtime 候选产物数；仍需下一次 Acceptance。
+- `artifact.repair.failed`：修复调用失败并停止本次自动补救，包含脱敏后的 `failureType`。
+
+通用字段为 `attempt`、`repairAttempt`、`maxRepairAttempts` 和输入/输出摘要。只有后续 Check 和最终 `execution.result.completed` 能证明修复是否真正解决问题。
+
+### 7.4 `execution.result.completed` 权威字段
+
+该事件固定使用 `activityCode=execution-result`、`activityType=EXECUTION_RESULT` 和
+`ext.authoritative=true`。核心字段如下：
+
+| 字段 | 语义 |
+| --- | --- |
+| `resultStatus` / `outcomeStatus` | 权威状态：`SUCCESS`、`PARTIAL`、`INPUT_REQUIRED`、`FAILED` 或 `CANCELLED`。 |
+| `accepted` | Acceptance Service 是否接受当前结果。 |
+| `artifactCount` | 验收后的权威产物数量；优先使用 Acceptance 返回的产物。 |
+| `attempt` | 总 Acceptance Attempt 数。 |
+| `repairAttempts` / `remediationAttempts` | 已执行的自动修复次数。 |
+| `maxRepairAttempts` | 本轮 Acceptance Contract 允许的最大修复次数。 |
+| `checks` | `{total, passed, failed, blockingFailed}` 聚合计数。 |
+| `checksPassed` / `checksFailed` | 通过和未通过的 Check Code。 |
+| `completionCoverage` | 已通过检查占比；无检查的成功结果为 `1.0`。 |
+| `remainingIssues` | 尚未解决的问题，包含检查身份、阻断性、可重试性、状态和摘要。 |
+| `nextAction` | 结构化后续动作：`DELIVER_RESULT`、`REVIEW_REMAINING_ISSUES`、`REQUEST_USER_INPUT`、`STOP_AND_REPORT_FAILURE` 或 `NONE`。 |
+| `resultSummary` / `outputSummary` | 候选回答摘要和权威结果摘要，均为有界审计文本。 |
+| `answerConfidence` | 可选，Confidence Guard 对最终回答的可信度；不要与 `thinking.analysis` 的请求路由置信度混用。 |
+| `failureType` | 可选，执行失败类型；不包含原始敏感异常消息。 |
+
+状态解释：
+
+- `SUCCESS`：结果已接受，所有检查通过。
+- `PARTIAL`：结果已接受，但仍有非阻断问题需要复核。
+- `INPUT_REQUIRED`：当前结果不能交付，需要用户补充信息。
+- `FAILED`：执行或验收失败，未形成可交付结果。
+- `CANCELLED`：执行被取消，不继续验收或交付。
 
 ## 8. 扩展检查清单
 

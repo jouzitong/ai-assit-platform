@@ -12,6 +12,7 @@ from ..compiler import CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
 from ..protocol import build_application_input
 from .confidence_guard import ConfidencePolicy, guard_output
+from .request_analysis import analyze_request, safe_audit_text
 
 
 def build_sdk_graph(graph: CompiledGraph, emitter: EventEmitter) -> SdkGraph:
@@ -26,13 +27,28 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
     sdk_graph = build_sdk_graph(graph, emitter)
     root = graph.root
     confidence_policy = ConfidencePolicy.from_payload(graph.payload)
+    analysis_activity_code = _attempt_activity_code(graph, "main-agent-request-analysis")
     _emit_execution_note(
         emitter,
         event_type="thinking.analysis.started",
         status="RUNNING",
-        activity_code="main-agent-request-analysis",
+        activity_code=analysis_activity_code,
         activity_name="分析用户请求",
         input_summary=_request_analysis_summary(graph),
+    )
+    request_analysis = await analyze_request(
+        graph,
+        _latest_user_request(graph) or "Continue.",
+        model=_runtime_model(root.model),
+    )
+    _emit_execution_note(
+        emitter,
+        event_type="thinking.analysis.completed",
+        status="SUCCESS",
+        activity_code=analysis_activity_code,
+        activity_name="分析用户请求",
+        output_summary=request_analysis.output_summary(),
+        ext=request_analysis.event_ext(),
     )
     application_input = build_application_input(
         graph.payload.get("messages"),
@@ -44,20 +60,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         application_input,
         max_turns=graph.max_turns,
     )
-    analysis_completed = False
     async for event in result.stream_events():
-        if not analysis_completed:
-            decision_summary = _analysis_decision_summary(event, graph)
-            if decision_summary:
-                _emit_execution_note(
-                    emitter,
-                    event_type="thinking.analysis.completed",
-                    status="SUCCESS",
-                    activity_code="main-agent-request-analysis",
-                    activity_name="分析用户请求",
-                    output_summary=decision_summary,
-                )
-                analysis_completed = True
         emit_sdk_event(
             event,
             emitter,
@@ -67,20 +70,10 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             emit_output_deltas=not confidence_policy.requires_guard,
         )
 
-    if not analysis_completed:
-        _emit_execution_note(
-            emitter,
-            event_type="thinking.analysis.completed",
-            status="SUCCESS",
-            activity_code="main-agent-request-analysis",
-            activity_name="分析用户请求",
-            output_summary=_request_analysis_result(graph, root, confidence_policy),
-        )
-
     final_output = result.final_output
     last_sdk_agent = getattr(result, "last_agent", None)
     last_agent = sdk_graph.compiled_for(last_sdk_agent) or root
-    usage = extract_usage(result)
+    usage = _merge_usage(request_analysis.usage, extract_usage(result))
     guarded_output = await guard_output(
         sdk_agent=sdk_graph.root,
         compiled_agent=root,
@@ -95,13 +88,13 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         emitter,
         event_type="thinking.conclusion.completed",
         status="SUCCESS",
-        activity_code="main-agent-conclusion",
+        activity_code=_attempt_activity_code(graph, "main-agent-conclusion"),
         activity_name="形成处理结论",
         output_summary=_conclusion_summary(normalized_output),
         ext={"usage": usage},
     )
-    outputs = _build_outputs(final_output, graph.payload.get("responseFormat"))
-    artifacts = extract_artifacts(final_output)
+    outputs = _build_outputs(normalized_output, graph.payload.get("responseFormat"))
+    artifacts = extract_artifacts(normalized_output)
     for artifact in artifacts:
         emitter.event(
             "artifact.created",
@@ -134,6 +127,11 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             "snapshotHash": graph.payload.get("snapshotHash"),
             "lastAgent": last_agent.code,
             "enabledTools": root.tool_names,
+            "requestAnalysis": {
+                "status": request_analysis.status,
+                "durationMs": request_analysis.duration_ms,
+                "usage": request_analysis.usage,
+            },
             "confidence": guarded_output.audit_dict() if confidence_policy.requires_guard else {"enabled": False},
         },
     }
@@ -172,52 +170,22 @@ def _request_analysis_summary(graph: CompiledGraph) -> str:
     request = _latest_user_request(graph)
     if not request:
         return "识别本轮目标、可用上下文以及是否需要知识库、工具或专业 Agent 协作。"
+    safe_request = safe_audit_text(request, 360, "用户请求已接收")
     return (
-        f"收到用户请求：{_compact_summary(request, 360)}。"
+        f"收到用户请求：{safe_request}。"
         "将识别任务目标，并判断是否需要知识库、工具或专业 Agent 协作。"
     )
 
 
-def _request_analysis_result(
-    graph: CompiledGraph,
-    root: Any,
-    confidence_policy: ConfidencePolicy,
-) -> str:
-    request = _latest_user_request(graph)
-    target = _compact_summary(request, 240) if request else "继续处理当前对话任务"
-    tool_count = len(getattr(root, "tool_names", []) or [])
-    collaboration_count = len(getattr(root, "agent_tools", []) or []) + len(getattr(root, "handoffs", []) or [])
-    capabilities: list[str] = []
-    if tool_count:
-        capabilities.append(f"{tool_count} 个可用工具")
-    if collaboration_count:
-        capabilities.append(f"{collaboration_count} 个协作智能体入口")
-    if confidence_policy.requires_guard:
-        capabilities.append("回答可信度校验")
-    capability_text = "、".join(capabilities) if capabilities else "当前智能体自身能力"
-    return f"已识别任务目标：{target}。本轮将由“{root.name}”处理，可使用{capability_text}。"
-
-
-def _analysis_decision_summary(event: Any, graph: CompiledGraph) -> str | None:
-    event_type = str(getattr(event, "type", "") or "")
-    if event_type == "run_item_stream_event":
-        name = str(getattr(event, "name", "") or "")
-        item = getattr(event, "item", None)
-        raw_item = getattr(item, "raw_item", None)
-        if name in {"tool_called", "tool_search_called"}:
-            sdk_name = getattr(raw_item, "name", None) or getattr(item, "name", None)
-            descriptor = _gateway_tool_identity(graph, str(sdk_name) if sdk_name else None)
-            tool_name = (descriptor or {}).get("name") or (descriptor or {}).get("code") or sdk_name or "可用工具"
-            return f"分析结果：本轮需要调用“{tool_name}”获取或校验必要信息，然后再形成回答。"
-        if name == "handoff_requested":
-            return "分析结果：本轮需要交由协作智能体继续处理，以使用更匹配的专业能力。"
-    if event_type == "agent_updated_stream_event":
-        return "分析结果：本轮需要由协作智能体继续处理，以使用更匹配的专业能力。"
-    if event_type == "raw_response_event":
-        data = getattr(event, "data", None)
-        if getattr(data, "type", None) == "response.output_text.delta":
-            return "分析结果：当前上下文足以形成回答，本轮将直接整理并输出结论。"
-    return None
+def _attempt_activity_code(graph: CompiledGraph, prefix: str) -> str:
+    run = graph.payload.get("run") if isinstance(graph.payload.get("run"), dict) else {}
+    context = run.get("context") if isinstance(run.get("context"), dict) else {}
+    attempt = context.get("executionAttempt", 1)
+    normalized = "".join(
+        character if character.isalnum() or character in {"-", "_"} else "-"
+        for character in str(attempt).strip()
+    ).strip("-")
+    return f"{prefix}:{(normalized or '1')[:48]}"
 
 
 def _latest_user_request(graph: CompiledGraph) -> str | None:
@@ -271,6 +239,17 @@ def extract_usage(result: Any) -> dict[str, int]:
         total["outputTokens"] += usage["outputTokens"]
         total["totalTokens"] += usage["totalTokens"]
     return total if found else {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
+
+
+def _merge_usage(*values: dict[str, int]) -> dict[str, int]:
+    merged = {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
+    for value in values:
+        for key in merged:
+            try:
+                merged[key] += int((value or {}).get(key) or 0)
+            except (TypeError, ValueError):
+                continue
+    return merged
 
 
 def _usage_value(value: Any) -> dict[str, int] | None:

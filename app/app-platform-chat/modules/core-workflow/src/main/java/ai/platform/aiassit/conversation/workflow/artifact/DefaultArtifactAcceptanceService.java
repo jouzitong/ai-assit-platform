@@ -52,6 +52,10 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
                         true, true, false, "FAILED", "Required artifact is missing: " + code));
                 continue;
             }
+            if (requireAllRequiredArtifacts && required) {
+                checks.add(result("required-" + code, code, "REQUIRED", "INFO",
+                        true, true, true, "PASSED", "Required artifact is present: " + code));
+            }
             if (artifact != null) {
                 Map<String, Object> schema = map(contract.get("inlineSchema"));
                 if (schema.isEmpty()) {

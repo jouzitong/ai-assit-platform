@@ -100,6 +100,55 @@ class AgentConversationHistoryRecorderTest {
         assertThat(updateCount).hasValue(1);
     }
 
+    @Test
+    void partialAndInputRequiredStatusesCloseActivityTiming() {
+        assertTerminalStatusClosesTiming("PARTIAL");
+        assertTerminalStatusClosesTiming("INPUT_REQUIRED");
+    }
+
+    private void assertTerminalStatusClosesTiming(String terminalStatus) {
+        List<ConversationActivityDTO> records = new ArrayList<>();
+        ConversationActivityService activityService = proxy(ConversationActivityService.class,
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "queryAll" -> List.copyOf(records);
+                    case "add" -> {
+                        ConversationActivityDTO record = (ConversationActivityDTO) args[0];
+                        record.setId(202L);
+                        records.add(record);
+                        yield record;
+                    }
+                    case "update" -> {
+                        ConversationActivityDTO record = (ConversationActivityDTO) args[1];
+                        records.set(0, record);
+                        yield record;
+                    }
+                    default -> null;
+                });
+        AgentConversationHistoryRecorder recorder = new AgentConversationHistoryRecorder(
+                proxy(ConversationMessageService.class, (proxy, method, args) -> null),
+                proxy(ConversationArtifactService.class, (proxy, method, args) -> null),
+                activityService,
+                new ObjectMapper()
+        );
+        Instant startedAt = Instant.parse("2026-07-21T09:00:00Z");
+        Instant finishedAt = Instant.parse("2026-07-21T09:00:03Z");
+
+        recorder.saveActivity(context(), "AI_AGENT", "STARTED", "执行开始", "RUNNING", Map.of(
+                "activityCode", "execution-result",
+                "timestamp", startedAt
+        )).orElseThrow();
+        ConversationActivityDTO completed = recorder.saveActivity(
+                context(), "AI_AGENT", "COMPLETED", "执行完成", terminalStatus, Map.of(
+                        "activityCode", "execution-result",
+                        "timestamp", finishedAt
+                )
+        ).orElseThrow();
+
+        assertThat(completed.getStatus()).isEqualTo(terminalStatus);
+        assertThat(completed.getFinishedAt()).isEqualTo(finishedAt);
+        assertThat(completed.getDurationMs()).isEqualTo(3_000L);
+    }
+
     private ConversationRuntimeContext context() {
         ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode("session-1");

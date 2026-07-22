@@ -297,7 +297,7 @@ public class AgentConversationHistoryRecorder {
         }
         return switch (status.trim().toUpperCase(Locale.ROOT)) {
             case "SUCCESS", "SUCCEEDED", "COMPLETE", "COMPLETED", "DONE", "FAILED", "ERROR",
-                    "CANCELLED", "CANCELED" -> true;
+                    "PARTIAL", "INPUT_REQUIRED", "CANCELLED", "CANCELED" -> true;
             default -> false;
         };
     }

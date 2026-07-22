@@ -6,6 +6,20 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
+function parsedRecord(value: unknown): Record<string, unknown> {
+  if (typeof value !== 'string' || !value.trim()) return asRecord(value)
+  try {
+    return asRecord(JSON.parse(value))
+  } catch {
+    return {}
+  }
+}
+
+function stringValues(value: unknown) {
+  if (!Array.isArray(value)) return []
+  return value.flatMap(item => typeof item === 'string' && item.trim() ? [item.trim()] : [])
+}
+
 function text(...values: unknown[]) {
   for (const value of values) {
     if (typeof value === 'string' && value.trim()) {
@@ -89,6 +103,12 @@ const ACTIVITY_COPY_BY_EVENT: Record<string, ActivityCopy> = {
   'tool.failed': { title: '工具调用失败', detail: '工具执行失败。' },
   'handoff.requested': { title: '正在协作交接', detail: '正在将任务交接给协作智能体。' },
   'handoff.completed': { title: '协作交接完成', detail: '任务已完成协作交接。' },
+  'check.started': { title: '开始验收检查', detail: '正在检查本轮产物是否满足交付要求。' },
+  'check.completed': { title: '验收检查完成', detail: '本轮产物检查已完成。' },
+  'artifact.repair.requested': { title: '开始自动补救', detail: '正在根据未通过的检查修复产物。' },
+  'artifact.repair.completed': { title: '自动补救完成', detail: '产物修复已完成，等待重新检查。' },
+  'artifact.repair.failed': { title: '自动补救失败', detail: '产物修复失败，本次自动补救已停止。' },
+  'execution.result.completed': { title: '执行结果', detail: '本轮执行、检查和补救结果已汇总。' },
 }
 
 const LEGACY_ACTIVITY_COPY_BY_MESSAGE: Record<string, ActivityCopy> = {
@@ -116,6 +136,8 @@ function activityCopy(eventName: string, source: Record<string, unknown>) {
 
 function activityKind(eventName: string, activity: Record<string, unknown>): ChatRunActivityKind | undefined {
   const normalizedType = text(activity.activityType)?.toUpperCase() || ''
+  if (eventName.startsWith('artifact.repair.') || normalizedType.includes('REPAIR')) return 'repair'
+  if (eventName.startsWith('execution.result.') || normalizedType.includes('EXECUTION_RESULT')) return 'execution'
   if (eventName.startsWith('handoff.') || normalizedType.includes('HANDOFF')) return 'handoff'
   if (eventName.startsWith('agent.') || normalizedType.includes('AGENT')) return 'agent'
   if (eventName.startsWith('tool.') || normalizedType.includes('TOOL')) return 'tool'
@@ -141,6 +163,10 @@ function activityTitle(kind: ChatRunActivityKind, eventName: string, source: Rec
     skill: '已加载技能',
     artifact: '产物已更新',
     check: eventName.endsWith('completed') ? '产物检查完成' : '正在检查产物',
+    repair: eventName.endsWith('completed')
+      ? '产物修复完成'
+      : eventName.endsWith('failed') ? '产物修复失败' : '正在修复产物',
+    execution: '执行结果',
     thinking: '智能体正在分析',
   }
   return labels[kind]
@@ -151,6 +177,8 @@ function normalizedStatus(eventName: string, value: unknown) {
   if (status === 'complete' || status === 'completed' || status === 'done' || status === 'success' || status === 'succeeded') return 'success'
   if (status === 'error' || status === 'failed') return 'failed'
   if (status === 'cancelled' || status === 'canceled') return 'cancelled'
+  if (status === 'partial') return 'partial'
+  if (status === 'input_required' || status === 'waiting_input') return 'input_required'
   if (status === 'running' || status === 'started' || status === 'pending') return 'running'
   if (eventName.endsWith('completed') || eventName.endsWith('loaded')) return 'success'
   if (eventName.endsWith('failed')) return 'failed'
@@ -166,7 +194,12 @@ export function activityFromTransportEvent(
   const payload = asRecord(payloadValue)
   const nestedActivity = asRecord(payload.activity)
   const thinking = asRecord(payload.thinking)
-  const persistedDetail = asRecord(nestedActivity.detail)
+  const persistedDetail = {
+    ...parsedRecord(payload.detailJson),
+    ...parsedRecord(payload.detail),
+    ...parsedRecord(nestedActivity.detailJson),
+    ...parsedRecord(nestedActivity.detail),
+  }
   const hasActivityIdentity = Boolean(text(
     payload.activityCode,
     payload.callId,
@@ -183,14 +216,34 @@ export function activityFromTransportEvent(
   ) {
     return undefined
   }
+  const persistedExt = {
+    ...parsedRecord(payload.ext),
+    ...parsedRecord(persistedDetail.ext),
+    ...parsedRecord(nestedActivity.ext),
+  }
   const source = {
     ...payload,
     ...thinking,
     ...persistedDetail,
+    ...persistedExt,
     ...nestedActivity,
   }
-  const kind = activityKind(eventName, source)
+  const effectiveEventName = text(source.platformEventType) || eventName
+  const kind = activityKind(effectiveEventName.toLowerCase(), source)
   if (!kind) return undefined
+
+  const analysis = {
+    ...parsedRecord(persistedDetail.analysis),
+    ...parsedRecord(persistedExt.analysis),
+    ...parsedRecord(payload.analysis),
+    ...parsedRecord(nestedActivity.analysis),
+    ...parsedRecord(source.analysis),
+  }
+  const confidenceDetail = {
+    ...parsedRecord(persistedDetail.confidence),
+    ...parsedRecord(source.confidence),
+    ...parsedRecord(analysis.confidence),
+  }
 
   const agentCode = text(source.agentCode)
   const progressType = text(source.progressType)
@@ -212,7 +265,7 @@ export function activityFromTransportEvent(
     agentCode && `agent:${agentCode}`,
     `${eventName}:${timestamp || Date.now()}`,
   ) as string
-  const localized = activityCopy(eventName, source)
+  const localized = activityCopy(effectiveEventName, source)
   const inputSummary = safeDetail(text(source.inputSummary))
   const outputSummary = safeDetail(text(source.outputSummary))
   const detail = safeDetail(text(
@@ -224,15 +277,32 @@ export function activityFromTransportEvent(
     source.message,
     localized?.detail,
   ))
-  const status = normalizedStatus(eventName, source.status)
+  const status = normalizedStatus(effectiveEventName, source.status)
   const startedAt = text(source.startedAt) || (status === 'running' ? timestamp : undefined)
   const finishedAt = text(source.finishedAt)
-    || (['success', 'failed', 'cancelled'].includes(status) ? timestamp : undefined)
+    || (['success', 'partial', 'input_required', 'failed', 'cancelled'].includes(status) ? timestamp : undefined)
+  const confidence = numberValue(source.answerConfidence)
+    ?? numberValue(source.confidence)
+    ?? numberValue(confidenceDetail.overall)
+  const explicitConfidenceBasis = stringValues(source.confidenceBasis)
+  const confidenceBasis = explicitConfidenceBasis.length
+    ? explicitConfidenceBasis
+    : stringValues(confidenceDetail.basis)
+  const executionReadinessDetail = parsedRecord(analysis.executionReadiness)
+  const executionReadiness = numberValue(source.executionReadiness)
+    ?? numberValue(executionReadinessDetail.score)
+  const metadata = {
+    ...source,
+    transportEventType: eventName,
+    platformEventType: effectiveEventName,
+    ...(Object.keys(analysis).length ? { analysis } : {}),
+    ...(Object.keys(confidenceDetail).length ? { confidenceDetail } : {}),
+  }
 
   return {
     id: identity,
     kind,
-    title: activityTitle(kind, eventName, source),
+    title: activityTitle(kind, effectiveEventName, source),
     detail,
     inputSummary,
     outputSummary,
@@ -243,9 +313,12 @@ export function activityFromTransportEvent(
     startedAt,
     finishedAt,
     durationMs: numberValue(source.durationMs),
-    confidence: numberValue(source.confidence),
+    confidence,
     confidenceThreshold: numberValue(source.threshold),
-    metadata: source,
+    confidenceBasis,
+    executionReadiness,
+    analysis: Object.keys(analysis).length ? analysis : undefined,
+    metadata,
   }
 }
 
@@ -354,7 +427,7 @@ export function upsertArtifact(items: ChatArtifact[], next: ChatArtifact) {
 export function normalizeHistoricalArtifacts(value: unknown): ChatArtifact[] {
   if (!Array.isArray(value)) return []
   return value.flatMap((item) => {
-    const source = asRecord(item)
+    const source = parsedRecord(item)
     const artifact = normalizeArtifact(source)
     return artifact && isDisplayableArtifact(artifact)
       ? [{ ...artifact, extJson: text(source.extJson) }]
@@ -365,7 +438,7 @@ export function normalizeHistoricalArtifacts(value: unknown): ChatArtifact[] {
 export function normalizeHistoricalActivities(value: unknown): ChatRunActivity[] {
   if (!Array.isArray(value)) return []
   const activities = value.flatMap((item, index) => {
-    const source = asRecord(item)
+    const source = parsedRecord(item)
     const activity = activityFromTransportEvent(
       'thinking.updated',
       { progressType: 'ACTIVITY', action: 'activity.updated', activity: source },
