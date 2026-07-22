@@ -243,6 +243,36 @@ class RequestAnalysisContractTest(unittest.TestCase):
             _extract_usage(result),
         )
 
+    def test_conclusion_summary_preserves_markdown_line_breaks(self) -> None:
+        markdown = (
+            "`ods_trade_account_user_address` 表字段如下：\r\n"
+            "| 字段编码 | 字段名称 | 类型 |\r\n"
+            "|---|---|---|\r\n"
+            "| user_id | 用户 ID | bigint |"
+        )
+
+        summary = runner._conclusion_summary(markdown)
+        normalized = markdown.replace("\r\n", "\n").strip()
+
+        self.assertNotIn("\r", summary)
+        self.assertIn("\n| 字段编码 | 字段名称 | 类型 |\n|---|---|---|", summary)
+        self.assertEqual(f"结论摘要：{normalized}", summary)
+
+    def test_compact_summary_respects_limit_when_truncating_markdown(self) -> None:
+        markdown = "第一行\n第二行\n第三行"
+        limit = 8
+
+        summary = runner._compact_summary(markdown, limit)
+
+        normalized = markdown.strip()
+        self.assertEqual(limit, len(summary))
+        self.assertTrue(summary.endswith("…"))
+        self.assertEqual(normalized[: limit - 1], summary[:-1])
+
+    def test_compact_summary_handles_non_positive_limit(self) -> None:
+        self.assertEqual("", runner._compact_summary("some content", 0))
+        self.assertEqual("", runner._compact_summary("some content", -1))
+
 
 class RequestAnalysisFallbackTest(unittest.IsolatedAsyncioTestCase):
     async def test_analysis_error_returns_degraded_fallback_and_safe_remediation(self) -> None:
@@ -363,6 +393,85 @@ class RunnerRequestAnalysisIntegrationTest(unittest.IsolatedAsyncioTestCase):
             },
             result["providerMeta"]["requestAnalysis"],
         )
+
+    async def test_main_knowledge_base_tool_result_is_initial_guard_evidence(self) -> None:
+        runtime_graph = graph()
+        analysis = _validate_analysis(
+            draft(),
+            runtime_graph,
+            "分析订单异常并给出可验证结论",
+        )
+        kb_result = {
+            "success": True,
+            "kbCode": "policy-kb",
+            "query": "订单异常口径",
+            "items": [
+                {
+                    "documentId": "policy-1",
+                    "content": "订单状态异常需要核对状态流转和统计时间范围。",
+                    "score": 0.93,
+                }
+            ],
+        }
+
+        class MainResult:
+            final_output = "基于制度知识库形成的原始回答"
+            last_agent = None
+
+            async def stream_events(self):
+                yield SimpleNamespace(
+                    type="run_item_stream_event",
+                    name="tool_called",
+                    item=SimpleNamespace(
+                        raw_item=SimpleNamespace(
+                            name="knowledge_base_search_tool",
+                            call_id="call-kb-1",
+                            arguments='{"kb_code":"policy-kb","query":"订单异常口径"}',
+                        )
+                    ),
+                )
+                yield SimpleNamespace(
+                    type="run_item_stream_event",
+                    name="tool_output",
+                    item=SimpleNamespace(
+                        raw_item=SimpleNamespace(
+                            type="function_call_output",
+                            call_id="call-kb-1",
+                        ),
+                        output=kb_result,
+                    ),
+                )
+
+        class FakeRunner:
+            @staticmethod
+            def run_streamed(*args: object, **kwargs: object) -> MainResult:
+                return MainResult()
+
+        sdk_graph = SimpleNamespace(root=object(), compiled_for=lambda value: None)
+        guarded = SimpleNamespace(
+            text="守卫后的回答",
+            audit_dict=lambda: {"enabled": True, "scoreStatus": "SCORED"},
+        )
+        guard = AsyncMock(return_value=guarded)
+
+        with (
+            patch.dict(sys.modules, {"agents": SimpleNamespace(Runner=FakeRunner)}),
+            patch.object(runner, "build_sdk_graph", return_value=sdk_graph),
+            patch.object(runner, "analyze_request", new=AsyncMock(return_value=analysis)),
+            patch.object(runner, "guard_output", new=guard),
+        ):
+            await runner.run_graph(
+                runtime_graph,
+                EventEmitter(runtime_graph.payload, lambda frame: None),
+            )
+
+        guard.assert_awaited_once()
+        initial_evidence = guard.await_args.kwargs["initial_evidence"]
+        self.assertEqual("policy-kb", initial_evidence["kbCode"])
+        self.assertEqual(["policy-kb"], initial_evidence["kbCodes"])
+        self.assertEqual("订单异常口径", initial_evidence["query"])
+        self.assertEqual("policy-1", initial_evidence["items"][0]["documentId"])
+        self.assertIn("状态流转", initial_evidence["items"][0]["content"])
 
 
 if __name__ == "__main__":

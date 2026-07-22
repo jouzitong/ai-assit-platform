@@ -4,7 +4,7 @@
 >
 > 适用接口：`/api/v1/chat/**` 兼容接口、`/api/chat/**` 的 `chat-event.v2` 接口
 >
-> 最后核对：2026-07-21
+> 最后核对：2026-07-22
 
 ## 1. 接口定位
 
@@ -145,8 +145,10 @@ sequenceDiagram
 8. 需要补充输入时发布 `clarification`，不发布成功 `complete`。
 9. 异常会把轮次标记为失败、保存失败消息并发布 `error`；Run Manager 随后结束订阅。
 
-当前默认 Confidence Policy 开启了评分守卫，Python Root Agent 和被委派 Agent 都会设置 `emit_output_deltas=false`
-，避免未经守卫校验的草稿直接展示。因此默认配置下 SSE 仍持续输出 Run、Tool、Skill、Thinking、Confidence 等活动事件，但回答正文通常在守卫完成后通过最终
+当前默认 Confidence Policy 开启了证据优先守卫，Python Root Agent 和被委派 Agent 都会设置
+`emit_output_deltas=false`，避免未经守卫校验的草稿直接展示。守卫先复用主 Agent 已取得的授权知识库证据，再按需补检和重新整理回答；证据充分时才执行最终评分。证据不足不会伪造 `0` 分，仍可交付已经完成的回答，但相关事件和 `providerMeta.confidence` 对象都省略数值字段 `confidence`。
+
+因此默认配置下 SSE 仍持续输出 Run、Tool、Skill、Thinking、Confidence 等活动事件，但回答正文通常在守卫完成后通过最终
 `answer` 快照一次性到达。`answer_delta` 协议和前端追加逻辑仍然有效，适用于关闭守卫的运行策略、其他 Runtime 或显式产生增量的实现。
 
 ## 4. SSE 通信协议
@@ -252,11 +254,75 @@ data: {"protocolVersion":"1.0","runId":"run_xxx","eventId":"4",...}
 | Skill            | `skill.loaded`                                                                       | 转成 `kind=skill`；展示已按需读取的 Skill 和资源路径。                                          |
 | Artifact         | 持久化后的 `artifact.created`、`artifact.repair.requested`；适配器还支持 `artifacts.build`       | `artifact.created` 携带完整可展示记录并实时更新产物列表；Provider 的不完整发现事件不对浏览器暴露。`artifacts.build` 保留兼容。 |
 | Acceptance Check | `check.started`、`check.completed`                                                    | 转成 `kind=check`，显示校验状态和摘要。                                                     |
-| Thinking         | `thinking.analysis.started`、`thinking.conclusion.completed`                          | 后端保留审计事件；当前前端只有事件含 Activity 结构时才显示，普通 Thinking 摘要不进入时间线。                       |
-| Confidence       | `confidence.assessment.completed`、`confidence.retrieval.*`、`confidence.reanalysis.*` | 转成思考活动；展示中文说明、活动时间和评分阈值，并将 `0..1` 的 `confidence` 转成百分比可信度。                    |
+| Thinking         | `thinking.analysis.started/completed`、`thinking.conclusion.completed`                | 后端保留结构化请求分析和结论摘要；事件含 Activity 结构时进入前端思考时间线。                                    |
+| Confidence       | `confidence.evidence_check.*`、`confidence.retrieval.*`、`confidence.reanalysis.*`、`confidence.assessment.started/completed/skipped` | 转成思考活动；只有最终 `assessment.completed` 中真实存在数值 `confidence` 时才展示百分比，`assessment.skipped` 保持未评分。 |
 
 Python Worker 的 `round.failed`/`round.cancelled` 也可能先作为通用 Agent 事件透传，随后会话层再发布规范 `error`/
 `run.cancelled` 终态。客户端应以结构化终态 Payload 和最终 Run 状态为准，并按 `eventId` 去重。
+
+### 5.3 Confidence 证据检查、评分与跨端透传
+
+Confidence 事件采用“先确认评分条件、后做一次最终评分”的时序：
+
+1. `confidence.evidence_check.started/completed` 检查主 Agent 已取得的知识库证据是否可复用、是否充分。该阶段只输出 `evidenceStatus`、`reusedEvidence`、`evidenceHitCount` 等字段，不输出分数。
+2. 证据不足时，按策略发布 `confidence.retrieval.*`，并可发布一次 `confidence.reanalysis.*` 来基于累计证据重新整理回答。这两个阶段也不评分。
+3. 证据充分时发布 `confidence.assessment.started`，最终成功才发布 `confidence.assessment.completed`，其中 `scoreStatus=SCORED` 且可包含 `confidence` 和三个评分维度。
+4. 非事实型任务、证据不足或最终评分维度不完整时发布 `confidence.assessment.skipped`。`scoreStatus` 为 `NOT_APPLICABLE` 或 `INSUFFICIENT_EVIDENCE`，Payload 不得包含 `confidence`。
+
+常见事件序列：
+
+```text
+# 复用主 Agent 的充分证据
+confidence.evidence_check.started
+confidence.evidence_check.completed
+confidence.assessment.started
+confidence.assessment.completed
+
+# 补检后仍不具备评分条件
+confidence.evidence_check.started
+confidence.evidence_check.completed
+confidence.retrieval.started
+confidence.retrieval.completed
+confidence.assessment.skipped
+```
+
+`chat-event.v2` 的未评分事件示例（省略与本语义无关的 Trace、Agent 和时间字段）：
+
+```json
+{
+  "eventId": "18",
+  "eventType": "confidence.assessment.skipped",
+  "schemaVersion": "chat-event.v2",
+  "runId": "run_xxx",
+  "sessionCode": "session_xxx",
+  "roundCode": "round_xxx",
+  "payload": {
+    "source": "AI_AGENT",
+    "phase": "RUNNING",
+    "status": "success",
+    "message": "最终可信度评估",
+    "activityCode": "confidence-assessment:enterprise-work-assistant",
+    "activityType": "CONFIDENCE_ASSESSMENT",
+    "confidenceKind": "GROUNDED",
+    "scoreStatus": "INSUFFICIENT_EVIDENCE",
+    "evidenceHitCount": 0,
+    "outputSummary": "最终可信度暂不评分：当前没有足以支持回答事实主张的有效知识证据。"
+  }
+}
+```
+
+这里没有 `confidence` 是协议语义，不是字段丢失。前端只有在 Payload 中读取到 `0..1` 的数值
+`confidence` 时才换算成百分比；`assessment.skipped` 只展示未评分原因。
+
+新增事件不需要 Java 专用适配，现有桥接链路是开放扩展结构：
+
+- `AiAgentProvider.toAgentRunEvent` 保留 Python `eventType`，并把任意 `ext` 字段复制到 `AgentRunEvent.ext`。
+- `DefaultConversationExecutionServiceImpl.handleAgentEvent` 对回答 Delta 之外的事件按原名称发布，同时把同一份 `ext` 交给 `AgentConversationHistoryRecorder.saveActivity`。
+- `AgentConversationHistoryRecorder` 按 `activityCode` 合并 started/completed/skipped 生命周期，并把扩展字段原样合并到 `detailJson`。
+- `ChatTransportProtocolAdapter.genericPayload` 对未特殊映射的事件保留原 `eventType`，并把 `ext` 展开到 `chat-event.v2.payload`。
+
+因此 `confidence.evidence_check.*` 和 `confidence.assessment.skipped` 可以直接透传、持久化并由前端消费；Java 不需要增加事件枚举、字段 DTO 或白名单。Java 最终权威事件中的
+`execution.result.completed.ext.answerConfidence` 只会复制已经存在的最终数值分数；未评分时该字段同样省略。
 
 ## 6. 前端流消费与恢复
 
@@ -315,11 +381,11 @@ flowchart TD
 1. 后端返回 `run.accepted`，前端保留临时 Assistant 消息。
 2. `run.started` 后进入思考态。
 3. `progress(CONVERSATION/STARTED)` 带回新 `sessionCode`，前端把 `/` 路由替换为 `/c/{sessionCode}`。
-4. Python 主 Agent 分析请求；默认 Confidence Guard 开启时，原始正文 Delta 被抑制，但 Thinking、Tool、Skill 和 Confidence
-   活动仍持续到达。
-5. 守卫关闭或其他 Runtime 产生 `assistant.message.delta` 时，会话层将其统一成 `answer_delta`，前端逐段追加。
-6. Python 完成并通过守卫后，会话层保存最终消息并发布 `answer`。
-7. `complete` 投影成 `thinking.completed` 和 `round.completed`，前端用最终完整内容覆盖临时内容。
+4. Python Root Agent 及被委派 Agent 分析并执行请求；若调用授权知识库，Emitter 的进程内 Collector 同时保留真实 Tool 证据供对应守卫复用。默认 Confidence Guard 开启时，原始正文 Delta 被抑制，但 Thinking、Tool、Skill 和 Confidence 活动仍持续到达。
+5. 守卫先发布 `confidence.evidence_check.*`；证据不足时补检并可重新整理回答，最终发布带 Grounded 分数的 `confidence.assessment.completed`，或发布不含分数的 `confidence.assessment.skipped`。
+6. 守卫关闭或其他 Runtime 产生 `assistant.message.delta` 时，会话层将其统一成 `answer_delta`，前端逐段追加。
+7. Python 完成守卫流程后，会话层保存最终消息并发布 `answer`；未评分不会阻止已完成回答交付。
+8. `complete` 投影成 `thinking.completed` 和 `round.completed`，前端用最终完整内容覆盖临时内容。
 
 这样即使某个 Delta 丢失，最终 `answer`/`round.completed` 快照仍能校正显示内容。
 

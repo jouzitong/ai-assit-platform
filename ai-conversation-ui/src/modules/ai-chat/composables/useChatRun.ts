@@ -71,16 +71,28 @@ type ActivityCopy = {
 
 const ACTIVITY_COPY_BY_EVENT: Record<string, ActivityCopy> = {
   'confidence.assessment.started': {
-    title: '评估回答可信度',
-    detail: '正在检查当前回答是否具备足够的事实依据。',
+    title: '最终可信度评估',
+    detail: '正在使用已确认的知识证据评估最终回答。',
   },
   'confidence.assessment.completed': {
-    title: '评估回答可信度',
-    detail: '已完成当前回答的可信度评分。',
+    title: '最终可信度评估',
+    detail: '已完成最终回答的可信度评估。',
+  },
+  'confidence.assessment.skipped': {
+    title: '最终可信度评估',
+    detail: '当前回答暂不具备可信度评分条件，已保留未评分状态。',
+  },
+  'confidence.evidence_check.started': {
+    title: '检查证据充分性',
+    detail: '正在确认现有知识证据是否足以支持最终可信度评估。',
+  },
+  'confidence.evidence_check.completed': {
+    title: '检查证据充分性',
+    detail: '已完成知识证据充分性检查。',
   },
   'confidence.retrieval.started': {
     title: '补充知识依据',
-    detail: '正在检索授权知识库，以补充低可信度回答的事实依据。',
+    detail: '正在检索授权知识库，以补充当前回答的事实依据。',
   },
   'confidence.retrieval.completed': {
     title: '补充知识依据',
@@ -91,12 +103,12 @@ const ACTIVITY_COPY_BY_EVENT: Record<string, ActivityCopy> = {
     detail: '当前没有可用的授权知识库。',
   },
   'confidence.reanalysis.started': {
-    title: '重新分析回答',
-    detail: '正在根据补充依据重新分析低可信度回答。',
+    title: '基于证据重新整理回答',
+    detail: '正在结合已获取的知识证据重新整理回答。',
   },
   'confidence.reanalysis.completed': {
-    title: '重新分析回答',
-    detail: '已完成回答修正和可信度复评。',
+    title: '基于证据重新整理回答',
+    detail: '已根据可用知识证据重新整理回答。',
   },
   'tool.started': { title: '开始调用工具', detail: '正在执行本轮所需工具。' },
   'tool.completed': { title: '工具调用完成', detail: '工具已执行完成。' },
@@ -150,9 +162,10 @@ function activityKind(eventName: string, activity: Record<string, unknown>): Cha
 }
 
 function activityTitle(kind: ChatRunActivityKind, eventName: string, source: Record<string, unknown>) {
+  const localized = activityCopy(eventName, source)
+  if (eventName.toLowerCase().startsWith('confidence.') && localized) return localized.title
   const stableName = text(source.activityName, source.title)
   if (stableName) return stableName
-  const localized = activityCopy(eventName, source)
   if (localized) return localized.title
   const explicit = text(source.statusText, source.message)
   if (explicit) return explicit

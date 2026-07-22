@@ -31,7 +31,11 @@ class AgentDispatcher:
 
         async def delegate(task: str) -> str:
             # Import lazily to avoid coupling Agent factory construction to runtime package initialization.
-            from ..runtime.confidence_guard import ConfidencePolicy, guard_output
+            from ..runtime.confidence_guard import (
+                ConfidencePolicy,
+                KnowledgeEvidenceCollector,
+                guard_output,
+            )
 
             child = self.build_agent(link.target_key)
             confidence_policy = ConfidencePolicy.from_payload(self.graph.payload)
@@ -45,6 +49,7 @@ class AgentDispatcher:
             from agents import Runner
 
             child_result = Runner.run_streamed(child, task, max_turns=self.graph.max_turns)
+            evidence_collector = KnowledgeEvidenceCollector()
             async for event in child_result.stream_events():
                 emit_sdk_event(
                     event,
@@ -52,6 +57,7 @@ class AgentDispatcher:
                     self.compiled_for,
                     self._gateway_tool_identity,
                     emit_output_deltas=not confidence_policy.requires_guard,
+                    mapped_event_observer=evidence_collector.observe,
                 )
             self.emitter.event(
                 "agent.delegation.completed",
@@ -68,6 +74,7 @@ class AgentDispatcher:
                 original_task=task,
                 initial_output=child_result.final_output,
                 policy=confidence_policy,
+                initial_evidence=evidence_collector.evidence,
             )
             return guarded_output.text
 

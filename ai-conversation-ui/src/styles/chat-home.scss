@@ -222,25 +222,33 @@
 
 .chat-home-sidebar__section--conversations {
   gap: 0;
+  min-width: 0;
 }
 
 .chat-home-thread {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   position: relative;
-  justify-content: flex-start;
   gap: 6px;
+  min-width: 0;
+  max-width: 100%;
   min-height: 28px;
   padding: 5px 8px;
+  overflow: hidden;
 }
 
 .chat-home-thread-wrap {
   position: relative;
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .chat-home-thread__leading {
   display: flex;
   align-items: center;
   gap: 8px;
-  width: 100%;
+  width: auto;
   min-width: 0;
 }
 
@@ -258,6 +266,7 @@
 
 .chat-home-thread strong {
   display: block;
+  width: 100%;
   overflow: hidden;
   color: var(--chat-text-primary);
   font-size: 12px;
@@ -267,12 +276,12 @@
 }
 
 .chat-home-thread__meta {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
+  position: static;
+  align-self: center;
+  min-width: 0;
   color: var(--chat-text-subtle);
   font-size: 10px;
+  white-space: nowrap;
 }
 
 .chat-home-thread.is-current .chat-home-thread__icon {
@@ -287,13 +296,16 @@
   align-items: center;
   justify-content: center;
   z-index: 2;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
   transform: translateY(-50%);
   border: none;
   border-radius: 6px;
   background: var(--chat-hover-bg);
   color: var(--chat-text-muted);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   cursor: pointer;
   opacity: 0;
   pointer-events: none;
@@ -301,7 +313,7 @@
 }
 
 .chat-home-thread-wrap:hover .chat-home-thread__more,
-.chat-home-thread-wrap:focus-within .chat-home-thread__more {
+.chat-home-thread__more:focus-visible {
   opacity: 1;
   pointer-events: auto;
 }

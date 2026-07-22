@@ -68,6 +68,7 @@ def emit_sdk_event(
     tool_lookup: Callable[[str | None], dict[str, Any] | None] | None = None,
     hidden_agent_codes: set[str] | None = None,
     emit_output_deltas: bool = True,
+    mapped_event_observer: Callable[[str, dict[str, Any], Any], None] | None = None,
 ) -> None:
     event_type = str(getattr(event, "type", "") or "")
     if event_type == "raw_response_event":
@@ -110,6 +111,13 @@ def emit_sdk_event(
         agent=agent_lookup(sdk_agent),
         ext=ext,
     )
+    if mapped_event_observer is not None:
+        try:
+            mapped_event_observer(platform_type, ext, item)
+        except Exception:
+            # Evidence collection is an optional guardrail input and must not
+            # interrupt the Agent event stream.
+            pass
 
 
 def map_run_item_event(

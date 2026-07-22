@@ -2,7 +2,7 @@ import unittest
 from pathlib import Path
 from types import SimpleNamespace
 
-from agent_provider.events import EventEmitter, map_run_item_event
+from agent_provider.events import EventEmitter, emit_sdk_event, map_run_item_event
 from agent_provider.runtime import extract_artifacts, extract_usage
 
 
@@ -70,6 +70,36 @@ class EventsAndUsageTest(unittest.TestCase):
         self.assertEqual("call-3", completed[3]["activityCode"])
         self.assertEqual('{"value":1}', started[3]["inputSummary"])
         self.assertEqual('{"success": true, "count": 3}', completed[3]["outputSummary"])
+
+    def test_mapped_event_observer_receives_raw_tool_output_for_evidence_collection(self) -> None:
+        observed: list[tuple[str, dict[str, object], object]] = []
+        item = SimpleNamespace(
+            raw_item=SimpleNamespace(
+                name="knowledge_base_search_tool",
+                call_id="call-kb",
+            ),
+            output={
+                "success": True,
+                "kbCode": "db-schema",
+                "items": [{"documentId": "doc-1", "content": "user 表字段：id bigint"}],
+            },
+        )
+        frames: list[dict[str, object]] = []
+        emitter = EventEmitter({"run": {"runId": "run-1"}}, frames.append)
+
+        emit_sdk_event(
+            SimpleNamespace(type="run_item_stream_event", name="tool_output", item=item),
+            emitter,
+            lambda agent: None,
+            mapped_event_observer=lambda event_type, ext, raw_item: observed.append(
+                (event_type, ext, raw_item)
+            ),
+        )
+
+        self.assertEqual("tool.completed", observed[0][0])
+        self.assertEqual("call-kb", observed[0][1]["callId"])
+        self.assertIs(item, observed[0][2])
+        self.assertEqual("tool.completed", frames[0]["eventType"])
 
     def test_extracts_actual_usage_from_sdk_context(self) -> None:
         usage = SimpleNamespace(input_tokens=11, output_tokens=7, total_tokens=18)

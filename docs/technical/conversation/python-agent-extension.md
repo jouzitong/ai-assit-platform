@@ -4,7 +4,7 @@
 >
 > 运行时：OpenAI Agents Python SDK `0.18.2`、Python `>=3.11`
 >
-> 最后核对：2026-07-21
+> 最后核对：2026-07-22
 
 ## 1. 架构定位
 
@@ -79,18 +79,20 @@ Worker 的主要步骤：
 3. 编译器校验 Agent 数量、引用、Tool、Skill Hash、协作环和最大深度。
 4. `AgentFactory` 立即构建 Root Agent；Agent-as-Tool 的专业 Agent 在实际委派时延迟构建。
 5. `Runner.run_streamed` 执行并把 SDK 原生事件映射成平台事件。
-6. Confidence Guard 对最终回答做评估，必要时检索已授权知识库并重新分析。
+6. Confidence Guard 先检查证据是否充分；必要时复用主执行阶段的知识库证据，或补充检索并重新整理回答；只有证据满足条件时才进行最终可信度评分。
 7. Worker 输出最终 `result` Frame，JVM 完成 Artifact Acceptance、审计和持久化。
 
-当前 Java 默认下发 `enabled=true`、`scoring.enabled=true`、阈值 `0.9`、最多 3 次重分析的 Confidence Policy。该策略启用时，SDK 原始回答 Delta 不会对外发送；通过守卫后的文本只作为最终 `finalOutput` 返回。这意味着“流式 Agent”默认主要流式呈现执行活动，而不是未经校验的正文 Token。
+当前 Java 默认下发 `enabled=true`、`scoring.enabled=true`、阈值 `0.9`、最多 3 次证据补检的 Confidence Policy。补检后若已经取得有效证据，守卫最多执行一次基于证据的回答重新整理。该策略启用时，SDK 原始回答 Delta 不会对外发送；通过守卫后的文本只作为最终 `finalOutput` 返回。这意味着“流式 Agent”默认主要流式呈现执行活动，而不是未经校验的正文 Token。
 
-知识库检索后的复评必须同时接收候选回答和本次命中的证据正文、来源元数据、检索排序分值。复评分为
+主执行阶段（Root Agent 或被委派 Agent）调用 `knowledge_base_search_tool` 时，`EventEmitter` 在保持原有 stdout 事件不变的同时，把映射后的 Tool 事件交给当前执行范围内的 `KnowledgeEvidenceCollector`。Collector 通过 `callId` 关联 `tool.started` 与 `tool.completed`，只接收已授权知识库的真实 Tool 结果；因此守卫可以复用当前 Agent 主执行阶段已经取得的证据，避免为评分重复检索。若现有证据不足，再按 Policy 补充检索；证据检查和检索排序本身都不产生可信度分数。
+
+最终评估必须同时接收候选回答和累计证据的正文、来源元数据、检索排序分值。评分维度为
 `evidenceCoverage`（事实主张被证据覆盖的比例）、`evidenceConsistency`（回答与证据的一致性）和
 `answerCompleteness`（回答对请求范围的完整程度），最终可信度按 `45% + 45% + 10%` 加权。检索排序分值只用于
 相关性排序，不能直接当作事实可信度；知识库是否覆盖全部数据只影响完整性，不应降低已被明确证据支持的事实可信度。
-检索后没有有效证据、缺少任一评分维度或回答完整性低于 `0.5` 时按 `0` 分处理，不能回退使用模型自评分。
-修正前后的候选回答必须基于同一批累计证据比较；若修正没有提升可信度，守卫保留修正前回答并停止继续重试。
-知识库检索异常只让本次补充依据失败，不得中断已经完成的回答。
+没有有效证据、缺少任一评分维度或回答完整性低于 `0.5` 时，结果是“证据不足、暂不评分”，而不是 `0` 分：
+`scoreStatus=INSUFFICIENT_EVIDENCE`，并且不得包含 `confidence` 字段，也不能回退使用模型自评分。非事实型任务使用
+`scoreStatus=NOT_APPLICABLE`，同样不输出百分比。知识库检索异常只让本次补充依据失败，不得中断已经完成的回答。
 
 ### 2.2 输出
 
@@ -185,6 +187,45 @@ Python Runtime 在主 Agent 开始执行前发布一组请求分析事件：
 事件顶层 `status=SUCCESS` 只表示“分析活动正常结束并产生了可消费结果”。分析器失败时会产生安全降级摘要，顶层仍可为 `SUCCESS`，但 `ext.analysisStatus=DEGRADED`，并在 `analysis.degradedReason` 和 `validationWarnings` 中说明降级类型。这样预分析失败不会阻断主任务。
 
 分析器有独立的短超时，超时后立即降级并把大部分运行预算留给实际执行。所有 Agent、Tool、知识库和补救目标都必须再次通过本轮可达性与授权校验。`lowReadinessRemediation` 当前也是建议：只有后续真实出现对应 `tool.*`、`agent.*`、`handoff.*` 或知识库检索事件，才能认定补救动作已经发生。初始执行和 Artifact Repair 重跑分别使用 `run.context.executionAttempt=1,2,...`，该值进入 `activityCode` 后缀，防止不同尝试的分析活动互相覆盖。最终 Worker Result 的 `providerMeta.requestAnalysis` 还会保留 `status`、`durationMs` 和独立 Usage。
+
+### 2.4 Confidence Guard 的证据优先事件时序
+
+Confidence Guard 把“是否具备评分条件”和“最终评分”拆成两个阶段。`confidence.evidence_check.*` 只回答证据是否充分，不评估百分比；只有最终 `confidence.assessment.completed` 才能携带 `confidenceKind=GROUNDED` 的 `confidence`。
+
+典型时序如下：
+
+- 主 Agent 已取得充分知识库证据：`confidence.evidence_check.started` → `confidence.evidence_check.completed` → `confidence.assessment.started` → `confidence.assessment.completed`。
+- 证据需要补充：`confidence.evidence_check.*` → `confidence.retrieval.*` → 可选的 `confidence.reanalysis.*` → 最终 `confidence.assessment.completed` 或 `confidence.assessment.skipped`。
+- 非事实型任务或始终没有充分证据：`confidence.evidence_check.*` → `confidence.assessment.skipped`；不会为了显示百分比而制造 `0` 分。
+- 最终评估虽已开始，但返回的评分维度不完整：`confidence.assessment.started` → `confidence.assessment.skipped`；此时也不得发布 `confidence.assessment.completed`。
+
+| 事件 | 语义 | 是否允许携带 `confidence` |
+| --- | --- | --- |
+| `confidence.evidence_check.started` | 开始检查已有知识证据；`reusedEvidence` 表示是否复用主 Agent 的知识库结果。 | 否。 |
+| `confidence.evidence_check.completed` | 输出 `evidenceStatus=SUFFICIENT \| NEEDS_SUPPLEMENT \| NOT_APPLICABLE` 和证据命中数。 | 否。证据检查不是评分。 |
+| `confidence.retrieval.started/completed/skipped` | 补充已授权知识库证据，或说明没有可用知识库。 | 否。检索分值不是回答可信度。 |
+| `confidence.reanalysis.started/completed` | 基于累计证据重新整理候选回答。 | 否。重新整理不是复评。 |
+| `confidence.assessment.started` | 使用已经确认的证据开始最终评估。 | 否。 |
+| `confidence.assessment.skipped` | 最终评估不适用或证据不足；携带 `scoreStatus` 和说明。 | 否，字段必须省略。 |
+| `confidence.assessment.completed` | 最终有证据评分完成；携带 `scoreStatus=SCORED`、三项维度和阈值。 | **是，这是 Python Confidence 事件族唯一的 Grounded 百分比来源。** |
+
+证据不足的事件示例：
+
+```json
+{"type":"event","eventType":"confidence.evidence_check.completed","status":"SUCCESS","ext":{"activityCode":"confidence-evidence-check:enterprise-work-assistant","activityType":"EVIDENCE_SUFFICIENCY_CHECK","reusedEvidence":false,"evidenceHitCount":0,"evidenceStatus":"NEEDS_SUPPLEMENT","outputSummary":"当前尚无充分知识证据，需要先补充依据，暂不评分：当前没有足以支持回答事实主张的有效知识证据。"}}
+{"type":"event","eventType":"confidence.assessment.skipped","status":"SUCCESS","ext":{"activityCode":"confidence-assessment:enterprise-work-assistant","activityType":"CONFIDENCE_ASSESSMENT","confidenceKind":"GROUNDED","scoreStatus":"INSUFFICIENT_EVIDENCE","evidenceHitCount":0,"outputSummary":"最终可信度暂不评分：当前没有足以支持回答事实主张的有效知识证据。"}}
+```
+
+最终可评分事件示例：
+
+```json
+{"type":"event","eventType":"confidence.assessment.completed","status":"SUCCESS","ext":{"activityCode":"confidence-assessment:enterprise-work-assistant","activityType":"CONFIDENCE_ASSESSMENT","confidenceKind":"GROUNDED","scoreStatus":"SCORED","confidence":0.94,"threshold":0.9,"evidenceCoverage":0.9,"evidenceConsistency":1.0,"answerCompleteness":0.85,"evidenceHitCount":3,"outputSummary":"最终可信度评估完成：可信度 94%（证据覆盖 90%，证据一致性 100%，回答完整性 85%），达到 90% 的评分阈值。"}}
+```
+
+Confidence Guard 启用时，Worker Result 的 `providerMeta.confidence` 保留 `scoreStatus`、证据数和尝试次数，但只在
+`scoreStatus=SCORED` 时包含 `confidence`。Java Acceptance 完成后，可以把这个同一最终分数投影为
+`execution.result.completed.ext.answerConfidence`；这是最终结果聚合字段，不是一次新的评分。证据不足时
+`answerConfidence` 也必须省略，不能写成 `0`。
 
 ## 3. Agent 定义与扩展
 
@@ -469,7 +510,7 @@ Python `result.data.finalOutput`、`outputs` 和 `artifacts` 使用 Confidence G
 | `remainingIssues` | 尚未解决的问题，包含检查身份、阻断性、可重试性、状态和摘要。 |
 | `nextAction` | 结构化后续动作：`DELIVER_RESULT`、`REVIEW_REMAINING_ISSUES`、`REQUEST_USER_INPUT`、`STOP_AND_REPORT_FAILURE` 或 `NONE`。 |
 | `resultSummary` / `outputSummary` | 候选回答摘要和权威结果摘要，均为有界审计文本。 |
-| `answerConfidence` | 可选，Confidence Guard 对最终回答的可信度；不要与 `thinking.analysis` 的请求路由置信度混用。 |
+| `answerConfidence` | 可选，只在 Python 最终 `scoreStatus=SCORED` 时复制同一个 Grounded 分数；证据不足时省略，不能写成 `0`。不要与 `thinking.analysis` 的请求路由置信度混用。 |
 | `failureType` | 可选，执行失败类型；不包含原始敏感异常消息。 |
 
 状态解释：

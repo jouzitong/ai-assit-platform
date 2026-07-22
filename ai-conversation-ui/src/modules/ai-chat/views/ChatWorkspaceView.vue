@@ -221,16 +221,21 @@ const isPrimaryActionDisabled = computed(() => {
   }
   return !prompt.value.trim() || !selectedModel.value || isLoadingModels.value
 })
-const pinnedConversations = computed(() =>
-  [...conversationList.value]
-    .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)))
-    .map((conversation) => ({
-      ...conversation,
-      id: conversation.sessionCode,
-      title: conversation.sessionName || conversation.sessionCode,
-      meta: formatRelativeTime(conversation.updateTime) || (conversation.pinned ? '置顶' : conversation.sessionCode.slice(-6)),
-    })),
-)
+const sidebarConversationGroups = computed(() => {
+  const conversations = conversationList.value.map((conversation) => ({
+    ...conversation,
+    id: conversation.sessionCode,
+    title: conversation.sessionName || conversation.sessionCode,
+    meta: formatRelativeTime(conversation.updateTime) || conversation.sessionCode.slice(-6),
+  }))
+  const pinned = conversations.filter(conversation => Boolean(conversation.pinned))
+  const regular = conversations.filter(conversation => !conversation.pinned)
+
+  return [
+    ...(pinned.length > 0 ? [{ key: 'pinned', label: '置顶', conversations: pinned }] : []),
+    { key: 'regular', label: '对话', conversations: regular },
+  ]
+})
 
 function resizeTextarea(element: HTMLTextAreaElement | null) {
   if (!element) {
@@ -1373,49 +1378,50 @@ watch(route, () => {
       </div>
 
       <div v-if="sidebarExpanded" class="chat-home-sidebar__section chat-home-sidebar__section--conversations">
-        <div class="chat-home-sidebar__header"><span>分组</span></div>
-        <div class="chat-home-group-label">对话</div>
-        <div class="chat-home-group-label chat-home-group-label--muted">
-          {{ isLoadingList ? '加载中...' : `共 ${pinnedConversations.length} 个会话` }}
-        </div>
-
-        <div
-          v-for="conversation in pinnedConversations"
-          :key="conversation.id"
-          class="chat-home-thread-wrap"
-        >
-          <button
-            :class="['chat-home-thread', { 'is-current': activeConversation === conversation.id }]"
-            type="button"
-            :disabled="isStreaming"
-            @click="router.push(`/c/${conversation.id}`)"
-          >
-            <div class="chat-home-thread__leading">
-              <div class="chat-home-thread__copy">
-                <strong>{{ conversation.title }}</strong>
-              </div>
-            </div>
-            <span class="chat-home-thread__meta">{{ conversation.meta }}</span>
-          </button>
-          <button
-            class="chat-home-thread__more"
-            type="button"
-            aria-label="会话操作"
-            :disabled="isStreaming"
-            @click.stop="toggleConversationMenu(conversation.id)"
-          >
-            <el-icon><MoreFilled /></el-icon>
-          </button>
-          <div v-if="openConversationMenuCode === conversation.id" class="chat-home-thread__action-menu" @click.stop>
-            <button type="button" @click="handleConversationCommand('pin', conversation)">
-              {{ conversation.pinned ? '取消置顶' : '置顶' }}
-            </button>
-            <button type="button" @click="handleConversationCommand('rename', conversation)">重命名</button>
-            <button class="is-danger" type="button" @click="handleConversationCommand('delete', conversation)">删除</button>
+        <template v-for="group in sidebarConversationGroups" :key="group.key">
+          <div class="chat-home-group-label">{{ group.label }}</div>
+          <div v-if="group.key === 'regular'" class="chat-home-group-label chat-home-group-label--muted">
+            {{ isLoadingList ? '加载中...' : `共 ${group.conversations.length} 个会话` }}
           </div>
-        </div>
 
-        <div v-if="!isLoadingList && pinnedConversations.length === 0" class="chat-home-thread-empty">
+          <div
+            v-for="conversation in group.conversations"
+            :key="conversation.id"
+            class="chat-home-thread-wrap"
+          >
+            <button
+              :class="['chat-home-thread', { 'is-current': activeConversation === conversation.id }]"
+              type="button"
+              :disabled="isStreaming"
+              @click="router.push(`/c/${conversation.id}`)"
+            >
+              <div class="chat-home-thread__leading">
+                <div class="chat-home-thread__copy">
+                  <strong>{{ conversation.title }}</strong>
+                </div>
+              </div>
+              <span class="chat-home-thread__meta">{{ conversation.meta }}</span>
+            </button>
+            <button
+              class="chat-home-thread__more"
+              type="button"
+              aria-label="会话操作"
+              :disabled="isStreaming"
+              @click.stop="toggleConversationMenu(conversation.id)"
+            >
+              <el-icon><MoreFilled /></el-icon>
+            </button>
+            <div v-if="openConversationMenuCode === conversation.id" class="chat-home-thread__action-menu" @click.stop>
+              <button type="button" @click="handleConversationCommand('pin', conversation)">
+                {{ conversation.pinned ? '取消置顶' : '置顶' }}
+              </button>
+              <button type="button" @click="handleConversationCommand('rename', conversation)">重命名</button>
+              <button class="is-danger" type="button" @click="handleConversationCommand('delete', conversation)">删除</button>
+            </div>
+          </div>
+        </template>
+
+        <div v-if="!isLoadingList && conversationList.length === 0" class="chat-home-thread-empty">
           暂无会话
         </div>
       </div>

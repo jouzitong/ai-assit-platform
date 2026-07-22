@@ -11,7 +11,7 @@ from ..agents.factory import AgentFactory, SdkGraph
 from ..compiler import CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
 from ..protocol import build_application_input
-from .confidence_guard import ConfidencePolicy, guard_output
+from .confidence_guard import ConfidencePolicy, KnowledgeEvidenceCollector, guard_output
 from .request_analysis import analyze_request, safe_audit_text
 
 
@@ -60,6 +60,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         application_input,
         max_turns=graph.max_turns,
     )
+    evidence_collector = KnowledgeEvidenceCollector()
     async for event in result.stream_events():
         emit_sdk_event(
             event,
@@ -68,6 +69,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             lambda name: _gateway_tool_identity(graph, name),
             hidden_agent_codes={root.code},
             emit_output_deltas=not confidence_policy.requires_guard,
+            mapped_event_observer=evidence_collector.observe,
         )
 
     final_output = result.final_output
@@ -82,6 +84,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         original_task=_latest_user_request(graph) or "Continue.",
         initial_output=final_output,
         policy=confidence_policy,
+        initial_evidence=evidence_collector.evidence,
     )
     normalized_output = guarded_output.text
     _emit_execution_note(
@@ -211,8 +214,24 @@ def _conclusion_summary(final_output: str) -> str:
 
 
 def _compact_summary(value: str, limit: int) -> str:
-    normalized = " ".join(value.split())
-    return normalized if len(normalized) <= limit else f"{normalized[:limit - 1]}…"
+    """Normalize a summary without destroying Markdown block boundaries.
+
+    Activity summaries are rendered as Markdown by the client.  Collapsing all
+    whitespace (the previous implementation) turns tables, lists, and fenced
+    blocks into one line, so normalize only line endings and surrounding
+    whitespace.  Keep the character limit as a hard upper bound, including
+    the truncation marker.
+    """
+
+    if limit <= 0:
+        return ""
+
+    normalized = value.replace("\r\n", "\n").replace("\r", "\n").strip()
+    if len(normalized) <= limit:
+        return normalized
+    if limit == 1:
+        return "…"
+    return f"{normalized[:limit - 1]}…"
 
 
 def extract_usage(result: Any) -> dict[str, int]:

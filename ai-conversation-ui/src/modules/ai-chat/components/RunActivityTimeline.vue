@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ArrowRight, Close } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import CollapsibleMarkdown from './CollapsibleMarkdown.vue'
 import type { ChatRunActivity } from '../types'
 
 type ActivityFact = {
@@ -482,7 +483,11 @@ function confidenceLabel(activity: ChatRunActivity) {
             <strong>{{ view.activity.title }}</strong>
             <span class="run-activity-drawer__status">{{ statusLabel(displayedStatus(view.activity)) }}</span>
           </div>
-          <p v-if="view.detail" class="run-activity-drawer__detail">{{ view.detail }}</p>
+          <CollapsibleMarkdown
+            v-if="view.detail"
+            class="run-activity-drawer__detail"
+            :content="view.detail"
+          />
 
           <dl v-if="view.facts.length" class="run-activity-drawer__facts">
             <div
