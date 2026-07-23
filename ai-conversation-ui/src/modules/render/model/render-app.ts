@@ -34,6 +34,7 @@ export interface RenderModeHostProps {
   refreshable?: boolean
   lastRefreshedAt?: string
   responsivePreset?: string
+  compact?: boolean
 }
 
 const RENDER_APP_MODE_SET = new Set<string>(RENDER_APP_MODES)
@@ -236,10 +237,11 @@ function normalizeReportRoot(
   const reportChildren = content.components
     .map((component, index) => normalizeReportComponent(component, index))
     .filter((component): component is Record<string, unknown> => Boolean(component))
+  const layout = normalizeReportRootLayout(root.layout)
 
   return {
     ...root,
-    layout: normalizeReportRootLayout(root.layout),
+    layout,
     children: [...existingChildren, ...reportChildren],
   }
 }
@@ -327,6 +329,14 @@ function normalizeReportRootLayout(value: unknown) {
   const columns = toPositiveInteger(layout.columns)
   if (columns && !layout.gridTemplateColumns) {
     layout.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`
+  }
+
+  const rows = toPositiveInteger(layout.rows) || 12
+  if (!layout.gridTemplateRows) {
+    layout.gridTemplateRows = `repeat(${rows}, minmax(0, 1fr))`
+  }
+  if (layout.height === undefined && layout.minHeight === undefined) {
+    layout.height = '100%'
   }
 
   const rowHeight = toPositiveNumber(layout.rowHeight)

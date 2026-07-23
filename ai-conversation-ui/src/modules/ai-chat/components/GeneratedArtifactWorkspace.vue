@@ -214,6 +214,8 @@ function roundMultiplier(value: number) {
       <RenderModeHost
         v-if="usesHostViewport"
         :mode="renderMode"
+        responsive-preset="chatDashboard"
+        compact
         :title="renderMode === 'standard' ? '' : title"
         :description="renderDocument?.presentation?.description"
         :loading="loading"

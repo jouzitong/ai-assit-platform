@@ -19,6 +19,7 @@ const hostProps = computed(() => ({
   refreshable: props.refreshable,
   lastRefreshedAt: props.lastRefreshedAt,
   responsivePreset: props.responsivePreset,
+  compact: props.compact,
 }))
 </script>
 

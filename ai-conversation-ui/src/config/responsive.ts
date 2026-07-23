@@ -133,7 +133,7 @@ export const RESPONSIVE_VIEWPORT_GLOBAL_OPTIONS = defineResponsiveViewportOption
       config: {
         referenceSize: {
           width: 1200,
-          height: 720,
+          height: 900,
         },
       },
     },
@@ -142,6 +142,16 @@ export const RESPONSIVE_VIEWPORT_GLOBAL_OPTIONS = defineResponsiveViewportOption
       config: {
         minScale: 0.2,
         maxScale: 1.5,
+        fit: 'contain',
+        underflow: 'scroll',
+        align: 'center',
+      },
+    },
+    chatDashboard: {
+      extends: 'dashboard',
+      config: {
+        minScale: 0.2,
+        maxScale: 1.4,
         fit: 'contain',
         underflow: 'scroll',
         align: 'center',

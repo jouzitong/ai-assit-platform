@@ -114,6 +114,12 @@ const nodeStyle = computed<CSSProperties>(() => {
   return style
 })
 
+const isLayoutBounded = computed(() => {
+  const layout = props.node.layout || {}
+  return ['gridColumn', 'gridRow', 'width', 'height', 'minHeight']
+    .some((key) => layout[key] !== undefined)
+})
+
 const textValue = computed(() => String(
   rawNodeProps.value.value
     ?? rawNodeProps.value.text
@@ -257,7 +263,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 </script>
 
 <template>
-  <div class="render-json-runtime-node" :style="nodeStyle" :data-component="componentKey">
+  <div
+    class="render-json-runtime-node"
+    :class="{ 'render-json-runtime-node--bounded': isLayoutBounded }"
+    :style="nodeStyle"
+    :data-component="componentKey"
+  >
     <p v-if="isText" class="render-json-runtime-node__text">{{ textValue }}</p>
     <h2 v-else-if="isHeading" class="render-json-runtime-node__heading">{{ textValue }}</h2>
     <component
@@ -265,6 +276,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
       v-else-if="isLayout && layoutDefinition"
       :kind="layoutDefinition.kind"
       :layout="node.layout"
+      :developer-mode="observe"
     >
       <RenderJsonRuntimeNode
         v-for="(child, index) in node.children || []"
@@ -307,8 +319,22 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 <style scoped>
 .render-json-runtime-node {
+  box-sizing: border-box;
   width: 100%;
   height: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.render-json-runtime-node--bounded {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.render-json-runtime-node--bounded > :deep(*) {
+  max-width: 100%;
+  max-height: 100%;
   min-width: 0;
   min-height: 0;
 }

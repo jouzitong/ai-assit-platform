@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import {
   computed,
+  nextTick,
   onBeforeUnmount,
   onMounted,
   provide,
@@ -34,9 +35,11 @@ const emit = defineEmits<{
 }>()
 
 const viewportRef = ref<HTMLElement | null>(null)
+const contentRef = ref<HTMLElement | null>(null)
 const overlayRef = ref<HTMLElement | null>(null)
 const containerWidth = ref(0)
 const containerHeight = ref(0)
+const contentHeight = ref(0)
 const rawScale = ref(0)
 const scale = ref(0)
 const resolvedViewport = computed(() => resolveResponsiveViewport({
@@ -53,11 +56,13 @@ const isOverflowing = computed(() => (
   scale.value > 0
   && (
     resolvedConfig.value.referenceSize.width * scale.value > containerWidth.value + 0.5
-    || resolvedConfig.value.referenceSize.height * scale.value > containerHeight.value + 0.5
+    || contentHeight.value * scale.value > containerHeight.value + 0.5
   )
 ))
 
 let resizeObserver: ResizeObserver | null = null
+let contentMutationObserver: MutationObserver | null = null
+let contentMeasureFrame: number | null = null
 
 const calculateRawScale = (
   widthRatio: number,
@@ -110,6 +115,31 @@ const measureViewport = () => {
   updateScale(rect.width, rect.height)
 }
 
+const measureContent = () => {
+  const content = contentRef.value
+  if (!content) {
+    return
+  }
+
+  const nextHeight = Math.max(
+    content.scrollHeight,
+    Math.ceil(content.getBoundingClientRect().height),
+  )
+  if (nextHeight > 0 && Math.abs(nextHeight - contentHeight.value) > 0.5) {
+    contentHeight.value = nextHeight
+  }
+}
+
+const scheduleContentMeasure = () => {
+  if (contentMeasureFrame !== null) {
+    return
+  }
+  contentMeasureFrame = requestAnimationFrame(() => {
+    contentMeasureFrame = null
+    measureContent()
+  })
+}
+
 const stageStyle = computed<CSSProperties>(() => ({
   width: `${resolvedConfig.value.referenceSize.width * scale.value}px`,
   height: `${resolvedConfig.value.referenceSize.height * scale.value}px`,
@@ -141,7 +171,11 @@ provide(responsiveViewportKey, {
   config: resolvedConfig,
 })
 
-watch([resolvedConfig, () => props.scaleMultiplier], measureViewport, { deep: true })
+watch([resolvedConfig, () => props.scaleMultiplier], () => {
+  contentHeight.value = 0
+  measureViewport()
+  void nextTick(scheduleContentMeasure)
+}, { deep: true })
 watch(scale, (value) => {
   emit('scale-change', {
     scale: value,
@@ -152,19 +186,40 @@ watch(scale, (value) => {
 
 onMounted(() => {
   measureViewport()
+  void nextTick(scheduleContentMeasure)
   if (typeof ResizeObserver !== 'undefined' && viewportRef.value) {
-    resizeObserver = new ResizeObserver(([entry]) => {
-      if (entry) {
-        updateScale(entry.contentRect.width, entry.contentRect.height)
-      }
+    resizeObserver = new ResizeObserver((entries) => {
+      entries.forEach((entry) => {
+        if (entry.target === viewportRef.value) {
+          updateScale(entry.contentRect.width, entry.contentRect.height)
+        }
+      })
+      scheduleContentMeasure()
     })
     resizeObserver.observe(viewportRef.value)
+    if (contentRef.value) {
+      resizeObserver.observe(contentRef.value)
+    }
+  }
+  if (typeof MutationObserver !== 'undefined' && contentRef.value) {
+    contentMutationObserver = new MutationObserver(scheduleContentMeasure)
+    contentMutationObserver.observe(contentRef.value, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+    })
   }
 })
 
 onBeforeUnmount(() => {
   resizeObserver?.disconnect()
   resizeObserver = null
+  contentMutationObserver?.disconnect()
+  contentMutationObserver = null
+  if (contentMeasureFrame !== null) {
+    cancelAnimationFrame(contentMeasureFrame)
+    contentMeasureFrame = null
+  }
 })
 </script>
 
@@ -183,16 +238,18 @@ onBeforeUnmount(() => {
   >
     <div class="responsive-viewport__stage" :style="stageStyle">
       <div class="responsive-viewport__canvas" :style="canvasStyle">
-        <slot
-          :container-width="containerWidth"
-          :container-height="containerHeight"
-          :raw-scale="rawScale"
-          :scale="scale"
-          :is-underflow="isUnderflow"
-          :is-overflowing="isOverflowing"
-          :preset="resolvedPreset"
-          :config="resolvedConfig"
-        />
+        <div ref="contentRef" class="responsive-viewport__content">
+          <slot
+            :container-width="containerWidth"
+            :container-height="containerHeight"
+            :raw-scale="rawScale"
+            :scale="scale"
+            :is-underflow="isUnderflow"
+            :is-overflowing="isOverflowing"
+            :preset="resolvedPreset"
+            :config="resolvedConfig"
+          />
+        </div>
         <div ref="overlayRef" class="responsive-viewport__overlay" />
       </div>
     </div>
@@ -229,8 +286,14 @@ onBeforeUnmount(() => {
 .responsive-viewport__canvas {
   position: absolute;
   inset: 0 auto auto 0;
-  overflow: hidden;
+  overflow: visible;
   transform-origin: top left;
+}
+
+.responsive-viewport__content {
+  width: 100%;
+  height: 100%;
+  min-height: 100%;
 }
 
 .responsive-viewport__overlay {

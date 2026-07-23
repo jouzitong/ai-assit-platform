@@ -27,8 +27,8 @@ async function openFullscreen() {
 </script>
 
 <template>
-  <main ref="hostRef" class="dashboard-mode-host">
-    <header class="dashboard-mode-host__header">
+  <main ref="hostRef" :class="['dashboard-mode-host', { 'is-compact': compact }]">
+    <header v-if="!compact" class="dashboard-mode-host__header">
       <div class="dashboard-mode-host__heading">
         <h1>{{ title }}</h1>
         <p v-if="description">{{ description }}</p>
@@ -76,6 +76,10 @@ async function openFullscreen() {
   overflow: hidden;
   background: var(--app-body-bg);
   color: var(--app-text);
+}
+
+.dashboard-mode-host.is-compact {
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .dashboard-mode-host:fullscreen {
@@ -129,6 +133,10 @@ async function openFullscreen() {
   min-width: 0;
   min-height: 0;
   padding: var(--app-space-3);
+}
+
+.dashboard-mode-host.is-compact .dashboard-mode-host__content {
+  padding: 0;
 }
 
 @media (max-width: 768px) {

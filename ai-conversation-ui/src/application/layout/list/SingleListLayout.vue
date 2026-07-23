@@ -61,8 +61,10 @@ withDefaults(
 
 .single-list-layout__shell {
   gap: var(--app-space-1);
+  height: 100%;
   min-width: 0;
   min-height: 0;
+  overflow: auto;
 }
 
 .single-list-layout__header {
@@ -81,7 +83,7 @@ withDefaults(
 
 .single-list-layout__body {
   display: flex;
-  flex: 1 1 auto;
+  flex: 1 0 320px;
   min-width: 0;
   min-height: 0;
 }
