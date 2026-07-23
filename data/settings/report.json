@@ -73,7 +73,7 @@
   "components": [
     {
       "id": "account-type-overview",
-      "component": "combo-chart-renderer",
+      "component": "zg-common-list",
       "componentVersion": "1.0.0",
       "title": "账户类型余额与数量",
       "datasources": [

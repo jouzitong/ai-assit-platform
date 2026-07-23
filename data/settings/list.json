@@ -1,0 +1,234 @@
+{
+  "id": "default_config.meta.list.test",
+  "tab": null,
+  "tree": {},
+  "title": "系统配置",
+  "fields": [
+    {
+      "key": "id",
+      "field": [
+        "id"
+      ],
+      "label": "ID",
+      "options": {
+        "styles": {
+          "text-align": "center"
+        },
+        "className": "text-center"
+      }
+    },
+    {
+      "key": "config_key",
+      "field": [
+        "config_key"
+      ],
+      "label": "配置键",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    },
+    {
+      "key": "value_type",
+      "field": [
+        "value_type"
+      ],
+      "label": "值类型",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    },
+    {
+      "key": "config_value",
+      "name": "config_value",
+      "field": [
+        "config_value"
+      ],
+      "label": "配置值",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    },
+    {
+      "key": "desc",
+      "name": "desc",
+      "field": [
+        "desc"
+      ],
+      "label": "备注",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    },
+    {
+      "key": "tags",
+      "name": "tags",
+      "field": [
+        "tags"
+      ],
+      "label": "标签",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    },
+    {
+      "key": "deleted",
+      "name": "deleted",
+      "field": [
+        "deleted"
+      ],
+      "label": "删除",
+      "options": {
+        "styles": {
+          "text-align": "center"
+        }
+      }
+    },
+    {
+      "key": "created_by_name",
+      "name": "created_by_name",
+      "field": [
+        "sec_user",
+        "display_name"
+      ],
+      "label": "创建人",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    },
+    {
+      "key": "update_time",
+      "name": "update_time",
+      "field": [
+        "update_time"
+      ],
+      "label": "更新时间",
+      "options": {
+        "styles": {
+          "text-align": "left"
+        }
+      }
+    }
+  ],
+  "actions": [
+    {
+      "key": "reload",
+      "name": "刷新",
+      "type": "primary",
+      "action": "RELOAD"
+    }
+  ],
+  "filters": [
+    {
+      "key": "config_key",
+      "label": "配置键",
+      "component": "zg-input"
+    },
+    {
+      "key": "value_type",
+      "list": [
+        {
+          "key": "string",
+          "value": "string"
+        },
+        {
+          "key": "json",
+          "value": "json"
+        },
+        {
+          "key": "text",
+          "value": "text"
+        },
+        {
+          "key": "number",
+          "value": "number"
+        }
+      ],
+      "label": "值类型",
+      "options": {
+        "styles": {
+          "width": "180px"
+        },
+        "clearable": true,
+        "filterable": true,
+        "submitOnChange": true
+      },
+      "component": "zg-selector"
+    },
+    {
+      "key": "deleted",
+      "list": [
+        {
+          "key": "未删除",
+          "value": 0
+        },
+        {
+          "key": "已删除",
+          "value": 1
+        }
+      ],
+      "label": "删除标记",
+      "options": {
+        "styles": {
+          "width": "160px"
+        },
+        "clearable": true,
+        "submitOnChange": true
+      },
+      "component": "zg-selector"
+    }
+  ],
+  "version": "1.0.0",
+  "component": "zg-common-list",
+  "datasource": {
+    "ext": {
+      "sorts": [
+        {
+          "field": "update_time",
+          "order": "desc"
+        }
+      ]
+    },
+    "key": "account",
+    "type": "db-query-list",
+    "model": "ods_trade_user_account",
+    "filterExpr": "deleted",
+    "filter_dict": {
+      "deleted": 0
+    }
+  },
+  "list_config": {
+    "events": [],
+    "variant": "workbench",
+    "itemType": "table",
+    "className": "runtime-list-layout",
+    "pagination": {
+      "enabled": true,
+      "pageSize": 10,
+      "pageSizeOptions": [
+        10,
+        20,
+        50
+      ]
+    },
+    "actionColumns": [
+      {
+        "key": "view",
+        "name": "查看",
+        "type": "primary",
+        "action": "VIEW"
+      }
+    ]
+  }
+}
