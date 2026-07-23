@@ -1,9 +1,11 @@
 export {
   buildDbQueryListRequest,
   parseDirectJsonListData,
+  parseLocalListData,
   parseDbQueryListResponse,
   parseListRendererRequestResult,
   resolveDirectJsonListData,
+  resolveLocalListData,
   resolveDbQueryListData,
   resolveListRendererData,
   resolveListRendererStructure,

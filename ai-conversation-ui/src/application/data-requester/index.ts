@@ -10,6 +10,7 @@ const DB_QUERY_LIST_ENDPOINT = `${getBackendService(SERVICE_NAMES.DB_ENGINE).gat
 export type RuntimeDataRequestPlan =
   | RuntimeDbQueryListRequestPlan
   | RuntimeDirectJsonRequestPlan
+  | RuntimeLocalRequestPlan
 
 export interface RuntimeDbQueryListRequestPlan {
   key: string
@@ -22,6 +23,32 @@ export interface RuntimeDirectJsonRequestPlan {
   type: 'direct-json'
   data?: unknown
   summary?: Record<string, unknown>
+}
+
+export interface RuntimeLocalRequestPlan {
+  key: string
+  type: 'local'
+  data?: unknown
+  summary?: Record<string, unknown>
+}
+
+export interface RuntimeApiResponse<TData = unknown> {
+  code: number
+  msg: string
+  data: TData
+}
+
+export function unwrapRuntimeApiResponse<TData>(value: unknown): TData {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error('本地模拟响应格式不正确')
+  }
+
+  const response = value as Partial<RuntimeApiResponse<TData>>
+  if (Number(response.code) !== 0) {
+    throw new Error(response.msg || '本地模拟请求失败')
+  }
+
+  return response.data as TData
 }
 
 export interface RuntimeDataRequestResult<TData = unknown> {
@@ -37,6 +64,17 @@ export async function executeRuntimeDataRequest(plan: RuntimeDataRequestPlan) {
         data: plan.data,
         summary: plan.summary || {},
       },
+      } satisfies RuntimeDataRequestResult
+  }
+
+  if (plan.type === 'local') {
+    return {
+      plan,
+      raw: {
+        code: 0,
+        msg: 'success',
+        data: plan.data,
+      } satisfies RuntimeApiResponse,
     } satisfies RuntimeDataRequestResult
   }
 

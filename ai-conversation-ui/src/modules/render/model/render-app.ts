@@ -38,7 +38,7 @@ export interface RenderModeHostProps {
 
 const RENDER_APP_MODE_SET = new Set<string>(RENDER_APP_MODES)
 const RENDER_APP_CODE_PATTERN = /^[A-Za-z0-9._-]+$/
-const SUPPORTED_PROTOCOL_MAJOR = '1'
+const SUPPORTED_PROTOCOL_MAJORS = new Set(['1', '2'])
 const PREVIEW_MODEL_DATASOURCE_TYPES = new Set(['db-query-list', 'semantic-query'])
 const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
@@ -68,7 +68,7 @@ export function normalizeRenderRuntimeDocument(
   }
 
   const protocolVersion = readString(content.protocolVersion) || '1.0.0'
-  if (protocolVersion.split('.')[0] !== SUPPORTED_PROTOCOL_MAJOR) {
+  if (!SUPPORTED_PROTOCOL_MAJORS.has(protocolVersion.split('.')[0])) {
     throw new Error(`暂不支持 Render JSON 协议版本 ${protocolVersion}`)
   }
 
@@ -76,6 +76,8 @@ export function normalizeRenderRuntimeDocument(
   if (!root) {
     throw new Error('Render JSON 缺少可渲染的 root 节点')
   }
+
+  const normalizedRoot = normalizeReportRoot(root, content)
 
   const presentation = resolveRenderDocumentPresentation(content)
   const title = readString(content.title) || presentation.title
@@ -88,7 +90,7 @@ export function normalizeRenderRuntimeDocument(
     ...(readString(content.revision) ? { revision: readString(content.revision) } : {}),
     ...(title ? { title } : {}),
     ...(hasPresentationValue(presentation) ? { presentation } : {}),
-    root,
+    root: normalizedRoot,
   }
 }
 
@@ -214,6 +216,144 @@ function normalizeRootNode(root: Record<string, unknown>) {
   }
 
   return null
+}
+
+/**
+ * Report JSON 以 components[] 描述页面内容；Runtime 内部仍使用 root.children
+ * 递归渲染。这里做一次纯数据归一化，不把 report 协议细节下沉到 Renderer。
+ */
+function normalizeReportRoot(
+  root: Record<string, unknown>,
+  content: Record<string, unknown>,
+) {
+  if (!Array.isArray(content.components) || content.components.length === 0) {
+    return root
+  }
+
+  const existingChildren = Array.isArray(root.children)
+    ? root.children.filter(isRecord)
+    : []
+  const reportChildren = content.components
+    .map((component, index) => normalizeReportComponent(component, index))
+    .filter((component): component is Record<string, unknown> => Boolean(component))
+
+  return {
+    ...root,
+    layout: normalizeReportRootLayout(root.layout),
+    children: [...existingChildren, ...reportChildren],
+  }
+}
+
+function normalizeReportComponent(value: unknown, index: number) {
+  if (!isRecord(value)) {
+    return null
+  }
+
+  const component = readString(value.component)
+  if (!component) {
+    return null
+  }
+
+  const id = readString(value.id) || `${component}-${index}`
+  const rawProps = isRecord(value.props) ? { ...value.props } : {}
+  const layout = normalizeReportComponentLayout(value.layout)
+  const node: Record<string, unknown> = {
+    id,
+    component,
+    ...(readString(value.componentVersion)
+      ? { componentVersion: readString(value.componentVersion) }
+      : {}),
+    props: rawProps,
+    ...(layout ? { layout } : {}),
+  }
+
+  const datasource = resolveReportDatasource(value, rawProps)
+  if (datasource) {
+    node.datasource = datasource
+  }
+
+  if (
+    isListOrFormComponent(component)
+    && !readString(rawProps.title)
+    && readString(value.title)
+  ) {
+    node.props = {
+      ...rawProps,
+      title: readString(value.title),
+    }
+  }
+
+  return node
+}
+
+function isListOrFormComponent(component: string) {
+  return [
+    'zg-list-main-layout',
+    'list-main-layout',
+    'zg-common-list',
+    'zg-common-tree-list',
+    'common-list',
+    'common-tree-list',
+    'form-main-layout',
+    'zg-common-form',
+    'zg-common-info',
+    'common-form',
+    'common-info',
+  ].includes(component.toLowerCase())
+}
+
+function resolveReportDatasource(
+  component: Record<string, unknown>,
+  props: Record<string, unknown>,
+) {
+  if (isRecord(props.datasource)) {
+    return props.datasource
+  }
+  if (isRecord(component.datasource)) {
+    return component.datasource
+  }
+  if (Array.isArray(component.datasources)) {
+    return component.datasources.find(isRecord) || undefined
+  }
+  return undefined
+}
+
+function normalizeReportRootLayout(value: unknown) {
+  if (!isRecord(value)) {
+    return value
+  }
+
+  const layout = { ...value }
+  const columns = toPositiveInteger(layout.columns)
+  if (columns && !layout.gridTemplateColumns) {
+    layout.gridTemplateColumns = `repeat(${columns}, minmax(0, 1fr))`
+  }
+
+  const rowHeight = toPositiveNumber(layout.rowHeight)
+  if (rowHeight && !layout.gridAutoRows) {
+    layout.gridAutoRows = `${rowHeight}px`
+  }
+
+  return layout
+}
+
+function normalizeReportComponentLayout(value: unknown) {
+  if (Array.isArray(value) && value.length >= 4) {
+    const [row, column, width, height] = value.map(toPositiveInteger)
+    if (row && column && width && height) {
+      return {
+        gridColumn: `${column} / span ${width}`,
+        gridRow: `${row} / span ${height}`,
+      }
+    }
+  }
+
+  return isRecord(value) ? { ...value } : undefined
+}
+
+function toPositiveInteger(value: unknown) {
+  const numberValue = Number(value)
+  return Number.isInteger(numberValue) && numberValue > 0 ? numberValue : undefined
 }
 
 function wrapRendererSchema(schema: Record<string, unknown>) {

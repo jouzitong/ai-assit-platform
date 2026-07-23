@@ -25,7 +25,7 @@ export interface RendererTabConfig {
   tabs?: RendererTabItem[]
 }
 
-export type RendererDatasource = DbQueryListDatasource | DirectJsonListDatasource
+export type RendererDatasource = DbQueryListDatasource | DirectJsonListDatasource | LocalListDatasource
 
 export interface RendererFilter {
   key: string
@@ -173,6 +173,29 @@ export interface DirectJsonListDatasource {
   key: string
   type: 'direct-json'
   data?: DirectJsonListDataInput
+  summary?: Record<string, unknown>
+}
+
+/**
+ * query.list 的 data 内层，用于 local 数据源模拟接口返回值。
+ */
+export interface LocalListDataInput {
+  list?: Record<string, unknown>[]
+  pageInfo?: {
+    total?: number
+    size?: number
+    page?: number
+  }
+  summary?: Record<string, unknown>
+}
+
+/**
+ * 本地模拟请求数据源：data 只保存接口响应的 data 内层，不发起 HTTP 请求。
+ */
+export interface LocalListDatasource {
+  key: string
+  type: 'local'
+  data?: LocalListDataInput
   summary?: Record<string, unknown>
 }
 

@@ -1,5 +1,6 @@
 import {
   executeRuntimeDataRequest,
+  unwrapRuntimeApiResponse,
   type RuntimeDataRequestPlan,
   type RuntimeDataRequestResult,
 } from '../data-requester'
@@ -11,6 +12,8 @@ import type {
   DbQueryListResponse,
   ListRendererData,
   ListRendererSchema,
+  LocalListDatasource,
+  LocalListDataInput,
   RendererField,
   RendererFilter,
   RendererQueryState,
@@ -33,6 +36,14 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isDirectJsonDatasource(datasource: ListRendererSchema['datasource']): datasource is DirectJsonListDatasource {
   return datasource?.type === 'direct-json'
+}
+
+function isLocalDatasource(datasource: ListRendererSchema['datasource']): datasource is LocalListDatasource {
+  return datasource?.type === 'local'
+}
+
+function isInlineDatasource(datasource: ListRendererSchema['datasource']): datasource is DirectJsonListDatasource | LocalListDatasource {
+  return isDirectJsonDatasource(datasource) || isLocalDatasource(datasource)
 }
 
 function compactFilterDict(filters?: Record<string, unknown>) {
@@ -168,7 +179,7 @@ export function buildDbQueryListRequest(
   query: Partial<RendererQueryState> = {},
 ): DbQueryListRequest | null {
   const datasource = schema.datasource
-  if (!datasource || isDirectJsonDatasource(datasource) || !datasource.model) {
+  if (!datasource || isInlineDatasource(datasource) || !datasource.model) {
     return null
   }
 
@@ -208,13 +219,13 @@ export function resolveListRendererStructure(options: ResolveListRendererDataOpt
   const datasource = options.schema.datasource
   const query = options.query || {}
 
-  if (isDirectJsonDatasource(datasource)) {
+  if (isInlineDatasource(datasource)) {
     return {
       schema: options.schema,
       query,
       requestPlans: [{
         key: datasource.key,
-        type: 'direct-json',
+        type: datasource.type,
         data: datasource.data,
         summary: datasource.summary || {},
       }],
@@ -236,22 +247,17 @@ export function resolveListRendererStructure(options: ResolveListRendererDataOpt
 }
 
 export function parseDbQueryListResponse(response: DbQueryListResponse): ResolvedListRendererData {
-  const records = Array.isArray(response.list) ? response.list : []
-  const total = Number(response.pageInfo?.total ?? records.length)
-
-  return {
-    data: {
-      records,
-      total,
-    },
-    summary: response.summary || {},
-  }
+  return parseListResponseData(response)
 }
 
 export function parseListRendererRequestResult(result: RuntimeDataRequestResult): ResolvedListRendererData {
   if (result.plan.type === 'direct-json') {
     const payload = result.raw as { data?: DirectJsonListDatasource['data']; summary?: Record<string, unknown> }
     return parseDirectJsonListData(payload.data, payload.summary || {})
+  }
+
+  if (result.plan.type === 'local') {
+    return parseLocalListData(result.raw, result.plan.summary || {})
   }
 
   return parseDbQueryListResponse(result.raw as DbQueryListResponse)
@@ -283,27 +289,85 @@ export function parseDirectJsonListData(
   value: DirectJsonListDatasource['data'],
   summary: Record<string, unknown> = {},
 ): ResolvedListRendererData {
-  if (isRecord(value)) {
-    const records = Array.isArray(value.records) ? value.records as Record<string, unknown>[] : []
-    const treeData = Array.isArray(value.treeData) ? value.treeData as ListRendererData['treeData'] : undefined
-    const total = typeof value.total === 'number' ? value.total : records.length
+  return parseListResponseData(value, summary)
+}
 
-    return {
-      data: {
-        records,
-        total,
-        treeData,
-      },
-      summary,
-    }
-  }
+export function parseLocalListData(
+  value: unknown,
+  summary: Record<string, unknown> = {},
+): ResolvedListRendererData {
+  const data = unwrapRuntimeApiResponse<LocalListDataInput>(value)
+  const records = Array.isArray(data?.list)
+    ? data.list.filter(isRecord)
+    : []
+  const responseSummary = isRecord(data?.summary) ? data.summary : {}
 
   return {
     data: {
-      records: [],
-      total: 0,
+      records,
+      total: Number(data?.pageInfo?.total ?? records.length),
     },
-    summary,
+    summary: {
+      ...summary,
+      ...responseSummary,
+    },
+  }
+}
+
+function parseListResponseData(
+  value: unknown,
+  summary: Record<string, unknown> = {},
+): ResolvedListRendererData {
+  const root = isRecord(value) ? value : {}
+  const firstData = root.data
+  const firstBody = isRecord(firstData) ? firstData : undefined
+  const secondData = firstBody?.data
+  const body = isRecord(secondData)
+    ? secondData
+    : firstBody || root
+  const recordsValue = Array.isArray(firstData)
+    ? firstData
+    : body.records ?? body.list ?? body.data
+  const records = Array.isArray(recordsValue)
+    ? recordsValue.filter(isRecord)
+    : []
+  const pageInfo = isRecord(root.pageInfo)
+    ? root.pageInfo
+    : isRecord(firstBody?.pageInfo)
+      ? firstBody.pageInfo
+      : isRecord(body.pageInfo)
+        ? body.pageInfo
+        : undefined
+  const totalValue = root.total
+    ?? firstBody?.total
+    ?? body.total
+    ?? pageInfo?.total
+  const total = Number.isFinite(Number(totalValue))
+    ? Number(totalValue)
+    : records.length
+  const treeDataValue = root.treeData
+    ?? firstBody?.treeData
+    ?? body.treeData
+  const responseSummary = isRecord(root.summary)
+    ? root.summary
+    : isRecord(firstBody?.summary)
+      ? firstBody.summary
+      : isRecord(body.summary)
+        ? body.summary
+        : {}
+
+  return {
+    data: {
+      records,
+      total,
+      treeData: Array.isArray(treeDataValue)
+        ? treeDataValue as ListRendererData['treeData']
+        : undefined,
+    },
+    summary: {
+      ...summary,
+      ...responseSummary,
+    },
   }
 }
 
@@ -315,9 +379,26 @@ export function resolveDirectJsonListData(options: ResolveListRendererDataOption
   return parseDirectJsonListData(requestPlan.data as DirectJsonListDatasource['data'], requestPlan.summary || {})
 }
 
+export async function resolveLocalListData(options: ResolveListRendererDataOptions) {
+  const structure = resolveListRendererStructure(options)
+  const requestPlan = structure.requestPlans[0]
+  if (!requestPlan || requestPlan.type !== 'local') {
+    return parseLocalListData(undefined)
+  }
+
+  const result = await executeRuntimeDataRequest(requestPlan)
+  return {
+    ...parseListRendererRequestResult(result),
+    requestPlans: structure.requestPlans,
+  } satisfies ResolvedListRendererData
+}
+
 export function resolveListRendererData(options: ResolveListRendererDataOptions) {
   if (isDirectJsonDatasource(options.schema.datasource)) {
     return resolveDirectJsonListData(options)
+  }
+  if (isLocalDatasource(options.schema.datasource)) {
+    return resolveLocalListData(options)
   }
   return resolveDbQueryListData(options)
 }

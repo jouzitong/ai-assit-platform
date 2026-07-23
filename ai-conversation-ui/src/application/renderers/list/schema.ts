@@ -20,6 +20,7 @@ export function normalizeSchema(schema: ListRendererSchema): ListRendererSchema 
       tabs: schema.tab?.tabs || [],
     },
     list_config: {
+      variant: schema.list_config?.variant || 'default',
       itemType: normalizeItemType(schema.list_config?.itemType),
       cardItem: schema.list_config?.cardItem || {},
       item_operate: schema.list_config?.item_operate || {},

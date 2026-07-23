@@ -13,6 +13,7 @@ const containerStyle = computed<CSSProperties>(() => {
   const allowed = [
     'gridTemplateColumns',
     'gridTemplateRows',
+    'gridAutoRows',
     'gap',
     'padding',
     'alignItems',
