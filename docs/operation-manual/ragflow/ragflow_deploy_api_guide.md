@@ -51,6 +51,7 @@ RAGFlow 比 Meilisearch 更适合你这个需求，因为它原生支持：
 - GitHub：https://github.com/infiniflow/ragflow
 - 官方文档：https://ragflow.io/docs/
 - HTTP API：https://ragflow.io/docs/http_api_reference
+- Memory 使用说明：https://ragflow.io/docs/dev/use_memory
 - Dataset 配置说明：https://ragflow.io/docs/configure_knowledge_base
 
 本文档基于 RAGFlow 官方文档 v0.26.4 口径整理。
@@ -1465,7 +1466,464 @@ POST /kb-categories/search
 
 ---
 
-# 12. 推荐落地顺序
+# 12. RAGFlow 记忆 API
+
+> 本节只介绍 RAGFlow 原生 Memory HTTP API，不包含项目自身的 Chat memory 设计或业务接口。
+>
+> 参考版本：RAGFlow 官方当前 HTTP API 参考。Memory API 在 RAGFlow v0.24.0 引入；不同部署版本可能存在字段或权限差异，使用前应以部署实例对应版本的 API 文档为准。
+
+## 12.1 记忆能力和术语
+
+RAGFlow Memory 用于保存 Agent 对话及从对话中提取的记忆。支持的 `memory_type`：
+
+| 类型 | 说明 |
+|---|---|
+| `raw` | 用户与 Agent 的原始对话；官方文档说明默认/通常必选 |
+| `semantic` | 用户和世界的通用知识、事实和偏好 |
+| `episodic` | 带时间信息的事件和经历 |
+| `procedural` | 技能、习惯和自动化流程 |
+
+一次对话通常通过 `POST /api/v1/messages` 写入 Memory；RAGFlow 负责异步提取、向量化和保存对应的记忆条目。`GET /api/v1/messages/search` 用于按语义和关键词召回，`GET /api/v1/messages` 用于获取最近消息。
+
+## 12.2 认证和环境变量
+
+所有 Memory HTTP API 都使用 RAGFlow API Key：
+
+```bash
+export RAGFLOW_BASE_URL="http://127.0.0.1"
+export RAGFLOW_API_KEY="你的_RAGFLOW_API_KEY"
+export MEMORY_ID="MEMORY_ID"
+export MESSAGE_ID="MESSAGE_ID"
+export AGENT_ID="AGENT_ID"
+export SESSION_ID="SESSION_ID"
+export USER_ID="USER_ID"
+```
+
+请求头：
+
+```http
+Authorization: Bearer <YOUR_API_KEY>
+Content-Type: application/json
+```
+
+## 12.3 API 总览
+
+| 方法 | 路径 | 作用 |
+|---|---|---|
+| `POST` | `/api/v1/memories` | 创建 Memory |
+| `PUT` | `/api/v1/memories/{memory_id}` | 更新 Memory 配置 |
+| `GET` | `/api/v1/memories` | 分页查询 Memory |
+| `GET` | `/api/v1/memories/{memory_id}/config` | 查询 Memory 配置 |
+| `DELETE` | `/api/v1/memories/{memory_id}` | 删除 Memory |
+| `GET` | `/api/v1/memories/{memory_id}` | 分页查询 Memory 中的消息 |
+| `POST` | `/api/v1/messages` | 向一个或多个 Memory 写入对话 |
+| `DELETE` | `/api/v1/messages/{memory_id}:{message_id}` | 忘记一条消息 |
+| `PUT` | `/api/v1/messages/{memory_id}:{message_id}` | 启用或禁用一条消息 |
+| `GET` | `/api/v1/messages/search` | 搜索 Memory 消息 |
+| `GET` | `/api/v1/messages` | 查询最近消息 |
+| `GET` | `/api/v1/messages/{memory_id}:{message_id}/content` | 查询消息完整内容和向量 |
+
+## 12.4 创建 Memory
+
+```http
+POST /api/v1/memories
+```
+
+请求体：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `name` | `string` | 是 | Memory 名称；要求 BMP 字符，最多 128 个字符 |
+| `memory_type` | `string[]` | 是 | 要提取的记忆类型：`raw`、`semantic`、`episodic`、`procedural` |
+| `embd_id` | `string` | 是 | Embedding 模型，格式为 `model_name@model_factory`，最多 255 个字符 |
+| `llm_id` | `string` | 是 | 用于提取记忆的聊天模型，格式为 `model_name@model_factory`，最多 255 个字符 |
+
+示例：
+
+```bash
+curl --request POST \
+  --url "${RAGFLOW_BASE_URL}/api/v1/memories" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "customer_memory",
+    "memory_type": ["raw", "semantic", "episodic"],
+    "embd_id": "BAAI/bge-large-zh-v1.5@BAAI",
+    "llm_id": "glm-4-flash@ZHIPU-AI"
+  }'
+```
+
+成功响应的 `data` 为新 Memory 对象，重点字段通常包括 `id`、`name`、`memory_type`、`embd_id`、`llm_id`、`memory_size`、`forgetting_policy` 和 `permissions`。
+
+## 12.5 更新 Memory 配置
+
+```http
+PUT /api/v1/memories/{memory_id}
+```
+
+路径参数：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `memory_id` | `string` | 是 | Memory ID |
+
+请求体参数：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `name` | `string` | 否 | 名称；BMP 字符，最多 128 个字符 |
+| `avatar` | `string` | 否 | Base64 编码头像，最多 65535 个字符 |
+| `permission` | `string` | 否 | `me` 仅自己管理；`team` 团队成员可管理 |
+| `llm_id` | `string` | 否 | 记忆提取使用的聊天模型 |
+| `description` | `string` | 否 | 描述 |
+| `memory_size` | `int` | 否 | 容量上限，单位 Byte；最大 `10 * 1024 * 1024` |
+| `forgetting_policy` | `string` | 否 | 当前官方文档列出 `FIFO`；容量达到上限时清理旧数据 |
+| `temperature` | `float` | 否 | 提取模型随机性，范围 `[0, 1]` |
+| `system_prompt` | `string` | 否 | 系统级提取指令；官方默认会根据 `memory_type` 组装基础 Prompt，保留其输出要求和格式部分 |
+| `user_prompt` | `string` | 否 | 用户自定义的提取/响应要求 |
+
+示例：
+
+```bash
+curl --request PUT \
+  --url "${RAGFLOW_BASE_URL}/api/v1/memories/${MEMORY_ID}" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "name": "customer_memory_v2",
+    "permission": "team",
+    "memory_size": 10485760,
+    "forgetting_policy": "FIFO",
+    "temperature": 0.2
+  }'
+```
+
+## 12.6 查询 Memory 列表
+
+```http
+GET /api/v1/memories
+```
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `tenant_id` | `string \| string[]` | - | 按所有者 ID 过滤，支持多个值 |
+| `memory_type` | `string \| string[]` | - | 按类型过滤；Memory 包含所传类型之一即可匹配 |
+| `storage_type` | `string` | `table` | 消息存储格式；当前文档列出 `table` |
+| `keywords` | `string` | - | 按 Memory 名称模糊查询 |
+| `page` | `int` | `1` | 页码 |
+| `page_size` | `int` | `50` | 每页数量 |
+
+示例：
+
+```bash
+curl --request GET \
+  --url "${RAGFLOW_BASE_URL}/api/v1/memories?memory_type=semantic,episodic&keywords=customer&page=1&page_size=50" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}"
+```
+
+成功响应：
+
+```json
+{
+  "code": 0,
+  "data": {
+    "memory_list": [
+      {
+        "id": "MEMORY_ID",
+        "name": "customer_memory",
+        "memory_type": ["raw", "semantic"],
+        "permissions": "me",
+        "storage_type": "table",
+        "tenant_id": "TENANT_ID"
+      }
+    ],
+    "total_count": 1
+  },
+  "message": true
+}
+```
+
+## 12.7 查询和删除 Memory
+
+查询配置：
+
+```http
+GET /api/v1/memories/{memory_id}/config
+```
+
+```bash
+curl --request GET \
+  --url "${RAGFLOW_BASE_URL}/api/v1/memories/${MEMORY_ID}/config" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}"
+```
+
+配置响应通常包含 `memory_type`、`embd_id`、`llm_id`、`memory_size`、`forgetting_policy`、`temperature`、`system_prompt` 和 `user_prompt`。
+
+删除 Memory：
+
+```http
+DELETE /api/v1/memories/{memory_id}
+```
+
+```bash
+curl --request DELETE \
+  --url "${RAGFLOW_BASE_URL}/api/v1/memories/${MEMORY_ID}" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}"
+```
+
+删除 Memory 会一并影响其下的消息和提取结果。生产环境执行前应先通过消息查询接口确认范围。
+
+## 12.8 向 Memory 添加对话消息
+
+```http
+POST /api/v1/messages
+```
+
+请求体：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `memory_id` | `string[]` | 是 | 要保存到的 Memory ID 列表，可同时写入多个 Memory |
+| `agent_id` | `string` | 是 | 来源 Agent ID |
+| `session_id` | `string` | 是 | 会话 ID |
+| `user_id` | `string` | 否 | 参与对话的用户 ID；按当前版本权限规则使用 |
+| `user_input` | `string` | 是 | 用户输入文本 |
+| `agent_response` | `string` | 是 | Agent 回复文本 |
+
+示例：
+
+```bash
+curl --request POST \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "memory_id": ["MEMORY_ID"],
+    "agent_id": "AGENT_ID",
+    "session_id": "SESSION_ID",
+    "user_id": "USER_ID",
+    "user_input": "我更喜欢用表格展示结果。",
+    "agent_response": "好的，后续我会优先使用表格展示。"
+  }'
+```
+
+成功响应表示消息已提交处理任务，示例返回：
+
+```json
+{
+  "code": 0,
+  "data": null,
+  "message": "All add to task."
+}
+```
+
+写入后，RAGFlow 可能异步提取 `semantic`、`episodic` 或 `procedural` 条目；应通过消息列表和 `task` 字段检查处理状态。
+
+## 12.9 查询 Memory 中的消息
+
+```http
+GET /api/v1/memories/{memory_id}
+```
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `agent_id` | `string \| string[]` | - | 按来源 Agent ID 过滤 |
+| `session_id` | `string` | - | 按会话 ID 模糊查询 |
+| `page` | `int` | `1` | 页码 |
+| `page_size` | `int` | `50` | 每页数量 |
+
+示例：
+
+```bash
+curl --request GET \
+  --url "${RAGFLOW_BASE_URL}/api/v1/memories/${MEMORY_ID}?session_id=SESSION_ID&page=1&page_size=50" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}"
+```
+
+响应中的 `message_list` 可能包含：
+
+```text
+message_id、memory_id、message_type、content、agent_id、session_id、user_id、status、valid_at、invalid_at、forget_at、source_id、extract、task
+```
+
+其中 `extract` 表示由原始 `raw` 对话提取出的记忆条目，`task.progress` 和 `task.progress_msg` 可用于查看异步提取进度。
+
+## 12.10 忘记或启用/禁用消息
+
+### 忘记消息
+
+```http
+DELETE /api/v1/messages/{memory_id}:{message_id}
+```
+
+忘记后，该消息不会再被 Agent 检索，并会被清理策略优先处理：
+
+```bash
+curl --request DELETE \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages/${MEMORY_ID}:${MESSAGE_ID}" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}"
+```
+
+### 更新消息状态
+
+```http
+PUT /api/v1/messages/{memory_id}:{message_id}
+```
+
+请求体：
+
+| 参数 | 类型 | 必填 | 说明 |
+|---|---|---:|---|
+| `status` | `boolean` | 是 | `true` 启用；`false` 禁用。禁用后 Agent 不会检索该消息 |
+
+```bash
+curl --request PUT \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages/${MEMORY_ID}:${MESSAGE_ID}" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{"status": false}'
+```
+
+## 12.11 搜索 Memory 消息
+
+```http
+GET /api/v1/messages/search
+```
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `query` | `string` | - | 必填；自然语言问题或搜索词 |
+| `memory_id` | `string \| string[]` | - | 必填；要搜索的 Memory ID，可多个 |
+| `agent_id` | `string` | - | 按来源 Agent 过滤 |
+| `session_id` | `string` | - | 按会话过滤 |
+| `user_id` | `string` | - | 按用户过滤 |
+| `similarity_threshold` | `float` | `0.2` | 余弦相似度下限，范围 `[0, 1]`；越高结果越精确但越少 |
+| `keywords_similarity_weight` | `float` | `0.7` | 关键词匹配权重，范围 `[0, 1]`；越高越偏关键词匹配 |
+| `top_n` | `int` | `10` | 返回最多多少条结果 |
+
+示例：
+
+```bash
+curl --get \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages/search" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --data-urlencode "query=用户喜欢什么样的结果展示方式？" \
+  --data-urlencode "memory_id=${MEMORY_ID}" \
+  --data-urlencode "similarity_threshold=0.2" \
+  --data-urlencode "keywords_similarity_weight=0.7" \
+  --data-urlencode "top_n=10"
+```
+
+返回结果为消息数组，通常包含 `content`、`message_id`、`message_type`、`similarity`、`status`、`session_id` 和时间字段。
+
+## 12.12 查询最近消息
+
+```http
+GET /api/v1/messages
+```
+
+查询参数：
+
+| 参数 | 类型 | 默认值 | 说明 |
+|---|---|---:|---|
+| `memory_id` | `string \| string[]` | - | 必填；要查询的 Memory ID，可多个 |
+| `agent_id` | `string` | - | 按来源 Agent 过滤 |
+| `session_id` | `string` | - | 按会话过滤 |
+| `limit` | `int` | `10` | 返回最近消息数量 |
+
+```bash
+curl --get \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --data-urlencode "memory_id=${MEMORY_ID}" \
+  --data-urlencode "session_id=${SESSION_ID}" \
+  --data-urlencode "limit=10"
+```
+
+该接口适合在 Agent 调用前获取最近上下文；需要按语义找相关历史时，应使用 `messages/search`。
+
+## 12.13 获取消息完整内容
+
+```http
+GET /api/v1/messages/{memory_id}:{message_id}/content
+```
+
+```bash
+curl --request GET \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages/${MEMORY_ID}:${MESSAGE_ID}/content" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}"
+```
+
+响应中的 `content_embed` 是完整 embedding 向量；通常只有排查、审计或调试时需要，不建议在普通业务链路中频繁调用或把向量返回前端。
+
+## 12.14 参考调用流程
+
+```text
+创建 Memory
+  -> 保存返回的 memory_id
+  -> POST /api/v1/messages 写入 user_input + agent_response
+  -> 等待/检查提取任务
+  -> GET /api/v1/messages/{memory_id} 查看原始和提取消息
+  -> GET /api/v1/messages/search 语义检索相关记忆
+  -> GET /api/v1/messages 获取最近消息
+  -> PUT/DELETE /api/v1/messages/{memory_id}:{message_id} 管理单条记忆
+```
+
+一个最小可用案例：
+
+```bash
+# 1. 创建 Memory，记下返回的 data.id
+# 2. 写入一轮对话
+curl --request POST \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --header "Content-Type: application/json" \
+  --data '{
+    "memory_id": ["MEMORY_ID"],
+    "agent_id": "AGENT_ID",
+    "session_id": "SESSION_ID",
+    "user_id": "USER_ID",
+    "user_input": "我喜欢简洁的表格结果。",
+    "agent_response": "好的，我会优先使用表格。"
+  }'
+
+# 3. 查询最近消息
+curl --get \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --data-urlencode "memory_id=${MEMORY_ID}" \
+  --data-urlencode "limit=10"
+
+# 4. 检索相关记忆
+curl --get \
+  --url "${RAGFLOW_BASE_URL}/api/v1/messages/search" \
+  --header "Authorization: Bearer ${RAGFLOW_API_KEY}" \
+  --data-urlencode "query=用户偏好的结果格式" \
+  --data-urlencode "memory_id=${MEMORY_ID}" \
+  --data-urlencode "top_n=5"
+```
+
+## 12.15 使用建议
+
+- `raw` 用于保留原始对话；需要长期偏好或事件召回时，再增加 `semantic`、`episodic` 或 `procedural`。
+- 同一轮对话需要写入多个 Memory 时，使用 `memory_id` 数组；不同 Memory 应提前确认模型和记忆类型配置一致或符合业务预期。
+- `POST /api/v1/messages` 是异步提取入口，不能把接口返回成功理解为所有语义记忆已经完成；读取 `task` 状态或稍后查询消息列表。
+- `similarity_threshold` 先使用默认 `0.2` 验证召回，再根据误召回和漏召回调整；`keywords_similarity_weight` 越高越适合姓名、产品名、编号等精确词检索。
+- `GET /api/v1/messages` 适合最近上下文，`GET /api/v1/messages/search` 适合相关记忆，两者不要混用。
+- 需要让 Agent 不再使用某条记忆时，优先用状态接口禁用；确认永久遗忘后再调用 DELETE。
+- `memory_size` 默认约 5 MB；容量达到上限后由 `forgetting_policy` 清理，生产环境应结合消息大小和向量维度评估容量。
+- `user_id`、`agent_id`、`session_id` 应使用业务侧稳定 ID，并在权限边界内传递；不要把用户可修改的显示名称当作身份标识。
+- API 文档当前仍存在历史字段命名差异：更新接口参数列表中有 `system_promot` 的旧拼写，但参数说明和返回对象使用 `system_prompt`；调用时使用 `system_prompt`，并以实际部署版本验证。
+
+---
+
+# 13. 推荐落地顺序
 
 ## 第一阶段：知识库基础能力
 
@@ -1502,9 +1960,9 @@ POST /kb-categories/search
 
 ---
 
-# 13. 数据库表设计建议
+# 14. 数据库表设计建议
 
-## 13.1 kb_category
+## 14.1 kb_category
 
 ```sql
 CREATE TABLE kb_category (
@@ -1524,7 +1982,7 @@ CREATE TABLE kb_category (
 );
 ```
 
-## 13.2 kb_document
+## 14.2 kb_document
 
 ```sql
 CREATE TABLE kb_document (
@@ -1542,7 +2000,7 @@ CREATE TABLE kb_document (
 );
 ```
 
-## 13.3 kb_sync_task
+## 14.3 kb_sync_task
 
 ```sql
 CREATE TABLE kb_sync_task (
@@ -1558,9 +2016,9 @@ CREATE TABLE kb_sync_task (
 
 ---
 
-# 14. 生产注意事项
+# 15. 生产注意事项
 
-## 14.1 Dataset 粒度
+## 15.1 Dataset 粒度
 
 推荐：
 
@@ -1582,7 +2040,7 @@ kb_sql_rules
 
 ---
 
-## 14.2 embedding_model 不要频繁改
+## 15.2 embedding_model 不要频繁改
 
 RAGFlow 的 Dataset 一旦已经有 chunks，就不建议修改 embedding model。
 
@@ -1599,7 +2057,7 @@ RAGFlow 的 Dataset 一旦已经有 chunks，就不建议修改 embedding model�
 
 ---
 
-## 14.3 文档更新推荐重建
+## 15.3 文档更新推荐重建
 
 推荐：
 
@@ -1619,7 +2077,7 @@ RAGFlow 的 Dataset 一旦已经有 chunks，就不建议修改 embedding model�
 
 ---
 
-## 14.4 检索参数建议
+## 15.4 检索参数建议
 
 | 场景 | similarity_threshold | vector_similarity_weight | top_k | page_size |
 |---|---:|---:|---:|---:|
@@ -1631,7 +2089,7 @@ RAGFlow 的 Dataset 一旦已经有 chunks，就不建议修改 embedding model�
 
 ---
 
-## 14.5 权限控制
+## 15.5 权限控制
 
 RAGFlow Dataset 权限不等于你业务系统权限。
 
@@ -1646,7 +2104,7 @@ RAGFlow Dataset 权限不等于你业务系统权限。
 
 ---
 
-# 15. 最终推荐方案
+# 16. 最终推荐方案
 
 ```text
 RAGFlow:
@@ -1685,7 +2143,7 @@ POST   /kb-categories/{kbCode}/search/rerank
 
 ---
 
-# 16. 一句话总结
+# 17. 一句话总结
 
 如果你的核心需求是：
 
