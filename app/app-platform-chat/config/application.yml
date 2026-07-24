@@ -28,6 +28,7 @@ ai:
   provider:
     ai-agent:
       enabled: ${AI_PROVIDER_AI_AGENT_ENABLED:true}
+      response-language: ${AI_PROVIDER_AI_AGENT_RESPONSE_LANGUAGE:zh-CN}
       python-command: ${AI_PROVIDER_AI_AGENT_PYTHON_COMMAND:}
       script-path: ${AI_PROVIDER_AI_AGENT_SCRIPT_PATH:}
       working-directory: ${AI_PROVIDER_AI_AGENT_WORKING_DIRECTORY:}

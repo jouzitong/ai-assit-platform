@@ -378,6 +378,9 @@ public class AiAgentProcessExecutor {
         payload.put("snapshotHash", runtime.get("snapshotHash"));
         payload.put("agentDefinitionSource", runtime.get("agentDefinitionSource"));
         payload.put("confidencePolicy", runtime.get("confidencePolicy"));
+        payload.put("responseLanguage", StringUtils.hasText(properties.getResponseLanguage())
+                ? properties.getResponseLanguage().trim()
+                : "zh-CN");
         Map<String, Object> options = new LinkedHashMap<>();
         options.put("temperature", request.getTemperature());
         options.put("topP", request.getTopP());

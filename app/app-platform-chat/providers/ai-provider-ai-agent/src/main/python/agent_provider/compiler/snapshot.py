@@ -7,6 +7,7 @@ from typing import Any
 
 from ..protocol import normalize_payload
 from ..agents.catalog import definition_for, local_agent_documents
+from ..language import response_language_instruction, resolve_response_language
 from ..skills import SkillCatalog
 from ..skills.registry import built_in_skill_capabilities
 
@@ -216,6 +217,11 @@ def _compile_agent(
 
     tool_names = _resolve_tools(spec.get("toolRefs"), tool_aliases)
     instructions = _append_knowledge_base_instruction(instructions, tool_names, payload.get("run"))
+    instructions = (
+        instructions
+        + "\n\n"
+        + response_language_instruction(resolve_response_language(payload))
+    ).strip()
     collaboration = _mapping(spec.get("collaboration"))
     agent_tools = _resolve_links(collaboration.get("agentTools"), aliases, is_tool=True)
     handoffs = _resolve_links(collaboration.get("handoffs"), aliases, is_tool=False)

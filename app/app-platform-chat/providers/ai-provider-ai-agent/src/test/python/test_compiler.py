@@ -9,6 +9,28 @@ FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "agent-runtime-v2.j
 
 
 class CompilerTest(unittest.TestCase):
+    def test_python_local_agents_default_to_simplified_chinese(self) -> None:
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "run": {"context": {"agentEntry": "HOME_CHAT"}},
+        })
+
+        self.assertIn("简体中文", graph.root.instructions)
+
+    def test_client_locale_overrides_the_provider_language_default(self) -> None:
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "responseLanguage": "zh-CN",
+            "run": {
+                "context": {
+                    "agentEntry": "HOME_CHAT",
+                    "clientContext": {"locale": "en-US"},
+                }
+            },
+        })
+
+        self.assertIn("Language requirement: use English", graph.root.instructions)
+
     def test_compiles_recursive_agent_graph_and_capability_aliases(self) -> None:
         graph = compile_snapshot(json.loads(FIXTURE.read_text(encoding="utf-8")))
 

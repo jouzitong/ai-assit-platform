@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
+from ..language import response_language_instruction, resolve_response_language
 from ..tools.knowledge_base_search_tool import available_knowledge_bases
 
 if TYPE_CHECKING:
@@ -268,6 +269,8 @@ async def _run_analysis_agent(
             "Agent, tool, and knowledge-base codes from the supplied allowlists. "
             "Confidence and readiness values must be from "
             "0 to 1. Remediation must use a typed action and an allowlisted target when that action requires one."
+            + " "
+            + response_language_instruction(resolve_response_language(graph.payload))
         ),
     )
     prompt = json.dumps(_analysis_input(graph, request), ensure_ascii=False, separators=(",", ":"))

@@ -22,6 +22,9 @@ public class AiAgentProperties {
     /** 默认模型 */
     private String defaultModel = "gpt-5.5";
 
+    /** Agent 面向用户输出的默认语言；可由单次运行上下文中的 locale 覆盖 */
+    private String responseLanguage = "zh-CN";
+
     /** Python 命令；留空时优先使用 Worker 项目的 .venv，找不到再回退到 python3 */
     private String pythonCommand = "";
 

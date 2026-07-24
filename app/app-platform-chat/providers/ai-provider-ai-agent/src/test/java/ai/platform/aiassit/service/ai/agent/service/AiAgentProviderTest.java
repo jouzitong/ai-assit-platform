@@ -137,6 +137,7 @@ class AiAgentProviderTest {
         String json = objectMapper.writeValueAsString(payload);
 
         assertThat(payload).containsEntry("protocolVersion", "2.0");
+        assertThat(payload).containsEntry("responseLanguage", "zh-CN");
         assertThat(payload.get("run")).isEqualTo(runtime.get("run"));
         assertThat(payload.get("rootAgent")).isEqualTo(runtime.get("rootAgent"));
         assertThat(payload.get("resolvedCapabilities")).isEqualTo(runtime.get("resolvedCapabilities"));

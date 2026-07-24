@@ -69,6 +69,7 @@ def normalize_payload(payload: dict[str, Any] | None) -> dict[str, Any]:
         if isinstance(source.get("confidencePolicy"), dict)
         else {},
         "model": _first_text(source.get("model")),
+        "responseLanguage": _first_text(source.get("responseLanguage")),
         "messages": source.get("messages") if isinstance(source.get("messages"), list) else [],
         "tools": source.get("tools") if isinstance(source.get("tools"), list) else [],
         "responseFormat": source.get("responseFormat")

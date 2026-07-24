@@ -37,6 +37,11 @@ class ProtocolTest(unittest.TestCase):
 
         self.assertEqual(policy, payload["confidencePolicy"])
 
+    def test_preserves_the_response_language_configuration(self) -> None:
+        payload = normalize_payload({"responseLanguage": "en-US"})
+
+        self.assertEqual("en-US", payload["responseLanguage"])
+
     def test_application_replay_keeps_assistant_history_and_deduplicates_current_user(self) -> None:
         replay = build_application_input(
             [
