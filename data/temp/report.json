@@ -167,31 +167,6 @@
       "props": {
         "component": "zg-common-list",
         "title": "运营明细",
-        "filters": [
-          {
-            "key": "status",
-            "label": "状态",
-            "component": "zg-selector",
-            "list": [
-              {
-                "key": "全部",
-                "value": ""
-              },
-              {
-                "key": "正常",
-                "value": "正常"
-              },
-              {
-                "key": "关注",
-                "value": "关注"
-              }
-            ],
-            "options": {
-              "clearable": true,
-              "submitOnChange": true
-            }
-          }
-        ],
         "fields": [
           {
             "key": "date",

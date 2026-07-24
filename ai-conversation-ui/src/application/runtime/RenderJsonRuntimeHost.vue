@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { RendererFilter } from '../schema'
 import type { RendererAction } from '../renderers/list/types'
 import RenderJsonRuntimeNode from './RenderJsonRuntimeNode.vue'
 import type { RenderRuntimeNodeScope } from './observability'
@@ -19,6 +20,8 @@ const props = withDefaults(
     error?: string | null
     observe?: boolean
     developerActions?: RendererAction[]
+    globalFilters?: RendererFilter[]
+    globalFilterValues?: Record<string, unknown>
   }>(),
   {
     document: null,
@@ -26,6 +29,8 @@ const props = withDefaults(
     error: null,
     observe: false,
     developerActions: () => [],
+    globalFilters: () => [],
+    globalFilterValues: () => ({}),
   },
 )
 
@@ -61,6 +66,8 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
           :node="document!.root!"
           :observe="observe"
           :developer-actions="developerActions"
+          :global-filters="globalFilters"
+          :global-filter-values="globalFilterValues"
           @scope-change="emit('scope-change', $event)"
           @developer-action="emit('developer-action', $event)"
         />

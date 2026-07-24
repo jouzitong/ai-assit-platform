@@ -314,6 +314,72 @@ export function parseLocalListData(
   }
 }
 
+function filterLocalRecords(
+  records: Record<string, unknown>[],
+  filters: RendererFilter[] = [],
+  queryFilters?: Record<string, unknown>,
+) {
+  const activeFilters = compactFilterDict(queryFilters)
+  if (!Object.keys(activeFilters).length) {
+    return records
+  }
+
+  const filterMap = new Map(filters.map(filter => [filter.key, filter]))
+  return records.filter(record => Object.entries(activeFilters).every(([key, expected]) => {
+    const filter = filterMap.get(key)
+    const field = filter?.query?.field || key
+    const actual = getRecordValue(record, field)
+    const condition = isFilterConditionValue(expected) ? expected : undefined
+    const value = condition ? condition.value : expected
+    const operation = condition?.op || filter?.query?.op || 'eq'
+    return matchesLocalFilter(actual, value, operation)
+  }))
+}
+
+function getRecordValue(record: Record<string, unknown>, field: string) {
+  return field.split('.').reduce<unknown>((current, segment) => (
+    isRecord(current) ? current[segment] : undefined
+  ), record)
+}
+
+function matchesLocalFilter(actual: unknown, expected: unknown, operation: string) {
+  if (operation === 'is_null') return actual == null
+  if (operation === 'is_not_null') return actual != null
+
+  if (operation === 'in' || operation === 'not_in') {
+    const values = Array.isArray(expected) ? expected : [expected]
+    const matched = values.some(value => isSameFilterValue(actual, value))
+    return operation === 'in' ? matched : !matched
+  }
+
+  if (operation === 'like') {
+    return String(actual ?? '').toLowerCase().includes(String(expected ?? '').toLowerCase())
+  }
+
+  if (operation === 'ne') return !isSameFilterValue(actual, expected)
+  if (operation === 'gt') return compareFilterValues(actual, expected) > 0
+  if (operation === 'gte') return compareFilterValues(actual, expected) >= 0
+  if (operation === 'lt') return compareFilterValues(actual, expected) < 0
+  if (operation === 'lte') return compareFilterValues(actual, expected) <= 0
+  return isSameFilterValue(actual, expected)
+}
+
+function isSameFilterValue(actual: unknown, expected: unknown) {
+  if (Array.isArray(actual)) {
+    return actual.some(value => isSameFilterValue(value, expected))
+  }
+  return String(actual ?? '').toLowerCase() === String(expected ?? '').toLowerCase()
+}
+
+function compareFilterValues(actual: unknown, expected: unknown) {
+  const actualNumber = Number(actual)
+  const expectedNumber = Number(expected)
+  if (Number.isFinite(actualNumber) && Number.isFinite(expectedNumber)) {
+    return actualNumber - expectedNumber
+  }
+  return String(actual ?? '').localeCompare(String(expected ?? ''))
+}
+
 function parseListResponseData(
   value: unknown,
   summary: Record<string, unknown> = {},
@@ -376,7 +442,19 @@ export function resolveDirectJsonListData(options: ResolveListRendererDataOption
   if (!requestPlan || requestPlan.type !== 'direct-json') {
     return parseDirectJsonListData(undefined)
   }
-  return parseDirectJsonListData(requestPlan.data as DirectJsonListDatasource['data'], requestPlan.summary || {})
+  const resolved = parseDirectJsonListData(
+    requestPlan.data as DirectJsonListDatasource['data'],
+    requestPlan.summary || {},
+  )
+  const records = filterLocalRecords(
+    resolved.data.records,
+    options.schema.filters,
+    options.query?.filters,
+  )
+  return {
+    ...resolved,
+    data: { ...resolved.data, records, total: records.length },
+  }
 }
 
 export async function resolveLocalListData(options: ResolveListRendererDataOptions) {
@@ -387,8 +465,15 @@ export async function resolveLocalListData(options: ResolveListRendererDataOptio
   }
 
   const result = await executeRuntimeDataRequest(requestPlan)
+  const resolved = parseListRendererRequestResult(result)
+  const records = filterLocalRecords(
+    resolved.data.records,
+    options.schema.filters,
+    options.query?.filters,
+  )
   return {
-    ...parseListRendererRequestResult(result),
+    ...resolved,
+    data: { ...resolved.data, records, total: records.length },
     requestPlans: structure.requestPlans,
   } satisfies ResolvedListRendererData
 }

@@ -3,6 +3,7 @@ import { computed, reactive, ref, watch, type CSSProperties } from 'vue'
 import { findApplicationLayout } from '../layout'
 import { findApplicationRenderer } from '../registry'
 import { createDefaultQueryState } from '../renderers/list/schema'
+import type { RendererFilter } from '../schema'
 import type { RendererAction, RendererQueryState } from '../renderers/list/types'
 import type {
   RenderRuntimeNodeEvent,
@@ -27,10 +28,14 @@ const props = withDefaults(defineProps<{
   observe?: boolean
   path?: string
   developerActions?: RendererAction[]
+  globalFilters?: RendererFilter[]
+  globalFilterValues?: Record<string, unknown>
 }>(), {
   observe: false,
   path: 'root',
   developerActions: () => [],
+  globalFilters: () => [],
+  globalFilterValues: () => ({}),
 })
 
 const emit = defineEmits<{
@@ -49,10 +54,10 @@ const rawNodeProps = computed(() => props.node.props || {})
 const schema = computed<Record<string, unknown> | null>(() => {
   const value = rawNodeProps.value.schema
   if (isRecord(value)) {
-    return mergeDatasource(value)
+    return mergeGlobalFilters(mergeDatasource(value))
   }
   if (definition.value?.key === 'zg-list-main-layout' || definition.value?.key === 'form-main-layout') {
-    return mergeDatasource(rawNodeProps.value)
+    return mergeGlobalFilters(mergeDatasource(rawNodeProps.value))
   }
   return null
 })
@@ -155,7 +160,11 @@ watch(
 )
 
 watch(
-  () => JSON.stringify({ component: props.node.component, schema: schema.value }),
+  () => JSON.stringify({
+    component: props.node.component,
+    schema: schema.value,
+    globalFilterValues: props.globalFilterValues,
+  }),
   () => {
     Object.keys(queryState).forEach(key => delete queryState[key as keyof RendererQueryState])
     if (schema.value && definition.value?.key === 'zg-list-main-layout') {
@@ -178,13 +187,14 @@ async function loadData(query: Partial<RendererQueryState>) {
     return
   }
   const sequence = ++requestSequence
+  const effectiveQuery = mergeGlobalQuery(query)
   requestPlans.value = []
   rendererLoading.value = true
   rendererError.value = ''
   try {
     const payload = await resolveRendererRuntimeData(componentKey.value, {
       schema: schema.value,
-      query,
+      query: effectiveQuery,
     })
     if (sequence !== requestSequence) return
     const resolved = payload.resolved as {
@@ -246,6 +256,46 @@ function mergeDatasource(value: Record<string, unknown>) {
   return { ...value, datasource: props.node.datasource }
 }
 
+function mergeGlobalFilters(value: Record<string, unknown>) {
+  if (!props.globalFilters.length) {
+    return value
+  }
+
+  const merged = new Map<string, unknown>()
+  props.globalFilters.forEach(filter => merged.set(filter.key, filter))
+  const localFilters = Array.isArray(value.filters) ? value.filters : []
+  localFilters.forEach(filter => {
+    if (isRecord(filter) && typeof filter.key === 'string' && !merged.has(filter.key)) {
+      merged.set(filter.key, filter)
+    }
+  })
+  return {
+    ...value,
+    filters: [...merged.values()],
+  }
+}
+
+function mergeGlobalQuery(query: Partial<RendererQueryState>) {
+  const filters = {
+    ...(query.filters || {}),
+  }
+  Object.entries(props.globalFilterValues).forEach(([key, value]) => {
+    if (!isEmptyFilterValue(value) || filters[key] === undefined) {
+      filters[key] = value
+    }
+  })
+  return {
+    ...query,
+    filters,
+  }
+}
+
+function isEmptyFilterValue(value: unknown) {
+  return value == null
+    || (typeof value === 'string' && value.trim() === '')
+    || (Array.isArray(value) && value.length === 0)
+}
+
 function resolveInlineData(value: Record<string, unknown>) {
   if (isRecord(value.data)) return value.data
   return {
@@ -283,6 +333,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         :key="child.id || `${child.component}-${index}`"
         :node="child"
         :observe="observe"
+        :global-filters="globalFilters"
+        :global-filter-values="globalFilterValues"
         :path="`${path}.${index}`"
         :developer-actions="developerActions"
         @scope-change="forwardScope"
@@ -305,6 +357,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         :key="child.id || `${child.component}-${index}`"
         :node="child"
         :observe="observe"
+        :global-filters="globalFilters"
+        :global-filter-values="globalFilterValues"
         :path="`${path}.${index}`"
         :developer-actions="developerActions"
         @scope-change="forwardScope"

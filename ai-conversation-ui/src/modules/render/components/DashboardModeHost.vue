@@ -1,18 +1,27 @@
 <script setup lang="ts">
-import { FullScreen, RefreshRight } from '@element-plus/icons-vue'
-import { ref } from 'vue'
+import { FullScreen } from '@element-plus/icons-vue'
+import { computed, ref } from 'vue'
 import { ResponsiveViewport } from '../../../application/layout'
 import type { RenderModeHostProps } from '../model/render-app'
+import RenderActionBar from './RenderActionBar.vue'
+import RenderGlobalFilterBar from './RenderGlobalFilterBar.vue'
 
-withDefaults(defineProps<RenderModeHostProps>(), {
+const props = withDefaults(defineProps<RenderModeHostProps>(), {
   responsivePreset: 'dashboard',
 })
 
 const emit = defineEmits<{
   refresh: []
+  action: [action: NonNullable<RenderModeHostProps['actions']>[number]]
+  'filters-change': [filters: Record<string, unknown>]
+  'filters-submit': []
+  'filters-reset': []
 }>()
 
 const hostRef = ref<HTMLElement | null>(null)
+const resolvedActions = computed(() => props.actions?.length
+  ? props.actions
+  : [{ key: 'refresh', name: '刷新', action: 'RELOAD', icon: 'refresh' }])
 
 async function openFullscreen() {
   if (document.fullscreenElement) {
@@ -37,15 +46,11 @@ async function openFullscreen() {
         <span v-if="lastRefreshedAt" class="dashboard-mode-host__updated-at">
           更新于 {{ lastRefreshedAt }}
         </span>
-        <el-button
-          circle
-          plain
-          :icon="RefreshRight"
+        <RenderActionBar
+          :actions="resolvedActions"
           :loading="loading"
-          :disabled="!refreshable"
-          aria-label="刷新看板"
-          title="刷新看板"
-          @click="emit('refresh')"
+          :refreshable="refreshable"
+          @action="emit('action', $event)"
         />
         <el-button
           circle
@@ -56,6 +61,15 @@ async function openFullscreen() {
           @click="openFullscreen"
         />
       </div>
+      <RenderGlobalFilterBar
+        v-if="filters?.length"
+        class="dashboard-mode-host__filters"
+        :filters="filters"
+        :model-value="filterValues || {}"
+        @update:model-value="emit('filters-change', $event)"
+        @submit="emit('filters-submit')"
+        @reset="emit('filters-reset')"
+      />
     </header>
     <section class="dashboard-mode-host__content">
       <ResponsiveViewport :preset="responsivePreset">
@@ -88,9 +102,12 @@ async function openFullscreen() {
 
 .dashboard-mode-host__header {
   z-index: 1;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'heading actions'
+    'filters filters';
   align-items: center;
-  justify-content: space-between;
   gap: var(--app-space-4);
   min-height: var(--app-layout-header-height);
   padding: var(--app-space-2) var(--app-space-4);
@@ -100,6 +117,7 @@ async function openFullscreen() {
 }
 
 .dashboard-mode-host__heading {
+  grid-area: heading;
   min-width: 0;
 }
 
@@ -123,10 +141,21 @@ async function openFullscreen() {
 }
 
 .dashboard-mode-host__actions {
+  grid-area: actions;
   display: flex;
   flex: none;
   align-items: center;
   gap: var(--app-space-2);
+}
+
+.dashboard-mode-host__filters {
+  grid-area: filters;
+  min-width: 0;
+}
+
+.dashboard-mode-host__filters :deep(.list-filter-bar) {
+  border: 0;
+  background: transparent;
 }
 
 .dashboard-mode-host__content {

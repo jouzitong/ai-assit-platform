@@ -1,16 +1,26 @@
 <script setup lang="ts">
-import { Printer, RefreshRight } from '@element-plus/icons-vue'
+import { computed } from 'vue'
 import type { RenderModeHostProps } from '../model/render-app'
+import RenderActionBar from './RenderActionBar.vue'
+import RenderGlobalFilterBar from './RenderGlobalFilterBar.vue'
 
-defineProps<RenderModeHostProps>()
+const props = defineProps<RenderModeHostProps>()
 
 const emit = defineEmits<{
   refresh: []
+  action: [action: NonNullable<RenderModeHostProps['actions']>[number]]
+  'filters-change': [filters: Record<string, unknown>]
+  'filters-submit': []
+  'filters-reset': []
 }>()
 
-function printReport() {
-  window.print()
-}
+const resolvedActions = computed(() => props.actions?.length
+  ? props.actions
+  : [
+      { key: 'refresh', name: '刷新', action: 'RELOAD', icon: 'refresh' },
+      { key: 'print', name: '打印', action: 'PRINT', type: 'primary', icon: 'print' },
+    ])
+
 </script>
 
 <template>
@@ -21,18 +31,22 @@ function printReport() {
         <p v-if="description">{{ description }}</p>
       </div>
       <div class="report-mode-host__actions">
-        <el-button
-          :icon="RefreshRight"
+        <RenderActionBar
+          :actions="resolvedActions"
           :loading="loading"
-          :disabled="!refreshable"
-          @click="emit('refresh')"
-        >
-          刷新
-        </el-button>
-        <el-button type="primary" :icon="Printer" @click="printReport">
-          打印
-        </el-button>
+          :refreshable="refreshable"
+          @action="emit('action', $event)"
+        />
       </div>
+      <RenderGlobalFilterBar
+        v-if="filters?.length"
+        class="report-mode-host__filters"
+        :filters="filters"
+        :model-value="filterValues || {}"
+        @update:model-value="emit('filters-change', $event)"
+        @submit="emit('filters-submit')"
+        @reset="emit('filters-reset')"
+      />
     </header>
     <section class="report-mode-host__content">
       <slot />
@@ -59,9 +73,12 @@ function printReport() {
   position: sticky;
   top: 0;
   z-index: 10;
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'heading actions'
+    'filters filters';
   align-items: center;
-  justify-content: space-between;
   gap: var(--app-space-4);
   margin-bottom: var(--app-space-5);
   padding: var(--app-space-4);
@@ -69,6 +86,10 @@ function printReport() {
   border-radius: var(--app-radius-xl);
   background: var(--app-surface-raised);
   box-shadow: var(--app-shadow-md);
+}
+
+.report-mode-host__header > div:first-child {
+  grid-area: heading;
 }
 
 .report-mode-host__header h1 {
@@ -84,9 +105,20 @@ function printReport() {
 }
 
 .report-mode-host__actions {
+  grid-area: actions;
   display: flex;
   flex: none;
   gap: var(--app-space-2);
+}
+
+.report-mode-host__filters {
+  grid-area: filters;
+  min-width: 0;
+}
+
+.report-mode-host__filters :deep(.list-filter-bar) {
+  border: 0;
+  background: transparent;
 }
 
 .report-mode-host__content {

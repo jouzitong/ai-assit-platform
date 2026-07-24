@@ -8,6 +8,7 @@ import {
   upsertRenderMetaContent,
   type RenderRuntimeNodeScope,
 } from '../../../application/runtime'
+import { getDefaultFilterValue } from '../../../application/renderers/list/schema'
 import type { RendererAction } from '../../../application/renderers/list/types'
 import { getDeveloperModeEnabled } from '../../../utils/developerMode'
 import RenderDeveloperTools from '../components/RenderDeveloperTools.vue'
@@ -38,6 +39,8 @@ const scopeVisible = ref(false)
 const metadataDraft = ref('')
 const metadataSaving = ref(false)
 const scopeNodes = ref<Record<string, RenderRuntimeNodeScope>>({})
+const globalFilterValues = ref<Record<string, unknown>>({})
+const pendingGlobalFilterValues = ref<Record<string, unknown>>({})
 
 let loadSequence = 0
 let refreshTimer: number | undefined
@@ -78,6 +81,7 @@ const developerActions = computed<RendererAction[]>(() => developerModeEnabled.v
 const hasIntegratedDeveloperTools = computed(() => (
   developerModeEnabled.value && containsListRenderer(renderDocument.value?.root)
 ))
+const documentFilters = computed(() => renderDocument.value?.filters || [])
 const runtimeScope = computed(() => {
   const nodes = Object.values(scopeNodes.value)
   return {
@@ -150,6 +154,8 @@ async function loadRuntimeDocument() {
   renderMetaContent.value = null
   renderDocument.value = null
   scopeNodes.value = {}
+  globalFilterValues.value = {}
+  pendingGlobalFilterValues.value = {}
   clearAutoRefresh()
 
   try {
@@ -177,6 +183,7 @@ async function loadRuntimeDocument() {
 
     renderMetaContent.value = content
     renderDocument.value = documentValue
+    initializeGlobalFilters(documentValue.filters || [])
     refreshRuntime()
     configureAutoRefresh()
   } catch (error) {
@@ -227,6 +234,34 @@ function handleDeveloperAction(action: RendererAction) {
   }
 }
 
+function handlePageAction(action: RendererAction) {
+  if (action.action === 'RELOAD') {
+    refreshRuntime()
+    return
+  }
+  if (action.action === 'PRINT') {
+    window.print()
+  }
+}
+
+function handleGlobalFiltersChange(filters: Record<string, unknown>) {
+  pendingGlobalFilterValues.value = { ...filters }
+}
+
+function commitGlobalFilters() {
+  globalFilterValues.value = { ...pendingGlobalFilterValues.value }
+  refreshRuntime()
+}
+
+function initializeGlobalFilters(filters: NonNullable<RenderRuntimeDocument['filters']>) {
+  const values = filters.reduce<Record<string, unknown>>((result, filter) => {
+    result[filter.key] = getDefaultFilterValue(filter)
+    return result
+  }, {})
+  globalFilterValues.value = values
+  pendingGlobalFilterValues.value = { ...values }
+}
+
 function createRenderMetaTemplate(): Record<string, unknown> {
   const code = renderCode.value || 'render-app'
   return {
@@ -266,6 +301,7 @@ async function saveMetadata(content: Record<string, unknown>) {
     renderDocument.value = documentValue
     metadataDraft.value = JSON.stringify(savedContent, null, 2)
     metadataVisible.value = false
+    initializeGlobalFilters(documentValue.filters || [])
     refreshRuntime()
     configureAutoRefresh()
     ElMessage.success('Render JSON 元数据已保存并重新渲染')
@@ -344,6 +380,10 @@ function containsListRenderer(node: unknown): boolean {
     :last-refreshed-at="lastRefreshedAt"
     :responsive-preset="responsivePreset"
     @refresh="refreshRuntime"
+    @action="handlePageAction"
+    @filters-change="handleGlobalFiltersChange"
+    @filters-submit="commitGlobalFilters"
+    @filters-reset="commitGlobalFilters"
   >
     <RenderRuntimeState
       v-if="loading || errorMessage"
@@ -357,6 +397,8 @@ function containsListRenderer(node: unknown): boolean {
       :document="renderDocument"
       :observe="developerModeEnabled"
       :developer-actions="developerActions"
+      :global-filters="documentFilters"
+      :global-filter-values="globalFilterValues"
       @scope-change="handleRuntimeScopeChange"
       @developer-action="handleDeveloperAction"
     />

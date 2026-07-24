@@ -1,3 +1,5 @@
+import type { RendererAction, RendererFilter } from '../../../application/schema'
+
 export const RENDER_APP_MODES = [
   'standard',
   'dashboard',
@@ -24,6 +26,8 @@ export interface RenderRuntimeDocument extends Record<string, unknown> {
   revision?: string
   title?: string
   presentation?: RenderDocumentPresentation
+  actions?: RendererAction[]
+  filters?: RendererFilter[]
   root: Record<string, unknown>
 }
 
@@ -35,6 +39,9 @@ export interface RenderModeHostProps {
   lastRefreshedAt?: string
   responsivePreset?: string
   compact?: boolean
+  actions?: RendererAction[]
+  filters?: RendererFilter[]
+  filterValues?: Record<string, unknown>
 }
 
 const RENDER_APP_MODE_SET = new Set<string>(RENDER_APP_MODES)
@@ -91,6 +98,12 @@ export function normalizeRenderRuntimeDocument(
     ...(readString(content.revision) ? { revision: readString(content.revision) } : {}),
     ...(title ? { title } : {}),
     ...(hasPresentationValue(presentation) ? { presentation } : {}),
+    ...(Array.isArray(content.actions)
+      ? { actions: content.actions.filter(isRecord) as RendererAction[] }
+      : {}),
+    ...(Array.isArray(content.filters)
+      ? { filters: content.filters.filter(isRecord) as RendererFilter[] }
+      : {}),
     root: normalizedRoot,
   }
 }
