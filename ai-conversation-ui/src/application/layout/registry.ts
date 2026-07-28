@@ -1,14 +1,8 @@
 import type { Component } from 'vue'
 import ApplicationLayoutContainer from './runtime/ApplicationLayoutContainer.vue'
+import { APPLICATION_LAYOUT_CATALOG, type ApplicationLayoutKind } from './catalog'
 
-export type ApplicationLayoutKind =
-  | 'page'
-  | 'container'
-  | 'section'
-  | 'stack'
-  | 'grid'
-  | 'split'
-  | 'sheet'
+export type { ApplicationLayoutKind } from './catalog'
 
 export interface ApplicationLayoutDefinition {
   key: string
@@ -17,22 +11,17 @@ export interface ApplicationLayoutDefinition {
   component: Component
 }
 
-const APPLICATION_LAYOUT_DEFINITIONS = [
-  { key: 'zg-page-layout', aliases: ['page'], kind: 'page', component: ApplicationLayoutContainer },
-  { key: 'zg-container-layout', aliases: ['container'], kind: 'container', component: ApplicationLayoutContainer },
-  { key: 'zg-section-layout', aliases: ['section'], kind: 'section', component: ApplicationLayoutContainer },
-  { key: 'zg-stack-layout', aliases: ['stack'], kind: 'stack', component: ApplicationLayoutContainer },
-  { key: 'zg-grid-layout', aliases: ['grid'], kind: 'grid', component: ApplicationLayoutContainer },
-  { key: 'zg-split-layout', aliases: ['split'], kind: 'split', component: ApplicationLayoutContainer },
-  { key: 'zg-sheet-layout', aliases: ['sheet'], kind: 'sheet', component: ApplicationLayoutContainer },
-] as const satisfies readonly ApplicationLayoutDefinition[]
+const APPLICATION_LAYOUT_DEFINITIONS = APPLICATION_LAYOUT_CATALOG.map(definition => ({
+  ...definition,
+  component: ApplicationLayoutContainer,
+})) satisfies readonly ApplicationLayoutDefinition[]
 
 const APPLICATION_LAYOUT_MAP = new Map<string, ApplicationLayoutDefinition>()
 
 for (const definition of APPLICATION_LAYOUT_DEFINITIONS) {
-  APPLICATION_LAYOUT_MAP.set(definition.key, definition)
+  APPLICATION_LAYOUT_MAP.set(definition.key.toLowerCase(), definition)
   for (const alias of definition.aliases || []) {
-    APPLICATION_LAYOUT_MAP.set(alias, definition)
+    APPLICATION_LAYOUT_MAP.set(alias.toLowerCase(), definition)
   }
 }
 

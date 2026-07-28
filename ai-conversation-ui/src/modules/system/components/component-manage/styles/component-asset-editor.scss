@@ -1,3 +1,7 @@
+.component-asset-editor-dialog.app-dialog-shell {
+  container-type: inline-size;
+}
+
 .component-asset-editor {
   display: grid;
   gap: var(--app-space-5);
@@ -140,6 +144,10 @@
   border-color: var(--app-accent-border);
   background: var(--app-accent-bg);
   box-shadow: 0 0 0 1px var(--app-accent-border);
+}
+
+.component-catalog-card.is-existing {
+  background: var(--app-surface-muted);
 }
 
 .component-catalog-card:disabled {

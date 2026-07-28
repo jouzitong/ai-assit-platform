@@ -1,60 +1,99 @@
-import { LIST_RENDERER_DEFINITION } from './list'
-import { FORM_RENDERER_DEFINITION } from './form'
-import { CHART_RENDERER_DEFINITIONS } from './charts'
+import { markRaw, type Component } from 'vue'
+import { resolveListRendererData } from '../resolver'
 import { APPLICATION_COMPONENT_MANIFEST } from '../component-manifest'
+import { assertApplicationRendererAssetDefinitions } from '../component-manifest-validation'
+import { APPLICATION_LAYOUT_CATALOG } from '../layout/catalog'
+import { APPLICATION_STATIC_RENDER_NODE_CATALOG } from '../runtime/node-catalog'
+import {
+  APPLICATION_RENDERER_CATALOG,
+  COMBO_CHART_RENDERER_CATALOG_ENTRY,
+  FORM_RENDERER_CATALOG_ENTRY,
+  LINE_CHART_RENDERER_CATALOG_ENTRY,
+  LIST_RENDERER_CATALOG_ENTRY,
+  PUBLIC_APPLICATION_RENDERER_CATALOG,
+  RADAR_CHART_RENDERER_CATALOG_ENTRY,
+} from './catalog'
 import type { ApplicationRendererDefinition } from './types'
 
-const APPLICATION_RENDERER_DEFINITIONS = [
-  LIST_RENDERER_DEFINITION,
-  FORM_RENDERER_DEFINITION,
-  ...CHART_RENDERER_DEFINITIONS,
-] as const satisfies readonly ApplicationRendererDefinition<any>[]
+const RENDERER_COMPONENT_MODULES = import.meta.glob<Component>(
+  ['../renderers/**/*.vue', '!../renderers/**/components/**/*.vue'],
+  { eager: true, import: 'default' },
+)
 
-const APPLICATION_RENDERER_MAP = new Map<string, ApplicationRendererDefinition<any>>()
-
-function assertComponentManifestCoverage() {
-  const rendererKeys = new Set(APPLICATION_RENDERER_DEFINITIONS.map(item => item.key))
-  const manifestKeys = new Set(APPLICATION_COMPONENT_MANIFEST.map(item => item.key))
-  const renderersWithoutAssets = [...rendererKeys].filter(key => !manifestKeys.has(key))
-  const assetsWithoutRenderers = [...manifestKeys].filter(key => !rendererKeys.has(key))
-  const incompleteAssets = APPLICATION_COMPONENT_MANIFEST.flatMap((item) => {
-    const example = item.examples[0]
-    const exampleProps = example?.renderDocument.root.props || {}
-    const missingRequiredProps = item.parameters
-      .filter(parameter => parameter.required && !Object.prototype.hasOwnProperty.call(exampleProps, parameter.key))
-      .map(parameter => parameter.key)
-    const problems = [
-      !item.documentation.summary.trim() ? '缺少能力说明' : '',
-      !item.documentation.usageGuide.trim() ? '缺少使用指引' : '',
-      !example ? '缺少默认案例' : '',
-      example && example.renderDocument.root.component !== item.key ? '案例 Renderer Key 不一致' : '',
-      missingRequiredProps.length ? `案例缺少必填参数 ${missingRequiredProps.join(', ')}` : '',
-    ].filter(Boolean)
-    return problems.length ? [`${item.key}（${problems.join('、')}）`] : []
-  })
-
-  if (renderersWithoutAssets.length || assetsWithoutRenderers.length || incompleteAssets.length) {
-    const details = [
-      renderersWithoutAssets.length
-        ? `缺少知识资产定义：${renderersWithoutAssets.join(', ')}`
-        : '',
-      assetsWithoutRenderers.length
-        ? `未注册 Renderer：${assetsWithoutRenderers.join(', ')}`
-        : '',
-      incompleteAssets.length
-        ? `知识资产定义不完整：${incompleteAssets.join('；')}`
-        : '',
-    ].filter(Boolean).join('；')
-    throw new Error(`Application Renderer 注册表与组件知识资产定义不一致：${details}`)
-  }
+const RENDERER_RUNTIME_OPTIONS: Record<
+  string,
+  Partial<Pick<
+    ApplicationRendererDefinition<any, any>,
+    'defaultProps' | 'normalizeProps' | 'resolveData'
+  >>
+> = {
+  [LIST_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: {
+      data: {
+        records: [],
+        total: 0,
+        treeData: [],
+      },
+      state: {
+        loading: false,
+      },
+    },
+    resolveData: resolveListRendererData,
+  },
+  [FORM_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: {
+      modelValue: {},
+      readonly: false,
+    },
+  },
 }
 
-assertComponentManifestCoverage()
+function rendererModulePath(sourcePath: string) {
+  return sourcePath.replace(/^src\/application\//, '../')
+}
+
+const APPLICATION_RENDERER_DEFINITIONS: ApplicationRendererDefinition<any, any>[] =
+  PUBLIC_APPLICATION_RENDERER_CATALOG.map((entry) => {
+    const modulePath = rendererModulePath(entry.sourcePath)
+    const component = RENDERER_COMPONENT_MODULES[modulePath]
+    if (!component) {
+      throw new Error(`公开 Renderer 未找到组件实现：${entry.key} -> ${entry.sourcePath}`)
+    }
+    return {
+      ...entry,
+      component: markRaw(component),
+      ...RENDERER_RUNTIME_OPTIONS[entry.key],
+    }
+  })
+
+function rendererDefinition(key: string) {
+  const definition = APPLICATION_RENDERER_DEFINITIONS.find(item => item.key === key)
+  if (!definition) throw new Error(`公开 Renderer 未注册：${key}`)
+  return definition
+}
+
+export const LIST_RENDERER_KEY = LIST_RENDERER_CATALOG_ENTRY.key
+export const FORM_RENDERER_KEY = FORM_RENDERER_CATALOG_ENTRY.key
+export const LIST_RENDERER_DEFINITION = rendererDefinition(LIST_RENDERER_KEY)
+export const FORM_RENDERER_DEFINITION = rendererDefinition(FORM_RENDERER_KEY)
+export const CHART_RENDERER_DEFINITIONS = [
+  rendererDefinition(LINE_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(COMBO_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(RADAR_CHART_RENDERER_CATALOG_ENTRY.key),
+]
+
+const APPLICATION_RENDERER_MAP = new Map<string, ApplicationRendererDefinition<any, any>>()
+
+assertApplicationRendererAssetDefinitions(
+  APPLICATION_RENDERER_DEFINITIONS,
+  APPLICATION_COMPONENT_MANIFEST,
+  [...APPLICATION_LAYOUT_CATALOG, ...APPLICATION_STATIC_RENDER_NODE_CATALOG],
+)
 
 for (const definition of APPLICATION_RENDERER_DEFINITIONS) {
-  APPLICATION_RENDERER_MAP.set(definition.key, definition)
+  APPLICATION_RENDERER_MAP.set(definition.key.toLowerCase(), definition)
   for (const alias of definition.aliases || []) {
-    APPLICATION_RENDERER_MAP.set(alias, definition)
+    APPLICATION_RENDERER_MAP.set(alias.toLowerCase(), definition)
   }
 }
 
@@ -66,7 +105,7 @@ export function findApplicationRenderer(rendererKey?: string) {
   if (!rendererKey) {
     return undefined
   }
-  return APPLICATION_RENDERER_MAP.get(rendererKey)
+  return APPLICATION_RENDERER_MAP.get(rendererKey.toLowerCase())
 }
 
 export function hasApplicationRenderer(rendererKey?: string) {
@@ -78,6 +117,9 @@ export function resolveApplicationRenderer(rendererKey?: string) {
 }
 
 export type { ApplicationRendererDefinition } from './types'
-export { LIST_RENDERER_DEFINITION, LIST_RENDERER_KEY } from './list'
-export { FORM_RENDERER_DEFINITION, FORM_RENDERER_KEY } from './form'
-export { CHART_RENDERER_DEFINITIONS } from './charts'
+export {
+  APPLICATION_RENDERER_CATALOG,
+  PUBLIC_APPLICATION_RENDERER_CATALOG,
+  type ApplicationRendererCatalogEntry,
+  type ApplicationRendererExposure,
+} from './catalog'

@@ -147,9 +147,19 @@ Data Requester 不应该定义：
 Manifest 应该定义：
 
 - `key`、`name`、`category`、`version`、`sourcePath`。
+- `exposure`，公开候选必须显式为 `public`；仅供 Renderer 内部复用的顶层宿主必须显式为 `internal`。
 - `description`、`useCases`、`tags`。
 - 对外参数清单，包括参数 key、label、类型、控件类型、是否必填、默认值、说明。
+- 自定义数组参数若使用空数组作为默认值，必须通过 `itemType` 显式声明元素 JSON 类型；非空默认案例可以由构建门禁推断元素类型。
 - 对外事件清单，包括事件名称和说明。
+- 完整的 `documentation`，至少包含能力说明、使用指引、限制和补充说明。
+- 至少一个可直接运行的 `examples[].renderDocument`，案例必须包含全部必填参数，且只使用已声明参数。
+
+`renderers/` 下不位于内部 `components/` 目录的 Vue 入口必须登记到 Renderer Catalog，并显式声明 `public` 或 `internal`。运行时 Registry 根据公开 Catalog 自动加载对应 Vue 入口，不再维护第二份公开 Renderer 列表；仅有默认 props、resolver 等运行时增强需要在 Registry 中单独配置。公开 Catalog、Registry 和 Manifest 的 key、别名、源码路径及内部版本必须保持一致；Vite 构建会执行目录覆盖、参数契约、参数值类型、子节点引用、文档和案例校验，定义不完整时必须中止构建。
+
+组件资产页面只消费 `public` Manifest 生成候选、默认 Markdown 和案例 Render JSON。组件版本属于 Registry 与 Render JSON 内部兼容信息，不作为组件知识资产页面的用户配置项。
+
+组件资产的知识库目标统一读取启用的系统参数 `render.component.kbId`，页面只读展示，不允许用户重复录入，提交前必须重新读取以避免使用过期值。已发布资产先暂存为草稿，写入 Markdown 知识文档并等待同步成功后再落最终状态；同步失败时保留草稿和编辑重试入口。轮询遇到传输错误或确认超时时，必须把 `taskCode`、组件与文档坐标、SHA-256 内容指纹和用户目标状态持久化到组件资产 envelope；刷新或切换标签页后从最新资产记录恢复。同一页面创建替代任务、移除知识文档或删除资产前，必须先确认已知任务进入终态，避免旧任务在清理后继续写入。草稿和停用资产移除对应知识文档。知识库或资产标识切换时，旧文档坐标必须先持久化，只有新目标同步确认成功后才能清理，失败时保留待清理记录供后续幂等重试。新增目录中的已创建 Renderer 必须标记并直接进入现有资产编辑，不能让用户到保存阶段才遇到唯一键冲突。
 
 Manifest 不应该定义真实 Vue component，也不应该替代 registry。需要运行时渲染时，由 registry 组合 manifest 元信息和真实组件。
 
@@ -220,10 +230,10 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 1. 在 `renderers/{type}/` 下定义 `types.ts`、`schema.ts` 和主渲染组件。
 2. 主渲染组件只暴露稳定 props 和 events，不直接耦合页面 service。
 3. 在 `schema/` 中补充 renderer 对外结构、统一 `data/state` 类型和必要的 wire contract。
-4. 在 `registry/` 中注册 renderer key、Vue component、默认 props 和可选 normalize 函数。
+4. 在 Renderer Catalog 中登记源码入口并显式声明 `exposure`；公开 Vue component 由 Registry 自动加载，仅在需要时补充默认 props、resolver 或 normalize 等运行时增强。
 5. 如需数据解析，在 `resolver/` 中补充 datasource 或 binding 到 renderer data 的转换。
-6. 在 `component-manifest.ts` 补充组件资产元信息、参数清单和事件清单。
-7. 增加测试页或示例配置，验证 schema、props、events 是否能独立工作。
+6. 在 `component-manifest.ts` 补充组件资产元信息、完整文档、参数清单、事件清单和至少一个可运行 Render JSON 案例。
+7. 执行前端构建，让 Renderer Catalog、Manifest、参数值、子节点引用和案例门禁验证通过；再按需增加测试页验证 schema、props、events 是否能独立工作。
 8. 如果该 renderer 会被页面路由使用，再由具体页面模块按当前路由和页面实现约定接入。
 
 新增 Layout 时：
@@ -239,6 +249,7 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - Render JSON 必须是可序列化 JSON 对象，不允许出现 Vue `Component`、`markRaw`、请求函数、回调函数或任意运行时实例。
 - 根文档必须显式区分协议版本和组件版本，禁止继续用单个 `version` 同时表达两者。
 - 节点必须至少具备稳定 `id` 和 `component`，并允许按需声明 `props`、`layout`、`datasource`、`bindings`、`events`、`actions`、`children`。
+- `children` 可以引用公开 Renderer、Layout Catalog 中的容器节点，以及 Runtime 静态节点 Catalog 中的 `text`、`heading`/`title`；这些合法节点统一参与构建和编辑器校验。
 - `component`、`datasource.type`、事件 key、动作 key 都必须对应注册表中的稳定 key，不允许直接写页面私有实现名。
 - 所有表达式必须是受限声明，不允许 `eval`、`new Function`、`javascript:` URL 或字符串形式函数。
 

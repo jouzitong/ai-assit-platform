@@ -1,10 +1,22 @@
+import {
+  COMBO_CHART_RENDERER_CATALOG_ENTRY,
+  FORM_RENDERER_CATALOG_ENTRY,
+  LINE_CHART_RENDERER_CATALOG_ENTRY,
+  LIST_RENDERER_CATALOG_ENTRY,
+  RADAR_CHART_RENDERER_CATALOG_ENTRY,
+  type ApplicationRendererExposure,
+} from './registry/catalog'
+
 export type ApplicationComponentControl = 'text' | 'number' | 'boolean' | 'json'
+export type ApplicationComponentParameterItemType = 'boolean' | 'number' | 'object' | 'string'
 
 export interface ApplicationComponentParameter {
   key: string
   label: string
   type: string
   control: ApplicationComponentControl
+  /** 自定义空数组无法从默认案例推断元素类型时，显式声明数组元素的 JSON 类型。 */
+  itemType?: ApplicationComponentParameterItemType
   required?: boolean
   defaultValue: unknown
   description: string
@@ -52,10 +64,12 @@ export interface ApplicationComponentExample {
 
 export interface ApplicationComponentDefinition {
   key: string
+  aliases: readonly string[]
   name: string
   category: string
   version: string
   sourcePath: string
+  exposure: ApplicationRendererExposure
   description: string
   useCases: string[]
   tags: string[]
@@ -311,11 +325,7 @@ const radarChartPropsExample = {
 
 export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = [
   {
-    key: 'zg-list-main-layout',
-    name: '通用列表渲染器',
-    category: '数据展示',
-    version: COMPONENT_VERSION,
-    sourcePath: 'src/application/renderers/list/ListMainLayout.vue',
+    ...LIST_RENDERER_CATALOG_ENTRY,
     description: '基于 Schema 组装标题、页签、树、筛选、摘要、数据列表与分页的通用业务列表容器。',
     useCases: ['后台管理列表', '带树分类的数据浏览', '由 Render JSON 动态驱动的列表页'],
     tags: ['list', 'schema', 'renderer'],
@@ -359,11 +369,7 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     ],
   },
   {
-    key: 'form-main-layout',
-    name: '通用表单渲染器',
-    category: '表单交互',
-    version: COMPONENT_VERSION,
-    sourcePath: 'src/application/renderers/form/FormMainLayout.vue',
+    ...FORM_RENDERER_CATALOG_ENTRY,
     description: '根据 Schema 动态生成分组表单、字段控件和操作区的通用表单容器。',
     useCases: ['业务对象新增与编辑', '基础信息查看', '由 Render JSON 生成的动态表单'],
     tags: ['form', 'schema', 'renderer'],
@@ -402,11 +408,7 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     ],
   },
   {
-    key: 'line-chart-renderer',
-    name: '折线图渲染器',
-    category: '数据可视化',
-    version: COMPONENT_VERSION,
-    sourcePath: 'src/application/renderers/echarts/LineChartRenderer.vue',
+    ...LINE_CHART_RENDERER_CATALOG_ENTRY,
     description: '面向趋势、多序列对比和面积趋势的 ECharts 折线图渲染器。',
     useCases: ['时间趋势分析', '多指标变化对比', '累计值与面积趋势'],
     tags: ['chart', 'line', 'echarts'],
@@ -445,11 +447,7 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     ],
   },
   {
-    key: 'combo-chart-renderer',
-    name: '柱线组合图渲染器',
-    category: '数据可视化',
-    version: COMPONENT_VERSION,
-    sourcePath: 'src/application/renderers/echarts/ComboChartRenderer.vue',
+    ...COMBO_CHART_RENDERER_CATALOG_ENTRY,
     description: '将柱状数据与折线指标放在双 Y 轴中对比的组合图渲染器。',
     useCases: ['规模与比率联合分析', '实际值与趋势线对比', '双单位指标看板'],
     tags: ['chart', 'combo', 'echarts'],
@@ -487,11 +485,7 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     ],
   },
   {
-    key: 'radar-chart-renderer',
-    name: '雷达图渲染器',
-    category: '数据可视化',
-    version: COMPONENT_VERSION,
-    sourcePath: 'src/application/renderers/echarts/RadarChartRenderer.vue',
+    ...RADAR_CHART_RENDERER_CATALOG_ENTRY,
     description: '用于多维指标对比、能力轮廓与综合评估的 ECharts 雷达图渲染器。',
     useCases: ['多维能力画像', '指标达成度对比', '多对象综合评估'],
     tags: ['chart', 'radar', 'echarts'],

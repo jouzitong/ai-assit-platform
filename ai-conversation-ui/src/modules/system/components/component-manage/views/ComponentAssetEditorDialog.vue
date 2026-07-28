@@ -29,34 +29,23 @@ import {
 import {
   bindApplicationComponent,
   buildComponentAssetDocument,
+  buildComponentAssetEnvelope,
   buildComponentAssetRenderExampleJson,
   createComponentAssetDraft,
   parseComponentAssetRenderExample,
+  RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY as KNOWLEDGE_BASE_SETTING_KEY,
   toComponentAssetSubmission,
   type ComponentAssetDraft,
   type ComponentAssetRecord,
   type ComponentAssetSubmission,
 } from '../service/componentAsset'
 
-type CatalogComponentDefinition = ApplicationComponentDefinition & {
-  exposure?: 'public' | 'internal'
-  visibility?: 'public' | 'internal'
-  internal?: boolean
-  public?: boolean
-}
-
-type KnowledgeAwareDraft = ComponentAssetDraft & {
-  knowledgeBaseId?: string
-  knowledgeBaseSettingKey?: string
-}
-
-const KNOWLEDGE_BASE_SETTING_KEY = 'render.component.kbId'
-
 const props = withDefaults(defineProps<{
   modelValue: boolean
   mode?: 'create' | 'edit'
   initialValue?: ComponentAssetRecord | null
   categoryOptions?: Array<{ label: string, value: string }>
+  existingSourceKeys?: string[]
   knowledgeBaseId?: string
   knowledgeBaseLoading?: boolean
   knowledgeBaseError?: string
@@ -65,6 +54,7 @@ const props = withDefaults(defineProps<{
   mode: 'create',
   initialValue: null,
   categoryOptions: () => [],
+  existingSourceKeys: () => [],
   knowledgeBaseId: '',
   knowledgeBaseLoading: false,
   knowledgeBaseError: '',
@@ -74,6 +64,7 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: boolean]
   submit: [value: ComponentAssetSubmission]
+  'edit-existing': [componentKey: string]
   closed: []
 }>()
 
@@ -91,7 +82,6 @@ const initialSignature = ref('')
 const resetting = ref(false)
 const discardConfirming = ref(false)
 const draft = reactive<ComponentAssetDraft>(createComponentAssetDraft())
-const knowledgeAwareDraft = draft as KnowledgeAwareDraft
 
 const formRules: FormRules = {
   name: [
@@ -111,17 +101,13 @@ const dialogVisible = computed({
 
 const dialogTitle = computed(() => props.mode === 'create' ? '新建组件知识资产' : '编辑组件知识资产')
 const selectedDefinition = computed(() => findApplicationComponent(draft.sourceKey))
+const existingSourceKeySet = computed(() => new Set(
+  props.existingSourceKeys.map(key => key.trim().toLowerCase()).filter(Boolean),
+))
 
-function isPublicRenderer(definition: ApplicationComponentDefinition) {
-  const catalogDefinition = definition as CatalogComponentDefinition
-  const exposure = catalogDefinition.exposure || catalogDefinition.visibility
-  if (exposure) {
-    return exposure === 'public'
-  }
-  return catalogDefinition.internal !== true && catalogDefinition.public !== false
-}
-
-const publicComponents = computed(() => APPLICATION_COMPONENT_MANIFEST.filter(isPublicRenderer))
+const publicComponents = computed(() => (
+  APPLICATION_COMPONENT_MANIFEST.filter(definition => definition.exposure === 'public')
+))
 
 const catalogCategories = computed(() => [
   { key: 'all', label: '全部组件', count: publicComponents.value.length },
@@ -160,7 +146,10 @@ const knowledgeBaseReady = computed(() => (
 const saveDisabled = computed(() => (
   props.submitting
   || !selectedDefinition.value
+  || !draft.name.trim()
   || !knowledgeBaseReady.value
+  || Boolean(markdownError.value)
+  || Boolean(renderJsonError.value)
 ))
 
 function componentIcon(definition: ApplicationComponentDefinition) {
@@ -169,9 +158,13 @@ function componentIcon(definition: ApplicationComponentDefinition) {
   return Tickets
 }
 
+function isExistingComponent(componentKey: string) {
+  return props.mode === 'create' && existingSourceKeySet.value.has(componentKey.toLowerCase())
+}
+
 function syncKnowledgeBase() {
-  knowledgeAwareDraft.knowledgeBaseId = props.knowledgeBaseId.trim()
-  knowledgeAwareDraft.knowledgeBaseSettingKey = KNOWLEDGE_BASE_SETTING_KEY
+  draft.knowledgeBaseId = props.knowledgeBaseId.trim()
+  draft.knowledgeBaseSettingKey = KNOWLEDGE_BASE_SETTING_KEY
   // 兼容 service 迁移期间的旧字段，最终 envelope 由 service 统一组装。
   draft.knowledgeBaseCode = props.knowledgeBaseId.trim()
 }
@@ -229,7 +222,6 @@ function editorSignature() {
     name: draft.name,
     category: draft.category,
     status: draft.status,
-    knowledgeBaseId: props.knowledgeBaseId.trim(),
     markdown: markdownContent.value,
     renderJson: renderJsonContent.value,
   })
@@ -266,6 +258,11 @@ async function resetEditor() {
 }
 
 async function selectComponent(componentKey: string) {
+  if (isExistingComponent(componentKey)) {
+    if (!await confirmDiscardChanges()) return
+    emit('edit-existing', componentKey)
+    return
+  }
   if (draft.sourceKey === componentKey || props.submitting) return
   if (draft.sourceKey) {
     const confirmed = await appConfirm('更换源组件会重置已生成的 Markdown 与 Render JSON，是否继续？', {
@@ -300,7 +297,10 @@ function goBack() {
 
 function validateRenderJson(value: string) {
   try {
-    parseComponentAssetRenderExample(value)
+    const renderExample = parseComponentAssetRenderExample(value)
+    if (selectedDefinition.value) {
+      buildComponentAssetEnvelope(draft, renderExample)
+    }
   }
   catch (error) {
     return error instanceof Error ? error.message : 'Render JSON 格式不正确'
@@ -315,7 +315,65 @@ function validateMarkdown(value: string) {
   if (missingSections.length) {
     return `Markdown 必须保留固定章节：${missingSections.join('、')}`
   }
+
+  const parameterSectionStart = value.indexOf('## 4. 参数契约')
+  const parameterSectionEnd = value.indexOf('## 5.', parameterSectionStart)
+  const parameterSection = value.slice(
+    parameterSectionStart + '## 4. 参数契约'.length,
+    parameterSectionEnd < 0 ? value.length : parameterSectionEnd,
+  )
+  const tableRows = parameterSection
+    .split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line.startsWith('|') && line.endsWith('|'))
+    .map(splitMarkdownTableRow)
+  const header = tableRows[0] || []
+  const separator = tableRows[1] || []
+  const parameterRows = tableRows.slice(2)
+  const missingParameterKeys = (selectedDefinition.value?.parameters || [])
+    .map(parameter => parameter.key)
+    .filter(key => !parameterRows.some(row => row[0] === key))
+  if (
+    header.length !== 6
+    || header[0] !== '参数'
+    || header[1] !== '类型'
+    || header[2] !== '必填'
+    || separator.length !== 6
+    || !separator.every(column => /^:?-{3,}:?$/.test(column))
+    || !parameterRows.length
+    || parameterRows.some(row => row.length !== 6 || !row[0] || !row[1])
+  ) {
+    return 'Markdown 参数契约表必须保留 6 列表头、分隔行和完整参数行'
+  }
+  if (missingParameterKeys.length) {
+    return `Markdown 参数契约表缺少参数：${missingParameterKeys.join('、')}`
+  }
   return ''
+}
+
+function splitMarkdownTableRow(line: string) {
+  const columns: string[] = []
+  let buffer = ''
+  let escaped = false
+  for (const character of line.slice(1, -1)) {
+    if (escaped) {
+      buffer += character
+      escaped = false
+    }
+    else if (character === '\\') {
+      escaped = true
+    }
+    else if (character === '|') {
+      columns.push(buffer.trim())
+      buffer = ''
+    }
+    else {
+      buffer += character
+    }
+  }
+  if (escaped) buffer += '\\'
+  columns.push(buffer.trim())
+  return columns
 }
 
 async function restoreDefaults() {
@@ -353,6 +411,8 @@ async function submitAsset() {
     ElMessage.warning(`请先配置系统参数 ${KNOWLEDGE_BASE_SETTING_KEY}`)
     return
   }
+  syncKnowledgeBase()
+  refreshGeneratedDefaults()
   if (markdownError.value) {
     previewTab.value = 'markdown'
     ElMessage.warning(markdownError.value)
@@ -414,8 +474,8 @@ watch(() => [draft.name, draft.category, draft.status], () => {
 })
 
 watch(() => props.knowledgeBaseId, async () => {
-  if (!props.modelValue || resetting.value) return
-  const wasDirty = isDirty.value
+  if (!props.modelValue) return
+  const wasDirty = !resetting.value && isDirty.value
   syncKnowledgeBase()
   refreshGeneratedDefaults()
   if (!wasDirty) {
@@ -477,8 +537,15 @@ watch(() => props.knowledgeBaseId, async () => {
             v-for="component in filteredComponents"
             :key="component.key"
             type="button"
-            :class="['component-catalog-card', { 'is-selected': draft.sourceKey === component.key }]"
+            :class="[
+              'component-catalog-card',
+              {
+                'is-selected': draft.sourceKey === component.key,
+                'is-existing': isExistingComponent(component.key),
+              },
+            ]"
             :aria-pressed="draft.sourceKey === component.key"
+            :aria-label="isExistingComponent(component.key) ? `${component.name} 已创建，点击编辑` : component.name"
             :disabled="submitting"
             @click="selectComponent(component.key)"
           >
@@ -488,6 +555,9 @@ watch(() => props.knowledgeBaseId, async () => {
             <span class="component-catalog-card__content">
               <span class="component-catalog-card__topline">
                 <strong>{{ component.name }}</strong>
+                <el-tag v-if="isExistingComponent(component.key)" size="small" effect="plain" type="info">
+                  已创建 · 编辑
+                </el-tag>
                 <el-icon v-if="draft.sourceKey === component.key" class="component-catalog-card__check"><Check /></el-icon>
               </span>
               <code>{{ component.key }}</code>

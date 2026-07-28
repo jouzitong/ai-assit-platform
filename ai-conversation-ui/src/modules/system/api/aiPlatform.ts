@@ -256,6 +256,14 @@ export interface AiKbDocumentDeletePayload {
   documentCodes: string[]
 }
 
+export interface AiKbDocumentDeleteResult {
+  deletedCount?: number
+  deletedContentCount?: number
+  deletedVersionCount?: number
+  deletedVersionContentCount?: number
+  skippedDocumentCodes?: string[]
+}
+
 export interface AiKbDocumentStatusUpdatePayload {
   kbCode: string
   documentCodes: string[]
@@ -537,7 +545,7 @@ export function updateAiKbDocumentContent(payload: AiKbDocumentContentUpdatePayl
 }
 
 export function deleteAiKbDocuments(payload: AiKbDocumentDeletePayload) {
-  return request(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/delete`, {
+  return request<AiKbDocumentDeleteResult>(`${CHAT_API_PREFIX}/api/v1/ai/kb/document/delete`, {
     method: 'POST',
     body: JSON.stringify(payload),
   })

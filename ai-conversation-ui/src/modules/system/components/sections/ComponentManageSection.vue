@@ -6,12 +6,23 @@ import { AppPagination } from '../../../../components'
 import ComponentAssetEditorDialog from '../component-manage/views/ComponentAssetEditorDialog.vue'
 import {
   getComponentAssetCardInfo,
+  getComponentAssetContentFingerprint,
+  getComponentAssetKnowledgeState,
   getKnowledgeDocumentCode,
+  normalizeComponentAssetDesiredStatus,
   RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
+  withComponentAssetDesiredStatus,
+  withComponentAssetPendingKnowledgeCleanup,
+  withComponentAssetPendingKnowledgeSync,
+  type ComponentAssetKnowledgeDocumentIdentity,
+  type ComponentAssetPendingKnowledgeSync,
   type ComponentAssetSubmission,
 } from '../component-manage/service/componentAsset'
 import {
   createOrUpdateAiKbDocument,
+  deleteAiKbDocuments,
+  getAiKbSyncTask,
+  searchAiKbDocuments,
   syncAiKbDocuments,
 } from '../../api/aiPlatform'
 import {
@@ -38,6 +49,8 @@ withDefaults(defineProps<{
 const EFFECTIVE_STATUS_DRAFT = 1
 const EFFECTIVE_STATUS_PUBLISHED = 2
 const EFFECTIVE_STATUS_DISABLED = 3
+const KNOWLEDGE_SYNC_POLL_INTERVAL_MS = 800
+const KNOWLEDGE_SYNC_WAIT_TIMEOUT_MS = 30_000
 
 const componentKeyword = ref('')
 const activeCategory = ref('all')
@@ -52,12 +65,16 @@ const categoryError = ref('')
 const knowledgeBaseId = ref('')
 const knowledgeBaseError = ref('')
 const componentRecords = ref<RenderComponentItem[]>([])
+const componentIndexRecords = ref<RenderComponentItem[]>([])
+const componentIndexLoading = ref(false)
 const categoryRecords = ref<RenderComponentCategoryItem[]>([])
 const componentDialogVisible = ref(false)
+const componentDialogInstanceKey = ref(0)
 const componentDialogMode = ref<'create' | 'edit'>('create')
 const componentSubmitting = ref(false)
 const editingComponentId = ref<string | number | null>(null)
 const editingComponent = ref<RenderComponentItem | null>(null)
+const editingComponentRevision = ref('')
 const summary = ref({
   total: 0,
   published: 0,
@@ -65,6 +82,27 @@ const summary = ref({
   disabled: 0,
   categories: 0,
 })
+
+interface KnowledgeDocumentIdentity {
+  kbCode: string
+  documentCode: string
+}
+
+interface ActiveKnowledgeSyncAttempt {
+  taskCode: string
+  componentId: string | number
+  assetKey: string
+  documentName: string
+  contentFingerprint: string
+  desiredStatus: ComponentAssetPendingKnowledgeSync['desiredStatus']
+  target: KnowledgeDocumentIdentity
+}
+
+class KnowledgeSyncTerminalError extends Error {
+  override name = 'KnowledgeSyncTerminalError'
+}
+
+const activeKnowledgeSyncAttempt = ref<ActiveKnowledgeSyncAttempt | null>(null)
 
 const pageSizeOptions = [5, 10, 20, 50, 100, 200, 500]
 
@@ -74,6 +112,15 @@ const categoryOptions = computed(() => {
     .filter(Boolean)
     .map(item => ({ label: item, value: item }))
 })
+
+const existingRendererSourceKeys = computed(() => [...new Set(
+  componentIndexRecords.value
+    .map((record) => {
+      const asset = getComponentAssetCardInfo(record)
+      return asset.sourceKey || record.key || ''
+    })
+    .filter(Boolean),
+)])
 
 const componentCategories = computed(() => {
   const totalCount = Number(summary.value.total || 0)
@@ -96,7 +143,7 @@ const filteredComponentRecords = computed(() => {
     }
     return {
       id: record.id,
-      key: record.key || '-',
+      key: record.key || '',
       name: record.name || '未命名组件',
       category: record.category || '未分类',
       status: formatStatus(record.status),
@@ -106,7 +153,7 @@ const filteredComponentRecords = computed(() => {
       sourceName: asset.sourceName,
       sourceKey: asset.sourceKey,
       parameterCount: asset.parameterCount,
-      knowledgeBaseId: knowledgeAsset.knowledgeBaseId || knowledgeAsset.knowledgeBaseCode || '待指定知识库',
+      knowledgeBaseId: knowledgeAsset.knowledgeBaseId || knowledgeAsset.knowledgeBaseCode || '',
       documentSize: record.docMarkdown?.length || 0,
       isAsset: asset.isAsset,
       assetLabel: asset.isAsset ? '数字资产' : '历史配置',
@@ -155,6 +202,217 @@ function resolveStatusType(status?: RenderComponentStatus) {
 function resetComponentEditor() {
   editingComponentId.value = null
   editingComponent.value = null
+  editingComponentRevision.value = ''
+}
+
+function getComponentRecordRevision(record: RenderComponentItem | null | undefined) {
+  if (!record) return ''
+  return JSON.stringify({
+    id: record.id,
+    key: record.key || '',
+    name: record.name || '',
+    category: record.category || '',
+    status: record.status ?? '',
+    docMarkdown: record.docMarkdown || '',
+    exampleJson: record.exampleJson || '',
+    updateTime: record.updateTime || '',
+  })
+}
+
+function toKnowledgeDocumentIdentity(
+  identity: ComponentAssetKnowledgeDocumentIdentity,
+): KnowledgeDocumentIdentity {
+  return {
+    kbCode: identity.knowledgeBaseId,
+    documentCode: identity.documentCode,
+  }
+}
+
+function toAssetKnowledgeDocumentIdentity(
+  identity: KnowledgeDocumentIdentity,
+): ComponentAssetKnowledgeDocumentIdentity {
+  return {
+    knowledgeBaseId: identity.kbCode,
+    documentCode: identity.documentCode,
+  }
+}
+
+function getPersistedKnowledgeDocumentState(record = editingComponent.value) {
+  if (componentDialogMode.value !== 'edit' || !record) {
+    return {
+      current: null,
+      pendingCleanup: [] as KnowledgeDocumentIdentity[],
+      pendingSync: null as ComponentAssetPendingKnowledgeSync | null,
+    }
+  }
+  const state = getComponentAssetKnowledgeState(record)
+  return {
+    current: state.current ? toKnowledgeDocumentIdentity(state.current) : null,
+    pendingCleanup: state.pendingCleanup.map(toKnowledgeDocumentIdentity),
+    pendingSync: state.pendingSync,
+  }
+}
+
+function toPersistedKnowledgeSyncAttempt(
+  attempt: ActiveKnowledgeSyncAttempt,
+): ComponentAssetPendingKnowledgeSync {
+  return {
+    taskCode: attempt.taskCode,
+    componentId: String(attempt.componentId),
+    assetKey: attempt.assetKey,
+    documentName: attempt.documentName,
+    contentFingerprint: attempt.contentFingerprint,
+    desiredStatus: attempt.desiredStatus,
+    target: toAssetKnowledgeDocumentIdentity(attempt.target),
+  }
+}
+
+function isSamePersistedKnowledgeSyncAttempt(
+  persisted: ComponentAssetPendingKnowledgeSync | null,
+  active: ActiveKnowledgeSyncAttempt,
+) {
+  return Boolean(
+    persisted
+    && persisted.taskCode === active.taskCode
+    && persisted.componentId === String(active.componentId)
+    && persisted.assetKey === active.assetKey
+    && persisted.documentName === active.documentName
+    && persisted.contentFingerprint === active.contentFingerprint
+    && persisted.desiredStatus === active.desiredStatus
+    && persisted.target.knowledgeBaseId === active.target.kbCode
+    && persisted.target.documentCode === active.target.documentCode,
+  )
+}
+
+function isSameKnowledgeDocument(
+  left: KnowledgeDocumentIdentity | null,
+  right: KnowledgeDocumentIdentity,
+) {
+  return Boolean(
+    left
+    && left.kbCode === right.kbCode
+    && left.documentCode === right.documentCode,
+  )
+}
+
+function uniqueKnowledgeDocuments(identities: readonly KnowledgeDocumentIdentity[]) {
+  return identities.filter((identity, index) => identities.findIndex(item => (
+    item.kbCode === identity.kbCode && item.documentCode === identity.documentCode
+  )) === index)
+}
+
+async function removeKnowledgeDocuments(identities: readonly KnowledgeDocumentIdentity[]) {
+  const failures: string[] = []
+  const documentsByKnowledgeBase = new Map<string, string[]>()
+  uniqueKnowledgeDocuments(identities).forEach((identity) => {
+    const documentCodes = documentsByKnowledgeBase.get(identity.kbCode) || []
+    documentCodes.push(identity.documentCode)
+    documentsByKnowledgeBase.set(identity.kbCode, documentCodes)
+  })
+
+  for (const [kbCode, documentCodes] of documentsByKnowledgeBase) {
+    try {
+      const result = await deleteAiKbDocuments({ kbCode, documentCodes })
+      const skippedDocumentCodes = result?.skippedDocumentCodes || []
+      const skippedStillPresent = (await Promise.all(skippedDocumentCodes.map(async (documentCode) => {
+        const page = await searchAiKbDocuments({
+          kbCode,
+          documentCode,
+          page: 1,
+          size: 1,
+        })
+        return (page?.list || []).some(item => item.documentCode === documentCode)
+          ? documentCode
+          : ''
+      }))).filter(Boolean)
+      if (skippedStillPresent.length) {
+        failures.push(`${kbCode}：文档删除未完成（${skippedStillPresent.join('、')}）`)
+      }
+    }
+    catch (error) {
+      failures.push(`${kbCode}：${error instanceof Error ? error.message : '未知错误'}`)
+    }
+  }
+  return failures
+}
+
+function delay(milliseconds: number) {
+  return new Promise<void>((resolve) => {
+    window.setTimeout(resolve, milliseconds)
+  })
+}
+
+async function waitForKnowledgeTaskTerminal(taskCode: string) {
+  const deadline = Date.now() + KNOWLEDGE_SYNC_WAIT_TIMEOUT_MS
+  let lastPollingError = ''
+  while (Date.now() <= deadline) {
+    let task
+    try {
+      task = await getAiKbSyncTask(taskCode)
+      lastPollingError = ''
+    }
+    catch (error) {
+      // 传输失败不能证明任务失败；保留 taskCode，并在等待窗口内继续确认。
+      lastPollingError = error instanceof Error ? error.message : '同步任务状态查询失败'
+      await delay(KNOWLEDGE_SYNC_POLL_INTERVAL_MS)
+      continue
+    }
+    const status = Number(task?.status)
+    if (status === 3 || status === 4 || status === 5) return task
+    await delay(KNOWLEDGE_SYNC_POLL_INTERVAL_MS)
+  }
+  const pollingDetail = lastPollingError ? `，最近一次查询失败：${lastPollingError}` : ''
+  throw new Error(`同步任务状态确认超时，任务编码和旧知识文档已保留${pollingDetail}`)
+}
+
+async function waitForKnowledgeSync(
+  taskCode: string,
+  expectedDocument: KnowledgeDocumentIdentity,
+) {
+  const task = await waitForKnowledgeTaskTerminal(taskCode)
+  const status = Number(task?.status)
+  if (status === 4 || status === 5) {
+    throw new KnowledgeSyncTerminalError(
+      task?.errorMessage || `同步任务 ${status === 4 ? '执行失败' : '已取消'}`,
+    )
+  }
+  const documentResult = task.resultJson?.documents?.find(
+    item => item.documentCode === expectedDocument.documentCode,
+  )
+  if (task.kbCode !== expectedDocument.kbCode || documentResult?.status !== 'SUCCESS') {
+    throw new KnowledgeSyncTerminalError('同步任务结果与目标知识文档不一致')
+  }
+}
+
+async function settleActiveKnowledgeSyncAttempt(
+  shouldSettle: (attempt: ActiveKnowledgeSyncAttempt) => boolean = () => true,
+) {
+  const attempt = activeKnowledgeSyncAttempt.value
+  if (!attempt || !shouldSettle(attempt)) return
+  await waitForKnowledgeTaskTerminal(attempt.taskCode)
+  if (activeKnowledgeSyncAttempt.value?.taskCode === attempt.taskCode) {
+    activeKnowledgeSyncAttempt.value = null
+  }
+}
+
+async function restorePersistedKnowledgeSyncAttempt(record: RenderComponentItem | null | undefined) {
+  if (!record) return
+  const pendingSync = getComponentAssetKnowledgeState(record).pendingSync
+  if (!pendingSync) return
+  const activeAttempt = activeKnowledgeSyncAttempt.value
+  if (activeAttempt && activeAttempt.taskCode !== pendingSync.taskCode) {
+    // 单页面只维护一个轮询坐标；切换资产前先收敛旧任务，再恢复服务端资产中的任务。
+    await settleActiveKnowledgeSyncAttempt()
+  }
+  activeKnowledgeSyncAttempt.value = {
+    taskCode: pendingSync.taskCode,
+    componentId: pendingSync.componentId,
+    assetKey: pendingSync.assetKey,
+    documentName: pendingSync.documentName,
+    contentFingerprint: pendingSync.contentFingerprint,
+    desiredStatus: pendingSync.desiredStatus,
+    target: toKnowledgeDocumentIdentity(pendingSync.target),
+  }
 }
 
 async function loadSummary() {
@@ -237,6 +495,34 @@ async function loadComponents() {
   }
 }
 
+async function loadComponentIndex() {
+  if (componentIndexLoading.value) return false
+  componentIndexLoading.value = true
+  try {
+    const size = 500
+    const firstPage = await searchRenderComponents({ page: 1, size })
+    const records = [...(firstPage?.list || [])]
+    const expectedTotal = Number(firstPage?.pageInfo?.total || records.length)
+    let page = 2
+    while (records.length < expectedTotal) {
+      const payload = await searchRenderComponents({ page, size })
+      const pageRecords = payload?.list || []
+      if (!pageRecords.length) break
+      records.push(...pageRecords)
+      page++
+    }
+    componentIndexRecords.value = records
+    return true
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? `组件资产索引加载失败：${error.message}` : '组件资产索引加载失败')
+    return false
+  }
+  finally {
+    componentIndexLoading.value = false
+  }
+}
+
 async function loadPageData() {
   await Promise.all([loadSummary(), loadCategories(), loadComponents(), loadKnowledgeBaseId()])
 }
@@ -267,9 +553,11 @@ async function handleSelectCategory(categoryKey: string) {
   await loadComponents()
 }
 
-function handleCreateComponent() {
+async function handleCreateComponent() {
+  if (!await loadComponentIndex()) return
   resetComponentEditor()
   componentDialogMode.value = 'create'
+  componentDialogInstanceKey.value++
   componentDialogVisible.value = true
 }
 
@@ -287,25 +575,153 @@ function openEditComponentDialog(record: {
   componentDialogMode.value = 'edit'
   editingComponentId.value = record.id
   editingComponent.value = raw
+  editingComponentRevision.value = getComponentRecordRevision(raw)
+  componentDialogInstanceKey.value++
   componentDialogVisible.value = true
 }
 
-async function handleDeleteComponent(record: { id: string | number, name: string }) {
+function handleEditExistingComponent(sourceKey: string) {
+  const normalizedSourceKey = sourceKey.toLowerCase()
+  const raw = componentIndexRecords.value.find((record) => {
+    const asset = getComponentAssetCardInfo(record)
+    return asset.sourceKey.toLowerCase() === normalizedSourceKey
+      || record.key?.toLowerCase() === normalizedSourceKey
+  })
+  if (!raw) {
+    ElMessage.error('未找到已创建的组件知识资产，请刷新页面后重试')
+    return
+  }
+  componentDialogMode.value = 'edit'
+  editingComponentId.value = raw.id
+  editingComponent.value = raw
+  editingComponentRevision.value = getComponentRecordRevision(raw)
+  componentDialogInstanceKey.value++
+}
+
+async function handleDeleteComponent(record: {
+  id: string | number
+  key: string
+  name: string
+  knowledgeBaseId?: string
+}) {
+  let componentStagedForDelete = false
   try {
-    await ElMessageBox.confirm(`确定删除组件“${record.name}”吗？`, '删除组件', {
+    await ElMessageBox.confirm(`确定删除组件“${record.name}”及其关联知识文档吗？`, '删除组件', {
       type: 'warning',
       confirmButtonText: '删除',
       cancelButtonText: '取消',
     })
-    await deleteRenderComponent(record.id)
-    ElMessage.success('组件已删除')
+
+    const displayedRecord = componentRecords.value.find(item => item.id === record.id)
+    if (!displayedRecord) {
+      throw new Error('未找到待删除的组件数据')
+    }
+    const displayedRevision = getComponentRecordRevision(displayedRecord)
+    if (!await loadComponentIndex()) {
+      throw new Error('无法读取组件最新状态，删除已中止')
+    }
+    const rawRecord = componentIndexRecords.value.find(
+      item => String(item.id) === String(record.id),
+    )
+    if (!rawRecord) {
+      throw new Error('组件已被删除或不可用，请刷新列表')
+    }
+    if (getComponentRecordRevision(rawRecord) !== displayedRevision) {
+      throw new Error('组件已在其他页面被更新，删除已中止；请刷新列表后重新确认')
+    }
+    await restorePersistedKnowledgeSyncAttempt(rawRecord)
+    let deleteStagedPayload: ComponentAssetSubmission = {
+      key: rawRecord.key || record.key,
+      name: rawRecord.name || record.name,
+      category: rawRecord.category,
+      status: EFFECTIVE_STATUS_DRAFT,
+      docMarkdown: rawRecord.docMarkdown || '',
+      exampleJson: rawRecord.exampleJson || '',
+    }
+    if (getComponentAssetCardInfo(rawRecord).isAsset) {
+      deleteStagedPayload = withComponentAssetDesiredStatus(
+        deleteStagedPayload,
+        EFFECTIVE_STATUS_DRAFT,
+      )
+    }
+    const rawPendingSync = getComponentAssetKnowledgeState(rawRecord).pendingSync
+    if (rawPendingSync) {
+      deleteStagedPayload = withComponentAssetPendingKnowledgeSync(deleteStagedPayload, {
+        ...rawPendingSync,
+        desiredStatus: EFFECTIVE_STATUS_DRAFT,
+      })
+    }
+    await updateRenderComponent(record.id, deleteStagedPayload)
+    componentStagedForDelete = true
+
+    if (!await loadComponentIndex()) {
+      throw new Error('组件已暂存为草稿，但无法确认最新状态，删除已中止')
+    }
+    const stagedRecord = componentIndexRecords.value.find(
+      item => String(item.id) === String(record.id),
+    )
+    const stagedRevision = getComponentRecordRevision(stagedRecord)
+    if (!stagedRecord || !stagedRevision) {
+      throw new Error('组件已暂存为草稿，但无法读取草稿，删除已中止')
+    }
+
+    const stagedAssetKey = stagedRecord.key || record.key
+    await settleActiveKnowledgeSyncAttempt(attempt => (
+      String(attempt.componentId) === String(record.id)
+      || attempt.assetKey.toLowerCase() === stagedAssetKey.toLowerCase()
+    ))
+    if (!await loadComponentIndex()) {
+      throw new Error('组件已暂存为草稿，但无法完成删除前快照校验')
+    }
+    const latestStagedRecord = componentIndexRecords.value.find(
+      item => String(item.id) === String(record.id),
+    )
+    if (getComponentRecordRevision(latestStagedRecord) !== stagedRevision) {
+      throw new Error('组件在删除准备期间被其他页面更新，删除已中止')
+    }
+
+    const state = getComponentAssetKnowledgeState(latestStagedRecord)
+    const fallbackKnowledgeBaseId = record.knowledgeBaseId?.trim() || knowledgeBaseId.value.trim()
+    const fallbackDocumentCode = stagedAssetKey.trim()
+      ? getKnowledgeDocumentCode(stagedAssetKey)
+      : ''
+    const cleanupTargets = uniqueKnowledgeDocuments([
+      ...(state.current ? [toKnowledgeDocumentIdentity(state.current)] : []),
+      ...state.pendingCleanup.map(toKnowledgeDocumentIdentity),
+      ...(!state.current && fallbackKnowledgeBaseId && fallbackDocumentCode
+        ? [{ kbCode: fallbackKnowledgeBaseId, documentCode: fallbackDocumentCode }]
+        : []),
+    ])
+    const cleanupFailures = await removeKnowledgeDocuments(cleanupTargets)
+    if (cleanupFailures.length) {
+      throw new Error(`组件已暂存为草稿，知识文档清理失败，组件未删除：${cleanupFailures.join('；')}`)
+    }
+
+    try {
+      const deleted = await deleteRenderComponent(record.id)
+      if (!deleted) {
+        throw new Error('删除接口返回失败')
+      }
+    }
+    catch (error) {
+      const reason = error instanceof Error ? error.message : '未知错误'
+      throw new Error(
+        cleanupTargets.length
+          ? `关联知识文档已清理，但组件删除失败；组件已保留为草稿：${reason}`
+          : `组件删除失败，组件已保留为草稿：${reason}`,
+      )
+    }
+    ElMessage.success('组件及关联知识文档已删除')
     await loadPageData()
   }
   catch (error) {
-    if (error === 'cancel') {
+    if (error === 'cancel' || error === 'close') {
       return
     }
     ElMessage.error(error instanceof Error ? error.message : '删除组件失败')
+    if (componentStagedForDelete) {
+      await loadPageData()
+    }
   }
 }
 
@@ -314,67 +730,273 @@ async function submitComponentForm(payload: ComponentAssetSubmission) {
     ElMessage.warning('知识库配置仍在加载，请稍后再试')
     return
   }
+
+  // 保存前重新解析一次系统参数，避免页面长时间打开或多标签修改后继续写入旧知识库。
+  const displayedKnowledgeBaseId = knowledgeBaseId.value
+  componentSubmitting.value = true
+  await loadKnowledgeBaseId()
+  componentSubmitting.value = false
   if (!knowledgeBaseId.value) {
     ElMessage.error(knowledgeBaseError.value || `请先配置并启用系统参数 ${RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY}`)
     return
+  }
+  if (knowledgeBaseId.value !== displayedKnowledgeBaseId) {
+    ElMessage.warning(`系统参数 ${RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY} 已变化，已刷新知识库 ID，请确认后再次保存`)
+    return
+  }
+
+  let latestEditingRecord = editingComponent.value
+  if (componentDialogMode.value === 'edit') {
+    componentSubmitting.value = true
+    const indexLoaded = await loadComponentIndex()
+    componentSubmitting.value = false
+    if (!indexLoaded) return
+    const latestRecord = componentIndexRecords.value.find(
+      item => String(item.id) === String(editingComponentId.value),
+    )
+    if (!latestRecord) {
+      ElMessage.error('组件已被删除或不可用，请关闭编辑窗口后刷新列表')
+      return
+    }
+    latestEditingRecord = latestRecord
+    if (
+      editingComponentRevision.value
+      && getComponentRecordRevision(latestRecord) !== editingComponentRevision.value
+    ) {
+      ElMessage.error('该组件已在其他页面被更新。当前编辑内容已保留，请关闭后重新打开并合并修改')
+      return
+    }
   }
 
   const savedMode = componentDialogMode.value
   // `render.component.kbId` stores the local knowledge-base business code used by the KB API.
   const targetKnowledgeBaseCode = knowledgeBaseId.value
   const publishKnowledgeDocument = payload.status === EFFECTIVE_STATUS_PUBLISHED || payload.status === 'PUBLISHED'
+  const previousKnowledgeState = getPersistedKnowledgeDocumentState(latestEditingRecord)
+  const currentKnowledgeDocument = {
+    kbCode: targetKnowledgeBaseCode,
+    documentCode: getKnowledgeDocumentCode(payload.key),
+  }
+  const pendingKnowledgeCleanup = uniqueKnowledgeDocuments([
+    ...previousKnowledgeState.pendingCleanup,
+    ...(previousKnowledgeState.current
+      && !isSameKnowledgeDocument(previousKnowledgeState.current, currentKnowledgeDocument)
+      ? [previousKnowledgeState.current]
+      : []),
+  ]).filter(identity => !isSameKnowledgeDocument(identity, currentKnowledgeDocument))
   componentSubmitting.value = true
   let assetSaved = false
+  let savedComponentId: string | number | null = null
+  let retryPayload: ComponentAssetSubmission | null = null
   try {
+    await restorePersistedKnowledgeSyncAttempt(latestEditingRecord)
+    let savedPayload = withComponentAssetPendingKnowledgeCleanup(
+      payload,
+      pendingKnowledgeCleanup.map(toAssetKnowledgeDocumentIdentity),
+    )
+    if (previousKnowledgeState.pendingSync) {
+      savedPayload = withComponentAssetPendingKnowledgeSync(
+        savedPayload,
+        {
+          ...previousKnowledgeState.pendingSync,
+          desiredStatus: normalizeComponentAssetDesiredStatus(payload.status),
+        },
+      )
+    }
+    const savedContentFingerprint = publishKnowledgeDocument
+      ? await getComponentAssetContentFingerprint(savedPayload.docMarkdown)
+      : ''
+    retryPayload = savedPayload
+    // 知识文档完成前统一暂存为草稿，避免出现“已发布但知识库缺失”的中间状态。
+    const stagedPayload = {
+      ...savedPayload,
+      status: EFFECTIVE_STATUS_DRAFT,
+    }
     if (savedMode === 'create') {
-      await createRenderComponent(payload)
+      const created = await createRenderComponent(stagedPayload)
+      savedComponentId = created?.id ?? null
     } else {
       if (editingComponentId.value == null) {
         throw new Error('未找到可编辑的组件')
       }
-      await updateRenderComponent(editingComponentId.value, payload)
+      savedComponentId = editingComponentId.value
+      await updateRenderComponent(editingComponentId.value, stagedPayload)
     }
     assetSaved = true
+    if (savedComponentId == null) {
+      throw new Error('保存结果缺少组件 ID，无法完成知识文档流程')
+    }
+    if (!await loadComponentIndex()) {
+      throw new Error('无法确认组件草稿状态，知识文档流程已中止')
+    }
+    const stagedRecord = componentIndexRecords.value.find(
+      item => String(item.id) === String(savedComponentId),
+    )
+    let stagedRevision = getComponentRecordRevision(stagedRecord)
+    if (!stagedRevision) {
+      throw new Error('未找到已暂存的组件草稿，知识文档流程已中止')
+    }
 
-    const documentCode = getKnowledgeDocumentCode(payload.key)
-    await createOrUpdateAiKbDocument({
-      kbCode: targetKnowledgeBaseCode,
-      documentId: documentCode,
-      documentName: payload.name,
-      documentType: 4,
-      bizType: 4,
-      content: payload.docMarkdown,
-      canUpdate: true,
-      enabled: publishKnowledgeDocument,
-      ext: {
-        sourceSystem: 'renderComponent',
-        sourceKey: payload.key,
-        componentKey: payload.key,
-      },
-    })
     if (publishKnowledgeDocument) {
-      const syncResult = await syncAiKbDocuments({
-        kbCode: targetKnowledgeBaseCode,
-        documentCodes: [documentCode],
+      const reusableAttempt = activeKnowledgeSyncAttempt.value
+      const canResumeAttempt = Boolean(
+        reusableAttempt
+        && String(reusableAttempt.componentId) === String(savedComponentId)
+        && reusableAttempt.assetKey === savedPayload.key
+        && reusableAttempt.documentName === savedPayload.name
+        && reusableAttempt.contentFingerprint === savedContentFingerprint
+        && isSameKnowledgeDocument(reusableAttempt.target, currentKnowledgeDocument),
+      )
+      if (!canResumeAttempt) {
+        // 当前页面只保留一个同步任务坐标；创建新任务前先确认旧任务已终止，避免并发写同一 Provider。
+        await settleActiveKnowledgeSyncAttempt()
+        await createOrUpdateAiKbDocument({
+          kbCode: currentKnowledgeDocument.kbCode,
+          documentId: currentKnowledgeDocument.documentCode,
+          documentName: savedPayload.name,
+          documentType: 4,
+          bizType: 4,
+          content: savedPayload.docMarkdown,
+          canUpdate: true,
+          enabled: true,
+          ext: {
+            sourceSystem: 'renderComponent',
+            sourceKey: savedPayload.key,
+            componentKey: savedPayload.key,
+          },
+        })
+        const syncResult = await syncAiKbDocuments({
+          kbCode: currentKnowledgeDocument.kbCode,
+          documentCodes: [currentKnowledgeDocument.documentCode],
+        })
+        if (!syncResult?.taskCode) {
+          throw new Error('同步任务创建失败，未返回任务编码')
+        }
+        activeKnowledgeSyncAttempt.value = {
+          taskCode: syncResult.taskCode,
+          componentId: savedComponentId,
+          assetKey: savedPayload.key,
+          documentName: savedPayload.name,
+          contentFingerprint: savedContentFingerprint,
+          desiredStatus: normalizeComponentAssetDesiredStatus(savedPayload.status),
+          target: currentKnowledgeDocument,
+        }
+      }
+      const activeAttempt = activeKnowledgeSyncAttempt.value
+      if (!activeAttempt) {
+        throw new Error('未找到可持久化的同步任务坐标')
+      }
+      savedPayload = withComponentAssetPendingKnowledgeSync(
+        savedPayload,
+        toPersistedKnowledgeSyncAttempt(activeAttempt),
+      )
+      retryPayload = savedPayload
+      await updateRenderComponent(savedComponentId, {
+        ...savedPayload,
+        status: EFFECTIVE_STATUS_DRAFT,
       })
-      if (!syncResult?.taskCode) {
-        throw new Error('同步任务创建失败，未返回任务编码')
+      if (!await loadComponentIndex()) {
+        throw new Error('同步任务已创建，但无法确认任务坐标已持久化')
+      }
+      const syncStagedRecord = componentIndexRecords.value.find(
+        item => String(item.id) === String(savedComponentId),
+      )
+      stagedRevision = getComponentRecordRevision(syncStagedRecord)
+      if (!stagedRevision) {
+        throw new Error('同步任务已创建，但未找到持久化后的组件草稿')
+      }
+      const persistedAttempt = getComponentAssetKnowledgeState(syncStagedRecord).pendingSync
+      if (!isSamePersistedKnowledgeSyncAttempt(persistedAttempt, activeAttempt)) {
+        throw new Error('同步任务已创建，但任务坐标写回校验失败；当前页面已保留任务，请勿关闭并再次保存重试')
+      }
+      try {
+        await waitForKnowledgeSync(activeAttempt.taskCode, currentKnowledgeDocument)
+        activeKnowledgeSyncAttempt.value = null
+      }
+      catch (error) {
+        if (error instanceof KnowledgeSyncTerminalError) {
+          activeKnowledgeSyncAttempt.value = null
+          savedPayload = withComponentAssetPendingKnowledgeSync(savedPayload, null)
+          retryPayload = savedPayload
+          await updateRenderComponent(savedComponentId, {
+            ...savedPayload,
+            status: EFFECTIVE_STATUS_DRAFT,
+          })
+        }
+        throw error
+      }
+    }
+    else {
+      await settleActiveKnowledgeSyncAttempt(attempt => (
+        String(attempt.componentId) === String(savedComponentId)
+        || attempt.assetKey.toLowerCase() === savedPayload.key.toLowerCase()
+        || isSameKnowledgeDocument(attempt.target, currentKnowledgeDocument)
+      ))
+      // 草稿和停用资产不应继续留在 Provider；Markdown 仍保存在组件资产中，重新发布时会重建。
+      const currentCleanupFailures = await removeKnowledgeDocuments([currentKnowledgeDocument])
+      if (currentCleanupFailures.length) {
+        throw new Error(currentCleanupFailures.join('；'))
       }
     }
 
+    if (!await loadComponentIndex()) {
+      throw new Error('无法确认组件最新状态，最终状态更新已中止')
+    }
+    const latestStagedRecord = componentIndexRecords.value.find(
+      item => String(item.id) === String(savedComponentId),
+    )
+    if (getComponentRecordRevision(latestStagedRecord) !== stagedRevision) {
+      throw new Error('组件在知识文档处理期间被其他页面更新，已停止覆盖其最新内容')
+    }
+
+    const previousCleanupFailures = await removeKnowledgeDocuments(pendingKnowledgeCleanup)
+    const completedSyncPayload = withComponentAssetPendingKnowledgeSync(savedPayload, null)
+    const finalPayload = previousCleanupFailures.length
+      ? completedSyncPayload
+      : withComponentAssetPendingKnowledgeCleanup(completedSyncPayload, [])
+    await updateRenderComponent(savedComponentId, finalPayload)
+
     componentDialogVisible.value = false
     resetComponentEditor()
-    ElMessage.success(
-      `组件数字资产已${savedMode === 'create' ? '创建' : '更新'}，${publishKnowledgeDocument ? '知识库同步任务已创建' : '知识文档已保存为未启用'}`,
-    )
+    const resultMessage = `组件数字资产已${savedMode === 'create' ? '创建' : '更新'}，${publishKnowledgeDocument ? '知识库同步已完成' : '知识文档已从目标知识库移除'}`
+    if (previousCleanupFailures.length) {
+      ElMessage.warning(`${resultMessage}；旧知识文档清理失败，已保留记录供下次保存重试：${previousCleanupFailures.join('；')}`)
+    }
+    else {
+      ElMessage.success(resultMessage)
+    }
     await loadPageData()
   }
   catch (error) {
     if (assetSaved) {
-      componentDialogVisible.value = false
-      resetComponentEditor()
-      ElMessage.error(`组件资产已保存，但知识文档${publishKnowledgeDocument ? '写入或同步' : '写入'}失败：${error instanceof Error ? error.message : '未知错误'}`)
       await loadPageData()
+      const retryIndexLoaded = await loadComponentIndex()
+      if (savedComponentId == null) {
+        savedComponentId = componentIndexRecords.value.find(
+          item => item.key?.toLowerCase() === payload.key.toLowerCase(),
+        )?.id ?? null
+      }
+      const reason = error instanceof Error ? error.message : '未知错误'
+      if (savedComponentId != null && retryPayload) {
+        componentDialogMode.value = 'edit'
+        editingComponentId.value = savedComponentId
+        editingComponent.value = {
+          id: savedComponentId,
+          ...retryPayload,
+        }
+        editingComponentRevision.value = retryIndexLoaded
+          ? getComponentRecordRevision(componentIndexRecords.value.find(
+              item => String(item.id) === String(savedComponentId),
+            ))
+          : ''
+        componentDialogInstanceKey.value++
+        ElMessage.error(`组件已暂存为草稿，但知识文档${publishKnowledgeDocument ? '写入或同步' : '移除'}未完成：${reason}；编辑窗口已保留，可直接再次保存重试`)
+      }
+      else {
+        componentDialogVisible.value = false
+        resetComponentEditor()
+        ElMessage.error(`组件已暂存为草稿，但知识文档流程未完成：${reason}；请刷新列表后编辑重试`)
+      }
       return
     }
     ElMessage.error(error instanceof Error ? error.message : '组件保存失败')
@@ -456,7 +1078,7 @@ onMounted(() => {
               <div class="component-manage-card__row">
                 <div>
                   <div class="component-manage-card__name">{{ record.name }}</div>
-                  <div class="component-manage-card__meta">{{ record.key }}</div>
+                  <div class="component-manage-card__meta">{{ record.key || '-' }}</div>
                 </div>
                 <div class="component-manage-card__actions">
                   <el-tag size="small" effect="plain" :type="record.isAsset ? 'success' : 'info'">
@@ -498,7 +1120,7 @@ onMounted(() => {
                 <div class="component-manage-card__section">
                   <label>知识资产</label>
                   <p>{{ record.parameterCount }} 个参数 · {{ record.documentSize.toLocaleString() }} 字符文档</p>
-                  <small>{{ record.knowledgeBaseId }}</small>
+                  <small>{{ record.knowledgeBaseId || '待指定知识库' }}</small>
                 </div>
               </div>
             </div>
@@ -521,15 +1143,18 @@ onMounted(() => {
   </section>
 
   <ComponentAssetEditorDialog
+    :key="componentDialogInstanceKey"
     v-model="componentDialogVisible"
     :mode="componentDialogMode"
     :initial-value="editingComponent"
     :category-options="categoryOptions"
+    :existing-source-keys="existingRendererSourceKeys"
     :submitting="componentSubmitting"
     :knowledge-base-id="knowledgeBaseId"
     :knowledge-base-loading="knowledgeBaseLoading"
     :knowledge-base-error="knowledgeBaseError"
     @closed="resetComponentEditor"
+    @edit-existing="handleEditExistingComponent"
     @submit="submitComponentForm"
   />
 </template>

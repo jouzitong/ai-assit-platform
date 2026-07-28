@@ -11,6 +11,7 @@ import type {
   RenderRuntimeNodeScope,
 } from './observability'
 import { resolveRendererRuntimeData } from './resolveRendererRuntimeData'
+import { findApplicationStaticRenderNode } from './node-catalog'
 
 defineOptions({ name: 'RenderJsonRuntimeNode' })
 
@@ -47,8 +48,9 @@ const definition = computed(() => findApplicationRenderer(props.node.component))
 const componentKey = computed(() => props.node.component || '')
 const normalizedComponentKey = computed(() => componentKey.value.toLowerCase())
 const layoutDefinition = computed(() => findApplicationLayout(normalizedComponentKey.value))
-const isText = computed(() => normalizedComponentKey.value === 'text')
-const isHeading = computed(() => ['heading', 'title'].includes(normalizedComponentKey.value))
+const staticNodeDefinition = computed(() => findApplicationStaticRenderNode(normalizedComponentKey.value))
+const isText = computed(() => staticNodeDefinition.value?.kind === 'text')
+const isHeading = computed(() => staticNodeDefinition.value?.kind === 'heading')
 const isLayout = computed(() => Boolean(layoutDefinition.value))
 const rawNodeProps = computed(() => props.node.props || {})
 const schema = computed<Record<string, unknown> | null>(() => {

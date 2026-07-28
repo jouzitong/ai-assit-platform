@@ -1,12 +1,20 @@
 import {
+  APPLICATION_COMPONENT_MANIFEST,
   findApplicationComponent,
   type ApplicationComponentDefinition,
   type ApplicationComponentEvent,
   type ApplicationComponentParameter,
   type ApplicationRenderDocument,
 } from '../../../../../application/component-manifest'
+import {
+  assertApplicationComponentRenderDocument,
+  getApplicationComponentParameterValueError,
+} from '../../../../../application/component-manifest-validation'
+import { APPLICATION_LAYOUT_CATALOG } from '../../../../../application/layout/catalog'
+import { APPLICATION_STATIC_RENDER_NODE_CATALOG } from '../../../../../application/runtime/node-catalog'
 
 export type ComponentAssetStatus = string | number
+export type ComponentAssetDesiredStatus = 1 | 2 | 3
 
 export const COMPONENT_ASSET_SCHEMA_VERSION = 'component-asset/v1' as const
 export const RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY = 'render.component.kbId' as const
@@ -64,6 +72,7 @@ export interface ComponentAssetEditableContent {
 
 export interface ComponentAssetParameterContract extends ApplicationComponentParameter {
   enabled: boolean
+  example: unknown
 }
 
 export interface ComponentAssetContract {
@@ -72,6 +81,27 @@ export interface ComponentAssetContract {
 }
 
 export type ComponentAssetRenderDocument = ApplicationRenderDocument
+
+export interface ComponentAssetKnowledgeDocumentIdentity {
+  knowledgeBaseId: string
+  documentCode: string
+}
+
+export interface ComponentAssetPendingKnowledgeSync {
+  taskCode: string
+  componentId: string
+  assetKey: string
+  documentName: string
+  contentFingerprint: string
+  desiredStatus: ComponentAssetDesiredStatus
+  target: ComponentAssetKnowledgeDocumentIdentity
+}
+
+export interface ComponentAssetKnowledgeState {
+  current: ComponentAssetKnowledgeDocumentIdentity | null
+  pendingCleanup: ComponentAssetKnowledgeDocumentIdentity[]
+  pendingSync: ComponentAssetPendingKnowledgeSync | null
+}
 
 export interface ComponentAssetEnvelope {
   schemaVersion: typeof COMPONENT_ASSET_SCHEMA_VERSION
@@ -93,15 +123,36 @@ export interface ComponentAssetEnvelope {
     tags: string[]
     owner: string
     generateKnowledgeDocument: boolean
+    /** 同步失败暂存为草稿时，保留用户希望最终落地的状态。 */
+    desiredStatus?: ComponentAssetDesiredStatus
     knowledgeBaseId: string
     knowledgeBaseSettingKey: typeof RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY
     /** @deprecated 兼容读取 component-asset/v1 早期数据。 */
     knowledgeBaseCode?: string
     documentCode: string
+    /** 新知识文档同步成功前保留的旧文档坐标，用于失败后自动重试清理。 */
+    pendingKnowledgeCleanup: ComponentAssetKnowledgeDocumentIdentity[]
+    /** 跨刷新、跨标签页恢复在途同步所需的最小任务坐标。 */
+    pendingKnowledgeSync: ComponentAssetPendingKnowledgeSync | null
   }
 }
 
 const DEFAULT_STATUS = 2
+const SUPPORTED_RENDER_PROTOCOL_VERSIONS = new Set(['1.0', '1.0.0'])
+const STABLE_RENDER_ID_PATTERN = /^[A-Za-z][A-Za-z0-9_.:-]{0,127}$/
+const COMPONENT_VERSION_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._+-]{0,127}$/
+const ALLOWED_RENDER_NODE_KEYS = new Set([
+  'id',
+  'component',
+  'componentVersion',
+  'props',
+  'layout',
+  'datasource',
+  'bindings',
+  'events',
+  'actions',
+  'children',
+])
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -115,7 +166,78 @@ function readText(value: unknown) {
   return typeof value === 'string' ? value : ''
 }
 
+export async function getComponentAssetContentFingerprint(content: string) {
+  const digest = await globalThis.crypto.subtle.digest(
+    'SHA-256',
+    new TextEncoder().encode(content),
+  )
+  const hex = Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+  return `sha256:${hex}`
+}
+
+export function normalizeComponentAssetDesiredStatus(
+  status: ComponentAssetStatus | undefined,
+): ComponentAssetDesiredStatus {
+  return parseComponentAssetDesiredStatus(status) ?? DEFAULT_STATUS
+}
+
+function parseComponentAssetDesiredStatus(value: unknown): ComponentAssetDesiredStatus | undefined {
+  if (value === 1 || value === '1' || value === 'DRAFT') return 1
+  if (value === 2 || value === '2' || value === 'PUBLISHED') return 2
+  if (value === 3 || value === '3' || value === 'DISABLED') return 3
+  return undefined
+}
+
+function normalizeKnowledgeDocumentIdentities(
+  value: unknown,
+): ComponentAssetKnowledgeDocumentIdentity[] {
+  if (!Array.isArray(value)) return []
+  const identities = value.flatMap((item) => {
+    if (!isRecord(item)) return []
+    const knowledgeBaseId = readText(item.knowledgeBaseId).trim()
+      || readText(item.kbCode).trim()
+    const documentCode = readText(item.documentCode).trim()
+    return knowledgeBaseId && documentCode ? [{ knowledgeBaseId, documentCode }] : []
+  })
+  return identities.filter((identity, index) => identities.findIndex(item => (
+    item.knowledgeBaseId === identity.knowledgeBaseId
+    && item.documentCode === identity.documentCode
+  )) === index)
+}
+
+function normalizePendingKnowledgeSync(value: unknown): ComponentAssetPendingKnowledgeSync | null {
+  if (!isRecord(value)) return null
+  const taskCode = readText(value.taskCode).trim()
+  const componentId = readText(value.componentId).trim()
+  const assetKey = readText(value.assetKey).trim()
+  const documentName = readText(value.documentName).trim()
+  const contentFingerprint = readText(value.contentFingerprint).trim()
+  const target = normalizeKnowledgeDocumentIdentities([value.target])[0]
+  const desiredStatus = parseComponentAssetDesiredStatus(value.desiredStatus)
+  if (
+    !taskCode
+    || !componentId
+    || !assetKey
+    || !documentName
+    || !/^sha256:[0-9a-f]{64}$/.test(contentFingerprint)
+    || !target
+    || desiredStatus === undefined
+  ) {
+    return null
+  }
+  return {
+    taskCode,
+    componentId,
+    assetKey,
+    documentName,
+    contentFingerprint,
+    desiredStatus,
+    target,
+  }
+}
+
 function cloneJson<T>(value: T): T {
+  if (value === undefined) return value
   return JSON.parse(JSON.stringify(value)) as T
 }
 
@@ -173,6 +295,11 @@ function buildContract(
     parameters: (definition?.parameters || []).map(parameter => ({
       ...cloneJson(parameter),
       enabled: Object.prototype.hasOwnProperty.call(props, parameter.key),
+      example: cloneJson(
+        Object.prototype.hasOwnProperty.call(props, parameter.key)
+          ? props[parameter.key]
+          : parameter.defaultValue,
+      ),
       description: draft?.parameters[parameter.key]?.description || parameter.description,
     })),
     events: cloneJson(definition?.events || []),
@@ -204,11 +331,19 @@ export function parseComponentAssetRenderExample(value: string | unknown): Compo
   if (parsed.protocol !== 'render-json') {
     throw new Error('Render JSON protocol 必须为 render-json')
   }
-  if (!readText(parsed.protocolVersion).trim()) {
+  const protocolVersion = readText(parsed.protocolVersion).trim()
+  if (!protocolVersion) {
     throw new Error('Render JSON 缺少 protocolVersion')
   }
-  if (!readText(parsed.pageId).trim()) {
+  if (!SUPPORTED_RENDER_PROTOCOL_VERSIONS.has(protocolVersion)) {
+    throw new Error(`Render JSON 暂不支持 protocolVersion=${protocolVersion}`)
+  }
+  const pageId = readText(parsed.pageId).trim()
+  if (!pageId) {
     throw new Error('Render JSON 缺少 pageId')
+  }
+  if (!STABLE_RENDER_ID_PATTERN.test(pageId)) {
+    throw new Error('Render JSON pageId 不是合法的稳定标识')
   }
   if (parsed.revision !== undefined && !readText(parsed.revision).trim()) {
     throw new Error('Render JSON revision 必须是非空字符串')
@@ -216,11 +351,29 @@ export function parseComponentAssetRenderExample(value: string | unknown): Compo
   if (!isRecord(parsed.root)) {
     throw new Error('Render JSON 缺少 root 节点')
   }
-  if (!readText(parsed.root.id).trim()) {
+  const unsupportedRootKey = Object.keys(parsed.root).find(key => !ALLOWED_RENDER_NODE_KEYS.has(key))
+  if (unsupportedRootKey) {
+    throw new Error(`Render JSON root 包含不支持的字段“${unsupportedRootKey}”`)
+  }
+  const rootId = readText(parsed.root.id).trim()
+  if (!rootId) {
     throw new Error('Render JSON root.id 不能为空')
   }
-  if (!readText(parsed.root.component).trim()) {
+  if (!STABLE_RENDER_ID_PATTERN.test(rootId)) {
+    throw new Error('Render JSON root.id 不是合法的稳定标识')
+  }
+  const rootComponent = readText(parsed.root.component).trim()
+  if (!rootComponent) {
     throw new Error('Render JSON root.component 不能为空')
+  }
+  if (!STABLE_RENDER_ID_PATTERN.test(rootComponent)) {
+    throw new Error('Render JSON root.component 不是合法的 Renderer Key')
+  }
+  if (
+    parsed.root.componentVersion !== undefined
+    && !COMPONENT_VERSION_PATTERN.test(readText(parsed.root.componentVersion).trim())
+  ) {
+    throw new Error('Render JSON root.componentVersion 格式不正确')
   }
   if (parsed.root.props !== undefined && !isRecord(parsed.root.props)) {
     throw new Error('Render JSON root.props 必须是对象')
@@ -325,10 +478,15 @@ export function readComponentAssetEnvelope(value?: string): ComponentAssetEnvelo
         generateKnowledgeDocument: typeof rawAsset.generateKnowledgeDocument === 'boolean'
           ? rawAsset.generateKnowledgeDocument
           : true,
+        desiredStatus: parseComponentAssetDesiredStatus(rawAsset.desiredStatus),
         knowledgeBaseId,
         knowledgeBaseSettingKey: RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
         ...(legacyKnowledgeBaseCode ? { knowledgeBaseCode: legacyKnowledgeBaseCode } : {}),
         documentCode: readText(rawAsset.documentCode),
+        pendingKnowledgeCleanup: normalizeKnowledgeDocumentIdentities(
+          rawAsset.pendingKnowledgeCleanup,
+        ),
+        pendingKnowledgeSync: normalizePendingKnowledgeSync(rawAsset.pendingKnowledgeSync),
       },
     }
   }
@@ -352,7 +510,11 @@ export function createComponentAssetDraft(record: ComponentAssetRecord | null = 
     key: record?.key || definition?.key || '',
     name: record?.name || definition?.name || '',
     category: record?.category || definition?.category || '',
-    status: record?.status ?? DEFAULT_STATUS,
+    status: normalizeStatus(
+      asset?.pendingKnowledgeSync?.desiredStatus
+      ?? asset?.desiredStatus
+      ?? record?.status,
+    ),
     summary: asset?.summary || definition?.documentation.summary || definition?.description || '',
     useCases: (asset?.useCases?.length ? asset.useCases : definition?.useCases || []).join('\n'),
     usageGuide: asset?.usageGuide || definition?.documentation.usageGuide || '',
@@ -431,7 +593,11 @@ export function validateComponentAssetDraft(draft: ComponentAssetDraft, includeD
       continue
     }
     try {
-      parseParameterValue(parameter, parameterDraft)
+      const value = parseParameterValue(parameter, parameterDraft)
+      const typeError = getApplicationComponentParameterValueError(value, parameter)
+      if (typeError) {
+        return `参数“${parameter.label}”${typeError}`
+      }
     }
     catch {
       return `参数“${parameter.label}”的 JSON 格式不正确`
@@ -458,15 +624,15 @@ function escapeTableCell(value: unknown) {
   return String(value ?? '').replace(/\|/g, '\\|').replace(/\r?\n/g, '<br>')
 }
 
-function formatStatus(status: ComponentAssetStatus) {
-  if (status === 1 || status === 'DRAFT') return '草稿'
-  if (status === 2 || status === 'PUBLISHED') return '已发布'
-  if (status === 3 || status === 'DISABLED') return '已停用'
-  return String(status)
-}
-
 function splitLines(value: string) {
   return value.split(/\r?\n/).map(item => item.trim()).filter(Boolean)
+}
+
+function normalizeStatus(status: ComponentAssetStatus | undefined) {
+  if (status === 1 || status === '1' || status === 'DRAFT') return 1
+  if (status === 2 || status === '2' || status === 'PUBLISHED') return 2
+  if (status === 3 || status === '3' || status === 'DISABLED') return 3
+  return status ?? DEFAULT_STATUS
 }
 
 export function getKnowledgeDocumentCode(assetKey: string) {
@@ -502,16 +668,24 @@ function normalizeRenderExampleForDefinition(
     throw new Error(`Render JSON 组件版本必须为 ${definition.version}`)
   }
 
-  return {
+  const props = isRecord(renderExample.root.props)
+    ? cloneJson(renderExample.root.props)
+    : cloneJson(fallbackProps)
+  const normalized = {
     ...renderExample,
     root: {
       ...renderExample.root,
       componentVersion: definition.version,
-      props: isRecord(renderExample.root.props)
-        ? cloneJson(renderExample.root.props)
-        : cloneJson(fallbackProps),
+      props,
     },
   }
+  assertApplicationComponentRenderDocument(
+    normalized,
+    definition,
+    APPLICATION_COMPONENT_MANIFEST,
+    [...APPLICATION_LAYOUT_CATALOG, ...APPLICATION_STATIC_RENDER_NODE_CATALOG],
+  )
+  return normalized
 }
 
 export function buildComponentAssetEnvelope(
@@ -547,10 +721,79 @@ export function buildComponentAssetEnvelope(
       tags: [...draft.tags],
       owner: draft.owner.trim(),
       generateKnowledgeDocument: draft.generateKnowledgeDocument,
+      desiredStatus: normalizeComponentAssetDesiredStatus(draft.status),
       knowledgeBaseId,
       knowledgeBaseSettingKey: RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
       documentCode: getKnowledgeDocumentCode(draft.key),
+      pendingKnowledgeCleanup: [],
+      pendingKnowledgeSync: null,
     },
+  }
+}
+
+export function getComponentAssetKnowledgeState(
+  record: ComponentAssetRecord | null | undefined,
+): ComponentAssetKnowledgeState {
+  const envelope = readComponentAssetEnvelope(record?.exampleJson)
+  const knowledgeBaseId = envelope?.asset.knowledgeBaseId.trim() || ''
+  const documentCode = envelope?.asset.documentCode.trim()
+    || getKnowledgeDocumentCode(record?.key || '')
+  return {
+    current: knowledgeBaseId && documentCode ? { knowledgeBaseId, documentCode } : null,
+    pendingCleanup: normalizeKnowledgeDocumentIdentities(
+      envelope?.asset.pendingKnowledgeCleanup,
+    ),
+    pendingSync: normalizePendingKnowledgeSync(envelope?.asset.pendingKnowledgeSync),
+  }
+}
+
+export function withComponentAssetPendingKnowledgeCleanup(
+  submission: ComponentAssetSubmission,
+  identities: readonly ComponentAssetKnowledgeDocumentIdentity[],
+): ComponentAssetSubmission {
+  const envelope = readComponentAssetEnvelope(submission.exampleJson)
+  if (!envelope) {
+    throw new Error('组件知识资产数据格式不正确')
+  }
+  envelope.asset.pendingKnowledgeCleanup = normalizeKnowledgeDocumentIdentities(identities)
+  return {
+    ...submission,
+    exampleJson: JSON.stringify(envelope, null, 2),
+  }
+}
+
+export function withComponentAssetPendingKnowledgeSync(
+  submission: ComponentAssetSubmission,
+  attempt: ComponentAssetPendingKnowledgeSync | null,
+): ComponentAssetSubmission {
+  const envelope = readComponentAssetEnvelope(submission.exampleJson)
+  if (!envelope) {
+    throw new Error('组件知识资产数据格式不正确')
+  }
+  envelope.asset.pendingKnowledgeSync = attempt
+    ? normalizePendingKnowledgeSync(attempt)
+    : null
+  if (attempt && !envelope.asset.pendingKnowledgeSync) {
+    throw new Error('组件知识同步任务坐标不完整')
+  }
+  return {
+    ...submission,
+    exampleJson: JSON.stringify(envelope, null, 2),
+  }
+}
+
+export function withComponentAssetDesiredStatus(
+  submission: ComponentAssetSubmission,
+  status: ComponentAssetStatus,
+): ComponentAssetSubmission {
+  const envelope = readComponentAssetEnvelope(submission.exampleJson)
+  if (!envelope) {
+    throw new Error('组件知识资产数据格式不正确')
+  }
+  envelope.asset.desiredStatus = normalizeComponentAssetDesiredStatus(status)
+  return {
+    ...submission,
+    exampleJson: JSON.stringify(envelope, null, 2),
   }
 }
 
@@ -562,18 +805,23 @@ export function buildComponentAssetExampleJson(draft: ComponentAssetDraft) {
   return JSON.stringify(envelope, null, 2)
 }
 
-export function buildComponentAssetDocument(draft: ComponentAssetDraft) {
+export function buildComponentAssetDocument(
+  draft: ComponentAssetDraft,
+  renderExampleInput: ComponentAssetRenderDocument = buildComponentAssetRenderExample(draft),
+) {
   const definition = findApplicationComponent(draft.sourceKey)
   if (!definition) {
     return '# 组件数字资产\n\n请先选择 Application 组件。'
   }
-  const props = buildComponentProps(draft)
-  const renderExample = buildComponentAssetRenderExample(draft)
+  const fallbackProps = buildComponentProps(draft)
+  const renderExample = normalizeRenderExampleForDefinition(definition, renderExampleInput, fallbackProps)
+  const props = cloneJson(renderExample.root.props || fallbackProps)
   const useCases = splitLines(draft.useCases)
   const parameterRows = definition.parameters.map((parameter) => {
     const state = draft.parameters[parameter.key]
-    const currentValue = state?.enabled ? JSON.stringify(props[parameter.key]) : '-'
-    return `| ${escapeTableCell(parameter.key)} | ${escapeTableCell(parameter.type)} | ${parameter.required ? '是' : '否'} | ${state?.enabled ? '是' : '否'} | ${escapeTableCell(currentValue)} | ${escapeTableCell(state?.description || parameter.description)} |`
+    const included = Object.prototype.hasOwnProperty.call(props, parameter.key)
+    const currentValue = included ? JSON.stringify(props[parameter.key]) : '-'
+    return `| ${escapeTableCell(parameter.key)} | ${escapeTableCell(parameter.type)} | ${parameter.required ? '是' : '否'} | ${included ? '是' : '否'} | ${escapeTableCell(currentValue)} | ${escapeTableCell(state?.description || parameter.description)} |`
   })
   const eventRows = definition.events.length
     ? definition.events.map(event => `| ${escapeTableCell(event.name)} | ${escapeTableCell(event.description)} |`).join('\n')
@@ -592,7 +840,6 @@ export function buildComponentAssetDocument(draft: ComponentAssetDraft) {
 | --- | --- |
 | 资产标识 | ${escapeTableCell(draft.key)} |
 | 资产分类 | ${escapeTableCell(draft.category || definition.category)} |
-| 当前状态 | ${formatStatus(draft.status)} |
 | Application 组件 | ${escapeTableCell(definition.name)} (${definition.key}) |
 | 源码路径 | \`${definition.sourcePath}\` |
 | 负责人 | ${escapeTableCell(draft.owner || '未指定')} |
@@ -648,7 +895,8 @@ export function createComponentAssetEditableContent(
 ): ComponentAssetEditableContent {
   const envelope = readComponentAssetEnvelope(record?.exampleJson)
   return {
-    docMarkdown: record?.docMarkdown?.trim() || buildComponentAssetDocument(draft),
+    docMarkdown: record?.docMarkdown?.trim()
+      || buildComponentAssetDocument(draft, envelope?.renderExample),
     renderExampleJson: JSON.stringify(
       envelope?.renderExample || buildComponentAssetRenderExample(draft),
       null,
@@ -665,13 +913,18 @@ export function toComponentAssetSubmission(
     ? buildComponentAssetRenderExample(draft)
     : parseComponentAssetRenderExample(editedContent.renderExampleJson)
   const envelope = buildComponentAssetEnvelope(draft, renderExample)
+  const generatedMarkdown = buildComponentAssetDocument(draft)
+  const editedMarkdown = editedContent.docMarkdown ?? generatedMarkdown
+  const docMarkdown = editedMarkdown.trim() === generatedMarkdown.trim()
+    ? buildComponentAssetDocument(draft, envelope.renderExample)
+    : editedMarkdown
 
   return {
     key: draft.key.trim(),
     name: draft.name.trim(),
     category: draft.category.trim() || undefined,
     status: draft.status,
-    docMarkdown: editedContent.docMarkdown ?? buildComponentAssetDocument(draft),
+    docMarkdown,
     exampleJson: JSON.stringify(envelope, null, 2),
   }
 }

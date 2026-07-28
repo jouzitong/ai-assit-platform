@@ -2,6 +2,12 @@ export { default as RenderJsonRuntimeHost } from './RenderJsonRuntimeHost.vue'
 export { createRuntimeEventDispatcher } from './event-dispatcher'
 export { loadRenderMetaContent, upsertRenderMetaContent } from './render-meta'
 export { resolveRendererRuntimeData } from './resolveRendererRuntimeData'
+export {
+  APPLICATION_STATIC_RENDER_NODE_CATALOG,
+  findApplicationStaticRenderNode,
+  type ApplicationStaticRenderNodeCatalogEntry,
+  type ApplicationStaticRenderNodeKind,
+} from './node-catalog'
 export type {
   RenderRuntimeNodeEvent,
   RenderRuntimeNodeKind,
