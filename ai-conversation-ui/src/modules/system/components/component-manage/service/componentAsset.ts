@@ -1,10 +1,15 @@
 import {
   findApplicationComponent,
   type ApplicationComponentDefinition,
+  type ApplicationComponentEvent,
   type ApplicationComponentParameter,
+  type ApplicationRenderDocument,
 } from '../../../../../application/component-manifest'
 
 export type ComponentAssetStatus = string | number
+
+export const COMPONENT_ASSET_SCHEMA_VERSION = 'component-asset/v1' as const
+export const RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY = 'render.component.kbId' as const
 
 export interface ComponentAssetRecord {
   key?: string
@@ -36,6 +41,9 @@ export interface ComponentAssetDraft {
   tags: string[]
   owner: string
   generateKnowledgeDocument: boolean
+  knowledgeBaseId: string
+  knowledgeBaseSettingKey: string
+  /** @deprecated 仅用于旧页面并行迁移；新资产不会再写入 knowledgeBaseCode。 */
   knowledgeBaseCode: string
   parameters: Record<string, ComponentParameterDraft>
 }
@@ -49,8 +57,24 @@ export interface ComponentAssetSubmission {
   exampleJson: string
 }
 
-interface ComponentAssetEnvelope {
-  schemaVersion: 'component-asset/v1'
+export interface ComponentAssetEditableContent {
+  docMarkdown: string
+  renderExampleJson: string
+}
+
+export interface ComponentAssetParameterContract extends ApplicationComponentParameter {
+  enabled: boolean
+}
+
+export interface ComponentAssetContract {
+  parameters: ComponentAssetParameterContract[]
+  events: ApplicationComponentEvent[]
+}
+
+export type ComponentAssetRenderDocument = ApplicationRenderDocument
+
+export interface ComponentAssetEnvelope {
+  schemaVersion: typeof COMPONENT_ASSET_SCHEMA_VERSION
   sourceComponent: {
     key: string
     name: string
@@ -58,6 +82,8 @@ interface ComponentAssetEnvelope {
     sourcePath: string
   }
   props: Record<string, unknown>
+  contract: ComponentAssetContract
+  renderExample: ComponentAssetRenderDocument
   asset: {
     summary: string
     useCases: string[]
@@ -67,12 +93,15 @@ interface ComponentAssetEnvelope {
     tags: string[]
     owner: string
     generateKnowledgeDocument: boolean
-    knowledgeBaseCode: string
+    knowledgeBaseId: string
+    knowledgeBaseSettingKey: typeof RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY
+    /** @deprecated 兼容读取 component-asset/v1 早期数据。 */
+    knowledgeBaseCode?: string
     documentCode: string
   }
 }
 
-const DEFAULT_STATUS = 1
+const DEFAULT_STATUS = 2
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -80,6 +109,124 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function toStringArray(value: unknown) {
   return Array.isArray(value) ? value.filter(item => typeof item === 'string') as string[] : []
+}
+
+function readText(value: unknown) {
+  return typeof value === 'string' ? value : ''
+}
+
+function cloneJson<T>(value: T): T {
+  return JSON.parse(JSON.stringify(value)) as T
+}
+
+function normalizeExampleId(value: string) {
+  return value.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-') || 'component'
+}
+
+function createDefaultRenderExample(
+  definition: ApplicationComponentDefinition | undefined,
+  props: Record<string, unknown>,
+  fallback?: { key?: string; version?: string },
+): ComponentAssetRenderDocument {
+  const componentKey = definition?.key || fallback?.key || 'unknown-component'
+  const componentVersion = definition?.version || fallback?.version || '1.0.0'
+  const manifestExample = definition?.examples[0]?.renderDocument
+
+  if (manifestExample) {
+    const document = cloneJson(manifestExample)
+    return {
+      ...document,
+      root: {
+        ...document.root,
+        component: componentKey,
+        componentVersion,
+        props: cloneJson(props),
+      },
+    }
+  }
+
+  const exampleId = normalizeExampleId(componentKey)
+  return {
+    protocol: 'render-json',
+    protocolVersion: '1.0.0',
+    pageId: `component-example-${exampleId}`,
+    root: {
+      id: `component-example-${exampleId}-root`,
+      component: componentKey,
+      componentVersion,
+      props: cloneJson(props),
+    },
+  }
+}
+
+function getDefaultExampleProps(definition?: ApplicationComponentDefinition) {
+  const props = definition?.examples[0]?.renderDocument.root.props
+  return isRecord(props) ? cloneJson(props) : {}
+}
+
+function buildContract(
+  definition: ApplicationComponentDefinition | undefined,
+  props: Record<string, unknown>,
+  draft?: ComponentAssetDraft,
+): ComponentAssetContract {
+  return {
+    parameters: (definition?.parameters || []).map(parameter => ({
+      ...cloneJson(parameter),
+      enabled: Object.prototype.hasOwnProperty.call(props, parameter.key),
+      description: draft?.parameters[parameter.key]?.description || parameter.description,
+    })),
+    events: cloneJson(definition?.events || []),
+  }
+}
+
+export function parseComponentAssetRenderExample(value: string | unknown): ComponentAssetRenderDocument {
+  let parsed: unknown = value
+  if (typeof value === 'string') {
+    if (!value.trim()) {
+      throw new Error('Render JSON 不能为空')
+    }
+    try {
+      parsed = JSON.parse(value) as unknown
+    }
+    catch {
+      throw new Error('Render JSON 格式不正确')
+    }
+  }
+
+  if (!isRecord(parsed)) {
+    throw new Error('Render JSON 根结构必须是对象')
+  }
+  const allowedDocumentKeys = new Set(['protocol', 'protocolVersion', 'pageId', 'revision', 'root'])
+  const unsupportedKey = Object.keys(parsed).find(key => !allowedDocumentKeys.has(key))
+  if (unsupportedKey) {
+    throw new Error(`Render JSON 包含不支持的顶层字段“${unsupportedKey}”`)
+  }
+  if (parsed.protocol !== 'render-json') {
+    throw new Error('Render JSON protocol 必须为 render-json')
+  }
+  if (!readText(parsed.protocolVersion).trim()) {
+    throw new Error('Render JSON 缺少 protocolVersion')
+  }
+  if (!readText(parsed.pageId).trim()) {
+    throw new Error('Render JSON 缺少 pageId')
+  }
+  if (parsed.revision !== undefined && !readText(parsed.revision).trim()) {
+    throw new Error('Render JSON revision 必须是非空字符串')
+  }
+  if (!isRecord(parsed.root)) {
+    throw new Error('Render JSON 缺少 root 节点')
+  }
+  if (!readText(parsed.root.id).trim()) {
+    throw new Error('Render JSON root.id 不能为空')
+  }
+  if (!readText(parsed.root.component).trim()) {
+    throw new Error('Render JSON root.component 不能为空')
+  }
+  if (parsed.root.props !== undefined && !isRecord(parsed.root.props)) {
+    throw new Error('Render JSON root.props 必须是对象')
+  }
+
+  return cloneJson(parsed) as unknown as ComponentAssetRenderDocument
 }
 
 function formatParameterValue(parameter: ApplicationComponentParameter, value: unknown) {
@@ -122,10 +269,68 @@ export function readComponentAssetEnvelope(value?: string): ComponentAssetEnvelo
   }
   try {
     const parsed = JSON.parse(value) as unknown
-    if (!isRecord(parsed) || parsed.schemaVersion !== 'component-asset/v1') {
+    if (!isRecord(parsed) || parsed.schemaVersion !== COMPONENT_ASSET_SCHEMA_VERSION) {
       return null
     }
-    return parsed as unknown as ComponentAssetEnvelope
+    const sourceComponent = isRecord(parsed.sourceComponent) ? parsed.sourceComponent : {}
+    const componentKey = readText(sourceComponent.key).trim()
+    if (!componentKey) {
+      return null
+    }
+    const definition = findApplicationComponent(componentKey)
+    const componentVersion = readText(sourceComponent.version).trim() || definition?.version || '1.0.0'
+    const props = isRecord(parsed.props) ? cloneJson(parsed.props) : {}
+    const rawContract = isRecord(parsed.contract) ? parsed.contract : null
+    const contract = rawContract
+      && Array.isArray(rawContract.parameters)
+      && Array.isArray(rawContract.events)
+      ? cloneJson(rawContract) as unknown as ComponentAssetContract
+      : buildContract(definition, props)
+    let renderExample = createDefaultRenderExample(definition, props, {
+      key: componentKey,
+      version: componentVersion,
+    })
+    if (parsed.renderExample !== undefined) {
+      try {
+        renderExample = parseComponentAssetRenderExample(parsed.renderExample)
+      }
+      catch {
+        // Early component-asset/v1 records may contain incomplete examples; use a valid fallback.
+      }
+    }
+
+    const rawAsset = isRecord(parsed.asset) ? parsed.asset : {}
+    const legacyKnowledgeBaseCode = readText(rawAsset.knowledgeBaseCode).trim()
+    const knowledgeBaseId = readText(rawAsset.knowledgeBaseId).trim() || legacyKnowledgeBaseCode
+
+    return {
+      schemaVersion: COMPONENT_ASSET_SCHEMA_VERSION,
+      sourceComponent: {
+        key: componentKey,
+        name: readText(sourceComponent.name).trim() || definition?.name || componentKey,
+        version: componentVersion,
+        sourcePath: readText(sourceComponent.sourcePath).trim() || definition?.sourcePath || '',
+      },
+      props,
+      contract,
+      renderExample,
+      asset: {
+        summary: readText(rawAsset.summary),
+        useCases: toStringArray(rawAsset.useCases),
+        usageGuide: readText(rawAsset.usageGuide),
+        limitations: readText(rawAsset.limitations),
+        notes: readText(rawAsset.notes),
+        tags: toStringArray(rawAsset.tags),
+        owner: readText(rawAsset.owner),
+        generateKnowledgeDocument: typeof rawAsset.generateKnowledgeDocument === 'boolean'
+          ? rawAsset.generateKnowledgeDocument
+          : true,
+        knowledgeBaseId,
+        knowledgeBaseSettingKey: RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
+        ...(legacyKnowledgeBaseCode ? { knowledgeBaseCode: legacyKnowledgeBaseCode } : {}),
+        documentCode: readText(rawAsset.documentCode),
+      },
+    }
   }
   catch {
     return null
@@ -139,6 +344,8 @@ export function createComponentAssetDraft(record: ComponentAssetRecord | null = 
     || ''
   const definition = findApplicationComponent(sourceKey)
   const asset = envelope?.asset
+  const knowledgeBaseId = asset?.knowledgeBaseId || asset?.knowledgeBaseCode || ''
+  const parameterValues = envelope ? envelope.props : getDefaultExampleProps(definition)
 
   return {
     sourceKey,
@@ -146,16 +353,19 @@ export function createComponentAssetDraft(record: ComponentAssetRecord | null = 
     name: record?.name || definition?.name || '',
     category: record?.category || definition?.category || '',
     status: record?.status ?? DEFAULT_STATUS,
-    summary: asset?.summary || definition?.description || '',
+    summary: asset?.summary || definition?.documentation.summary || definition?.description || '',
     useCases: (asset?.useCases?.length ? asset.useCases : definition?.useCases || []).join('\n'),
-    usageGuide: asset?.usageGuide || '先准备组件所需数据，再按参数契约传入 props；业务请求和状态编排由上层页面负责。',
-    limitations: asset?.limitations || '',
-    notes: asset?.notes || (!envelope && record?.docMarkdown ? record.docMarkdown : ''),
+    usageGuide: asset?.usageGuide || definition?.documentation.usageGuide || '',
+    limitations: asset?.limitations || definition?.documentation.limitations || '',
+    notes: asset?.notes
+      || (!envelope && record?.docMarkdown ? record.docMarkdown : definition?.documentation.notes || ''),
     tags: asset?.tags?.length ? [...asset.tags] : [...(definition?.tags || [])],
     owner: asset?.owner || '',
     generateKnowledgeDocument: asset?.generateKnowledgeDocument ?? true,
-    knowledgeBaseCode: asset?.knowledgeBaseCode || 'system-component-assets',
-    parameters: createParameterDrafts(definition, envelope?.props || {}),
+    knowledgeBaseId,
+    knowledgeBaseSettingKey: RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
+    knowledgeBaseCode: knowledgeBaseId,
+    parameters: createParameterDrafts(definition, parameterValues),
   }
 }
 
@@ -168,13 +378,13 @@ export function bindApplicationComponent(draft: ComponentAssetDraft, componentKe
   draft.key = definition.key
   draft.name = definition.name
   draft.category = definition.category
-  draft.summary = definition.description
+  draft.summary = definition.documentation.summary || definition.description
   draft.useCases = definition.useCases.join('\n')
-  draft.usageGuide = '先准备组件所需数据，再按参数契约传入 props；业务请求和状态编排由上层页面负责。'
-  draft.limitations = ''
-  draft.notes = ''
+  draft.usageGuide = definition.documentation.usageGuide
+  draft.limitations = definition.documentation.limitations
+  draft.notes = definition.documentation.notes
   draft.tags = [...definition.tags]
-  draft.parameters = createParameterDrafts(definition)
+  draft.parameters = createParameterDrafts(definition, getDefaultExampleProps(definition))
 }
 
 function parseParameterValue(parameter: ApplicationComponentParameter, draft: ComponentParameterDraft) {
@@ -264,20 +474,70 @@ export function getKnowledgeDocumentCode(assetKey: string) {
   return `render-component-${normalized || 'draft'}`
 }
 
-export function buildComponentAssetExampleJson(draft: ComponentAssetDraft) {
+export function buildComponentAssetRenderExample(draft: ComponentAssetDraft) {
+  const definition = findApplicationComponent(draft.sourceKey)
+  return createDefaultRenderExample(definition, buildComponentProps(draft), {
+    key: draft.sourceKey || draft.key,
+    version: definition?.version,
+  })
+}
+
+export function buildComponentAssetRenderExampleJson(draft: ComponentAssetDraft) {
+  return JSON.stringify(buildComponentAssetRenderExample(draft), null, 2)
+}
+
+function normalizeRenderExampleForDefinition(
+  definition: ApplicationComponentDefinition,
+  value: ComponentAssetRenderDocument,
+  fallbackProps: Record<string, unknown>,
+) {
+  const renderExample = parseComponentAssetRenderExample(value)
+  if (renderExample.root.component !== definition.key) {
+    throw new Error(`Render JSON root.component 必须为 ${definition.key}`)
+  }
+  if (
+    renderExample.root.componentVersion
+    && renderExample.root.componentVersion !== definition.version
+  ) {
+    throw new Error(`Render JSON 组件版本必须为 ${definition.version}`)
+  }
+
+  return {
+    ...renderExample,
+    root: {
+      ...renderExample.root,
+      componentVersion: definition.version,
+      props: isRecord(renderExample.root.props)
+        ? cloneJson(renderExample.root.props)
+        : cloneJson(fallbackProps),
+    },
+  }
+}
+
+export function buildComponentAssetEnvelope(
+  draft: ComponentAssetDraft,
+  renderExampleInput: ComponentAssetRenderDocument = buildComponentAssetRenderExample(draft),
+): ComponentAssetEnvelope {
   const definition = findApplicationComponent(draft.sourceKey)
   if (!definition) {
-    return '{}'
+    throw new Error('请先选择 Application 组件')
   }
-  const envelope: ComponentAssetEnvelope = {
-    schemaVersion: 'component-asset/v1',
+  const fallbackProps = buildComponentProps(draft)
+  const renderExample = normalizeRenderExampleForDefinition(definition, renderExampleInput, fallbackProps)
+  const props = cloneJson(renderExample.root.props || fallbackProps)
+  const knowledgeBaseId = draft.knowledgeBaseId.trim() || draft.knowledgeBaseCode.trim()
+
+  return {
+    schemaVersion: COMPONENT_ASSET_SCHEMA_VERSION,
     sourceComponent: {
       key: definition.key,
       name: definition.name,
       version: definition.version,
       sourcePath: definition.sourcePath,
     },
-    props: buildComponentProps(draft),
+    props,
+    contract: buildContract(definition, props, draft),
+    renderExample,
     asset: {
       summary: draft.summary.trim(),
       useCases: splitLines(draft.useCases),
@@ -287,10 +547,18 @@ export function buildComponentAssetExampleJson(draft: ComponentAssetDraft) {
       tags: [...draft.tags],
       owner: draft.owner.trim(),
       generateKnowledgeDocument: draft.generateKnowledgeDocument,
-      knowledgeBaseCode: draft.knowledgeBaseCode.trim(),
+      knowledgeBaseId,
+      knowledgeBaseSettingKey: RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
       documentCode: getKnowledgeDocumentCode(draft.key),
     },
   }
+}
+
+export function buildComponentAssetExampleJson(draft: ComponentAssetDraft) {
+  if (!findApplicationComponent(draft.sourceKey)) {
+    return '{}'
+  }
+  const envelope = buildComponentAssetEnvelope(draft)
   return JSON.stringify(envelope, null, 2)
 }
 
@@ -300,6 +568,7 @@ export function buildComponentAssetDocument(draft: ComponentAssetDraft) {
     return '# 组件数字资产\n\n请先选择 Application 组件。'
   }
   const props = buildComponentProps(draft)
+  const renderExample = buildComponentAssetRenderExample(draft)
   const useCases = splitLines(draft.useCases)
   const parameterRows = definition.parameters.map((parameter) => {
     const state = draft.parameters[parameter.key]
@@ -326,7 +595,6 @@ export function buildComponentAssetDocument(draft: ComponentAssetDraft) {
 | 当前状态 | ${formatStatus(draft.status)} |
 | Application 组件 | ${escapeTableCell(definition.name)} (${definition.key}) |
 | 源码路径 | \`${definition.sourcePath}\` |
-| 组件版本 | ${definition.version} |
 | 负责人 | ${escapeTableCell(draft.owner || '未指定')} |
 | 标签 | ${escapeTableCell(draft.tags.join(', ') || '无')} |
 
@@ -344,10 +612,10 @@ ${scenarioContent}
 | --- | --- | --- | --- | --- | --- |
 ${parameterRows.join('\n')}
 
-## 5. 当前配置示例
+## 5. Render JSON 示例
 
 \`\`\`json
-${JSON.stringify({ component: definition.key, props }, null, 2)}
+${JSON.stringify(renderExample, null, 2)}
 \`\`\`
 
 ## 6. 事件契约
@@ -367,20 +635,44 @@ ${limitationContent}
 ## 8. 知识资产信息
 
 - 是否生成知识库文档：${draft.generateKnowledgeDocument ? '是' : '否'}
-- 目标知识库：${draft.knowledgeBaseCode.trim() || '未指定'}
+- 目标知识库 ID：${draft.knowledgeBaseId.trim() || draft.knowledgeBaseCode.trim() || '由系统设置解析'}
+- 知识库设置键：${RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY}
 - 文档编码：${getKnowledgeDocumentCode(draft.key)}
-- 同步状态：待后端同步能力接入${notesContent}
+- 同步流程：保存组件资产后，由管理页面提交知识文档同步；目标知识库 ID 从系统设置解析。${notesContent}
 `
 }
 
-export function toComponentAssetSubmission(draft: ComponentAssetDraft): ComponentAssetSubmission {
+export function createComponentAssetEditableContent(
+  draft: ComponentAssetDraft,
+  record: ComponentAssetRecord | null = null,
+): ComponentAssetEditableContent {
+  const envelope = readComponentAssetEnvelope(record?.exampleJson)
+  return {
+    docMarkdown: record?.docMarkdown?.trim() || buildComponentAssetDocument(draft),
+    renderExampleJson: JSON.stringify(
+      envelope?.renderExample || buildComponentAssetRenderExample(draft),
+      null,
+      2,
+    ),
+  }
+}
+
+export function toComponentAssetSubmission(
+  draft: ComponentAssetDraft,
+  editedContent: Partial<ComponentAssetEditableContent> = {},
+): ComponentAssetSubmission {
+  const renderExample = editedContent.renderExampleJson === undefined
+    ? buildComponentAssetRenderExample(draft)
+    : parseComponentAssetRenderExample(editedContent.renderExampleJson)
+  const envelope = buildComponentAssetEnvelope(draft, renderExample)
+
   return {
     key: draft.key.trim(),
     name: draft.name.trim(),
     category: draft.category.trim() || undefined,
     status: draft.status,
-    docMarkdown: buildComponentAssetDocument(draft),
-    exampleJson: buildComponentAssetExampleJson(draft),
+    docMarkdown: editedContent.docMarkdown ?? buildComponentAssetDocument(draft),
+    exampleJson: JSON.stringify(envelope, null, 2),
   }
 }
 
@@ -388,11 +680,17 @@ export function getComponentAssetCardInfo(record: ComponentAssetRecord) {
   const envelope = readComponentAssetEnvelope(record.exampleJson)
   const definition = findApplicationComponent(envelope?.sourceComponent?.key || record.key)
   const props = envelope?.props || {}
+  const knowledgeBaseId = envelope?.asset?.knowledgeBaseId
+    || envelope?.asset?.knowledgeBaseCode
+    || ''
   return {
     sourceName: envelope?.sourceComponent?.name || definition?.name || '未绑定 Application 组件',
     sourceKey: envelope?.sourceComponent?.key || definition?.key || '',
     parameterCount: Object.keys(props).length || definition?.parameters.filter(item => item.required).length || 0,
-    knowledgeBaseCode: envelope?.asset?.knowledgeBaseCode || '',
+    knowledgeBaseId,
+    knowledgeBaseSettingKey: envelope?.asset?.knowledgeBaseSettingKey
+      || RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
+    knowledgeBaseCode: knowledgeBaseId,
     documentCode: envelope?.asset?.documentCode || '',
     isAsset: Boolean(envelope),
   }

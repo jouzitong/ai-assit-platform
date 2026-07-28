@@ -1,20 +1,15 @@
 <script setup lang="ts">
 import {
-  Calendar,
   ChatDotRound,
   Check,
   CloseBold,
   Clock,
-  Collection,
   Crop,
   Document,
   EditPen,
-  Files,
   FolderOpened,
-  Loading,
   Microphone,
   MoreFilled,
-  Notebook,
   Operation,
   Promotion,
   ArrowLeftBold,
@@ -155,11 +150,6 @@ const quickNavItems = [
 
 const userMenuItems = [
   { key: 'system-settings', label: '系统设置', icon: Setting },
-  { key: 'archived', label: '已归档对话', icon: Files },
-  { key: 'workspace', label: '工作空间', icon: Collection },
-  { key: 'notes', label: '笔记', icon: Notebook },
-  { key: 'schedule', label: '日程', icon: Calendar },
-  { key: 'automation', label: '自动化任务', icon: Loading },
   { key: 'explore', label: 'AI 对话探索区', icon: Crop },
 ]
 

@@ -6,8 +6,14 @@ import { AppPagination } from '../../../../components'
 import ComponentAssetEditorDialog from '../component-manage/views/ComponentAssetEditorDialog.vue'
 import {
   getComponentAssetCardInfo,
+  getKnowledgeDocumentCode,
+  RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY,
   type ComponentAssetSubmission,
 } from '../component-manage/service/componentAsset'
+import {
+  createOrUpdateAiKbDocument,
+  syncAiKbDocuments,
+} from '../../api/aiPlatform'
 import {
   createRenderComponent,
   deleteRenderComponent,
@@ -19,6 +25,7 @@ import {
   type RenderComponentStatus,
   updateRenderComponent,
 } from '../../api/renderComponents'
+import { getEnabledSystemSettingValue } from '../../api/systemSettings'
 
 withDefaults(defineProps<{
   title?: string
@@ -39,8 +46,11 @@ const currentPage = ref(1)
 const total = ref(0)
 const loading = ref(false)
 const summaryLoading = ref(false)
+const knowledgeBaseLoading = ref(false)
 const errorMessage = ref('')
 const categoryError = ref('')
+const knowledgeBaseId = ref('')
+const knowledgeBaseError = ref('')
 const componentRecords = ref<RenderComponentItem[]>([])
 const categoryRecords = ref<RenderComponentCategoryItem[]>([])
 const componentDialogVisible = ref(false)
@@ -80,6 +90,10 @@ const componentCategories = computed(() => {
 const filteredComponentRecords = computed(() => {
   return componentRecords.value.map((record) => {
     const asset = getComponentAssetCardInfo(record)
+    const knowledgeAsset = asset as typeof asset & {
+      knowledgeBaseId?: string
+      knowledgeBaseCode?: string
+    }
     return {
       id: record.id,
       key: record.key || '-',
@@ -92,7 +106,7 @@ const filteredComponentRecords = computed(() => {
       sourceName: asset.sourceName,
       sourceKey: asset.sourceKey,
       parameterCount: asset.parameterCount,
-      knowledgeBaseCode: asset.knowledgeBaseCode || '待指定知识库',
+      knowledgeBaseId: knowledgeAsset.knowledgeBaseId || knowledgeAsset.knowledgeBaseCode || '待指定知识库',
       documentSize: record.docMarkdown?.length || 0,
       isAsset: asset.isAsset,
       assetLabel: asset.isAsset ? '数字资产' : '历史配置',
@@ -180,6 +194,26 @@ async function loadCategories() {
   }
 }
 
+async function loadKnowledgeBaseId() {
+  knowledgeBaseLoading.value = true
+  knowledgeBaseError.value = ''
+  try {
+    knowledgeBaseId.value = await getEnabledSystemSettingValue(RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY)
+    if (!knowledgeBaseId.value) {
+      knowledgeBaseError.value = `系统参数 ${RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY} 未配置或未启用`
+    }
+  }
+  catch (error) {
+    knowledgeBaseId.value = ''
+    knowledgeBaseError.value = error instanceof Error
+      ? `知识库配置加载失败：${error.message}`
+      : '知识库配置加载失败'
+  }
+  finally {
+    knowledgeBaseLoading.value = false
+  }
+}
+
 async function loadComponents() {
   loading.value = true
   errorMessage.value = ''
@@ -204,7 +238,7 @@ async function loadComponents() {
 }
 
 async function loadPageData() {
-  await Promise.all([loadSummary(), loadCategories(), loadComponents()])
+  await Promise.all([loadSummary(), loadCategories(), loadComponents(), loadKnowledgeBaseId()])
 }
 
 async function handleSearch() {
@@ -276,23 +310,73 @@ async function handleDeleteComponent(record: { id: string | number, name: string
 }
 
 async function submitComponentForm(payload: ComponentAssetSubmission) {
+  if (knowledgeBaseLoading.value) {
+    ElMessage.warning('知识库配置仍在加载，请稍后再试')
+    return
+  }
+  if (!knowledgeBaseId.value) {
+    ElMessage.error(knowledgeBaseError.value || `请先配置并启用系统参数 ${RENDER_COMPONENT_KNOWLEDGE_BASE_SETTING_KEY}`)
+    return
+  }
+
+  const savedMode = componentDialogMode.value
+  // `render.component.kbId` stores the local knowledge-base business code used by the KB API.
+  const targetKnowledgeBaseCode = knowledgeBaseId.value
+  const publishKnowledgeDocument = payload.status === EFFECTIVE_STATUS_PUBLISHED || payload.status === 'PUBLISHED'
   componentSubmitting.value = true
+  let assetSaved = false
   try {
-    if (componentDialogMode.value === 'create') {
+    if (savedMode === 'create') {
       await createRenderComponent(payload)
-      ElMessage.success('组件数字资产已创建')
     } else {
       if (editingComponentId.value == null) {
         throw new Error('未找到可编辑的组件')
       }
       await updateRenderComponent(editingComponentId.value, payload)
-      ElMessage.success('组件数字资产已更新')
     }
+    assetSaved = true
+
+    const documentCode = getKnowledgeDocumentCode(payload.key)
+    await createOrUpdateAiKbDocument({
+      kbCode: targetKnowledgeBaseCode,
+      documentId: documentCode,
+      documentName: payload.name,
+      documentType: 4,
+      bizType: 4,
+      content: payload.docMarkdown,
+      canUpdate: true,
+      enabled: publishKnowledgeDocument,
+      ext: {
+        sourceSystem: 'renderComponent',
+        sourceKey: payload.key,
+        componentKey: payload.key,
+      },
+    })
+    if (publishKnowledgeDocument) {
+      const syncResult = await syncAiKbDocuments({
+        kbCode: targetKnowledgeBaseCode,
+        documentCodes: [documentCode],
+      })
+      if (!syncResult?.taskCode) {
+        throw new Error('同步任务创建失败，未返回任务编码')
+      }
+    }
+
     componentDialogVisible.value = false
     resetComponentEditor()
+    ElMessage.success(
+      `组件数字资产已${savedMode === 'create' ? '创建' : '更新'}，${publishKnowledgeDocument ? '知识库同步任务已创建' : '知识文档已保存为未启用'}`,
+    )
     await loadPageData()
   }
   catch (error) {
+    if (assetSaved) {
+      componentDialogVisible.value = false
+      resetComponentEditor()
+      ElMessage.error(`组件资产已保存，但知识文档${publishKnowledgeDocument ? '写入或同步' : '写入'}失败：${error instanceof Error ? error.message : '未知错误'}`)
+      await loadPageData()
+      return
+    }
     ElMessage.error(error instanceof Error ? error.message : '组件保存失败')
   }
   finally {
@@ -342,7 +426,7 @@ onMounted(() => {
                 <el-icon><Search /></el-icon>
               </template>
             </el-input>
-            <el-button plain :loading="loading || summaryLoading" @click="handleRefresh">
+            <el-button plain :loading="loading || summaryLoading || knowledgeBaseLoading" @click="handleRefresh">
               <el-icon><RefreshRight /></el-icon>
               刷新
             </el-button>
@@ -414,7 +498,7 @@ onMounted(() => {
                 <div class="component-manage-card__section">
                   <label>知识资产</label>
                   <p>{{ record.parameterCount }} 个参数 · {{ record.documentSize.toLocaleString() }} 字符文档</p>
-                  <small>{{ record.knowledgeBaseCode }}</small>
+                  <small>{{ record.knowledgeBaseId }}</small>
                 </div>
               </div>
             </div>
@@ -442,6 +526,9 @@ onMounted(() => {
     :initial-value="editingComponent"
     :category-options="categoryOptions"
     :submitting="componentSubmitting"
+    :knowledge-base-id="knowledgeBaseId"
+    :knowledge-base-loading="knowledgeBaseLoading"
+    :knowledge-base-error="knowledgeBaseError"
     @closed="resetComponentEditor"
     @submit="submitComponentForm"
   />

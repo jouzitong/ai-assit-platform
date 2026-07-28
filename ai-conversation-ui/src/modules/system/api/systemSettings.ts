@@ -69,6 +69,24 @@ export function searchSystemSettings(payload: SystemSettingSearchPayload = {}) {
   })
 }
 
+export async function getEnabledSystemSettingValue(settingKey: string) {
+  const normalizedSettingKey = settingKey.trim()
+  if (!normalizedSettingKey) {
+    return ''
+  }
+
+  const payload = await searchSystemSettings({
+    page: 1,
+    size: 1,
+    settingKey: normalizedSettingKey,
+    enabled: true,
+  })
+  const setting = (payload?.list || []).find(item =>
+    item.enabled !== false && item.settingKey?.trim() === normalizedSettingKey,
+  )
+  return setting?.settingValue?.trim() || ''
+}
+
 export function createSystemSetting(payload: SystemSettingUpsertPayload) {
   return request(`${SYSTEM_SETTINGS_API_PREFIX}`, {
     method: 'POST',

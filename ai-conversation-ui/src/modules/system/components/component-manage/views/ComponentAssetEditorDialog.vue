@@ -3,44 +3,71 @@ import {
   ArrowLeftBold,
   ArrowRightBold,
   Check,
-  Connection,
   DataBoard,
   EditPen,
+  Loading,
+  RefreshLeft,
   Search,
   Setting,
   Tickets,
 } from '@element-plus/icons-vue'
-import { ElMessage } from 'element-plus'
-import { computed, reactive, ref, watch } from 'vue'
+import { ElMessage, type FormInstance, type FormRules } from 'element-plus'
+import { computed, nextTick, reactive, ref, watch } from 'vue'
 import {
   APPLICATION_COMPONENT_MANIFEST,
   findApplicationComponent,
   type ApplicationComponentDefinition,
 } from '../../../../../application/component-manifest'
-import { AppCodeEditor } from '../../../../../components'
+import {
+  AppCodeEditor,
+  AppDialog,
+  LayoutDialogFooter,
+  LayoutFormGrid,
+  LayoutFormGridItem,
+  useAppConfirm,
+} from '../../../../../components'
 import {
   bindApplicationComponent,
   buildComponentAssetDocument,
-  buildComponentAssetExampleJson,
+  buildComponentAssetRenderExampleJson,
   createComponentAssetDraft,
-  getKnowledgeDocumentCode,
+  parseComponentAssetRenderExample,
   toComponentAssetSubmission,
-  validateComponentAssetDraft,
   type ComponentAssetDraft,
   type ComponentAssetRecord,
   type ComponentAssetSubmission,
 } from '../service/componentAsset'
+
+type CatalogComponentDefinition = ApplicationComponentDefinition & {
+  exposure?: 'public' | 'internal'
+  visibility?: 'public' | 'internal'
+  internal?: boolean
+  public?: boolean
+}
+
+type KnowledgeAwareDraft = ComponentAssetDraft & {
+  knowledgeBaseId?: string
+  knowledgeBaseSettingKey?: string
+}
+
+const KNOWLEDGE_BASE_SETTING_KEY = 'render.component.kbId'
 
 const props = withDefaults(defineProps<{
   modelValue: boolean
   mode?: 'create' | 'edit'
   initialValue?: ComponentAssetRecord | null
   categoryOptions?: Array<{ label: string, value: string }>
+  knowledgeBaseId?: string
+  knowledgeBaseLoading?: boolean
+  knowledgeBaseError?: string
   submitting?: boolean
 }>(), {
   mode: 'create',
   initialValue: null,
   categoryOptions: () => [],
+  knowledgeBaseId: '',
+  knowledgeBaseLoading: false,
+  knowledgeBaseError: '',
   submitting: false,
 })
 
@@ -50,39 +77,66 @@ const emit = defineEmits<{
   closed: []
 }>()
 
-const currentStep = ref(0)
+const appConfirm = useAppConfirm()
+const formRef = ref<FormInstance>()
+const currentStep = ref<0 | 1>(0)
 const componentKeyword = ref('')
 const activeCatalogCategory = ref('all')
-const previewTab = ref('markdown')
+const previewTab = ref<'markdown' | 'json'>('markdown')
+const markdownContent = ref('')
+const renderJsonContent = ref('')
+const defaultMarkdownContent = ref('')
+const defaultRenderJsonContent = ref('')
+const initialSignature = ref('')
+const resetting = ref(false)
+const discardConfirming = ref(false)
 const draft = reactive<ComponentAssetDraft>(createComponentAssetDraft())
+const knowledgeAwareDraft = draft as KnowledgeAwareDraft
+
+const formRules: FormRules = {
+  name: [
+    { required: true, message: '请输入资产名称', trigger: 'blur' },
+    { min: 2, max: 80, message: '资产名称长度应为 2 到 80 个字符', trigger: 'blur' },
+  ],
+}
 
 const dialogVisible = computed({
   get: () => props.modelValue,
-  set: value => emit('update:modelValue', value),
+  set: (value) => {
+    if (value || !props.submitting) {
+      emit('update:modelValue', value)
+    }
+  },
 })
 
-const dialogTitle = computed(() => props.mode === 'create' ? '新建组件数字资产' : '编辑组件数字资产')
+const dialogTitle = computed(() => props.mode === 'create' ? '新建组件知识资产' : '编辑组件知识资产')
 const selectedDefinition = computed(() => findApplicationComponent(draft.sourceKey))
-const generatedDocument = computed(() => buildComponentAssetDocument(draft))
-const generatedExample = computed(() => buildComponentAssetExampleJson(draft))
-const documentCode = computed(() => getKnowledgeDocumentCode(draft.key))
-const enabledParameterCount = computed(() => Object.values(draft.parameters).filter(item => item.enabled).length)
-const documentCharacterCount = computed(() => generatedDocument.value.length)
+
+function isPublicRenderer(definition: ApplicationComponentDefinition) {
+  const catalogDefinition = definition as CatalogComponentDefinition
+  const exposure = catalogDefinition.exposure || catalogDefinition.visibility
+  if (exposure) {
+    return exposure === 'public'
+  }
+  return catalogDefinition.internal !== true && catalogDefinition.public !== false
+}
+
+const publicComponents = computed(() => APPLICATION_COMPONENT_MANIFEST.filter(isPublicRenderer))
 
 const catalogCategories = computed(() => [
-  { key: 'all', label: '全部组件', count: APPLICATION_COMPONENT_MANIFEST.length },
-  ...Array.from(new Set(APPLICATION_COMPONENT_MANIFEST.map(item => item.category))).map(category => ({
+  { key: 'all', label: '全部组件', count: publicComponents.value.length },
+  ...Array.from(new Set(publicComponents.value.map(item => item.category))).map(category => ({
     key: category,
     label: category,
-    count: APPLICATION_COMPONENT_MANIFEST.filter(item => item.category === category).length,
+    count: publicComponents.value.filter(item => item.category === category).length,
   })),
 ])
 
 const filteredComponents = computed(() => {
   const keyword = componentKeyword.value.trim().toLowerCase()
-  return APPLICATION_COMPONENT_MANIFEST.filter((item) => {
+  return publicComponents.value.filter((item) => {
     const categoryMatched = activeCatalogCategory.value === 'all' || item.category === activeCatalogCategory.value
-    const keywordMatched = !keyword || [item.name, item.key, item.description, item.sourcePath]
+    const keywordMatched = !keyword || [item.name, item.key, item.description, item.sourcePath, ...item.tags]
       .some(value => value.toLowerCase().includes(keyword))
     return categoryMatched && keywordMatched
   })
@@ -91,17 +145,23 @@ const filteredComponents = computed(() => {
 const assetCategoryOptions = computed(() => {
   const options = [
     ...props.categoryOptions,
-    ...APPLICATION_COMPONENT_MANIFEST.map(item => ({ label: item.category, value: item.category })),
+    ...publicComponents.value.map(item => ({ label: item.category, value: item.category })),
   ]
   return options.filter((item, index) => options.findIndex(target => target.value === item.value) === index)
 })
 
-const completionPercentage = computed(() => {
-  if (!selectedDefinition.value) return 0
-  if (!draft.key.trim() || !draft.name.trim() || !draft.summary.trim()) return 36
-  if (currentStep.value < 2) return 68
-  return 100
-})
+const renderJsonError = computed(() => validateRenderJson(renderJsonContent.value))
+const markdownError = computed(() => validateMarkdown(markdownContent.value))
+const knowledgeBaseReady = computed(() => (
+  !props.knowledgeBaseLoading
+  && !props.knowledgeBaseError
+  && Boolean(props.knowledgeBaseId.trim())
+))
+const saveDisabled = computed(() => (
+  props.submitting
+  || !selectedDefinition.value
+  || !knowledgeBaseReady.value
+))
 
 function componentIcon(definition: ApplicationComponentDefinition) {
   if (definition.category === '数据可视化') return DataBoard
@@ -109,411 +169,492 @@ function componentIcon(definition: ApplicationComponentDefinition) {
   return Tickets
 }
 
-function resetEditor() {
+function syncKnowledgeBase() {
+  knowledgeAwareDraft.knowledgeBaseId = props.knowledgeBaseId.trim()
+  knowledgeAwareDraft.knowledgeBaseSettingKey = KNOWLEDGE_BASE_SETTING_KEY
+  // 兼容 service 迁移期间的旧字段，最终 envelope 由 service 统一组装。
+  draft.knowledgeBaseCode = props.knowledgeBaseId.trim()
+}
+
+function buildDefaultContents() {
+  syncKnowledgeBase()
+  return {
+    markdown: buildComponentAssetDocument(draft),
+    renderJson: buildComponentAssetRenderExampleJson(draft),
+  }
+}
+
+function replaceWithGeneratedDefaults() {
+  const generated = buildDefaultContents()
+  defaultMarkdownContent.value = generated.markdown
+  defaultRenderJsonContent.value = generated.renderJson
+  markdownContent.value = generated.markdown
+  renderJsonContent.value = generated.renderJson
+}
+
+function refreshGeneratedDefaults() {
+  if (!selectedDefinition.value) return
+  const markdownWasDefault = !markdownContent.value.trim() || markdownContent.value === defaultMarkdownContent.value
+  const renderJsonWasDefault = !renderJsonContent.value.trim() || renderJsonContent.value === defaultRenderJsonContent.value
+  const generated = buildDefaultContents()
+
+  defaultMarkdownContent.value = generated.markdown
+  defaultRenderJsonContent.value = generated.renderJson
+  if (markdownWasDefault) markdownContent.value = generated.markdown
+  if (renderJsonWasDefault) renderJsonContent.value = generated.renderJson
+}
+
+function readPersistedRenderExample(value?: string) {
+  if (!value?.trim()) return ''
+  try {
+    const parsed = JSON.parse(value) as unknown
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return ''
+    const record = parsed as Record<string, unknown>
+    if (record.protocol === 'render-json') {
+      return JSON.stringify(record, null, 2)
+    }
+    if (record.renderExample && typeof record.renderExample === 'object') {
+      return JSON.stringify(record.renderExample, null, 2)
+    }
+  }
+  catch {
+    return ''
+  }
+  return ''
+}
+
+function editorSignature() {
+  return JSON.stringify({
+    sourceKey: draft.sourceKey,
+    name: draft.name,
+    category: draft.category,
+    status: draft.status,
+    knowledgeBaseId: props.knowledgeBaseId.trim(),
+    markdown: markdownContent.value,
+    renderJson: renderJsonContent.value,
+  })
+}
+
+const isDirty = computed(() => Boolean(props.modelValue) && editorSignature() !== initialSignature.value)
+
+async function resetEditor() {
+  resetting.value = true
   Object.assign(draft, createComponentAssetDraft(props.initialValue))
+  syncKnowledgeBase()
   currentStep.value = props.mode === 'edit' && draft.sourceKey ? 1 : 0
   componentKeyword.value = ''
   activeCatalogCategory.value = 'all'
   previewTab.value = 'markdown'
+
+  if (selectedDefinition.value) {
+    const generated = buildDefaultContents()
+    defaultMarkdownContent.value = generated.markdown
+    defaultRenderJsonContent.value = generated.renderJson
+    markdownContent.value = props.initialValue?.docMarkdown?.trim() || generated.markdown
+    renderJsonContent.value = readPersistedRenderExample(props.initialValue?.exampleJson) || generated.renderJson
+  } else {
+    defaultMarkdownContent.value = ''
+    defaultRenderJsonContent.value = ''
+    markdownContent.value = ''
+    renderJsonContent.value = ''
+  }
+
+  await nextTick()
+  formRef.value?.clearValidate()
+  initialSignature.value = editorSignature()
+  resetting.value = false
 }
 
-function selectComponent(componentKey: string) {
-  if (draft.sourceKey === componentKey) return
+async function selectComponent(componentKey: string) {
+  if (draft.sourceKey === componentKey || props.submitting) return
+  if (draft.sourceKey) {
+    const confirmed = await appConfirm('更换源组件会重置已生成的 Markdown 与 Render JSON，是否继续？', {
+      title: '更换源组件',
+      confirmButtonText: '确认更换',
+      danger: true,
+    })
+    if (!confirmed) return
+  }
+
   bindApplicationComponent(draft, componentKey)
+  syncKnowledgeBase()
+  replaceWithGeneratedDefaults()
+  await nextTick()
+  formRef.value?.clearValidate()
 }
 
 function goNext() {
-  const error = validateComponentAssetDraft(draft, currentStep.value > 0)
-  if (error) {
-    ElMessage.warning(error)
+  if (!selectedDefinition.value) {
+    ElMessage.warning('请先选择一个公开 Renderer')
     return
   }
-  currentStep.value = Math.min(currentStep.value + 1, 2)
+  refreshGeneratedDefaults()
+  currentStep.value = 1
 }
 
 function goBack() {
-  currentStep.value = Math.max(currentStep.value - 1, 0)
+  if (props.mode === 'create' && !props.submitting) {
+    currentStep.value = 0
+  }
 }
 
-function submitAsset() {
-  const error = validateComponentAssetDraft(draft, true)
-  if (error) {
-    ElMessage.warning(error)
+function validateRenderJson(value: string) {
+  try {
+    parseComponentAssetRenderExample(value)
+  }
+  catch (error) {
+    return error instanceof Error ? error.message : 'Render JSON 格式不正确'
+  }
+  return ''
+}
+
+function validateMarkdown(value: string) {
+  if (!value.trim()) return 'Markdown 资产文档不能为空'
+  const requiredSections = ['## 4. 参数契约', '## 6. 事件契约']
+  const missingSections = requiredSections.filter(section => !value.includes(section))
+  if (missingSections.length) {
+    return `Markdown 必须保留固定章节：${missingSections.join('、')}`
+  }
+  return ''
+}
+
+async function restoreDefaults() {
+  if (props.submitting) return
+  const generated = buildDefaultContents()
+  const changed = markdownContent.value !== generated.markdown || renderJsonContent.value !== generated.renderJson
+  if (changed) {
+    const confirmed = await appConfirm('恢复后将覆盖当前编辑的 Markdown 与 Render JSON，是否继续？', {
+      title: '恢复自动生成内容',
+      confirmButtonText: '恢复默认',
+      danger: true,
+    })
+    if (!confirmed) return
+  }
+  defaultMarkdownContent.value = generated.markdown
+  defaultRenderJsonContent.value = generated.renderJson
+  markdownContent.value = generated.markdown
+  renderJsonContent.value = generated.renderJson
+  ElMessage.success('已恢复自动生成内容')
+}
+
+async function submitAsset() {
+  if (props.submitting) return
+  const valid = await formRef.value?.validate().catch(() => false)
+  if (valid === false) return
+  if (props.knowledgeBaseLoading) {
+    ElMessage.warning('正在读取组件知识库 ID，请稍候')
     return
   }
-  emit('submit', toComponentAssetSubmission(draft))
+  if (props.knowledgeBaseError) {
+    ElMessage.error(props.knowledgeBaseError)
+    return
+  }
+  if (!props.knowledgeBaseId.trim()) {
+    ElMessage.warning(`请先配置系统参数 ${KNOWLEDGE_BASE_SETTING_KEY}`)
+    return
+  }
+  if (markdownError.value) {
+    previewTab.value = 'markdown'
+    ElMessage.warning(markdownError.value)
+    return
+  }
+  if (renderJsonError.value) {
+    previewTab.value = 'json'
+    ElMessage.warning(renderJsonError.value)
+    return
+  }
+
+  try {
+    emit('submit', toComponentAssetSubmission(draft, {
+      docMarkdown: markdownContent.value,
+      renderExampleJson: renderJsonContent.value,
+    }))
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '知识资产组装失败')
+  }
 }
 
-async function copyText(value: string, message: string) {
+async function confirmDiscardChanges() {
+  if (!isDirty.value) return true
+  if (discardConfirming.value) return false
+  discardConfirming.value = true
   try {
-    await navigator.clipboard.writeText(value)
-    ElMessage.success(message)
+    return await appConfirm('当前修改尚未保存，关闭后将无法恢复，是否继续？', {
+      title: '放弃未保存修改',
+      confirmButtonText: '放弃修改',
+      danger: true,
+    })
   }
-  catch {
-    ElMessage.error('复制失败，请手动选择内容')
+  finally {
+    discardConfirming.value = false
+  }
+}
+
+async function requestClose() {
+  if (props.submitting) return
+  if (await confirmDiscardChanges()) {
+    dialogVisible.value = false
+  }
+}
+
+async function handleBeforeClose(done: () => void) {
+  if (props.submitting) return
+  if (await confirmDiscardChanges()) {
+    done()
   }
 }
 
 watch(() => props.modelValue, (visible) => {
-  if (visible) resetEditor()
+  if (visible) void resetEditor()
+}, { immediate: true })
+
+watch(() => [draft.name, draft.category, draft.status], () => {
+  if (props.modelValue && !resetting.value) refreshGeneratedDefaults()
+})
+
+watch(() => props.knowledgeBaseId, async () => {
+  if (!props.modelValue || resetting.value) return
+  const wasDirty = isDirty.value
+  syncKnowledgeBase()
+  refreshGeneratedDefaults()
+  if (!wasDirty) {
+    await nextTick()
+    initialSignature.value = editorSignature()
+  }
 })
 </script>
 
 <template>
-  <el-dialog
+  <AppDialog
     v-model="dialogVisible"
     class="component-asset-editor-dialog"
-    modal-class="component-asset-editor-mask"
-    width="min(1180px, calc(100vw - 32px))"
-    top="4vh"
-    destroy-on-close
-    :close-on-click-modal="false"
+    :title="dialogTitle"
+    description="选择公开 Renderer，系统将自动生成 Markdown 知识文档与可运行的 Render JSON。"
+    size="extra-large"
+    height="86%"
+    action-mode="none"
+    :close-on-press-escape="!submitting"
+    :show-close="!submitting"
+    :before-close="handleBeforeClose"
     @closed="emit('closed')"
   >
-    <template #header>
-      <div class="component-asset-editor__header">
-        <span class="component-asset-editor__header-icon" aria-hidden="true">
-          <el-icon><Setting /></el-icon>
-        </span>
-        <div>
-          <h2>{{ dialogTitle }}</h2>
-          <p>从 Application 源组件出发，配置参数契约并生成可同步的知识文档。</p>
-        </div>
-        <el-tag effect="plain" round>资产化流程</el-tag>
+    <div class="component-asset-editor">
+      <div class="component-asset-editor__steps" aria-label="组件知识资产创建步骤">
+        <el-steps :active="currentStep" simple finish-status="success">
+          <el-step title="选择公开 Renderer" />
+          <el-step title="生成知识资产" />
+        </el-steps>
       </div>
-    </template>
 
-    <div class="component-asset-editor__steps" aria-label="组件资产创建步骤">
-      <el-steps :active="currentStep" simple finish-status="success">
-        <el-step title="选择源组件" />
-        <el-step title="配置资产" />
-        <el-step title="生成文档" />
-      </el-steps>
-    </div>
-
-    <div class="component-asset-editor__body">
-      <main class="component-asset-editor__main">
-        <section v-if="currentStep === 0" class="component-asset-step" aria-labelledby="component-source-title">
-          <div class="component-asset-step__heading">
-            <div>
-              <span class="component-asset-step__index">01</span>
-              <h3 id="component-source-title">选择 Application 组件</h3>
-              <p>清单只暴露可独立使用的业务渲染器，不包含内部子组件。</p>
-            </div>
-            <el-input v-model="componentKeyword" clearable placeholder="搜索名称、Key 或源码路径">
-              <template #prefix><el-icon><Search /></el-icon></template>
-            </el-input>
+      <section v-if="currentStep === 0" class="component-asset-step" aria-labelledby="component-source-title">
+        <div class="component-asset-step__heading">
+          <div>
+            <span class="component-asset-step__index">01</span>
+            <h3 id="component-source-title">选择公开 Renderer</h3>
+            <p>所有公开 Application Renderer 都会进入候选目录，并携带参数与示例契约。</p>
           </div>
+          <el-input v-model="componentKeyword" clearable placeholder="搜索名称、Key、标签或源码路径">
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+        </div>
 
-          <div class="component-catalog-filter" role="group" aria-label="组件分类">
-            <button
-              v-for="category in catalogCategories"
-              :key="category.key"
-              type="button"
-              :class="['component-catalog-filter__item', { 'is-active': activeCatalogCategory === category.key }]"
-              :aria-pressed="activeCatalogCategory === category.key"
-              @click="activeCatalogCategory = category.key"
-            >
-              {{ category.label }} <span>{{ category.count }}</span>
-            </button>
-          </div>
+        <div class="component-catalog-filter" role="group" aria-label="Renderer 分类">
+          <button
+            v-for="category in catalogCategories"
+            :key="category.key"
+            type="button"
+            :class="['component-catalog-filter__item', { 'is-active': activeCatalogCategory === category.key }]"
+            :aria-pressed="activeCatalogCategory === category.key"
+            @click="activeCatalogCategory = category.key"
+          >
+            {{ category.label }} <span>{{ category.count }}</span>
+          </button>
+        </div>
 
-          <div v-if="filteredComponents.length" class="component-catalog-grid">
-            <button
-              v-for="component in filteredComponents"
-              :key="component.key"
-              type="button"
-              :class="['component-catalog-card', { 'is-selected': draft.sourceKey === component.key }]"
-              :aria-pressed="draft.sourceKey === component.key"
-              @click="selectComponent(component.key)"
-            >
-              <span class="component-catalog-card__icon" aria-hidden="true">
-                <el-icon><component :is="componentIcon(component)" /></el-icon>
+        <div v-if="filteredComponents.length" class="component-catalog-grid">
+          <button
+            v-for="component in filteredComponents"
+            :key="component.key"
+            type="button"
+            :class="['component-catalog-card', { 'is-selected': draft.sourceKey === component.key }]"
+            :aria-pressed="draft.sourceKey === component.key"
+            :disabled="submitting"
+            @click="selectComponent(component.key)"
+          >
+            <span class="component-catalog-card__icon" aria-hidden="true">
+              <el-icon><component :is="componentIcon(component)" /></el-icon>
+            </span>
+            <span class="component-catalog-card__content">
+              <span class="component-catalog-card__topline">
+                <strong>{{ component.name }}</strong>
+                <el-icon v-if="draft.sourceKey === component.key" class="component-catalog-card__check"><Check /></el-icon>
               </span>
-              <span class="component-catalog-card__content">
-                <span class="component-catalog-card__topline">
-                  <strong>{{ component.name }}</strong>
-                  <el-icon v-if="draft.sourceKey === component.key" class="component-catalog-card__check"><Check /></el-icon>
-                </span>
-                <code>{{ component.key }}</code>
-                <span class="component-catalog-card__description">{{ component.description }}</span>
-                <span class="component-catalog-card__meta">
-                  <span>{{ component.category }}</span>
-                  <span>{{ component.parameters.length }} 个参数</span>
-                  <span>v{{ component.version }}</span>
-                </span>
-                <small>{{ component.sourcePath }}</small>
+              <code>{{ component.key }}</code>
+              <span class="component-catalog-card__description">{{ component.description }}</span>
+              <span class="component-catalog-card__meta">
+                <span>{{ component.category }}</span>
+                <span>{{ component.parameters.length }} 个参数</span>
+                <span>{{ component.events.length }} 个事件</span>
               </span>
-            </button>
-          </div>
-          <el-empty v-else description="没有匹配的 Application 组件" :image-size="72" />
-        </section>
+              <small>{{ component.sourcePath }}</small>
+            </span>
+          </button>
+        </div>
+        <el-empty v-else description="没有匹配的公开 Renderer" :image-size="72" />
+      </section>
 
-        <section v-else-if="currentStep === 1" class="component-asset-step" aria-labelledby="component-config-title">
-          <div class="component-asset-step__heading component-asset-step__heading--compact">
-            <div>
-              <span class="component-asset-step__index">02</span>
-              <h3 id="component-config-title">配置资产语义与参数</h3>
-              <p>定义这个组件在系统中如何被识别、如何使用以及对外暴露哪些参数。</p>
-            </div>
+      <section v-else class="component-asset-step" aria-labelledby="component-document-title">
+        <div class="component-asset-step__heading component-asset-step__heading--compact">
+          <div>
+            <span class="component-asset-step__index">02</span>
+            <h3 id="component-document-title">查看并保存知识资产</h3>
+            <p>基础信息变化会同步更新尚未手动修改的默认内容；恢复默认可重新完整生成。</p>
+          </div>
+          <el-button :disabled="submitting" @click="restoreDefaults">
+            <el-icon><RefreshLeft /></el-icon>
+            恢复默认
+          </el-button>
+        </div>
+
+        <div v-if="selectedDefinition" class="component-selected-renderer">
+          <span class="component-selected-renderer__icon" aria-hidden="true">
+            <el-icon><component :is="componentIcon(selectedDefinition)" /></el-icon>
+          </span>
+          <div>
+            <strong>{{ selectedDefinition.name }}</strong>
+            <code>{{ selectedDefinition.key }}</code>
+          </div>
+          <el-tag effect="plain">{{ selectedDefinition.category }}</el-tag>
+        </div>
+
+        <div class="component-asset-panel">
+          <div class="component-asset-panel__title">
+            <span><el-icon><Setting /></el-icon></span>
+            <div><h4>资产信息</h4><p>知识库 ID 由系统参数统一提供，不在此处手工修改。</p></div>
           </div>
 
-          <div class="component-asset-panel">
-            <div class="component-asset-panel__title">
-              <span><el-icon><EditPen /></el-icon></span>
-              <div><h4>基础信息</h4><p>对应后端组件配置的核心身份。</p></div>
-            </div>
-            <el-form label-position="top" class="component-asset-form">
-              <div class="component-asset-form__grid">
-                <el-form-item label="资产标识" required>
-                  <el-input v-model="draft.key" placeholder="例如 list-main-layout" />
+          <el-form ref="formRef" :model="draft" :rules="formRules" label-position="top" status-icon>
+            <LayoutFormGrid :columns="2">
+              <LayoutFormGridItem>
+                <el-form-item label="资产名称" prop="name" required>
+                  <el-input v-model="draft.name" :disabled="submitting" placeholder="请输入资产名称" maxlength="80" show-word-limit />
                 </el-form-item>
-                <el-form-item label="资产名称" required>
-                  <el-input v-model="draft.name" placeholder="请输入资产名称" />
-                </el-form-item>
+              </LayoutFormGridItem>
+              <LayoutFormGridItem>
                 <el-form-item label="业务分类">
-                  <el-select v-model="draft.category" allow-create filterable default-first-option placeholder="输入或选择分类">
+                  <el-select
+                    v-model="draft.category"
+                    :disabled="submitting"
+                    allow-create
+                    filterable
+                    default-first-option
+                    placeholder="输入或选择分类"
+                  >
                     <el-option v-for="option in assetCategoryOptions" :key="option.value" :label="option.label" :value="option.value" />
                   </el-select>
                 </el-form-item>
+              </LayoutFormGridItem>
+              <LayoutFormGridItem>
                 <el-form-item label="资产状态">
-                  <el-select v-model="draft.status">
+                  <el-select v-model="draft.status" :disabled="submitting">
                     <el-option label="草稿" :value="1" />
                     <el-option label="已发布" :value="2" />
                     <el-option label="已停用" :value="3" />
                   </el-select>
                 </el-form-item>
-                <el-form-item label="负责人">
-                  <el-input v-model="draft.owner" placeholder="资产维护人或团队" />
-                </el-form-item>
-                <el-form-item label="标签">
-                  <el-select v-model="draft.tags" multiple allow-create filterable default-first-option placeholder="输入后回车添加标签" />
-                </el-form-item>
-              </div>
-              <el-form-item label="能力说明" required>
-                <el-input v-model="draft.summary" type="textarea" :rows="3" placeholder="说明组件能力边界与输出" />
-              </el-form-item>
-              <div class="component-asset-form__grid component-asset-form__grid--textareas">
-                <el-form-item label="适用场景">
-                  <el-input v-model="draft.useCases" type="textarea" :rows="4" placeholder="每行一个场景" />
-                </el-form-item>
-                <el-form-item label="使用指引">
-                  <el-input v-model="draft.usageGuide" type="textarea" :rows="4" placeholder="说明接入步骤和数据责任" />
-                </el-form-item>
-                <el-form-item label="限制与注意事项">
-                  <el-input v-model="draft.limitations" type="textarea" :rows="4" placeholder="补充使用限制、兼容性或风险" />
-                </el-form-item>
-                <el-form-item label="补充说明">
-                  <el-input v-model="draft.notes" type="textarea" :rows="4" placeholder="可选，会追加到最终 Markdown 文档" />
-                </el-form-item>
-              </div>
-            </el-form>
-          </div>
-
-          <div class="component-asset-panel">
-            <div class="component-asset-panel__title component-asset-panel__title--between">
-              <div class="component-asset-panel__title-group">
-                <span><el-icon><Setting /></el-icon></span>
-                <div><h4>参数策略</h4><p>必填参数固定纳入，可选参数可按资产场景控制。</p></div>
-              </div>
-              <el-tag effect="plain">{{ enabledParameterCount }} / {{ selectedDefinition?.parameters.length || 0 }} 已纳入</el-tag>
-            </div>
-
-            <div class="component-parameter-list">
-              <article v-for="parameter in selectedDefinition?.parameters" :key="parameter.key" class="component-parameter-card">
-                <div class="component-parameter-card__heading">
-                  <div>
-                    <strong>{{ parameter.label }}</strong>
-                    <code>{{ parameter.key }}</code>
-                    <el-tag v-if="parameter.required" size="small" type="danger" effect="plain">必填</el-tag>
-                    <el-tag v-else size="small" effect="plain">可选</el-tag>
+              </LayoutFormGridItem>
+              <LayoutFormGridItem>
+                <el-form-item label="知识库 ID" required>
+                  <el-input :model-value="knowledgeBaseId" readonly :placeholder="knowledgeBaseLoading ? '正在读取系统参数...' : '尚未配置'">
+                    <template v-if="knowledgeBaseLoading" #suffix>
+                      <el-icon class="component-asset-editor__loading"><Loading /></el-icon>
+                    </template>
+                  </el-input>
+                  <div class="component-knowledge-base-hint">
+                    来源：系统参数 <code>{{ KNOWLEDGE_BASE_SETTING_KEY }}</code>
                   </div>
-                  <div class="component-parameter-card__toggle">
-                    <span>纳入资产</span>
-                    <el-switch v-model="draft.parameters[parameter.key].enabled" :disabled="parameter.required" />
-                  </div>
-                </div>
-                <div v-if="draft.parameters[parameter.key].enabled" class="component-parameter-card__body">
-                  <div class="component-parameter-card__value">
-                    <label>默认值 <small>{{ parameter.type }}</small></label>
-                    <el-switch
-                      v-if="parameter.control === 'boolean'"
-                      v-model="draft.parameters[parameter.key].value"
-                      inline-prompt
-                      active-text="true"
-                      inactive-text="false"
-                    />
-                    <el-input-number
-                      v-else-if="parameter.control === 'number'"
-                      v-model="draft.parameters[parameter.key].value"
-                      controls-position="right"
-                    />
-                    <el-input
-                      v-else-if="parameter.control === 'text'"
-                      v-model="draft.parameters[parameter.key].value"
-                      placeholder="请输入默认值"
-                    />
-                    <el-input
-                      v-else
-                      v-model="draft.parameters[parameter.key].value"
-                      type="textarea"
-                      :rows="5"
-                      spellcheck="false"
-                      placeholder="请输入合法 JSON"
-                    />
-                  </div>
-                  <div class="component-parameter-card__description">
-                    <label>参数说明</label>
-                    <el-input v-model="draft.parameters[parameter.key].description" type="textarea" :rows="3" />
-                  </div>
-                </div>
-              </article>
-            </div>
-          </div>
-        </section>
-
-        <section v-else class="component-asset-step" aria-labelledby="component-document-title">
-          <div class="component-asset-step__heading component-asset-step__heading--compact">
-            <div>
-              <span class="component-asset-step__index">03</span>
-              <h3 id="component-document-title">生成文档与知识资产</h3>
-              <p>将组件身份、参数契约、使用说明和示例合并为一份可检索文档。</p>
-            </div>
-          </div>
-
-          <div class="component-sync-flow" aria-label="资产同步流程">
-            <div class="component-sync-flow__node is-ready">
-              <span><el-icon><DataBoard /></el-icon></span>
-              <div><strong>Application 定义</strong><small>已读取</small></div>
-            </div>
-            <el-icon class="component-sync-flow__arrow"><ArrowRightBold /></el-icon>
-            <div class="component-sync-flow__node is-ready">
-              <span><el-icon><Setting /></el-icon></span>
-              <div><strong>后端组件配置</strong><small>本次保存</small></div>
-            </div>
-            <el-icon class="component-sync-flow__arrow"><ArrowRightBold /></el-icon>
-            <div class="component-sync-flow__node is-pending">
-              <span><el-icon><Connection /></el-icon></span>
-              <div><strong>知识库文档</strong><small>待后端同步</small></div>
-            </div>
-          </div>
+                </el-form-item>
+              </LayoutFormGridItem>
+            </LayoutFormGrid>
+          </el-form>
 
           <el-alert
-            title="当前会将完整 Markdown 和配置 JSON 保存到组件配置；真正写入知识库将在后端同步接口接入后执行。"
-            type="info"
+            v-if="knowledgeBaseError"
+            :title="knowledgeBaseError"
+            type="error"
             show-icon
             :closable="false"
           />
+          <el-alert
+            v-else-if="!knowledgeBaseLoading && !knowledgeBaseId"
+            :title="`未读取到 ${KNOWLEDGE_BASE_SETTING_KEY}，配置后才能保存知识资产。`"
+            type="warning"
+            show-icon
+            :closable="false"
+          />
+        </div>
 
-          <div class="component-asset-panel component-asset-panel--knowledge">
-            <div class="component-asset-panel__title">
-              <span><el-icon><Connection /></el-icon></span>
-              <div><h4>知识资产定位</h4><p>预先定义文档目标，后续可直接映射到后端字段。</p></div>
-            </div>
-            <div class="component-knowledge-grid">
-              <el-form-item label="生成知识库文档">
-                <el-switch v-model="draft.generateKnowledgeDocument" active-text="是" inactive-text="否" />
-              </el-form-item>
-              <el-form-item label="目标知识库编码">
-                <el-input v-model="draft.knowledgeBaseCode" :disabled="!draft.generateKnowledgeDocument" placeholder="system-component-assets" />
-              </el-form-item>
-              <el-form-item label="文档编码">
-                <el-input :model-value="documentCode" readonly />
-              </el-form-item>
-            </div>
+        <div class="component-document-workspace">
+          <div class="component-document-workspace__toolbar">
+            <el-tabs v-model="previewTab">
+              <el-tab-pane label="Markdown 知识文档" name="markdown" />
+              <el-tab-pane label="Render JSON" name="json" />
+            </el-tabs>
+            <span>内容会在保存时重新封装为组件资产</span>
           </div>
 
-          <div class="component-document-preview">
-            <div class="component-document-preview__toolbar">
-              <el-tabs v-model="previewTab">
-                <el-tab-pane label="Markdown 资产文档" name="markdown" />
-                <el-tab-pane label="配置 JSON" name="json" />
-              </el-tabs>
-              <el-button plain @click="copyText(previewTab === 'markdown' ? generatedDocument : generatedExample, '内容已复制')">
-                复制内容
-              </el-button>
-            </div>
-            <AppCodeEditor
-              v-if="previewTab === 'markdown'"
-              :model-value="generatedDocument"
-              format="markdown"
-              readonly
-              :show-format-switcher="false"
-              toolbar-label="Markdown"
-              min-height="420px"
-            />
-            <AppCodeEditor
-              v-else
-              :model-value="generatedExample"
-              format="json"
-              readonly
-              :show-format-switcher="false"
-              toolbar-label="JSON"
-              min-height="420px"
-            />
-          </div>
-        </section>
-      </main>
-
-      <aside class="component-asset-preview" aria-label="资产实时预览">
-        <div class="component-asset-preview__eyebrow">实时资产包</div>
-        <div class="component-asset-preview__identity">
-          <span><el-icon><component :is="selectedDefinition ? componentIcon(selectedDefinition) : Setting" /></el-icon></span>
-          <div>
-            <strong>{{ draft.name || selectedDefinition?.name || '待选择组件' }}</strong>
-            <code>{{ draft.key || selectedDefinition?.key || 'component-key' }}</code>
-          </div>
+          <AppCodeEditor
+            v-show="previewTab === 'markdown'"
+            v-model="markdownContent"
+            format="markdown"
+            label="Markdown 知识文档"
+            :error="markdownError"
+            :disabled="submitting"
+            :show-format-switcher="false"
+            min-height="380px"
+            :max-rows="22"
+            expandable
+            expand-title="编辑 Markdown 知识文档"
+          />
+          <AppCodeEditor
+            v-show="previewTab === 'json'"
+            v-model="renderJsonContent"
+            format="json"
+            label="Render JSON"
+            hint="必须是 protocol=render-json 且包含 root.component 的可运行文档。"
+            :error="renderJsonError"
+            :disabled="submitting"
+            :show-format-switcher="false"
+            min-height="380px"
+            :max-rows="22"
+            expandable
+            expand-title="编辑 Render JSON"
+          />
         </div>
-        <p class="component-asset-preview__summary">
-          {{ draft.summary || '选择 Application 组件后，将在这里预览它的能力说明。' }}
-        </p>
-
-        <div class="component-asset-preview__progress">
-          <div><span>资产完整度</span><strong>{{ completionPercentage }}%</strong></div>
-          <el-progress :percentage="completionPercentage" :show-text="false" :stroke-width="6" />
-        </div>
-
-        <dl class="component-asset-preview__facts">
-          <div><dt>源组件</dt><dd>{{ selectedDefinition?.key || '未绑定' }}</dd></div>
-          <div><dt>源码版本</dt><dd>{{ selectedDefinition ? `v${selectedDefinition.version}` : '-' }}</dd></div>
-          <div><dt>参数契约</dt><dd>{{ enabledParameterCount }} 项</dd></div>
-          <div><dt>文档规模</dt><dd>{{ documentCharacterCount.toLocaleString() }} 字符</dd></div>
-          <div><dt>目标知识库</dt><dd>{{ draft.generateKnowledgeDocument ? (draft.knowledgeBaseCode || '待指定') : '不生成' }}</dd></div>
-        </dl>
-
-        <div class="component-asset-preview__checklist">
-          <div :class="{ 'is-done': Boolean(selectedDefinition) }"><span><el-icon><Check /></el-icon></span>绑定 Application 定义</div>
-          <div :class="{ 'is-done': Boolean(draft.key && draft.name && draft.summary) }"><span><el-icon><Check /></el-icon></span>补全资产语义</div>
-          <div :class="{ 'is-done': currentStep === 2 }"><span><el-icon><Check /></el-icon></span>生成知识文档</div>
-        </div>
-
-        <div class="component-asset-preview__notice">
-          <el-icon><Connection /></el-icon>
-          <span>知识库同步接口待后端接入</span>
-        </div>
-      </aside>
+      </section>
     </div>
 
     <template #footer>
-      <div class="component-asset-editor__footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <div>
-          <el-button v-if="currentStep > 0" :disabled="submitting" @click="goBack">
+      <LayoutDialogFooter align="between" class="component-asset-editor__footer">
+        <el-button :disabled="submitting || discardConfirming" @click="requestClose">取消</el-button>
+        <div class="component-asset-editor__footer-actions">
+          <el-button v-if="currentStep === 1 && mode === 'create'" :disabled="submitting" @click="goBack">
             <el-icon><ArrowLeftBold /></el-icon>
             上一步
           </el-button>
-          <el-button v-if="currentStep < 2" type="primary" @click="goNext">
-            下一步
+          <el-button v-if="currentStep === 0" type="primary" :disabled="!selectedDefinition || submitting" @click="goNext">
+            生成知识资产
             <el-icon><ArrowRightBold /></el-icon>
           </el-button>
-          <el-button v-else type="primary" :loading="submitting" @click="submitAsset">
+          <el-button v-else type="primary" :loading="submitting" :disabled="saveDisabled" @click="submitAsset">
             <el-icon><Check /></el-icon>
-            {{ mode === 'create' ? '创建并生成资产' : '保存资产变更' }}
+            {{ mode === 'create' ? '保存知识资产' : '保存资产变更' }}
           </el-button>
         </div>
-      </div>
+      </LayoutDialogFooter>
     </template>
-  </el-dialog>
+  </AppDialog>
 </template>
 
 <style src="../styles/component-asset-editor.scss"></style>
