@@ -13,6 +13,7 @@ import type {
   CoordinateExtent,
   Edge,
   EdgeMouseEvent,
+  NodeMouseEvent,
   Node,
 } from '@vue-flow/core'
 
@@ -73,9 +74,14 @@ const edges = defineModel<Edge[]>('edges', { default: () => [] })
 const canvasElement = ref<HTMLElement | null>(null)
 const emit = defineEmits<{
   connect: [connection: Connection]
+  nodeClick: [event: NodeMouseEvent]
+  nodeDoubleClick: [event: NodeMouseEvent]
+  nodeContextMenu: [event: NodeMouseEvent]
   edgeClick: [event: EdgeMouseEvent]
+  edgeDoubleClick: [event: EdgeMouseEvent]
+  paneClick: [event: MouseEvent]
 }>()
-const { fitView, getNodes } = useVueFlow()
+const { fitView, getNodes, setNodes } = useVueFlow()
 
 const resolvedNodeExtent = computed(() => props.nodeExtent || props.canvasExtent)
 
@@ -96,6 +102,13 @@ function getNodeDimensions() {
   return new Map(getNodes.value.map(node => [String(node.id), { ...node.dimensions }]))
 }
 
+function getNodePositions() {
+  return new Map(getNodes.value.map(node => [String(node.id), {
+    x: node.computedPosition.x,
+    y: node.computedPosition.y,
+  }]))
+}
+
 function getCanvasSize() {
   return {
     width: canvasElement.value?.clientWidth || 0,
@@ -103,7 +116,16 @@ function getCanvasSize() {
   }
 }
 
-defineExpose({ getNodeDimensions, getCanvasSize })
+function setNodePositions(positions: Map<string, { x: number; y: number }>) {
+  const positionedNodes = getNodes.value.map((node) => {
+    const position = positions.get(String(node.id))
+    return position ? { ...node, position: { ...position } } : node
+  })
+  nodes.value = positionedNodes
+  setNodes(positionedNodes)
+}
+
+defineExpose({ getNodeDimensions, getNodePositions, getCanvasSize, setNodePositions })
 </script>
 
 <template>
@@ -130,7 +152,12 @@ defineExpose({ getNodeDimensions, getCanvasSize })
       :connection-line-options="connectionLineOptions"
       :fit-view-on-init="fitViewOnInit"
       @connect="emit('connect', $event)"
+      @node-click="emit('nodeClick', $event)"
+      @node-double-click="emit('nodeDoubleClick', $event)"
+      @node-context-menu="emit('nodeContextMenu', $event)"
       @edge-click="emit('edgeClick', $event)"
+      @edge-double-click="emit('edgeDoubleClick', $event)"
+      @pane-click="emit('paneClick', $event)"
     >
       <template #node-renderer="slotProps">
         <slot name="node-renderer" v-bind="slotProps" />

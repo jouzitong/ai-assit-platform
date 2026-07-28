@@ -14,10 +14,11 @@ import {
   Switch as SwitchIcon,
 } from '@element-plus/icons-vue'
 import { ConnectionLineType, MarkerType } from '@vue-flow/core'
-import type { Connection, Edge, EdgeMouseEvent, Node } from '@vue-flow/core'
+import type { Connection, Edge, EdgeMouseEvent, Node, NodeMouseEvent } from '@vue-flow/core'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, markRaw, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import AppFlowCanvas from '../../../../components/canvas/AppFlowCanvas/index.vue'
+import { AppDrawer } from '../../../../components/feedback'
 import type { AgentJsonPrimitive, AgentPageActionResult } from '../../../ai-assistant/types'
 import type {
   RelationResultMode,
@@ -33,7 +34,7 @@ import type {
 import { logicalTypeLabel, relationLineStyleOptions, relationResultModeOptions } from '../data/options'
 import type { RelationDraftStatus, RelationLineStyle, VirtualTableNodeData } from '../data/types'
 import {
-  calculateRelationLayout,
+  calculateCanvasLayout,
   calculateResponsiveGridLayout,
   type RelationLayoutMode,
 } from '../service/relationLayout'
@@ -68,13 +69,15 @@ const emit = defineEmits<{
 const keyword = defineModel<string>('keyword', { default: '' })
 const selectedSources = defineModel<string[]>('selectedSources', { default: () => [] })
 const selectedEntityIds = defineModel<string[]>('selectedEntityIds', { default: () => [] })
-const layoutMode = defineModel<RelationLayoutMode>('layoutMode', { default: 'manual' })
+const layoutMode = defineModel<RelationLayoutMode>('layoutMode', { default: 'force' })
 const lineStyle = defineModel<RelationLineStyle>('lineStyle', { default: 'curve' })
 const nodes = ref<Node[]>([])
 const edges = ref<Edge[]>([])
 const flowCanvas = ref<{
   getNodeDimensions: () => Map<string, { width: number; height: number }>
+  getNodePositions: () => Map<string, { x: number; y: number }>
   getCanvasSize: () => { width: number; height: number }
+  setNodePositions: (positions: Map<string, { x: number; y: number }>) => void
 } | null>(null)
 const fitViewTrigger = ref(0)
 const layoutLoading = ref(false)
@@ -84,14 +87,23 @@ const batchSaving = ref(false)
 const aiLoading = ref(false)
 const draftRelations = ref<DraftRelation[]>([])
 const relationDialogVisible = ref(false)
+const entityDrawerVisible = ref(false)
 const editingRelationId = ref<VirtualDataId | null>(null)
 const aiSelectionVisible = ref(false)
 const aiSelectionKeyword = ref('')
 const aiSelectedEntityIds = ref<string[]>([])
+const selectedEntityId = ref<string | null>(null)
 const nodeTypes = { virtualTable: markRaw(VirtualTableNode) }
+const relationLayoutOptions = [
+  { label: '力导向', value: 'force' as const },
+  { label: '层级布局', value: 'hierarchy' as const },
+  { label: '网格布局', value: 'grid' as const },
+  { label: '环形布局', value: 'circle' as const },
+]
 let undoLayoutPositions: Map<string, { x: number, y: number }> | null = null
 let layoutRunId = 0
 let draftSequence = 0
+let hasAppliedInitialLayout = false
 
 const relationForm = reactive<VirtualRelationPayload>({
   relationCode: '',
@@ -168,6 +180,11 @@ const hasChanges = computed(() => changeCount.value > 0)
 const currentDraft = computed(() => editingRelationId.value === null
   ? null
   : workingRelations.value.find(item => String(item.id) === String(editingRelationId.value)) || null)
+const selectedEntity = computed(() => selectedEntityId.value === null
+  ? null
+  : props.entities.find(entity => String(entity.id) === selectedEntityId.value) || null)
+const selectedEntityFields = computed(() => selectedEntity.value ? fieldsForEntity(selectedEntity.value.id) : [])
+const selectedEntityBindings = computed(() => selectedEntity.value ? bindingByEntity.value.get(String(selectedEntity.value.id)) || [] : [])
 const formReadOnly = computed(() => !batchMode.value || currentDraft.value?.draftStatus === 'deleted')
 const targetFieldOptions = computed(() => {
   const sourceType = fieldById(relationForm.sourceFieldId)?.logicalType
@@ -295,39 +312,50 @@ async function measuredNodeDimensions() {
   return dimensions
 }
 
-function applyResponsiveGridLayout(measured = new Map<string, { width: number; height: number }>()) {
-  const positions = calculateResponsiveGridLayout(layoutNodes(measured), canvasSize())
-  nodes.value = nodes.value.map(node => ({ ...node, position: positions.get(String(node.id)) || node.position }))
-}
-
 function snapshotNodePositions() {
+  const renderedPositions = flowCanvas.value?.getNodePositions()
+  if (renderedPositions?.size) return renderedPositions
   return new Map(nodes.value.map(node => [String(node.id), { ...node.position }]))
 }
 
-async function applyRelationLayout() {
+function applyNodePositions(positions: Map<string, { x: number; y: number }>) {
+  if (flowCanvas.value) {
+    flowCanvas.value.setNodePositions(positions)
+    return
+  }
+  nodes.value = nodes.value.map(node => ({
+    ...node,
+    position: positions.get(String(node.id)) || node.position,
+  }))
+}
+
+async function applySelectedLayout(showSuccess = true) {
   if (!nodes.value.length) {
     layoutLoading.value = false
     return
   }
   const currentRunId = ++layoutRunId
+  const selectedMode = layoutMode.value
+  const selectedModeLabel = relationLayoutOptions.find(option => option.value === selectedMode)?.label || '画布布局'
   layoutLoading.value = true
   try {
     const measured = await measuredNodeDimensions()
     if (currentRunId !== layoutRunId) return
-    const positions = await calculateRelationLayout(
+    const positions = await calculateCanvasLayout(
+      selectedMode,
       layoutNodes(measured),
       edges.value.filter(edge => (edge.data as { status?: RelationDraftStatus } | undefined)?.status !== 'deleted')
         .map(edge => ({ id: String(edge.id), source: String(edge.source), target: String(edge.target) })),
       canvasSize(),
     )
     if (currentRunId !== layoutRunId) return
-    nodes.value = nodes.value.map(node => ({ ...node, position: positions.get(String(node.id)) || node.position }))
+    applyNodePositions(positions)
     fitViewTrigger.value += 1
+    if (showSuccess) ElMessage.success(`${selectedModeLabel}已应用`)
   }
   catch (error) {
     if (currentRunId !== layoutRunId) return
-    layoutMode.value = 'manual'
-    ElMessage.error(error instanceof Error ? error.message : '关系布局计算失败')
+    ElMessage.error(error instanceof Error ? error.message : `${selectedModeLabel}计算失败`)
   }
   finally {
     if (currentRunId === layoutRunId) layoutLoading.value = false
@@ -338,18 +366,16 @@ function beautifyCanvas() {
   if (!nodes.value.length || layoutLoading.value) return
   undoLayoutPositions = snapshotNodePositions()
   canUndoLayout.value = true
-  if (layoutMode.value === 'relation') void applyRelationLayout()
-  else layoutMode.value = 'relation'
+  void applySelectedLayout()
 }
 
 function undoCanvasLayout() {
   if (!undoLayoutPositions) return
   layoutRunId += 1
-  nodes.value = nodes.value.map(node => ({ ...node, position: undoLayoutPositions?.get(String(node.id)) || node.position }))
+  applyNodePositions(undoLayoutPositions)
   undoLayoutPositions = null
   canUndoLayout.value = false
   layoutLoading.value = false
-  layoutMode.value = 'manual'
   fitViewTrigger.value += 1
 }
 
@@ -365,6 +391,13 @@ function edgeAppearance(relation: DraftRelation) {
   if (relation.draftStatus === 'deleted') return { color: 'var(--app-text-faint)', dash: '7 6', prefix: '待删除' }
   if (!relation.enabled) return { color: 'var(--app-text-muted)', dash: '4 5', prefix: '已停用' }
   return { color: 'var(--app-accent)', dash: undefined, prefix: '' }
+}
+
+function applyInitialLayoutIfNeeded() {
+  if (hasAppliedInitialLayout || !nodes.value.length) return false
+  hasAppliedInitialLayout = true
+  void nextTick(() => applySelectedLayout(false))
+  return true
 }
 
 function rebuildCanvas() {
@@ -421,8 +454,7 @@ function rebuildCanvas() {
         data: { relation, status: relation.draftStatus },
       }
     })
-  if (layoutMode.value === 'relation') void applyRelationLayout()
-  else fitViewTrigger.value += 1
+  if (!applyInitialLayoutIfNeeded()) fitViewTrigger.value += 1
 }
 
 function parseHandle(handle: string | null | undefined) {
@@ -445,6 +477,7 @@ function resetRelationForm(payload?: VirtualRelationPayload) {
 }
 
 function openBlankRelation() {
+  clearSelection()
   editingRelationId.value = null
   resetRelationForm()
   relationDialogVisible.value = true
@@ -486,6 +519,21 @@ function openCreateRelation(connection: Connection) {
     remark: '',
   })
   relationDialogVisible.value = true
+}
+
+function openEntityDetails(event: NodeMouseEvent) {
+  event.event.preventDefault()
+  selectedEntityId.value = String(event.node.id)
+  entityDrawerVisible.value = true
+}
+
+function clearSelection() {
+  selectedEntityId.value = null
+}
+
+function closeEntityDetails() {
+  entityDrawerVisible.value = false
+  selectedEntityId.value = null
 }
 
 function openEditRelation(event: EdgeMouseEvent) {
@@ -909,7 +957,6 @@ watch(
   rebuildCanvas,
   { deep: true, immediate: true },
 )
-watch(layoutMode, mode => { if (mode === 'relation') void applyRelationLayout() })
 watch(lineStyle, rebuildCanvas)
 watch([batchMode, hasChanges], ([active, dirty]) => emit('batchStateChange', active, dirty), { immediate: true })
 watch(hasChanges, (dirty) => {
@@ -917,11 +964,8 @@ watch(hasChanges, (dirty) => {
   else window.removeEventListener('beforeunload', handleBeforeUnload)
 })
 
-onMounted(async () => {
-  if (layoutMode.value !== 'manual' || !nodes.value.length) return
-  const measured = await measuredNodeDimensions()
-  applyResponsiveGridLayout(measured)
-  fitViewTrigger.value += 1
+onMounted(() => {
+  if (!applyInitialLayoutIfNeeded() && nodes.value.length) fitViewTrigger.value += 1
 })
 
 onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnload))
@@ -947,67 +991,131 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
   </Teleport>
 
   <Teleport defer to="#virtual-table-header-filters">
-    <div class="relation-canvas-panel__filters">
-      <el-input v-model="keyword" clearable placeholder="筛选虚拟表或物理表" aria-label="筛选虚拟表或物理表">
-        <template #prefix><el-icon><Search /></el-icon></template>
-      </el-input>
-      <el-select v-model="selectedSources" multiple collapse-tags clearable placeholder="显示数据源" aria-label="显示数据源">
-        <el-option v-for="source in sourceOptions" :key="source" :label="source" :value="source" />
-      </el-select>
-      <el-select v-model="selectedEntityIds" multiple collapse-tags clearable filterable placeholder="显示虚拟表" aria-label="显示虚拟表">
-        <el-option v-for="entity in entityOptions" :key="entity.id" :label="entity.label" :value="entity.id" />
-      </el-select>
-      <el-button :icon="Filter" @click="resetFilters">重置</el-button>
+    <div class="relation-canvas-panel__header-summary" aria-label="关系画布摘要">
+      <span class="relation-summary-chip"><strong>{{ filteredEntities.length }}</strong> 张表</span>
+      <span class="relation-summary-chip"><strong>{{ edges.length }}</strong> 条关系</span>
+      <small>双击或右键实体查看表信息，双击关系编辑</small>
     </div>
   </Teleport>
 
   <section class="relation-canvas-panel">
-    <div v-loading="loading || aiLoading" class="relation-canvas-panel__canvas">
-      <AppFlowCanvas
-        ref="flowCanvas"
-        v-model:nodes="nodes"
-        v-model:edges="edges"
-        :node-types="nodeTypes"
-        :nodes-connectable="batchMode"
-        :show-controls="true"
-        :controls-show-fit-view="false"
-        :zoom-on-scroll="true"
-        :zoom-on-pinch="true"
-        :connection-line-type="connectionLineType"
-        :connection-line-options="connectionLineOptions"
-        :fit-view-trigger="fitViewTrigger"
-        :fit-view-padding="0.06"
-        :canvas-extent="[[-2000, -1200], [16000, 16000]]"
-        :node-extent="[[-1600, -1000], [15000, 15000]]"
-        @connect="openCreateRelation"
-        @edge-click="openEditRelation"
-      >
-        <template #controls>
-          <div class="relation-canvas-panel__canvas-tools" aria-label="画布操作">
-            <label class="relation-canvas-panel__line-style">
-              <span>连线</span>
-              <el-select v-model="lineStyle" size="small" aria-label="连线样式">
-                <el-option v-for="option in relationLineStyleOptions" :key="option.value" :label="option.label" :value="option.value" />
-              </el-select>
-            </label>
-            <el-button size="small" type="primary" plain :icon="MagicStick" :loading="layoutLoading" @click="beautifyCanvas">美化</el-button>
-            <el-button-group>
-              <el-button size="small" :icon="RefreshLeft" :disabled="!canUndoLayout || layoutLoading" title="撤销布局" aria-label="撤销布局" @click="undoCanvasLayout" />
-              <el-button size="small" :icon="Aim" title="适应画布" aria-label="适应画布" @click="fitViewTrigger += 1" />
-              <el-button size="small" :icon="RefreshRight" :loading="loading" title="刷新画布" aria-label="刷新画布" @click="refreshCanvas" />
-            </el-button-group>
+    <div class="relation-canvas-panel__workspace">
+      <aside class="relation-canvas-panel__sidebar" aria-label="画布筛选与说明">
+        <div class="relation-canvas-panel__sidebar-header">
+          <div>
+            <strong>显示范围</strong>
+            <span>筛选需要关注的虚拟表</span>
           </div>
-        </template>
-      </AppFlowCanvas>
-      <div v-if="batchMode" class="relation-canvas-panel__batchbar" aria-live="polite">
-        <strong>批量操作中</strong>
-        <span class="change-chip is-added">待新增 {{ changeSummary.added }}</span>
-        <span class="change-chip is-updated">待更新 {{ changeSummary.updated }}</span>
-        <span class="change-chip is-deleted">待删除 {{ changeSummary.deleted }}</span>
-        <span>保存全部后统一落库</span>
-      </div>
-      <div v-if="!loading && !filteredEntities.length" class="relation-canvas-panel__empty">当前筛选条件下没有可显示的虚拟表</div>
+          <el-icon><Filter /></el-icon>
+        </div>
+        <div class="relation-canvas-panel__sidebar-form">
+          <el-input v-model="keyword" clearable placeholder="名称、编码或物理表" aria-label="筛选虚拟表或物理表">
+            <template #prefix><el-icon><Search /></el-icon></template>
+          </el-input>
+          <el-select v-model="selectedSources" multiple collapse-tags clearable placeholder="按数据源筛选" aria-label="按数据源筛选">
+            <el-option v-for="source in sourceOptions" :key="source" :label="source" :value="source" />
+          </el-select>
+          <el-select v-model="selectedEntityIds" multiple collapse-tags clearable filterable placeholder="按虚拟表筛选" aria-label="按虚拟表筛选">
+            <el-option v-for="entity in entityOptions" :key="entity.id" :label="entity.label" :value="entity.id" />
+          </el-select>
+          <el-button class="relation-canvas-panel__reset" :icon="Filter" @click="resetFilters">重置筛选</el-button>
+        </div>
+        <div class="relation-canvas-panel__sidebar-stats">
+          <div><strong>{{ filteredEntities.length }}</strong><span>当前实体</span></div>
+          <div><strong>{{ edges.length }}</strong><span>当前关系</span></div>
+        </div>
+        <div class="relation-canvas-panel__sidebar-divider" />
+        <div class="relation-canvas-panel__sidebar-section">
+          <strong>画布图例</strong>
+          <p><span class="legend-line is-solid" />实线箭头：已保存关系</p>
+          <p><span class="legend-line is-dashed" />虚线箭头：停用或待删除</p>
+          <p><span class="legend-dot" />节点可拖动，滚轮可缩放</p>
+        </div>
+        <div class="relation-canvas-panel__sidebar-hint">
+          <strong>操作提示</strong>
+          <span>进入批量操作后，可从字段右侧连接点拖到目标字段，建立新的关联草稿。</span>
+        </div>
+      </aside>
+
+      <main v-loading="loading || aiLoading" class="relation-canvas-panel__canvas" aria-label="虚拟表关系画布">
+        <AppFlowCanvas
+          ref="flowCanvas"
+          v-model:nodes="nodes"
+          v-model:edges="edges"
+          :node-types="nodeTypes"
+          :nodes-connectable="batchMode"
+          :show-controls="true"
+          :controls-show-fit-view="false"
+          :zoom-on-scroll="true"
+          :zoom-on-pinch="true"
+          :connection-line-type="connectionLineType"
+          :connection-line-options="connectionLineOptions"
+          :fit-view-trigger="fitViewTrigger"
+          :fit-view-padding="0.06"
+          :min-zoom="0.2"
+          :canvas-extent="[[-2000, -1200], [16000, 16000]]"
+          :node-extent="[[-1600, -1000], [15000, 15000]]"
+          @connect="openCreateRelation"
+          @node-double-click="openEntityDetails"
+          @node-context-menu="openEntityDetails"
+          @edge-double-click="openEditRelation"
+          @pane-click="clearSelection"
+        >
+          <template #controls>
+            <div class="relation-canvas-panel__canvas-tools" aria-label="画布操作">
+              <label class="relation-canvas-panel__line-style">
+                <span>连线</span>
+                <el-select v-model="lineStyle" size="small" aria-label="连线样式">
+                  <el-option v-for="option in relationLineStyleOptions" :key="option.value" :label="option.label" :value="option.value" />
+                </el-select>
+              </label>
+              <el-select v-model="layoutMode" size="small" class="relation-canvas-panel__layout-select" :disabled="layoutLoading" aria-label="选择画布布局">
+                <el-option v-for="option in relationLayoutOptions" :key="option.value" :label="option.label" :value="option.value" />
+              </el-select>
+              <el-button size="small" type="primary" plain :icon="MagicStick" :loading="layoutLoading" @click="beautifyCanvas">重新布局</el-button>
+              <el-button-group>
+                <el-button size="small" :icon="RefreshLeft" :disabled="!canUndoLayout || layoutLoading" title="撤销布局" aria-label="撤销布局" @click="undoCanvasLayout" />
+                <el-button size="small" :icon="Aim" title="适应画布" aria-label="适应画布" @click="fitViewTrigger += 1" />
+                <el-button size="small" :icon="RefreshRight" :loading="loading" title="刷新画布" aria-label="刷新画布" @click="refreshCanvas" />
+              </el-button-group>
+            </div>
+          </template>
+        </AppFlowCanvas>
+        <div class="relation-canvas-panel__canvas-status" aria-live="polite">
+          <span class="status-chip"><strong>{{ filteredEntities.length }}</strong> 实体</span>
+          <span class="status-chip"><strong>{{ edges.length }}</strong> 关系</span>
+          <span v-if="batchMode" class="status-chip is-warning"><strong>{{ changeCount }}</strong> 项待保存</span>
+        </div>
+        <div v-if="batchMode" class="relation-canvas-panel__batchbar" aria-live="polite">
+          <strong>批量操作中</strong>
+          <span class="change-chip is-added">待新增 {{ changeSummary.added }}</span>
+          <span class="change-chip is-updated">待更新 {{ changeSummary.updated }}</span>
+          <span class="change-chip is-deleted">待删除 {{ changeSummary.deleted }}</span>
+          <span>保存全部后统一落库</span>
+        </div>
+        <div v-if="!loading && !filteredEntities.length" class="relation-canvas-panel__empty">当前筛选条件下没有可显示的虚拟表</div>
+      </main>
     </div>
+
+    <AppDrawer
+      v-model="entityDrawerVisible"
+      :title="selectedEntity?.entityName || selectedEntity?.entityCode || '表信息'"
+      description="虚拟表实体信息"
+      size="small"
+      :show-footer="false"
+      @closed="closeEntityDetails"
+    >
+      <div v-if="selectedEntity" class="entity-detail__body">
+        <div class="entity-detail__section">
+          <span class="entity-detail__label">状态</span>
+          <span :class="['entity-detail__status', { 'is-disabled': selectedEntity.status === 2 }]">{{ selectedEntity.status === 1 ? '已发布' : selectedEntity.status === 2 ? '已停用' : '草稿' }}</span>
+        </div>
+        <div class="entity-detail__section"><span class="entity-detail__label">表编码</span><code class="entity-detail__code">{{ selectedEntity.entityCode || '未设置' }}</code></div>
+        <div class="entity-detail__stats"><div><strong>{{ selectedEntityFields.length }}</strong><span>可关联字段</span></div><div><strong>{{ selectedEntityBindings.length }}</strong><span>数据绑定</span></div></div>
+        <div v-if="selectedEntity.description" class="entity-detail__section"><span class="entity-detail__label">说明</span><p class="entity-detail__remark">{{ selectedEntity.description }}</p></div>
+        <div v-if="selectedEntityBindings.length" class="entity-detail__section"><span class="entity-detail__label">数据源</span><div class="entity-detail__tags"><span v-for="binding in selectedEntityBindings" :key="binding.id">{{ binding.sourceKey || '未命名来源' }}</span></div></div>
+      </div>
+    </AppDrawer>
 
     <el-dialog
       v-model="relationDialogVisible"
@@ -1119,13 +1227,15 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 
 <style scoped>
 .relation-canvas-panel {
-  display: grid;
-  grid-template-rows: minmax(0, 1fr);
+  container-type: inline-size;
+  container-name: relation-canvas;
+  display: flex;
+  min-width: 0;
   min-height: 0;
   height: 100%;
+  overflow: hidden;
 }
 
-.relation-canvas-panel__filters,
 .relation-canvas-panel__actions {
   display: flex;
   gap: var(--app-space-2);
@@ -1133,9 +1243,61 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 }
 
 .relation-canvas-panel__actions { flex-wrap: wrap; justify-content: flex-end; }
-.relation-canvas-panel__filters :deep(.el-input) { width: 220px; }
-.relation-canvas-panel__filters :deep(.el-select) { width: 190px; }
 .relation-canvas-panel__actions span { color: var(--app-text-muted); font-size: var(--app-font-size-caption); }
+.relation-canvas-panel__header-summary { display: flex; gap: var(--app-space-2); align-items: center; min-width: 0; }
+.relation-canvas-panel__header-summary small { color: var(--app-text-muted); font-size: var(--app-font-size-caption); }
+.relation-summary-chip { padding: 4px 9px; border: 1px solid var(--app-border); border-radius: var(--app-radius-round); background: var(--app-surface-muted); color: var(--app-text-muted); font-size: var(--app-font-size-caption); }
+.relation-summary-chip strong { color: var(--app-title); }
+
+.relation-canvas-panel__workspace {
+  display: grid;
+  grid-template-columns: 232px minmax(0, 1fr);
+  gap: var(--app-space-3);
+  width: 100%;
+  min-width: 0;
+  min-height: 0;
+}
+
+.relation-canvas-panel__sidebar {
+  min-width: 0;
+  min-height: 0;
+  overflow: auto;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius-control);
+  background: var(--app-surface-solid);
+  box-shadow: var(--app-shadow-sm);
+}
+
+.relation-canvas-panel__sidebar { padding: var(--app-space-4); }
+.relation-canvas-panel__sidebar-header { display: flex; gap: var(--app-space-3); align-items: flex-start; justify-content: space-between; margin-bottom: var(--app-space-4); }
+.relation-canvas-panel__sidebar-header strong,
+.relation-canvas-panel__sidebar-header span,
+.relation-canvas-panel__sidebar-section strong,
+.relation-canvas-panel__sidebar-hint strong { display: block; }
+.relation-canvas-panel__sidebar-header strong { color: var(--app-title); font-size: var(--app-font-size-body-lg); }
+.relation-canvas-panel__sidebar-header span { margin-top: 3px; color: var(--app-text-muted); font-size: var(--app-font-size-caption); }
+.relation-canvas-panel__sidebar-header > .el-icon { color: var(--app-accent); font-size: 18px; }
+.relation-canvas-panel__sidebar-form { display: grid; gap: var(--app-space-2); }
+.relation-canvas-panel__sidebar-form :deep(.el-select),
+.relation-canvas-panel__sidebar-form :deep(.el-input) { width: 100%; }
+.relation-canvas-panel__reset { width: 100%; }
+.relation-canvas-panel__sidebar-stats,
+.entity-detail__stats { display: grid; grid-template-columns: 1fr 1fr; gap: var(--app-space-2); margin-top: var(--app-space-4); }
+.relation-canvas-panel__sidebar-stats > div,
+.entity-detail__stats > div { display: grid; gap: 2px; padding: var(--app-space-3); border: 1px solid var(--app-border-subtle); border-radius: var(--app-radius-sm); background: var(--app-surface-muted); }
+.relation-canvas-panel__sidebar-stats strong,
+.entity-detail__stats strong { color: var(--app-title); font-size: var(--app-font-size-title-sm); }
+.relation-canvas-panel__sidebar-stats span,
+.entity-detail__stats span { color: var(--app-text-muted); font-size: 11px; }
+.relation-canvas-panel__sidebar-divider { height: 1px; margin: var(--app-space-5) 0; background: var(--app-border); }
+.relation-canvas-panel__sidebar-section { display: grid; gap: var(--app-space-2); }
+.relation-canvas-panel__sidebar-section strong { color: var(--app-title); font-size: var(--app-font-size-body); }
+.relation-canvas-panel__sidebar-section p { display: flex; gap: var(--app-space-2); align-items: center; margin: 0; color: var(--app-text-muted); font-size: var(--app-font-size-caption); line-height: 1.5; }
+.legend-line { width: 18px; height: 0; border-top: 2px solid var(--app-accent); }
+.legend-line.is-dashed { border-top-style: dashed; border-color: var(--app-text-faint); }
+.legend-dot { width: 8px; height: 8px; border: 2px solid var(--app-accent); border-radius: 50%; background: var(--app-accent-bg); }
+.relation-canvas-panel__sidebar-hint { display: grid; gap: var(--app-space-2); margin-top: var(--app-space-5); padding: var(--app-space-3); border: 1px solid var(--app-accent-border); border-radius: var(--app-radius-sm); background: var(--app-accent-bg); color: var(--app-text-muted); font-size: var(--app-font-size-caption); line-height: 1.6; }
+.relation-canvas-panel__sidebar-hint strong { color: var(--app-accent); }
 .relation-canvas-panel__line-style { display: flex; gap: var(--app-space-2); align-items: center; white-space: nowrap; }
 .relation-canvas-panel__line-style > span { color: var(--app-text-muted); font-size: var(--app-font-size-caption); }
 .relation-canvas-panel__line-style :deep(.el-select) { width: 88px; }
@@ -1143,7 +1305,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 .relation-canvas-panel__batchbar {
   position: absolute;
   z-index: 6;
-  top: var(--app-space-3);
+  bottom: var(--app-space-3);
   right: var(--app-space-3);
   display: flex;
   gap: var(--app-space-2);
@@ -1163,7 +1325,13 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 .change-chip.is-updated { border-color: var(--app-warning-border); background: var(--app-warning-bg); color: var(--app-warning); }
 .change-chip.is-deleted { border-color: var(--app-border); background: var(--app-surface-muted); color: var(--app-text-muted); }
 
-.relation-canvas-panel__canvas { position: relative; min-height: 0; overflow: hidden; }
+.relation-canvas-panel__canvas :deep(.app-flow-canvas),
+.relation-canvas-panel__canvas :deep(.app-flow-canvas__flow) { background: var(--app-chart-empty-bg); }
+.relation-canvas-panel__canvas-status { position: absolute; z-index: 5; bottom: var(--app-space-3); left: var(--app-space-3); display: flex; gap: var(--app-space-2); align-items: center; pointer-events: none; }
+.status-chip { padding: 6px 9px; border: 1px solid var(--app-border); border-radius: var(--app-radius-sm); background: color-mix(in srgb, var(--app-surface-solid) 94%, transparent); color: var(--app-text-muted); font-size: 11px; box-shadow: var(--app-shadow-sm); }
+.status-chip strong { color: var(--app-title); }
+.status-chip.is-warning { border-color: var(--app-warning-border); background: var(--app-warning-bg); }
+.relation-canvas-panel__canvas { position: relative; min-width: 0; min-height: 0; overflow: hidden; border: 1px solid var(--app-border); border-radius: var(--app-radius-control); background: var(--app-chart-empty-bg); box-shadow: var(--app-shadow-sm); }
 .relation-canvas-panel__canvas-tools {
   display: flex;
   gap: var(--app-space-2);
@@ -1175,20 +1343,19 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
   display: flex;
   top: 0;
   bottom: auto;
-  left: 0;
+  right: 0;
+  left: auto;
   z-index: 6;
   flex-direction: row;
   overflow: hidden;
   border: 1px solid var(--app-border);
-  border-top: 0;
-  border-left: 0;
-  border-radius: 0 0 9px 0;
+  border-radius: 0 0 0 9px;
   background: var(--app-surface-raised);
   box-shadow: var(--app-shadow-sm);
 }
 .relation-canvas-panel__canvas :deep(.vue-flow__controls-button) {
-  width: 18px;
-  height: 18px;
+  width: 28px;
+  height: 28px;
   padding: 7px;
   border-right: 1px solid var(--app-border);
   border-bottom: 0;
@@ -1199,6 +1366,17 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 .relation-canvas-panel__canvas :deep(.vue-flow__controls-button:hover) { background: var(--app-accent-bg); }
 .relation-canvas-panel__canvas :deep(.vue-flow__controls-button svg) { fill: currentColor; }
 .relation-canvas-panel__empty { position: absolute; inset: 0; display: grid; place-items: center; color: var(--app-text-muted); pointer-events: none; }
+.relation-canvas-panel__layout-select { width: 118px; }
+
+.entity-detail__body { display: grid; gap: var(--app-space-4); }
+.entity-detail__section { display: grid; gap: var(--app-space-2); min-width: 0; }
+.entity-detail__label { color: var(--app-text-muted); font-size: var(--app-font-size-caption); }
+.entity-detail__status { justify-self: start; padding: 3px 7px; border-radius: var(--app-radius-round); background: var(--app-accent-bg); color: var(--app-accent); font-size: 10px; }
+.entity-detail__status.is-disabled { background: var(--app-surface-muted); color: var(--app-text-muted); }
+.entity-detail__code { color: var(--app-text-muted); font-size: 11px; }
+.entity-detail__remark { margin: 0; color: var(--app-text); font-size: var(--app-font-size-body); line-height: 1.6; }
+.entity-detail__tags { display: flex; flex-wrap: wrap; gap: var(--app-space-2); }
+.entity-detail__tags span { padding: 3px 7px; border: 1px solid var(--app-accent-border); border-radius: var(--app-radius-round); background: var(--app-accent-bg); color: var(--app-accent); font-size: 11px; }
 
 .relation-editor__direction-note { margin-bottom: var(--app-space-3); }
 .relation-editor__direction-note strong,
@@ -1263,13 +1441,18 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
 .ai-relation-selection__list span code,
 .ai-relation-selection__list small { color: var(--app-text-muted); font-size: 11px; }
 
-@media (max-width: 1280px) {
-  .relation-canvas-panel__filters,
+@container relation-canvas (max-width: 1180px) {
+  .relation-canvas-panel__workspace { grid-template-columns: 220px minmax(0, 1fr); overflow: auto; }
+  .relation-canvas-panel__canvas { min-height: 620px; }
   .relation-canvas-panel__actions { flex-wrap: wrap; }
 }
 
-@media (max-width: 720px) {
-  .relation-canvas-panel__filters > :deep(*) { width: 100% !important; }
+@container relation-canvas (max-width: 760px) {
+  .relation-canvas-panel { overflow: auto; }
+  .relation-canvas-panel__workspace { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(560px, 1fr); overflow: visible; }
+  .relation-canvas-panel__sidebar { max-height: none; }
+  .relation-canvas-panel__canvas { min-height: 560px; }
+  .relation-canvas-panel__header-summary small { display: none; }
   .relation-canvas-panel__canvas :deep(.vue-flow__controls) {
     right: var(--app-space-3);
     flex-wrap: wrap;
@@ -1281,7 +1464,7 @@ onBeforeUnmount(() => window.removeEventListener('beforeunload', handleBeforeUnl
     flex-wrap: wrap;
   }
   .relation-canvas-panel__batchbar {
-    top: 112px;
+    bottom: 58px;
     left: var(--app-space-3);
     align-items: flex-start;
     flex-wrap: wrap;

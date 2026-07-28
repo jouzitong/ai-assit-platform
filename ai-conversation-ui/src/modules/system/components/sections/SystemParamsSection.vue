@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { Delete, EditPen, Plus, RefreshRight, Search } from '@element-plus/icons-vue'
+import { Delete, Download, EditPen, Plus, RefreshRight, Search, Upload } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
@@ -16,6 +16,8 @@ import {
   createSystemSetting,
   deleteSystemSetting,
   editSystemSetting,
+  exportSystemSettingsJson,
+  importSystemSettingsJson,
   searchSystemSettings,
   type SystemSettingItem,
   updateSystemSetting,
@@ -31,6 +33,12 @@ const errorMessage = ref('')
 const parameterRecords = ref<SystemSettingItem[]>([])
 const dialogMode = ref<'create' | 'edit'>('create')
 const editingId = ref<string | number | null>(null)
+const selectedKeys = ref<Set<string>>(new Set())
+const importDialogVisible = ref(false)
+const importFile = ref<File | null>(null)
+const importError = ref('')
+const importing = ref(false)
+const exporting = ref(false)
 
 const pageSizeOptions = [10, 20, 50, 100, 200, 500]
 const addForm = reactive({
@@ -67,6 +75,20 @@ const parsedTags = computed(() =>
     .map((item) => item.trim())
     .filter(Boolean),
 )
+const currentPageKeys = computed(() =>
+  filteredParameterRecords.value
+    .map(record => record.key)
+    .filter(key => key !== '-'),
+)
+const selectedCount = computed(() => selectedKeys.value.size)
+const allCurrentPageSelected = computed(() =>
+  currentPageKeys.value.length > 0
+  && currentPageKeys.value.every(key => selectedKeys.value.has(key)),
+)
+const currentPagePartiallySelected = computed(() => {
+  const selectedOnPage = currentPageKeys.value.filter(key => selectedKeys.value.has(key)).length
+  return selectedOnPage > 0 && selectedOnPage < currentPageKeys.value.length
+})
 
 function resetAddForm() {
   addForm.key = ''
@@ -274,6 +296,7 @@ async function handleDelete(record: { id: string | number, key: string }) {
     )
 
     await deleteSystemSetting(record.id)
+    removeSelectedKey(record.key)
     ElMessage.success('系统参数已删除')
 
     if (filteredParameterRecords.value.length === 1 && currentPage.value > 1) {
@@ -287,6 +310,192 @@ async function handleDelete(record: { id: string | number, key: string }) {
     }
     ElMessage.error(error instanceof Error ? error.message : '系统参数删除失败')
   }
+}
+
+function isSelected(key: string) {
+  return selectedKeys.value.has(key)
+}
+
+function handleSelectionChange(key: string, checked: unknown) {
+  const next = new Set(selectedKeys.value)
+  if (Boolean(checked)) {
+    next.add(key)
+  }
+  else {
+    next.delete(key)
+  }
+  selectedKeys.value = next
+}
+
+function handleSelectAllCurrentPage(checked: unknown) {
+  const next = new Set(selectedKeys.value)
+  currentPageKeys.value.forEach((key) => {
+    if (Boolean(checked)) {
+      next.add(key)
+    }
+    else {
+      next.delete(key)
+    }
+  })
+  selectedKeys.value = next
+}
+
+function invertCurrentPageSelection() {
+  const next = new Set(selectedKeys.value)
+  currentPageKeys.value.forEach((key) => {
+    if (next.has(key)) {
+      next.delete(key)
+    }
+    else {
+      next.add(key)
+    }
+  })
+  selectedKeys.value = next
+}
+
+function clearSelection() {
+  selectedKeys.value = new Set()
+}
+
+function removeSelectedKey(key: string) {
+  if (!selectedKeys.value.has(key)) {
+    return
+  }
+  const next = new Set(selectedKeys.value)
+  next.delete(key)
+  selectedKeys.value = next
+}
+
+function openImportDialog() {
+  importFile.value = null
+  importError.value = ''
+  importDialogVisible.value = true
+}
+
+function closeImportDialog() {
+  importDialogVisible.value = false
+  importFile.value = null
+  importError.value = ''
+}
+
+function beforeImportUpload() {
+  return false
+}
+
+function handleImportFileChange(uploadFile: { raw?: File }) {
+  const file = uploadFile.raw || null
+  if (!file) {
+    return
+  }
+  if (!String(file.name || '').toLowerCase().endsWith('.json')) {
+    importFile.value = null
+    importError.value = '请上传 .json 文件'
+    return
+  }
+  importFile.value = file
+  importError.value = ''
+}
+
+async function submitImport() {
+  if (!importFile.value) {
+    importError.value = '请先选择 JSON 文件'
+    return
+  }
+
+  importing.value = true
+  importError.value = ''
+  try {
+    const result = await importSystemSettingsJson(importFile.value)
+    ElMessage.success(`导入完成：新增 ${Number(result?.created ?? 0)}，更新 ${Number(result?.updated ?? 0)}，跳过 ${Number(result?.skipped ?? 0)}`)
+    closeImportDialog()
+    clearSelection()
+    currentPage.value = 1
+    await loadSystemSettings()
+  }
+  catch (error) {
+    importError.value = error instanceof Error ? error.message : '导入失败'
+  }
+  finally {
+    importing.value = false
+  }
+}
+
+function triggerBrowserDownload(blob: Blob, filename: string) {
+  const url = URL.createObjectURL(blob)
+  const anchor = document.createElement('a')
+  anchor.href = url
+  anchor.download = filename
+  document.body.appendChild(anchor)
+  anchor.click()
+  document.body.removeChild(anchor)
+  URL.revokeObjectURL(url)
+}
+
+async function handleExport() {
+  if (selectedCount.value === 0 && total.value === 0) {
+    ElMessage.warning('当前没有可导出的系统参数')
+    return
+  }
+
+  const selected = Array.from(selectedKeys.value)
+  const exportScope = selected.length > 0
+    ? `已选择的 ${selected.length} 项系统参数`
+    : `当前筛选结果中的 ${total.value} 项系统参数`
+
+  try {
+    await ElMessageBox.confirm(
+      `将导出${exportScope}。导出文件包含参数原始值，请妥善保管。`,
+      '导出确认',
+      {
+        type: 'warning',
+        confirmButtonText: '确认导出',
+        cancelButtonText: '取消',
+        draggable: true,
+        overflow: true,
+      },
+    )
+  }
+  catch (error) {
+    if (error === 'cancel' || error === 'close') {
+      return
+    }
+    throw error
+  }
+
+  exporting.value = true
+  try {
+    const payload = await exportSystemSettingsJson({
+      settingKeys: selected.length > 0 ? selected : undefined,
+      keyword: selected.length === 0 ? keyword.value.trim() || undefined : undefined,
+    })
+    if (!payload?.length) {
+      ElMessage.warning('没有匹配到可导出的系统参数')
+      return
+    }
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+    triggerBrowserDownload(blob, `system-settings-${Date.now()}.json`)
+    ElMessage.success(`已导出 ${payload.length} 项系统参数`)
+  }
+  catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '导出失败')
+  }
+  finally {
+    exporting.value = false
+  }
+}
+
+function downloadImportTemplate() {
+  const template = [
+    {
+      settingKey: 'app.theme.default',
+      description: '默认主题',
+      settingValue: 'light',
+      valueType: 'STRING',
+      enabled: true,
+    },
+  ]
+  const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' })
+  triggerBrowserDownload(blob, 'system-settings-template.json')
 }
 
 onMounted(() => {
@@ -306,6 +515,14 @@ onMounted(() => {
                   <el-icon><Search /></el-icon>
                 </template>
               </el-input>
+              <el-button plain @click="openImportDialog">
+                <el-icon><Upload /></el-icon>
+                导入
+              </el-button>
+              <el-button plain :loading="exporting" @click="handleExport">
+                <el-icon><Download /></el-icon>
+                {{ selectedCount ? `导出 (${selectedCount})` : '导出' }}
+              </el-button>
               <el-button plain @click="handleRefresh">
                 <el-icon><RefreshRight /></el-icon>
                 刷新
@@ -318,6 +535,23 @@ onMounted(() => {
           </template>
         </LayoutPageHeader>
       </el-header>
+
+      <div v-if="filteredParameterRecords.length" class="system-params-selection-bar">
+        <div class="system-params-selection-bar__actions">
+          <el-checkbox
+            :model-value="allCurrentPageSelected"
+            :indeterminate="currentPagePartiallySelected"
+            @change="handleSelectAllCurrentPage"
+          >
+            全选本页
+          </el-checkbox>
+          <el-button link type="primary" @click="invertCurrentPageSelection">反选本页</el-button>
+          <el-button link :disabled="!selectedCount" @click="clearSelection">清空选择</el-button>
+        </div>
+        <span class="system-params-selection-bar__summary">
+          已选 {{ selectedCount }} 项；未选择时导出当前筛选的全部 {{ total }} 项
+        </span>
+      </div>
 
       <el-main class="system-params-layout__main">
         <div v-if="loading" class="system-params-state">系统参数加载中...</div>
@@ -332,9 +566,17 @@ onMounted(() => {
           v-for="record in filteredParameterRecords"
           :key="record.key"
           class="system-params-card"
+          :class="{ 'system-params-card--selected': isSelected(record.key) }"
         >
           <div class="system-params-card__head">
-            <div class="system-params-card__key">{{ record.key }}</div>
+            <div class="system-params-card__identity">
+              <el-checkbox
+                :model-value="isSelected(record.key)"
+                :aria-label="`选择系统参数 ${record.key}`"
+                @change="handleSelectionChange(record.key, $event)"
+              />
+              <div class="system-params-card__key">{{ record.key }}</div>
+            </div>
             <el-switch :model-value="record.enabled" size="small" @change="handleToggleEnabled(record)" />
           </div>
 
@@ -474,6 +716,47 @@ onMounted(() => {
         </LayoutDialogFooter>
       </template>
     </el-dialog>
+
+    <el-dialog
+      v-model="importDialogVisible"
+      title="导入系统参数 JSON"
+      width="560"
+      draggable
+      overflow
+      destroy-on-close
+      @closed="closeImportDialog"
+    >
+      <div class="system-params-import">
+        <p class="system-params-import__tip">以 settingKey 为唯一键：不存在时新增，已存在时更新。</p>
+        <el-upload
+          class="system-params-import__upload"
+          drag
+          action="#"
+          accept=".json,application/json"
+          :show-file-list="false"
+          :auto-upload="false"
+          :before-upload="beforeImportUpload"
+          :on-change="handleImportFileChange"
+        >
+          <el-icon class="system-params-import__icon"><Upload /></el-icon>
+          <div class="el-upload__text">拖拽 JSON 文件到这里，或点击选择文件</div>
+          <template #tip>
+            <div class="el-upload__tip">当前文件：{{ importFile?.name || '未选择' }}</div>
+          </template>
+        </el-upload>
+        <div v-if="importError" class="system-params-import__error">{{ importError }}</div>
+      </div>
+
+      <template #footer>
+        <LayoutDialogFooter>
+          <el-button @click="downloadImportTemplate">下载模板</el-button>
+          <el-button @click="closeImportDialog">取消</el-button>
+          <el-button type="primary" :loading="importing" @click="submitImport">
+            {{ importing ? '导入中...' : '开始导入' }}
+          </el-button>
+        </LayoutDialogFooter>
+      </template>
+    </el-dialog>
   </section>
 </template>
 
@@ -507,6 +790,8 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .system-params-layout__tools :deep(.el-input) {
@@ -576,6 +861,27 @@ onMounted(() => {
   overflow-y: auto;
 }
 
+.system-params-selection-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--app-space-3);
+  padding: var(--app-space-2) var(--app-space-4);
+  border-bottom: 1px solid var(--system-border-subtle);
+  background: var(--system-surface-solid);
+}
+
+.system-params-selection-bar__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--app-space-2);
+}
+
+.system-params-selection-bar__summary {
+  color: var(--system-text-muted);
+  font-size: 12px;
+}
+
 .system-params-state {
   display: flex;
   align-items: center;
@@ -601,12 +907,24 @@ onMounted(() => {
   box-shadow: var(--system-shadow);
 }
 
+.system-params-card--selected {
+  border-color: var(--system-accent-border);
+  box-shadow: 0 0 0 1px var(--system-accent-border), var(--system-shadow);
+}
+
 .system-params-card__head,
 .system-params-card__footer {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+}
+
+.system-params-card__identity {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--app-space-2);
+  min-width: 0;
 }
 
 .system-params-card__key {
@@ -757,6 +1075,54 @@ onMounted(() => {
 .system-params-dialog__form :deep(.el-input__inner::placeholder),
 .system-params-dialog__form :deep(.el-textarea__inner::placeholder) {
   color: var(--system-text-faint);
+}
+
+.system-params-import {
+  display: grid;
+  gap: var(--app-space-3);
+  padding-right: var(--app-space-5);
+}
+
+.system-params-import__tip {
+  margin: 0;
+  color: var(--system-text-muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.system-params-import__upload {
+  width: 100%;
+}
+
+.system-params-import__icon {
+  color: var(--system-text-muted);
+  font-size: 28px;
+}
+
+.system-params-import__error {
+  color: var(--system-danger);
+  font-size: 13px;
+}
+
+@media (max-width: 960px) {
+  .system-params-layout__header {
+    height: auto;
+    padding-block: var(--app-space-3);
+  }
+
+  .system-params-layout__tools,
+  .system-params-selection-bar {
+    width: 100%;
+  }
+
+  .system-params-selection-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .system-params-layout__tools :deep(.el-input) {
+    width: 100%;
+  }
 }
 
 .system-params-dialog__form :deep(.el-switch__core) {

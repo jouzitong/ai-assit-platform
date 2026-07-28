@@ -138,7 +138,10 @@ function queryCatalogPageSize(value: unknown) {
 }
 
 function queryRelationLayoutMode(value: unknown): RelationLayoutMode {
-  return queryText(value) === 'relation' ? 'relation' : 'manual'
+  const mode = queryText(value)
+  if (mode === 'hierarchy' || mode === 'grid' || mode === 'circle' || mode === 'force') return mode
+  if (mode === 'relation') return 'hierarchy'
+  return 'force'
 }
 
 function queryRelationLineStyle(value: unknown): RelationLineStyle {
@@ -442,7 +445,7 @@ function buildRouteQuery() {
   if (relationKeyword.value.trim()) query.relationKeyword = relationKeyword.value.trim()
   if (relationSources.value.length) query.relationSources = [...relationSources.value]
   if (relationEntities.value.length) query.relationEntities = [...relationEntities.value]
-  if (relationLayoutMode.value === 'relation') query.layout = 'relation'
+  if (relationLayoutMode.value !== 'force') query.layout = relationLayoutMode.value
   if (relationLineStyle.value !== 'curve') query.lineStyle = relationLineStyle.value
   return query
 }

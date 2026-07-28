@@ -42,6 +42,26 @@ export interface SystemSettingUpsertPayload {
   enabled: boolean
 }
 
+export interface SystemSettingTransferDocument {
+  settingKey?: string
+  description?: string
+  settingValue?: string
+  valueType?: string
+  enabled?: boolean
+}
+
+export interface SystemSettingImportResult {
+  received?: number
+  created?: number
+  updated?: number
+  skipped?: number
+}
+
+export interface SystemSettingExportPayload {
+  settingKeys?: string[]
+  keyword?: string
+}
+
 export function searchSystemSettings(payload: SystemSettingSearchPayload = {}) {
   return request<SystemSettingSearchResult>(`${SYSTEM_SETTINGS_API_PREFIX}/_search`, {
     method: 'POST',
@@ -73,5 +93,21 @@ export function updateSystemSetting(id: string | number, payload: SystemSettingU
 export function deleteSystemSetting(id: string | number) {
   return request(`${SYSTEM_SETTINGS_API_PREFIX}/${id}`, {
     method: 'DELETE',
+  })
+}
+
+export function importSystemSettingsJson(file: File) {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request<SystemSettingImportResult>(`${SYSTEM_SETTINGS_API_PREFIX}/import-json`, {
+    method: 'POST',
+    body: formData,
+  })
+}
+
+export function exportSystemSettingsJson(payload: SystemSettingExportPayload = {}) {
+  return request<SystemSettingTransferDocument[]>(`${SYSTEM_SETTINGS_API_PREFIX}/export-json`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
   })
 }
