@@ -1,0 +1,166 @@
+{
+  "id": "operations.report",
+  "protocol": "render-json",
+  "protocolVersion": "2.0.0",
+  "revision": "2026-07-29.1",
+  "presentation": {
+    "defaultMode": "report",
+    "allowedModes": [
+      "report"
+    ],
+    "title": "运营数据分析报表",
+    "description": "用于打印和汇报的运营数据分析报表。"
+  },
+  "root": {
+    "component": "zg-grid-layout",
+    "componentVersion": "1.0.0",
+    "layout": {
+      "columns": 12,
+      "rows": 18,
+      "gap": 24,
+      "padding": 24,
+      "showGrid": false
+    }
+  },
+  "actions": [
+    {
+      "key": "refresh",
+      "name": "刷新",
+      "action": "RELOAD",
+      "options": {
+        "icon": "refresh"
+      }
+    },
+    {
+      "key": "print",
+      "name": "打印",
+      "action": "PRINT",
+      "options": {
+        "type": "primary",
+        "icon": "print"
+      }
+    }
+  ],
+  "filters": [
+    {
+      "key": "status",
+      "label": "状态",
+      "component": "zg-selector",
+      "options": {
+        "list": [
+          {
+            "key": "全部",
+            "value": ""
+          },
+          {
+            "key": "正常",
+            "value": "正常"
+          },
+          {
+            "key": "关注",
+            "value": "关注"
+          }
+        ],
+        "clearable": true,
+        "submitOnChange": true
+      }
+    }
+  ],
+  "components": [
+    {
+      "key": "report-summary",
+      "component": "zg-common-list",
+      "componentVersion": "1.0.0",
+      "title": "运营明细",
+      "layout": [
+        1,
+        1,
+        12,
+        6
+      ],
+      "props": {
+        "fields": [
+          {
+            "key": "category",
+            "name": "category",
+            "label": "业务分类",
+            "field": [
+              "category"
+            ]
+          },
+          {
+            "key": "metric",
+            "name": "metric",
+            "label": "指标",
+            "field": [
+              "metric"
+            ]
+          },
+          {
+            "key": "value",
+            "name": "value",
+            "label": "指标值",
+            "field": [
+              "value"
+            ]
+          }
+        ],
+        "list_config": {
+          "variant": "workbench",
+          "itemType": "table",
+          "pagination": {
+            "enabled": false
+          }
+        }
+      },
+      "datasource": {
+        "key": "operations-report-list",
+        "type": "direct-json",
+        "data": {
+          "records": [],
+          "total": 0
+        }
+      }
+    },
+    {
+      "key": "report-trend",
+      "component": "line-chart-renderer",
+      "componentVersion": "1.0.0",
+      "title": "运营趋势",
+      "layout": [
+        7,
+        1,
+        12,
+        6
+      ],
+      "props": {
+        "categories": [
+          "1月",
+          "2月",
+          "3月",
+          "4月",
+          "5月",
+          "6月"
+        ],
+        "unit": "个",
+        "height": 360,
+        "smooth": true,
+        "legend": true,
+        "series": [
+          {
+            "key": "new-accounts",
+            "name": "新增账户",
+            "data": [
+              820,
+              910,
+              1040,
+              1120,
+              1260,
+              1380
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

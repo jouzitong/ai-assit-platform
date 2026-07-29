@@ -17,6 +17,7 @@ defineOptions({ name: 'RenderJsonRuntimeNode' })
 
 interface RuntimeNode {
   id?: string
+  key?: string
   component?: string
   props?: Record<string, unknown>
   layout?: Record<string, unknown>
@@ -133,7 +134,7 @@ const textValue = computed(() => String(
     ?? rawNodeProps.value.title
     ?? '',
 ))
-const nodeScopeId = computed(() => props.node.id?.trim() || props.path)
+const nodeScopeId = computed(() => props.node.id?.trim() || props.node.key?.trim() || props.path)
 const nodeKind = computed<RenderRuntimeNodeKind>(() => {
   if (isLayout.value) return 'layout'
   if (definition.value) return 'renderer'
@@ -142,6 +143,7 @@ const nodeKind = computed<RenderRuntimeNodeKind>(() => {
 })
 const scopeSnapshot = computed<RenderRuntimeNodeScope>(() => ({
   id: nodeScopeId.value,
+  ...(props.node.key ? { key: props.node.key } : {}),
   component: componentKey.value,
   kind: nodeKind.value,
   path: props.path,

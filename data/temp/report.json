@@ -17,7 +17,6 @@
     "readonly": true
   },
   "root": {
-    "id": "local-operations-report-root",
     "component": "zg-grid-layout",
     "componentVersion": "1.0.0",
     "layout": {
@@ -53,21 +52,21 @@
       "key": "status",
       "label": "状态",
       "component": "zg-selector",
-      "list": [
-        {
-          "key": "全部",
-          "value": ""
-        },
-        {
-          "key": "正常",
-          "value": "正常"
-        },
-        {
-          "key": "关注",
-          "value": "关注"
-        }
-      ],
       "options": {
+        "list": [
+          {
+            "key": "全部",
+            "value": ""
+          },
+          {
+            "key": "正常",
+            "value": "正常"
+          },
+          {
+            "key": "关注",
+            "value": "关注"
+          }
+        ],
         "clearable": true,
         "filterable": true,
         "submitOnChange": true
@@ -76,7 +75,7 @@
   ],
   "components": [
     {
-      "id": "operations-list",
+      "key": "operations-list",
       "component": "zg-common-list",
       "componentVersion": "1.0.0",
       "title": "运营明细",
@@ -234,7 +233,7 @@
       }
     },
     {
-      "id": "operations-trend-line",
+      "key": "operations-trend-line",
       "component": "line-chart-renderer",
       "componentVersion": "1.0.0",
       "title": "月度运营趋势",
@@ -332,7 +331,7 @@
       }
     },
     {
-      "id": "operations-capability-radar",
+      "key": "operations-capability-radar",
       "component": "radar-chart-renderer",
       "componentVersion": "1.0.0",
       "title": "运营能力评估",
@@ -443,7 +442,7 @@
       }
     },
     {
-      "id": "operations-category-bar",
+      "key": "operations-category-bar",
       "component": "combo-chart-renderer",
       "componentVersion": "1.0.0",
       "title": "业务分类对比",

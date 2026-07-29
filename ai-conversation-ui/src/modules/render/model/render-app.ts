@@ -23,6 +23,7 @@ export interface RenderDocumentPresentation {
 export interface RenderRuntimeDocument extends Record<string, unknown> {
   protocol: 'render-json'
   protocolVersion: string
+  id?: string
   pageId: string
   revision?: string
   title?: string
@@ -95,7 +96,7 @@ export function normalizeRenderRuntimeDocument(
     ...content,
     protocol: 'render-json',
     protocolVersion,
-    pageId: readString(content.pageId) || code,
+    pageId: readString(content.pageId) || readString(content.id) || code,
     ...(readString(content.revision) ? { revision: readString(content.revision) } : {}),
     ...(title ? { title } : {}),
     ...(hasPresentationValue(presentation) ? { presentation } : {}),
@@ -271,10 +272,12 @@ function normalizeReportComponent(value: unknown, index: number) {
   }
 
   const id = readString(value.id) || `${component}-${index}`
+  const key = readString(value.key)
   const rawProps = isRecord(value.props) ? { ...value.props } : {}
   const layout = normalizeReportComponentLayout(value.layout)
   const node: Record<string, unknown> = {
     id,
+    ...(key ? { key } : {}),
     component,
     ...(readString(value.componentVersion)
       ? { componentVersion: readString(value.componentVersion) }

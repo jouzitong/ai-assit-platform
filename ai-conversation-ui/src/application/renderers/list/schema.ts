@@ -62,7 +62,7 @@ export function getDefaultFilterValue(filter: RendererFilter) {
     return []
   }
 
-  if (filter.type === 'daterange') {
+  if (filter.options?.type === 'daterange') {
     return []
   }
 

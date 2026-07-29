@@ -62,20 +62,21 @@ const handleFilterChange = (filter: RendererFilter, value: unknown) => {
 }
 
 const resolveSelectOptions = (filter: RendererFilter) => {
-  if (filter.list?.length) {
-    return filter.list.map((item) => ({
+  const options = filter.options || {}
+  if (options.list?.length) {
+    return options.list.map((item) => ({
       label: item.key,
       value: item.value,
       disabled: item.disabled,
     }))
   }
 
-  if (filter.selector) {
+  if (options.selector) {
     // TODO: support remote selector datasource after datasource protocol is finalized.
     return []
   }
 
-  if (filter.enums) {
+  if (options.enums) {
     // TODO: resolve enum options from enum store after enums contract is finalized.
     return []
   }
@@ -84,21 +85,22 @@ const resolveSelectOptions = (filter: RendererFilter) => {
 }
 
 const resolveFilterComponent = (filter: RendererFilter) => {
+  const options = filter.options || {}
   if (filter.component && filter.component in FILTER_COMPONENT_MAP) {
     return FILTER_COMPONENT_MAP[filter.component as keyof typeof FILTER_COMPONENT_MAP]
   }
 
-  if (filter.type && filter.type in DEFAULT_COMPONENT_BY_TYPE) {
-    return DEFAULT_COMPONENT_BY_TYPE[filter.type as keyof typeof DEFAULT_COMPONENT_BY_TYPE]
+  if (options.type && options.type in DEFAULT_COMPONENT_BY_TYPE) {
+    return DEFAULT_COMPONENT_BY_TYPE[options.type as keyof typeof DEFAULT_COMPONENT_BY_TYPE]
   }
 
   return AppInput
 }
 
 const getFilterComponentProps = (filter: RendererFilter) => {
-  const componentProps = filter.componentProps || {}
   const componentOptions = filter.options || {}
-  const placeholder = filter.placeholder || buildPlaceholder(filter)
+  const componentProps = componentOptions.componentProps || {}
+  const placeholder = componentOptions.placeholder || buildPlaceholder(filter)
   const styleConfig = componentOptions.styles || {}
   const commonProps = {
     modelValue: normalizeFilterValue(filter),
@@ -106,7 +108,9 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     clearable: componentOptions.clearable ?? true,
     disabled: componentOptions.disabled ?? false,
     block: false,
-    label: componentOptions.labelPosition === 'left' ? undefined : filter.label,
+    label: componentOptions.labelPosition === 'left'
+      ? undefined
+      : filter.label || filter.name || filter.key,
     labelPosition: componentOptions.labelPosition ?? 'inner',
     class: componentOptions.className,
     style: styleConfig,
@@ -114,7 +118,7 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     ...componentProps,
   }
 
-  if (filter.component === 'zg-selector' || filter.type === 'select') {
+  if (filter.component === 'zg-selector' || componentOptions.type === 'select') {
     return {
       ...commonProps,
       options: resolveSelectOptions(filter),
@@ -128,7 +132,7 @@ const getFilterComponentProps = (filter: RendererFilter) => {
   if (filter.component === 'zg-selector-tree') {
     return {
       ...commonProps,
-      data: filter.data || [],
+      data: componentOptions.data || [],
       teleported: componentProps.teleported ?? componentOptions.teleported ?? true,
       filterable: componentProps.filterable ?? componentOptions.filterable ?? true,
       multiple: componentProps.multiple ?? componentOptions.multiple ?? false,
@@ -151,14 +155,14 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     }
   }
 
-  if (filter.type === 'date') {
+  if (componentOptions.type === 'date') {
     return {
       ...commonProps,
       type: 'date',
     }
   }
 
-  if (filter.type === 'daterange') {
+  if (componentOptions.type === 'daterange') {
     return {
       ...commonProps,
       type: 'daterange',
@@ -168,11 +172,11 @@ const getFilterComponentProps = (filter: RendererFilter) => {
     }
   }
 
-  if (!filter.component || filter.component === 'zg-input' || filter.type === 'text') {
+  if (!filter.component || filter.component === 'zg-input' || componentOptions.type === 'text') {
     return {
       ...commonProps,
       operators: componentProps.operators ?? componentOptions.operators,
-      defaultOperator: componentProps.defaultOperator ?? componentOptions.defaultOperator ?? filter.query?.op ?? 'like',
+      defaultOperator: componentProps.defaultOperator ?? componentOptions.defaultOperator ?? componentOptions.query?.op ?? 'like',
     }
   }
 
@@ -188,14 +192,16 @@ const normalizeFilterValue = (filter: RendererFilter) => {
 }
 
 const buildPlaceholder = (filter: RendererFilter) => {
+  const label = filter.label || filter.name || filter.key
+  const type = filter.options?.type
   if (
     filter.component === 'zg-selector' ||
     filter.component === 'zg-selector-tree' ||
-    filter.type === 'select'
+    type === 'select'
   ) {
-    return `请选择${filter.label}`
+    return `请选择${label}`
   }
-  return `请输入${filter.label}`
+  return `请输入${label}`
 }
 
 const isInputLikeFilter = (filter: RendererFilter) =>
@@ -204,17 +210,17 @@ const isInputLikeFilter = (filter: RendererFilter) =>
 const isSelectLikeFilter = (filter: RendererFilter) =>
   filter.component === 'zg-selector'
   || filter.component === 'zg-selector-tree'
-  || filter.type === 'select'
-  || filter.type === 'date'
-  || filter.type === 'daterange'
+  || filter.options?.type === 'select'
+  || filter.options?.type === 'date'
+  || filter.options?.type === 'daterange'
 
 const shouldSubmitOnChange = (filter: RendererFilter) =>
-  filter.query?.submitOnChange
+  filter.options?.query?.submitOnChange
   ?? filter.options?.submitOnChange
   ?? isSelectLikeFilter(filter)
 
 const shouldSubmitOnEnter = (filter: RendererFilter) =>
-  filter.query?.submitOnEnter
+  filter.options?.query?.submitOnEnter
   ?? filter.options?.submitOnEnter
   ?? isInputLikeFilter(filter)
 
@@ -253,7 +259,7 @@ const handleReset = () => {
       <el-form-item
         v-for="filter in filterEntries"
         :key="filter.key"
-        :label="filter.options?.labelPosition === 'left' ? filter.label : undefined"
+        :label="filter.options?.labelPosition === 'left' ? (filter.label || filter.name || filter.key) : undefined"
       >
         <component
           :is="filter.renderComponent"

@@ -1,0 +1,149 @@
+{
+  "id": "default_config.meta.info.test",
+  "version": "1.0.0",
+  "title": "系统配置详情",
+  "component": "zg-common-info",
+  "fields": [
+    {
+      "key": "id",
+      "name": "id",
+      "label": "ID",
+      "field": [
+        "id"
+      ],
+      "options": {
+        "styles": {
+          "text-align": "center"
+        },
+        "className": "text-center"
+      }
+    },
+    {
+      "key": "config_key",
+      "name": "config_key",
+      "label": "配置键",
+      "field": [
+        "config_key"
+      ]
+    },
+    {
+      "key": "value_type",
+      "name": "value_type",
+      "label": "值类型",
+      "field": [
+        "value_type"
+      ]
+    },
+    {
+      "key": "config_value",
+      "name": "config_value",
+      "label": "配置值",
+      "field": [
+        "config_value"
+      ]
+    },
+    {
+      "key": "desc",
+      "name": "desc",
+      "label": "备注",
+      "field": [
+        "desc"
+      ]
+    },
+    {
+      "key": "tags",
+      "name": "tags",
+      "label": "标签",
+      "field": [
+        "tags"
+      ]
+    },
+    {
+      "key": "deleted",
+      "name": "deleted",
+      "label": "删除标记",
+      "field": [
+        "deleted"
+      ],
+      "options": {
+        "styles": {
+          "text-align": "center"
+        },
+        "className": "text-center"
+      }
+    },
+    {
+      "key": "created_by_name",
+      "name": "created_by_name",
+      "label": "创建人",
+      "field": [
+        "sec_user",
+        "display_name"
+      ]
+    },
+    {
+      "key": "update_time",
+      "name": "update_time",
+      "label": "更新时间",
+      "field": [
+        "update_time"
+      ]
+    }
+  ],
+  "groups": [
+    {
+      "key": "basic",
+      "title": "基础信息",
+      "description": "查看系统配置项的标识和类型。",
+      "fields": [
+        "id",
+        "config_key",
+        "value_type",
+        "deleted"
+      ],
+      "columns": 2
+    },
+    {
+      "key": "content",
+      "title": "配置内容",
+      "description": "查看配置值、备注和标签。",
+      "fields": [
+        "config_value",
+        "desc",
+        "tags"
+      ],
+      "columns": 1
+    },
+    {
+      "key": "audit",
+      "title": "审计信息",
+      "fields": [
+        "created_by_name",
+        "update_time"
+      ],
+      "columns": 2
+    }
+  ],
+  "children": [],
+  "actions": [],
+  "form_relations": [],
+  "form_config": {
+    "variant": "workbench",
+    "columns": 2,
+    "description": "系统配置项的只读详情。",
+    "actionsAlign": "right"
+  },
+  "data": {
+    "id": 10001,
+    "config_key": "render.component.kbId",
+    "value_type": "string",
+    "config_value": "demo-kb-001",
+    "desc": "组件资产默认使用的知识库标识。",
+    "tags": "渲染配置,知识库",
+    "deleted": 0,
+    "sec_user": {
+      "display_name": "系统管理员"
+    },
+    "update_time": "2026-07-29 10:00:00"
+  }
+}

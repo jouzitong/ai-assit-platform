@@ -110,7 +110,8 @@ Resolver 应该定义：
 - 为 renderer 统一产出 `{ schema, data, state }` 结构。
 - 统一处理 `loading`、`error`、`empty` 等运行时状态。
 - 支持 `direct-json`、`binding`、`db-query-list`、`computed` 等解析方式时，新增解析方式只改 resolver，不改具体 renderer。
-- 列表 filter 的输入值先进入运行时 `query.filters`，再由 resolver 映射到 datasource 请求；filter 可以用 `query.field` 改写后端字段名，用 `query.op` 声明 `like`、`in` 等操作符。
+- 列表 filter 的输入值先进入运行时 `query.filters`，再由 resolver 映射到 datasource 请求；filter 的通用字段只有 `key`、`name`/`label` 和 `component`，其余配置统一放入 `options`，包括 `type`、`list`、`query`、`selector`、`enums`、`data`、`componentProps` 以及控件展示参数。
+- filter 可以在 `options.query.field` 中改写后端字段名，在 `options.query.op` 中声明 `like`、`in` 等操作符；提交行为可通过 `options.query.submitOnChange`、`options.query.submitOnEnter` 或同级 `options.submitOnChange`、`options.submitOnEnter` 覆盖默认策略。
 - 当 datasource 已声明 `filterExpr` 时，resolver 必须把运行时 filter key 合并进表达式，避免后端只解析固定条件而忽略用户输入。
 
 Resolver 不应该定义：
@@ -213,7 +214,7 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - 列表型 datasource 优先映射到 `POST /dbEngine/api/v1/query.list`，后端响应以 `list` 和 `pageInfo.{ total, size, page }` 表达分页结果，再由 resolver 转成 renderer 的 `data`。
 - `direct-json` 列表数据使用最简单的 `{ records, total, ... }` 结构；resolver 统一转成 renderer 的 `data`。
 - 关联查询使用 `ext.relations[{ key, model, type, on, filter }]`，不要在前端 schema 中再定义 `foreign_key/local_key` 这类平行结构。
-- filter 触发查询由 schema 声明：选择器、树选择、日期类 filter 默认 `change` 后触发 reload；输入类 filter 默认回车触发 reload。特殊场景可通过 `filter.query.submitOnChange`、`filter.query.submitOnEnter` 或 `filter.options.submitOnChange`、`filter.options.submitOnEnter` 覆盖。
+- filter 触发查询由 schema 声明：选择器、树选择、日期类 filter 默认 `change` 后触发 reload；输入类 filter 默认回车触发 reload。特殊场景可通过 `filter.options.query.submitOnChange`、`filter.options.query.submitOnEnter` 或 `filter.options.submitOnChange`、`filter.options.submitOnEnter` 覆盖。
 - Renderer/Page 动作统一使用 `{ key, name, action, options? }`。`options` 只承载可选展示配置：`type`、`style`、`class`、`icon`；例如 `{ "key": "refresh", "name": "刷新", "action": "RELOAD", "options": { "type": "primary", "icon": "refresh" } }`。
 - `action` 表达业务动作 key；按钮视觉类型必须写为 `options.type`。列表顶部动作、表单动作和 `list_config.actionColumns` 都使用同一契约。
 - `options.type` 支持 `default`、`primary`、`success`、`warning`、`danger`、`info`；`options.icon` 只解析已注册的 `download`、`fullscreen`、`operation`、`print`、`refresh`。`style` 与 `class` 会经过安全归一化，未知或不安全配置不透传。

@@ -20,11 +20,14 @@ export interface RendererTabConfig {
 
 export type RendererDatasource = DbQueryListDatasource | DirectJsonListDatasource | LocalListDatasource
 
-export interface RendererFilter {
+export interface RendererFilterOption {
   key: string
-  label: string
+  value: string | number | boolean
+  disabled?: boolean
+}
+
+export interface RendererFilterOptions {
   type?: 'text' | 'select' | 'date' | 'daterange'
-  component?: string
   placeholder?: string
   query?: {
     field?: string
@@ -32,35 +35,44 @@ export interface RendererFilter {
     submitOnChange?: boolean
     submitOnEnter?: boolean
   }
-  list?: Array<{ key: string; value: string | number | boolean; disabled?: boolean }>
+  list?: RendererFilterOption[]
   selector?: {
     model: string
     fieldKey: string
     fieldValue: string
   }
   enums?: string
-  options?: {
-    filterable?: boolean
-    multiple?: boolean
-    hidden?: boolean
-    labelPosition?: 'left' | 'inner'
-    clearable?: boolean
-    disabled?: boolean
-    collapseTags?: boolean
-    teleported?: boolean
-    checkStrictly?: boolean
-    renderAfterExpand?: boolean
-    submitOnChange?: boolean
-    submitOnEnter?: boolean
-    operators?: Array<{ label: string; value: string }>
-    defaultOperator?: string
-    styles?: Record<string, string | number>
-    className?: string
-    [key: string]: unknown
-  }
   data?: RendererTreeNode[]
   componentProps?: Record<string, unknown>
+  filterable?: boolean
+  multiple?: boolean
+  hidden?: boolean
+  labelPosition?: 'left' | 'inner'
+  clearable?: boolean
+  disabled?: boolean
+  collapseTags?: boolean
+  teleported?: boolean
+  checkStrictly?: boolean
+  renderAfterExpand?: boolean
+  submitOnChange?: boolean
+  submitOnEnter?: boolean
+  operators?: Array<{ label: string; value: string }>
+  defaultOperator?: string
+  styles?: Record<string, string | number>
+  className?: string
+  [key: string]: unknown
 }
+
+interface RendererFilterBase {
+  key: string
+  component: string
+  options?: RendererFilterOptions
+}
+
+export type RendererFilter = RendererFilterBase & (
+  | { name: string; label?: string }
+  | { label: string; name?: string }
+)
 
 export interface RendererFieldOptions {
   styles?: Record<string, string | number>

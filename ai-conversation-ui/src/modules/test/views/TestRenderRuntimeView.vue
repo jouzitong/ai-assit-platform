@@ -89,13 +89,13 @@ const baseSchema: ListRendererSchema = {
       key: 'value_type',
       label: '值类型',
       component: 'zg-selector',
-      list: [
-        { key: 'string', value: 'string' },
-        { key: 'json', value: 'json' },
-        { key: 'text', value: 'text' },
-        { key: 'number', value: 'number' },
-      ],
       options: {
+        list: [
+          { key: 'string', value: 'string' },
+          { key: 'json', value: 'json' },
+          { key: 'text', value: 'text' },
+          { key: 'number', value: 'number' },
+        ],
         clearable: true,
         filterable: true,
         submitOnChange: true,
@@ -108,11 +108,11 @@ const baseSchema: ListRendererSchema = {
       key: 'deleted',
       label: '删除标记',
       component: 'zg-selector',
-      list: [
-        { key: '未删除', value: 0 },
-        { key: '已删除', value: 1 },
-      ],
       options: {
+        list: [
+          { key: '未删除', value: 0 },
+          { key: '已删除', value: 1 },
+        ],
         clearable: true,
         submitOnChange: true,
         styles: {

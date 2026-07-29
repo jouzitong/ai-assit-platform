@@ -131,17 +131,27 @@ const listSchemaExample = {
     ],
   },
   filters: [
-    { key: 'keyword', label: '任务名称', component: 'zg-input', placeholder: '输入名称后回车搜索' },
+    {
+      key: 'keyword',
+      label: '任务名称',
+      component: 'zg-input',
+      options: {
+        placeholder: '输入名称后回车搜索',
+      },
+    },
     {
       key: 'status',
       label: '状态',
       component: 'zg-selector',
-      list: [
-        { key: '待处理', value: 'pending' },
-        { key: '进行中', value: 'running' },
-        { key: '已完成', value: 'completed' },
-      ],
-      options: { clearable: true, submitOnChange: true },
+      options: {
+        list: [
+          { key: '待处理', value: 'pending' },
+          { key: '进行中', value: 'running' },
+          { key: '已完成', value: 'completed' },
+        ],
+        clearable: true,
+        submitOnChange: true,
+      },
     },
   ],
   fields: [

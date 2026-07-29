@@ -139,56 +139,56 @@
     },
     {
       "key": "value_type",
-      "list": [
-        {
-          "key": "string",
-          "value": "string"
-        },
-        {
-          "key": "json",
-          "value": "json"
-        },
-        {
-          "key": "text",
-          "value": "text"
-        },
-        {
-          "key": "number",
-          "value": "number"
-        }
-      ],
       "label": "值类型",
+      "component": "zg-selector",
       "options": {
+        "list": [
+          {
+            "key": "string",
+            "value": "string"
+          },
+          {
+            "key": "json",
+            "value": "json"
+          },
+          {
+            "key": "text",
+            "value": "text"
+          },
+          {
+            "key": "number",
+            "value": "number"
+          }
+        ],
         "styles": {
           "width": "180px"
         },
         "clearable": true,
         "filterable": true,
         "submitOnChange": true
-      },
-      "component": "zg-selector"
+      }
     },
     {
       "key": "deleted",
-      "list": [
-        {
-          "key": "未删除",
-          "value": 0
-        },
-        {
-          "key": "已删除",
-          "value": 1
-        }
-      ],
       "label": "删除标记",
+      "component": "zg-selector",
       "options": {
+        "list": [
+          {
+            "key": "未删除",
+            "value": 0
+          },
+          {
+            "key": "已删除",
+            "value": 1
+          }
+        ],
         "styles": {
           "width": "160px"
         },
         "clearable": true,
         "submitOnChange": true
-      },
-      "component": "zg-selector"
+      }
     }
   ],
   "version": "1.0.0",

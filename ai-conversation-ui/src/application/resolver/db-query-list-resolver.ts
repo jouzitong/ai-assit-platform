@@ -97,8 +97,8 @@ function buildRuntimeFilterDict(
 
   return Object.entries(rawFilters).reduce<Record<string, DbQueryFilterValue>>((acc, [key, value]) => {
     const filter = filterMap.get(key)
-    const queryKey = filter?.query?.field || key
-    const op = filter?.query?.op
+    const queryKey = filter?.options?.query?.field || key
+    const op = filter?.options?.query?.op
     if (isFilterConditionValue(value)) {
       acc[queryKey] = normalizeFilterConditionValue(value)
     } else {
@@ -327,11 +327,11 @@ function filterLocalRecords(
   const filterMap = new Map(filters.map(filter => [filter.key, filter]))
   return records.filter(record => Object.entries(activeFilters).every(([key, expected]) => {
     const filter = filterMap.get(key)
-    const field = filter?.query?.field || key
+    const field = filter?.options?.query?.field || key
     const actual = getRecordValue(record, field)
     const condition = isFilterConditionValue(expected) ? expected : undefined
     const value = condition ? condition.value : expected
-    const operation = condition?.op || filter?.query?.op || 'eq'
+    const operation = condition?.op || filter?.options?.query?.op || 'eq'
     return matchesLocalFilter(actual, value, operation)
   }))
 }

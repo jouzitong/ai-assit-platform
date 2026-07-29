@@ -77,11 +77,11 @@ const baseSchema: ListRendererSchema = {
       key: 'owner',
       label: '负责人',
       component: 'zg-selector',
-      list: [
-        { key: 'zhou', value: 'zhou' },
-        { key: 'amy', value: 'amy' },
-      ],
       options: {
+        list: [
+          { key: 'zhou', value: 'zhou' },
+          { key: 'amy', value: 'amy' },
+        ],
         multiple: true,
         filterable: true,
         clearable: true,

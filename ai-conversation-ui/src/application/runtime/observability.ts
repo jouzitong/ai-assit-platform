@@ -8,6 +8,7 @@ export interface RenderRuntimeNodeEvent {
 
 export interface RenderRuntimeNodeScope {
   id: string
+  key?: string
   component: string
   kind: RenderRuntimeNodeKind
   path: string

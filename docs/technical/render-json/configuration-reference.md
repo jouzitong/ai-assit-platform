@@ -12,7 +12,7 @@
 {
   "protocol": "render-json",
   "protocolVersion": "1.0.0",
-  "pageId": "account-list",
+  "id": "account-list",
   "revision": "2026-07-20.1",
   "title": "账户列表",
   "presentation": {
@@ -25,12 +25,12 @@
     "readonly": true
   },
   "root": {
-    "id": "account-list-root",
+    "key": "account-list-root",
     "component": "zg-list-main-layout",
     "componentVersion": "1.0.0",
     "props": {
       "schema": {
-        "id": "account-list-schema",
+        "key": "account-list-schema",
         "version": "1.0.0",
         "title": "账户列表",
         "fields": [
@@ -75,7 +75,7 @@
 }
 ```
 
-说明：Agent `render_json_validate_tool` 当前只接受 `protocol`、`protocolVersion`、`pageId`、`revision`、`root` 这些顶层字段。需要通过 Agent 校验的会话产物暂时不要加入 `title` 和 `presentation`；正式页面 Runtime 则支持这两个字段。
+说明：Render JSON 文档顶层只保留一个全局 `id`；节点需要区分时使用 `key`，不再重复声明 `id`。Runtime 内部会把顶层 `id` 兼容映射为页面标识，并为节点生成运行时作用域标识。历史输入中的 `pageId` 仍可兼容读取。
 
 ## 2. RenderDocument 字段
 
@@ -83,7 +83,7 @@
 | --- | --- | --- | --- |
 | `protocol` | string | 可省略，归一化为 `render-json` | 显式填写时必须是 `render-json` |
 | `protocolVersion` | string | 可省略，默认 `1.0.0` | 当前只支持主版本 `1` |
-| `pageId` | string | 可省略，默认使用页面 code | 文档内稳定页面标识 |
+| `id` | string | 可省略，默认使用页面 code | 文档全局稳定标识 |
 | `revision` | string | 可选 | 内容修订标识，不等同于数据库乐观锁版本 |
 | `title` | string | 可选 | 正式页面标题候选值 |
 | `presentation` | object | 可选 | 宿主模式、标题、刷新和响应式配置 |
@@ -125,7 +125,7 @@ Layout key 和 mode 是不同概念。`dashboard` 是页面宿主模式，`zg-gr
 
 ```json
 {
-  "id": "stable-node-id",
+  "key": "stable-node-key",
   "component": "zg-list-main-layout",
   "componentVersion": "1.0.0",
   "props": {},
@@ -140,7 +140,7 @@ Layout key 和 mode 是不同概念。`dashboard` 是页面宿主模式，`zg-gr
 
 | 字段 | 说明 |
 | --- | --- |
-| `id` | 节点稳定标识，用于观测、错误定位和后续绑定 |
+| `key` | 节点稳定标识，用于观测、错误定位、点击事件区分和后续绑定 |
 | `component` | Registry 中的稳定组件或布局 key |
 | `componentVersion` | 组件契约版本；正式 Runtime 暂未执行版本匹配，Agent 校验会检查 |
 | `props` | 传入组件的声明式参数；列表通常把 Renderer Schema 放在 `props.schema` |
@@ -169,7 +169,7 @@ Layout key 和 mode 是不同概念。`dashboard` 是页面宿主模式，`zg-gr
 
 ```json
 {
-  "id": "page-heading",
+  "key": "page-heading",
   "component": "heading",
   "props": {
     "text": "账户概览"
@@ -308,10 +308,12 @@ Agent 校验器还识别：
   "key": "keyword",
   "label": "账户名称",
   "component": "input",
-  "query": {
-    "field": "account_name",
-    "op": "like",
-    "submitOnEnter": true
+  "options": {
+    "query": {
+      "field": "account_name",
+      "op": "like",
+      "submitOnEnter": true
+    }
   }
 }
 ```
@@ -391,7 +393,7 @@ Renderer/Page 动作声明示例：
 提交正式 Render JSON 前至少确认：
 
 - `protocol`、`protocolVersion` 和 `root` 正确。
-- `pageId`、节点 id、component key 稳定，不使用随机展示文案。
+- 顶层 `id` 和节点 `key` 稳定，不使用随机展示文案。
 - component 已在前端 Registry 注册；AI 产物还需要存在于已发布组件目录。
 - componentVersion 与组件契约匹配。
 - datasource 只描述查询意图，不含 URL、SQL 或凭据。
