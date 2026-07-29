@@ -7,6 +7,7 @@ const props = defineProps<{
   group: NormalizedFormRendererGroup
   fields: Record<string, FormRendererField>
   modelValue: Record<string, unknown>
+  errors?: Record<string, string>
   schemaComponent?: string
   readonly?: boolean
 }>()
@@ -41,6 +42,7 @@ const gridStyle = computed(() => ({
         :key="field.key"
         :field="field"
         :model-value="modelValue"
+        :error="errors?.[field.key]"
         :schema-component="schemaComponent"
         :readonly="readonly"
         @change="emit('change', $event)"
@@ -53,12 +55,12 @@ const gridStyle = computed(() => ({
 .form-group-panel {
   display: flex;
   flex-direction: column;
-  gap: var(--app-space-4);
-  padding: var(--app-space-5) var(--app-space-section);
+  gap: 0;
+  overflow: hidden;
   border: 1px solid var(--app-border-subtle);
-  border-radius: var(--app-radius-panel);
-  background: var(--app-surface-gradient);
-  box-shadow: var(--app-shadow-md);
+  border-radius: var(--app-radius-xl);
+  background: var(--app-surface-solid);
+  box-shadow: var(--app-shadow-sm);
 }
 
 .form-group-panel__header {
@@ -66,6 +68,9 @@ const gridStyle = computed(() => ({
   align-items: flex-start;
   justify-content: space-between;
   gap: var(--app-space-4);
+  padding: var(--app-space-4) var(--app-space-5);
+  border-bottom: 1px solid var(--app-border-subtle);
+  background: var(--app-surface-solid);
 }
 
 .form-group-panel__title {
@@ -76,18 +81,21 @@ const gridStyle = computed(() => ({
 }
 
 .form-group-panel__description {
-  margin: 6px 0 0;
+  margin: var(--app-space-1) 0 0;
   color: var(--app-text-muted);
-  font-size: var(--app-font-size-body);
-  line-height: 1.55;
+  font-size: var(--app-font-size-caption);
+  line-height: 1.5;
 }
 
 .form-group-panel__grid {
   display: grid;
-  gap: var(--app-space-4);
+  column-gap: var(--app-space-6);
+  row-gap: var(--app-space-5);
+  padding: var(--app-space-5);
+  background: var(--app-surface);
 }
 
-@container application-form-layout (max-width: 960px) {
+@container application-form-layout (max-width: 680px) {
   .form-group-panel__grid {
     grid-template-columns: 1fr !important;
   }

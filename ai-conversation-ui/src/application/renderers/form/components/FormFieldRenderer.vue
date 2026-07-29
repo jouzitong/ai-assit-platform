@@ -9,13 +9,14 @@ import AppSelectTree from '../../../../components/input/AppSelectTree/index.vue'
 import AppSwitch from '../../../../components/input/AppSwitch/index.vue'
 import AppTimePicker from '../../../../components/input/AppTimePicker/index.vue'
 import { formatFieldValue, getFieldValue } from '../schema'
-import type { FormRendererField } from '../types'
+import type { FormRendererField, FormRendererLabelPosition } from '../types'
 
 const props = defineProps<{
   field: FormRendererField
   modelValue: Record<string, unknown>
   schemaComponent?: string
   readonly?: boolean
+  error?: string
 }>()
 
 const emit = defineEmits<{
@@ -32,6 +33,18 @@ const componentMap = {
   'zg-checkbox': AppCheckbox,
   'zg-switch': AppSwitch,
   'zg-code-editor': AppCodeEditor,
+} as const
+
+const typeComponentMap = {
+  text: AppInput,
+  textarea: AppInput,
+  select: AppSelect,
+  date: AppDatePicker,
+  daterange: AppDatePicker,
+  time: AppTimePicker,
+  checkbox: AppCheckbox,
+  switch: AppSwitch,
+  code: AppCodeEditor,
 } as const
 
 const fieldValue = computed(() => getFieldValue(props.modelValue, props.field))
@@ -52,6 +65,10 @@ const currentComponent = computed(() => {
   if (key && componentMap[key]) {
     return componentMap[key]
   }
+  const type = props.field.type as keyof typeof typeComponentMap | undefined
+  if (type && typeComponentMap[type]) {
+    return typeComponentMap[type]
+  }
   return AppInput
 })
 const componentProps = computed(() => {
@@ -69,7 +86,11 @@ const componentProps = computed(() => {
 
   if (props.field.component === 'zg-selector') {
     return {
-      options: props.field.list || [],
+      options: (props.field.list || []).map(option => ({
+        label: option.key,
+        value: option.value,
+        disabled: option.disabled,
+      })),
       placeholder: options.placeholder || `请选择${props.field.label}`,
       clearable: options.clearable ?? true,
       filterable: options.filterable ?? false,
@@ -94,6 +115,17 @@ const componentProps = computed(() => {
 })
 const displayValue = computed(() => formatFieldValue(fieldValue.value))
 const wrapperStyle = computed(() => props.field.options?.styles || {})
+const labelPosition = computed<FormRendererLabelPosition>(() => {
+  const configuredPosition = props.field.options?.labelPosition
+  if (configuredPosition === 'inner') {
+    return 'inline'
+  }
+  if (configuredPosition === 'top' || configuredPosition === 'inline' || configuredPosition === 'right') {
+    return configuredPosition
+  }
+  return 'left'
+})
+const usesInlineLabel = computed(() => labelPosition.value === 'inline')
 
 function handleChange(value: unknown) {
   emit('change', { key: props.field.key, value })
@@ -107,24 +139,43 @@ function handleChange(value: unknown) {
     :class="field.options?.className"
     :style="wrapperStyle"
   >
-    <div v-if="isReadonly" class="form-field-renderer__display">
-      <div class="form-field-renderer__label">{{ field.label }}</div>
+    <div
+      v-if="isReadonly"
+      class="form-field-renderer__display"
+      :class="`form-field-renderer__display--${labelPosition}`"
+    >
+      <div class="form-field-renderer__label">
+        <span v-if="field.options?.required" class="form-field-renderer__required">*</span>
+        {{ field.label }}
+      </div>
       <div class="form-field-renderer__value">{{ displayValue }}</div>
     </div>
 
-    <component
-      :is="currentComponent"
+    <div
       v-else
-      :model-value="fieldValue"
-      :label="field.label"
-      :required="field.options?.required"
-      :disabled="field.options?.disabled"
-      :label-position="field.options?.labelPosition || 'left'"
-      block
-      v-bind="componentProps"
-      @update:model-value="handleChange"
-      @change="handleChange"
-    />
+      class="form-field-renderer__editor"
+      :class="`form-field-renderer__editor--${labelPosition}`"
+    >
+      <div v-if="!usesInlineLabel" class="form-field-renderer__label">
+        <span v-if="field.options?.required" class="form-field-renderer__required">*</span>
+        {{ field.label }}
+      </div>
+      <div class="form-field-renderer__control">
+        <component
+          :is="currentComponent"
+          :model-value="fieldValue"
+          :label="usesInlineLabel ? field.label : undefined"
+          :required="usesInlineLabel && field.options?.required"
+          :error="error"
+          :disabled="field.options?.disabled"
+          :label-position="usesInlineLabel ? 'inner' : 'left'"
+          block
+          v-bind="componentProps"
+          @update:model-value="handleChange"
+          @change="handleChange"
+        />
+      </div>
+    </div>
   </div>
 </template>
 
@@ -133,27 +184,134 @@ function handleChange(value: unknown) {
   min-width: 0;
 }
 
+.form-field-renderer__editor,
 .form-field-renderer__display {
-  display: flex;
-  flex-direction: column;
-  gap: var(--app-space-2);
+  display: grid;
+  align-items: start;
+  column-gap: var(--app-space-4);
+  row-gap: var(--app-space-2);
   min-height: 100%;
-  padding: var(--app-space-4) var(--app-space-roomy);
-  border: 1px solid var(--app-border-subtle);
-  border-radius: var(--app-radius-xl);
-  background: var(--app-surface-muted);
+}
+
+.form-field-renderer__editor--left,
+.form-field-renderer__display--left {
+  grid-template-columns: var(--form-field-label-width, 96px) minmax(0, 1fr);
+}
+
+.form-field-renderer__editor--right,
+.form-field-renderer__display--right {
+  grid-template-columns: minmax(0, 1fr) var(--form-field-label-width, 96px);
+}
+
+.form-field-renderer__editor--right .form-field-renderer__label,
+.form-field-renderer__display--right .form-field-renderer__label {
+  grid-column: 2;
+  grid-row: 1;
+}
+
+.form-field-renderer__editor--right .form-field-renderer__control,
+.form-field-renderer__display--right .form-field-renderer__value {
+  grid-column: 1;
+  grid-row: 1;
+}
+
+.form-field-renderer__editor--top,
+.form-field-renderer__display--top {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.form-field-renderer__editor--inline,
+.form-field-renderer__display--inline {
+  display: block;
+}
+
+.form-field-renderer__control {
+  min-width: 0;
+}
+
+.form-field-renderer__display {
+  min-width: 0;
+}
+
+.form-field-renderer__display--inline {
+  position: relative;
+}
+
+.form-field-renderer__display--inline .form-field-renderer__label {
+  position: absolute;
+  top: 0;
+  left: var(--app-space-3);
+  z-index: 1;
+  padding: 0 var(--app-space-tight);
+  transform: translateY(-50%);
+  border-radius: var(--app-radius-round);
+  background: var(--app-surface-solid);
 }
 
 .form-field-renderer__label {
+  min-width: 0;
+  padding-top: var(--app-space-2);
   color: var(--app-text-muted);
   font-size: var(--app-font-size-caption);
   font-weight: 600;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.form-field-renderer__editor--top .form-field-renderer__label,
+.form-field-renderer__display--top .form-field-renderer__label,
+.form-field-renderer__display--inline .form-field-renderer__label {
+  padding-top: 0;
+}
+
+.form-field-renderer__required {
+  margin-right: 4px;
+  color: var(--app-danger);
 }
 
 .form-field-renderer__value {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: var(--app-control-height-md);
+  padding: var(--app-space-2) var(--app-space-3);
+  border: 1px solid var(--app-border-subtle);
+  border-radius: var(--app-radius-control);
+  background: var(--app-surface-solid);
   color: var(--app-title);
-  font-size: var(--app-font-size-body-lg);
-  line-height: 1.6;
+  font-size: var(--app-font-size-body);
+  font-weight: 500;
+  line-height: 1.5;
   word-break: break-word;
+}
+
+.form-field-renderer__display--inline .form-field-renderer__value {
+  padding-top: var(--app-space-3);
+}
+
+@container application-form-layout (max-width: 520px) {
+  .form-field-renderer__editor--left,
+  .form-field-renderer__editor--right,
+  .form-field-renderer__display--left,
+  .form-field-renderer__display--right {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .form-field-renderer__editor--right .form-field-renderer__label,
+  .form-field-renderer__display--right .form-field-renderer__label,
+  .form-field-renderer__editor--right .form-field-renderer__control,
+  .form-field-renderer__display--right .form-field-renderer__value {
+    grid-column: 1;
+  }
+
+  .form-field-renderer__editor--right .form-field-renderer__label,
+  .form-field-renderer__display--right .form-field-renderer__label {
+    grid-row: 1;
+  }
+
+  .form-field-renderer__editor--right .form-field-renderer__control,
+  .form-field-renderer__display--right .form-field-renderer__value {
+    grid-row: 2;
+  }
 }
 </style>

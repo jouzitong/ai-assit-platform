@@ -216,7 +216,7 @@ const formSchemaExample = {
       label: '资产名称',
       component: 'zg-input',
       type: 'text',
-      options: { required: true, placeholder: '请输入资产名称' },
+      options: { required: true, placeholder: '请输入资产名称', labelPosition: 'left' },
     },
     {
       key: 'category',
@@ -229,7 +229,7 @@ const formSchemaExample = {
         { key: '表单交互', value: '表单交互' },
         { key: '数据可视化', value: '数据可视化' },
       ],
-      options: { clearable: true },
+      options: { clearable: true, labelPosition: 'top' },
     },
     {
       key: 'description',
@@ -237,13 +237,14 @@ const formSchemaExample = {
       label: '能力说明',
       component: 'zg-input',
       type: 'textarea',
-      options: { rows: 4, placeholder: '说明组件能力和使用边界' },
+      options: { rows: 4, placeholder: '说明组件能力和使用边界', labelPosition: 'inline' },
     },
     {
       key: 'enabled',
       name: 'enabled',
       label: '启用状态',
       type: 'switch',
+      options: { labelPosition: 'right' },
     },
   ],
   groups: [
@@ -387,19 +388,23 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     tags: ['form', 'schema', 'renderer'],
     documentation: {
       summary: '通用表单渲染器根据 Schema 生成字段、分组和动作区，并通过 modelValue 提供可控的编辑数据入口。',
-      usageGuide: '在 schema.fields 中声明字段控件，在 schema.groups 中组织表单分区，通过 modelValue 传入初始值并监听 update:modelValue/change。schema.actions 的每一项使用 { key, name, action, options? }；options 可省略，只承载 type、style、class、icon。type 支持 default、primary、success、warning、danger、info，icon 支持 download、fullscreen、operation、print、refresh。保存、重置等动作由 action 事件交给上层处理。',
-      limitations: '当前字段控件以已注册的 Application 输入组件为准；Renderer 不负责远程选项加载、表单提交、权限判断和服务端校验。',
+      usageGuide: '在 schema.fields 中声明字段控件，在 schema.groups 中组织表单分区，通过 modelValue 传入初始值并监听 update:modelValue/change。字段 label 默认使用 left 与控件同行，可通过 field.options.labelPosition 配置 left、right、top、inline；form_config.labelWidth 控制同行 label 宽度。field 路径支持嵌套值读取和写回；formMode 支持 view、edit、add。schema.actions 的每一项使用 { key, name, action, options? }；保存动作通过 submit 事件交给 Runtime，并由 form_config.submit.executor 选择已注册提交器。',
+      limitations: '当前字段控件以已注册的 Application 输入组件为准；远程选项、权限和服务端校验仍由 Runtime 或页面服务负责，未注册的提交器不会执行。',
       notes: '示例覆盖文本、选择、长文本、开关、双分组和顶部动作，适合作为新增或编辑类页面的基础模板。',
     },
     parameters: [
       { key: 'schema', label: '表单 Schema', type: 'FormRendererSchema', control: 'json', required: true, defaultValue: formSchemaExample, description: '定义字段、分组、动作、关系与表单布局；动作只使用 { key, name, action, options? }。' },
       { key: 'modelValue', label: '表单数据', type: 'Record<string, unknown>', control: 'json', defaultValue: formModelValueExample, description: '表单受控数据对象。' },
       { key: 'readonly', label: '只读模式', type: 'boolean', control: 'boolean', defaultValue: false, description: '开启后所有字段仅展示不可编辑。' },
+      { key: 'formMode', label: '表单模式', type: 'FormRendererMode', control: 'text', defaultValue: 'edit', description: 'view、edit 或 add；view 自动只读，add 使用 form_config.defaultValues。' },
+      { key: 'submitting', label: '提交状态', type: 'boolean', control: 'boolean', defaultValue: false, description: '提交期间禁用动作并为保存按钮显示加载状态。' },
     ],
     events: [
       { name: 'action', description: '表单操作按钮触发时输出。' },
       { name: 'change', description: '字段变化时输出字段、当前值与全量数据。' },
       { name: 'update:modelValue', description: '表单受控值更新时输出。' },
+      { name: 'submit', description: '提交类动作触发时输出动作和完整表单数据。' },
+      { name: 'reset', description: '重置后输出恢复的表单数据。' },
     ],
     examples: [
       {

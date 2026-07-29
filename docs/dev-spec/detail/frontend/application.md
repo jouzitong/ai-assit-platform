@@ -195,8 +195,11 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 ### 8.1 动态应用路由与宿主模式
 
 - 正式动态应用入口统一使用 `/app/{mode}/{pageCode}`；`pageCode` 是 Render 服务中的完整编码，路由和加载链路不得补充或裁剪 `.json` 等后缀。
-- `mode` 只决定页面宿主行为，不替代 Render JSON 内部 Layout。首批稳定值为 `standard`、`dashboard`、`report`、`embedded`。
-- `standard` 使用自然文档流；`dashboard` 使用唯一 `ResponsiveViewport`；`report` 提供自然排版和打印规则；`embedded` 使用最小页面外壳并跟随父容器。
+- `mode` 只决定页面宿主行为，不替代 Render JSON 内部 Layout。稳定值为 `standard`、`form`、`dashboard`、`report`、`embedded`。
+- `standard` 使用自然文档流；`form` 提供居中的表单任务宿主；`dashboard` 使用唯一 `ResponsiveViewport`；`report` 提供自然排版和打印规则；`embedded` 使用最小页面外壳并跟随父容器。
+- `form` 宿主通过独立查询参数 `formMode=view|edit|add` 控制查看、编辑和新增状态；默认是 `view`。`model` 继续保留给 `preview=1` 时的虚拟模型绑定，不得复用为表单状态。
+- `view` 必须将表单整体设为只读并隐藏提交类动作；`edit` 使用加载的数据作为初值；`add` 使用 `form_config.defaultValues`。提交类动作由 Renderer 输出完整表单值，再由 Runtime 根据 `form_config.submit.executor` 分发给已注册执行器。
+- 表单字段 label 默认使用 `left` 与控件同行；字段可通过 `options.labelPosition` 配置 `left`、`right`、`top`、`inline`，历史 `inner` 只作为 `inline` 兼容别名。同行 label 宽度统一由 `form_config.labelWidth` 控制。
 - Render JSON 可以在 `presentation` 中声明 `defaultMode`、`allowedModes`、`title`、`description`、`refreshInterval`、`responsivePreset`。显式路由 mode 优先，但必须通过 `allowedModes` 校验。
 - 内部容器继续使用 Layout Registry 的稳定 key，例如 `zg-stack-layout`、`zg-grid-layout`、`zg-split-layout`、`zg-section-layout`、`zg-sheet-layout`，禁止把这些 key 扩展成路由 mode。
 - 历史裸 renderer schema 可以在 Runtime Loader 中归一化为标准 `RenderDocument.root`，Renderer 和 Layout 不承担历史协议兼容。

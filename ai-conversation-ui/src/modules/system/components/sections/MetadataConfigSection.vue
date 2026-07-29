@@ -38,7 +38,7 @@ type MetadataTreeNode = {
   children?: MetadataTreeNode[]
 }
 
-type RenderPreviewLayout = 'standard' | 'dashboard' | 'report' | 'embedded'
+type RenderPreviewLayout = 'standard' | 'form' | 'dashboard' | 'report' | 'embedded'
 
 const UNCLASSIFIED_CATEGORY_KEY = '__uncategorized__'
 const ALL_CATEGORY_KEY = 'all'
@@ -52,6 +52,7 @@ const previewLayoutOptions: Array<{
   description: string
 }> = [
   { value: 'standard', label: '普通布局', description: '适合列表、表单和常规业务页面' },
+  { value: 'form', label: '表单布局', description: '适合查看、新增和编辑业务表单' },
   { value: 'dashboard', label: '看板布局', description: '适合指标、图表和监控大屏' },
   { value: 'report', label: '报表布局', description: '适合报表阅读、汇总和打印场景' },
   { value: 'embedded', label: '嵌入布局', description: '适合嵌入其他页面或工作区' },

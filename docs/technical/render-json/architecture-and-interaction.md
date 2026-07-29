@@ -42,7 +42,7 @@ flowchart LR
 
 1. 保留完整 pageCode，不添加或裁剪 `.json` 等后缀。
 2. 限制 code 只能包含字母、数字、点、下划线和短横线。
-3. 检查 mode 是否属于 `standard`、`dashboard`、`report`、`embedded`。
+3. 检查 mode 是否属于 `standard`、`form`、`dashboard`、`report`、`embedded`。
 
 pageCode 直接用于查询 Render Meta。
 
@@ -351,7 +351,7 @@ Provider 运行期间识别出的不完整 Artifact 元数据不会直接作为�
 - 新结构只接受 `{pageCode, layout}`，layout 默认 `standard`。
 - pageCode 原样传给 Render Meta 接口。
 - 历史内联完整文档仍可直接归一化展示。
-- 根据 layout 选择 `standard`、`dashboard`、`report` 或 `embedded` 宿主，并校验页面允许的 mode。
+- 根据 layout 选择 `standard`、`form`、`dashboard`、`report` 或 `embedded` 宿主，并校验页面允许的 mode；`form` 额外解析 `formMode=view|edit|add`。
 
 两者最终都进入 `RenderJsonRuntimeHost`，因此组件递归和数据请求能力可以复用。
 

@@ -2,7 +2,14 @@
   "id": "default_config.meta.info.test",
   "version": "1.0.0",
   "title": "系统配置详情",
-  "component": "zg-common-info",
+  "presentation": {
+    "defaultMode": "form",
+    "allowedModes": [
+      "form",
+      "standard"
+    ]
+  },
+  "component": "zg-common-form",
   "fields": [
     {
       "key": "id",
@@ -12,10 +19,7 @@
         "id"
       ],
       "options": {
-        "styles": {
-          "text-align": "center"
-        },
-        "className": "text-center"
+        "readonly": true
       }
     },
     {
@@ -24,7 +28,12 @@
       "label": "配置键",
       "field": [
         "config_key"
-      ]
+      ],
+      "component": "zg-input",
+      "options": {
+        "required": true,
+        "placeholder": "请输入配置键"
+      }
     },
     {
       "key": "value_type",
@@ -32,7 +41,30 @@
       "label": "值类型",
       "field": [
         "value_type"
-      ]
+      ],
+      "component": "zg-selector",
+      "list": [
+        {
+          "key": "字符串",
+          "value": "string"
+        },
+        {
+          "key": "整数",
+          "value": "integer"
+        },
+        {
+          "key": "布尔值",
+          "value": "boolean"
+        },
+        {
+          "key": "JSON",
+          "value": "json"
+        }
+      ],
+      "options": {
+        "required": true,
+        "placeholder": "请选择值类型"
+      }
     },
     {
       "key": "config_value",
@@ -40,7 +72,14 @@
       "label": "配置值",
       "field": [
         "config_value"
-      ]
+      ],
+      "component": "zg-textarea",
+      "type": "textarea",
+      "options": {
+        "required": true,
+        "rows": 5,
+        "placeholder": "请输入配置值"
+      }
     },
     {
       "key": "desc",
@@ -48,7 +87,13 @@
       "label": "备注",
       "field": [
         "desc"
-      ]
+      ],
+      "component": "zg-textarea",
+      "type": "textarea",
+      "options": {
+        "rows": 3,
+        "placeholder": "请输入备注"
+      }
     },
     {
       "key": "tags",
@@ -56,7 +101,11 @@
       "label": "标签",
       "field": [
         "tags"
-      ]
+      ],
+      "component": "zg-input",
+      "options": {
+        "placeholder": "请输入标签，多个标签使用逗号分隔"
+      }
     },
     {
       "key": "deleted",
@@ -65,11 +114,14 @@
       "field": [
         "deleted"
       ],
-      "options": {
-        "styles": {
-          "text-align": "center"
-        },
-        "className": "text-center"
+      "component": "zg-switch",
+      "type": "switch",
+      "options": {},
+      "componentProps": {
+        "activeValue": 1,
+        "inactiveValue": 0,
+        "activeText": "已删除",
+        "inactiveText": "正常"
       }
     },
     {
@@ -79,7 +131,10 @@
       "field": [
         "sec_user",
         "display_name"
-      ]
+      ],
+      "options": {
+        "readonly": true
+      }
     },
     {
       "key": "update_time",
@@ -87,7 +142,10 @@
       "label": "更新时间",
       "field": [
         "update_time"
-      ]
+      ],
+      "options": {
+        "readonly": true
+      }
     }
   ],
   "groups": [
@@ -125,13 +183,26 @@
     }
   ],
   "children": [],
-  "actions": [],
+  "actions": [
+    {
+      "key": "submit",
+      "name": "提交",
+      "action": "SUBMIT"
+    }
+  ],
   "form_relations": [],
   "form_config": {
     "variant": "workbench",
     "columns": 2,
-    "description": "系统配置项的只读详情。",
-    "actionsAlign": "right"
+    "description": "根据 formMode 在查看、新增和编辑状态之间切换。",
+    "actionsAlign": "right",
+    "defaultValues": {
+      "value_type": "string",
+      "deleted": 0
+    },
+    "submit": {
+      "executor": "render-meta-data"
+    }
   },
   "data": {
     "id": 10001,

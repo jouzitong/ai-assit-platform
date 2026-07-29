@@ -1,6 +1,7 @@
 import type { Component } from 'vue'
 import DashboardModeHost from '../components/DashboardModeHost.vue'
 import EmbeddedModeHost from '../components/EmbeddedModeHost.vue'
+import FormModeHost from '../components/FormModeHost.vue'
 import ReportModeHost from '../components/ReportModeHost.vue'
 import StandardModeHost from '../components/StandardModeHost.vue'
 import type { RenderAppMode } from './render-app'
@@ -18,6 +19,13 @@ const RENDER_MODE_DEFINITIONS = [
     key: 'standard',
     name: '标准页面',
     component: StandardModeHost,
+    supportsPrint: false,
+    usesResponsiveViewport: false,
+  },
+  {
+    key: 'form',
+    name: '表单',
+    component: FormModeHost,
     supportsPrint: false,
     usesResponsiveViewport: false,
   },

@@ -113,11 +113,20 @@
 | mode | 宿主行为 |
 | --- | --- |
 | `standard` | 自然文档流，适合常规管理页面 |
+| `form` | 居中的表单任务宿主，通过 `formMode=view|edit|add` 控制交互状态 |
 | `dashboard` | 使用唯一响应式缩放宿主，可定时刷新数据 |
 | `report` | 面向自然排版和打印规则 |
 | `embedded` | 最小外壳，适合嵌入其他容器 |
 
 Layout key 和 mode 是不同概念。`dashboard` 是页面宿主模式，`zg-grid-layout` 是 Render 树内部的布局组件，不能互相替代。
+
+`form` 模式使用独立的 `formMode` 查询参数；`model` 保留给 `preview=1` 场景的虚拟模型绑定。例如：
+
+```text
+/app/form/system-setting.info?formMode=view
+/app/form/system-setting.info?formMode=edit&id=10001
+/app/form/system-setting.info?formMode=add
+```
 
 ## 4. 节点结构
 
@@ -197,6 +206,33 @@ Renderer Schema 是具体组件契约，不等同于 RenderDocument。以列表�
 - `datasource`。
 
 具体字段应同时参考 `ai-conversation-ui/src/application/schema/list.ts` 和组件资产契约。
+
+### 5.1 表单字段 label 布局
+
+`zg-common-form` 的字段 label 默认位于控件左侧并保持同行。单个字段可通过
+`field.options.labelPosition` 覆盖：
+
+| 值 | 行为 |
+| --- | --- |
+| `left` | 默认值，label 位于控件左侧 |
+| `right` | label 位于控件右侧 |
+| `top` | label 位于控件上方 |
+| `inline` | label 内联显示在控件边框中 |
+
+历史值 `inner` 会按 `inline` 解析。`form_config.labelWidth` 控制 `left`、`right`
+模式下的 label 列宽，支持数字像素值以及 `px`、`rem`、`em`、`%` 字符串。
+
+```json
+{
+  "key": "config_key",
+  "label": "配置键",
+  "component": "zg-input",
+  "options": {
+    "labelPosition": "left",
+    "required": true
+  }
+}
+```
 
 ## 6. Datasource 配置
 

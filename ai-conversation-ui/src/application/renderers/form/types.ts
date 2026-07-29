@@ -1,6 +1,13 @@
 import type { RendererAction } from '../../schema/action'
 
 export type FormRendererAction = RendererAction
+export type FormRendererMode = 'view' | 'edit' | 'add'
+export type FormRendererLabelPosition = 'top' | 'inline' | 'left' | 'right'
+
+export interface FormRendererSubmitConfig {
+  /** 由页面 Runtime 注册并执行的稳定提交器 key。 */
+  executor?: 'render-meta-data' | string
+}
 
 export interface FormRendererRelation {
   key: string
@@ -19,7 +26,8 @@ export interface FormRendererFieldOptions {
   clearable?: boolean
   filterable?: boolean
   disabled?: boolean
-  labelPosition?: 'left' | 'inner'
+  /** label 布局：默认 left；inner 仅作为历史 inline 别名兼容。 */
+  labelPosition?: FormRendererLabelPosition | 'inner'
   rows?: number
   placeholder?: string
   className?: string
@@ -62,6 +70,17 @@ export interface FormRendererConfig {
   description?: string
   className?: string
   events?: string[]
+  defaultValues?: Record<string, unknown>
+  submit?: FormRendererSubmitConfig
+}
+
+export interface FormRendererSubmitPayload {
+  action: FormRendererAction
+  values: Record<string, unknown>
+}
+
+export interface FormRendererResetPayload {
+  values: Record<string, unknown>
 }
 
 export interface FormRendererSchema {

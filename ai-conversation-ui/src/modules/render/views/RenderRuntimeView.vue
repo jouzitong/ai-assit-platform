@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { ElMessage } from 'element-plus'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   loadRenderMetaContent,
   RenderJsonRuntimeHost,
   upsertRenderMetaContent,
   type RenderRuntimeNodeScope,
+  type RenderRuntimeActionPayload,
 } from '../../../application/runtime'
 import { getDefaultFilterValue } from '../../../application/renderers/list/schema'
 import type { RendererAction } from '../../../application/schema'
@@ -19,17 +20,23 @@ import {
   assertRenderModeAllowed,
   isRenderAppMode,
   normalizeRenderAppCode,
+  normalizeRenderFormMode,
   normalizeRenderRuntimeDocument,
   type RenderAppMode,
+  type RenderFormMode,
   type RenderRuntimeDocument,
 } from '../model/render-app'
+import { executeRenderFormSubmit } from '../service/form-submit'
 
 const route = useRoute()
+const router = useRouter()
 const loading = ref(false)
 const errorMessage = ref('')
 const renderMetaContent = ref<Record<string, unknown> | null>(null)
 const renderDocument = ref<RenderRuntimeDocument | null>(null)
 const renderMode = ref<RenderAppMode>('standard')
+const formMode = ref<RenderFormMode>('view')
+const formSubmitting = ref(false)
 const renderCode = ref('')
 const runtimeKey = ref(0)
 const lastRefreshedAt = ref('')
@@ -60,6 +67,10 @@ const responsivePreset = computed(() => (
   presentation.value?.responsivePreset
   || (renderMode.value === 'dashboard' ? 'dashboard' : undefined)
 ))
+const runtimeReadonly = computed(() => (
+  presentation.value?.readonly === true
+  || (renderMode.value === 'form' && formMode.value === 'view')
+))
 const developerActions = computed<RendererAction[]>(() => developerModeEnabled.value
   ? [
       {
@@ -85,6 +96,7 @@ const runtimeScope = computed(() => {
   return {
     code: renderCode.value,
     mode: renderMode.value,
+    formMode: formMode.value,
     document: renderDocument.value,
     schema: Object.fromEntries(nodes.map(node => [node.id, node.schema])),
     query: Object.fromEntries(nodes.map(node => [node.id, node.query])),
@@ -100,6 +112,7 @@ const runtimeScope = computed(() => {
     data: Object.fromEntries(nodes.map(node => [node.id, node.data])),
     state: {
       loading: loading.value,
+      submitting: formSubmitting.value,
       error: errorMessage.value || undefined,
       revision: renderDocument.value?.revision,
       lastRefreshedAt: lastRefreshedAt.value,
@@ -117,7 +130,14 @@ const runtimeScope = computed(() => {
 })
 
 watch(
-  () => [route.params.mode, route.params.code, route.query.preview, route.query.model],
+  () => [
+    route.params.mode,
+    route.params.code,
+    route.query.preview,
+    route.query.model,
+    route.query.formMode,
+    route.query.id,
+  ],
   () => {
     void loadRuntimeDocument()
   },
@@ -154,6 +174,7 @@ async function loadRuntimeDocument() {
   scopeNodes.value = {}
   globalFilterValues.value = {}
   pendingGlobalFilterValues.value = {}
+  formSubmitting.value = false
   clearAutoRefresh()
 
   try {
@@ -164,6 +185,9 @@ async function loadRuntimeDocument() {
 
     const code = normalizeRenderAppCode(readRouteParam(route.params.code))
     renderMode.value = modeValue
+    formMode.value = modeValue === 'form'
+      ? normalizeRenderFormMode(readRouteParam(route.query.formMode))
+      : 'view'
     renderCode.value = code
 
     const content = await loadRenderMetaContent(code)
@@ -213,6 +237,44 @@ function handleRuntimeScopeChange(scope: RenderRuntimeNodeScope) {
   scopeNodes.value = {
     ...scopeNodes.value,
     [scope.id]: scope,
+  }
+}
+
+async function handleRuntimeAction(payload: RenderRuntimeActionPayload) {
+  if (renderMode.value !== 'form') {
+    ElMessage.warning('表单提交只能在 form 页面模式下执行')
+    return
+  }
+  if (!renderMetaContent.value || !renderCode.value || formSubmitting.value) {
+    return
+  }
+
+  formSubmitting.value = true
+  try {
+    const savedContent = await executeRenderFormSubmit({
+      code: renderCode.value,
+      content: renderMetaContent.value,
+      payload,
+    })
+    renderMetaContent.value = savedContent
+    const runtimeContent = resolveRuntimeContent(savedContent)
+    renderDocument.value = normalizeRenderRuntimeDocument(runtimeContent, renderCode.value)
+    ElMessage.success(payload.formMode === 'add' ? '表单数据已新增' : '表单数据已保存')
+
+    if (payload.formMode === 'add') {
+      await router.replace({
+        query: {
+          ...route.query,
+          formMode: 'edit',
+        },
+      })
+    } else {
+      refreshRuntime()
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '表单提交失败')
+  } finally {
+    formSubmitting.value = false
   }
 }
 
@@ -373,6 +435,7 @@ function containsListRenderer(node: unknown): boolean {
     :mode="renderMode"
     :title="renderMode === 'standard' ? undefined : pageTitle"
     :description="renderMode === 'standard' ? undefined : pageDescription"
+    :form-mode="formMode"
     :loading="loading"
     :refreshable="Boolean(renderDocument)"
     :last-refreshed-at="lastRefreshedAt"
@@ -398,8 +461,12 @@ function containsListRenderer(node: unknown): boolean {
       :developer-actions="developerActions"
       :global-filters="documentFilters"
       :global-filter-values="globalFilterValues"
+      :readonly="runtimeReadonly"
+      :form-mode="formMode"
+      :submitting="formSubmitting"
       @scope-change="handleRuntimeScopeChange"
       @developer-action="handleDeveloperAction"
+      @runtime-action="handleRuntimeAction"
     />
   </RenderModeHost>
 

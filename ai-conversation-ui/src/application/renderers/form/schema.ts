@@ -31,6 +31,8 @@ export function normalizeSchema(schema: FormRendererSchema): NormalizedFormRende
       description: schema.form_config?.description || '',
       className: schema.form_config?.className || '',
       events: schema.form_config?.events || [],
+      defaultValues: cloneFormValues(schema.form_config?.defaultValues || {}),
+      ...(schema.form_config?.submit ? { submit: { ...schema.form_config.submit } } : {}),
     },
     data: schema.data || {},
   }
@@ -46,6 +48,9 @@ export function createFieldMap(schema: FormRendererSchema) {
 
 export function getFieldValue(record: Record<string, unknown>, field: FormRendererField) {
   const segments = field.field?.length ? field.field : [field.key]
+  if (segments.some(segment => UNSAFE_OBJECT_KEYS.has(segment))) {
+    return ''
+  }
   let current: unknown = record
 
   for (const segment of segments) {
@@ -56,6 +61,31 @@ export function getFieldValue(record: Record<string, unknown>, field: FormRender
   }
 
   return current ?? ''
+}
+
+export function setFieldValue(
+  record: Record<string, unknown>,
+  field: FormRendererField,
+  value: unknown,
+) {
+  const segments = field.field?.length ? field.field : [field.key]
+  if (!segments.length || segments.some(segment => UNSAFE_OBJECT_KEYS.has(segment))) {
+    return
+  }
+
+  let current = record
+  segments.slice(0, -1).forEach((segment) => {
+    const next = current[segment]
+    if (!isRecord(next)) {
+      current[segment] = {}
+    }
+    current = current[segment] as Record<string, unknown>
+  })
+  current[segments[segments.length - 1]!] = value
+}
+
+export function cloneFormValues(value: Record<string, unknown>) {
+  return cloneRecord(value)
 }
 
 export function formatFieldValue(value: unknown) {
@@ -127,4 +157,25 @@ function humanizeLabel(key: string) {
   }
 
   return normalized.charAt(0).toUpperCase() + normalized.slice(1)
+}
+
+const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
+
+function cloneRecord(value: Record<string, unknown>): Record<string, unknown> {
+  return Object.fromEntries(
+    Object.entries(value)
+      .filter(([key]) => !UNSAFE_OBJECT_KEYS.has(key))
+      .map(([key, child]) => [key, cloneValue(child)]),
+  )
+}
+
+function cloneValue(value: unknown): unknown {
+  if (Array.isArray(value)) {
+    return value.map(cloneValue)
+  }
+  return isRecord(value) ? cloneRecord(value) : value
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return Boolean(value) && typeof value === 'object' && !Array.isArray(value)
 }

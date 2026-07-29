@@ -20,6 +20,7 @@ const modeComponent = computed(() => findRenderMode(props.mode)?.component)
 const hostProps = computed(() => ({
   title: props.title,
   description: props.description,
+  formMode: props.formMode,
   loading: props.loading,
   refreshable: props.refreshable,
   lastRefreshedAt: props.lastRefreshedAt,

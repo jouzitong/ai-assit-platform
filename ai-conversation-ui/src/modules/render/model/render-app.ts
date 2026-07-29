@@ -1,14 +1,19 @@
 import { normalizeRendererActions } from '../../../application/schema/action'
+import type { FormRendererMode } from '../../../application/renderers/form/types'
 import type { RendererAction, RendererFilter } from '../../../application/schema'
 
 export const RENDER_APP_MODES = [
   'standard',
+  'form',
   'dashboard',
   'report',
   'embedded',
 ] as const
 
 export type RenderAppMode = typeof RENDER_APP_MODES[number]
+
+export const RENDER_FORM_MODES = ['view', 'edit', 'add'] as const satisfies readonly FormRendererMode[]
+export type RenderFormMode = typeof RENDER_FORM_MODES[number]
 
 export interface RenderDocumentPresentation {
   defaultMode?: RenderAppMode
@@ -36,6 +41,7 @@ export interface RenderRuntimeDocument extends Record<string, unknown> {
 export interface RenderModeHostProps {
   title: string
   description?: string
+  formMode?: RenderFormMode
   loading?: boolean
   refreshable?: boolean
   lastRefreshedAt?: string
@@ -47,6 +53,7 @@ export interface RenderModeHostProps {
 }
 
 const RENDER_APP_MODE_SET = new Set<string>(RENDER_APP_MODES)
+const RENDER_FORM_MODE_SET = new Set<string>(RENDER_FORM_MODES)
 const RENDER_APP_CODE_PATTERN = /^[A-Za-z0-9._-]+$/
 const SUPPORTED_PROTOCOL_MAJORS = new Set(['1', '2'])
 const PREVIEW_MODEL_DATASOURCE_TYPES = new Set(['db-query-list', 'semantic-query'])
@@ -54,6 +61,20 @@ const UNSAFE_OBJECT_KEYS = new Set(['__proto__', 'prototype', 'constructor'])
 
 export function isRenderAppMode(value: unknown): value is RenderAppMode {
   return typeof value === 'string' && RENDER_APP_MODE_SET.has(value)
+}
+
+export function isRenderFormMode(value: unknown): value is RenderFormMode {
+  return typeof value === 'string' && RENDER_FORM_MODE_SET.has(value)
+}
+
+export function normalizeRenderFormMode(value: unknown): RenderFormMode {
+  if (value == null || value === '') {
+    return 'view'
+  }
+  if (!isRenderFormMode(value)) {
+    throw new Error(`不支持的表单模式: ${String(value)}`)
+  }
+  return value
 }
 
 export function normalizeRenderAppCode(value: unknown) {

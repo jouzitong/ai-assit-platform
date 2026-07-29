@@ -3,10 +3,17 @@ import { computed, reactive, ref, watch, type CSSProperties } from 'vue'
 import { findApplicationLayout } from '../layout'
 import { findApplicationRenderer } from '../registry'
 import { createDefaultQueryState } from '../renderers/list/schema'
+import { cloneFormValues } from '../renderers/form/schema'
+import type {
+  FormRendererMode,
+  FormRendererSchema,
+  FormRendererSubmitPayload,
+} from '../renderers/form/types'
 import type { RendererFilter } from '../schema'
 import type { RendererAction, RendererQueryState } from '../renderers/list/types'
 import type {
   RenderRuntimeNodeEvent,
+  RenderRuntimeActionPayload,
   RenderRuntimeNodeKind,
   RenderRuntimeNodeScope,
 } from './observability'
@@ -32,17 +39,24 @@ const props = withDefaults(defineProps<{
   developerActions?: RendererAction[]
   globalFilters?: RendererFilter[]
   globalFilterValues?: Record<string, unknown>
+  readonly?: boolean
+  formMode?: FormRendererMode
+  submitting?: boolean
 }>(), {
   observe: false,
   path: 'root',
   developerActions: () => [],
   globalFilters: () => [],
   globalFilterValues: () => ({}),
+  readonly: false,
+  formMode: 'edit',
+  submitting: false,
 })
 
 const emit = defineEmits<{
   'scope-change': [scope: RenderRuntimeNodeScope]
   'developer-action': [action: RendererAction]
+  'runtime-action': [payload: RenderRuntimeActionPayload]
 }>()
 
 const definition = computed(() => findApplicationRenderer(props.node.component))
@@ -50,6 +64,7 @@ const componentKey = computed(() => props.node.component || '')
 const normalizedComponentKey = computed(() => componentKey.value.toLowerCase())
 const layoutDefinition = computed(() => findApplicationLayout(normalizedComponentKey.value))
 const staticNodeDefinition = computed(() => findApplicationStaticRenderNode(normalizedComponentKey.value))
+const isFormRenderer = computed(() => definition.value?.key === 'form-main-layout')
 const isText = computed(() => staticNodeDefinition.value?.kind === 'text')
 const isHeading = computed(() => staticNodeDefinition.value?.kind === 'heading')
 const isLayout = computed(() => Boolean(layoutDefinition.value))
@@ -70,6 +85,7 @@ const requestPlans = ref<unknown[]>([])
 const nodeEvents = ref<RenderRuntimeNodeEvent[]>([])
 const rendererLoading = ref(false)
 const rendererError = ref('')
+const rendererModelValue = ref<Record<string, unknown>>({})
 let requestSequence = 0
 
 const rendererState = computed(() => ({
@@ -94,6 +110,14 @@ const runtimeProps = computed(() => {
     records: resolvedData.value.records || [],
     treeData: resolvedData.value.treeData || [],
     total: resolvedData.value.total || 0,
+    ...(isFormRenderer.value
+      ? {
+          modelValue: rendererModelValue.value,
+          readonly: props.readonly || Boolean(baseProps.readonly),
+          formMode: props.formMode,
+          submitting: props.submitting,
+        }
+      : {}),
     ...(definition.value?.key === 'zg-list-main-layout' && props.observe
       ? {
           developerMode: true,
@@ -150,7 +174,7 @@ const scopeSnapshot = computed<RenderRuntimeNodeScope>(() => ({
   schema: schema.value,
   query: { ...queryState },
   requestPlans: [...requestPlans.value],
-  data: resolvedData.value,
+  data: isFormRenderer.value ? rendererModelValue.value : resolvedData.value,
   state: rendererState.value,
   events: [...nodeEvents.value],
 }))
@@ -161,6 +185,32 @@ watch(
     if (observe) emit('scope-change', snapshot)
   },
   { deep: true, immediate: true },
+)
+
+watch(
+  () => JSON.stringify({
+    component: componentKey.value,
+    schema: schema.value,
+    formMode: props.formMode,
+  }),
+  () => {
+    if (!isFormRenderer.value || !schema.value) {
+      rendererModelValue.value = {}
+      return
+    }
+    const formSchema = schema.value as FormRendererSchema
+    const initialValues = props.formMode === 'add'
+      ? formSchema.form_config?.defaultValues || {}
+      : formSchema.data || {}
+    const explicitModelValue = isRecord(rawNodeProps.value.modelValue)
+      ? rawNodeProps.value.modelValue
+      : {}
+    rendererModelValue.value = {
+      ...cloneFormValues(initialValues),
+      ...cloneFormValues(explicitModelValue),
+    }
+  },
+  { immediate: true },
 )
 
 watch(
@@ -233,6 +283,30 @@ function handleAction(action: RendererAction) {
   }
 }
 
+function handleFormModelUpdate(values: Record<string, unknown>) {
+  rendererModelValue.value = cloneFormValues(values)
+  recordNodeEvent('valueChange', rendererModelValue.value)
+}
+
+function handleFormSubmit(payload: FormRendererSubmitPayload) {
+  rendererModelValue.value = cloneFormValues(payload.values)
+  const runtimePayload: RenderRuntimeActionPayload = {
+    action: payload.action,
+    nodeId: nodeScopeId.value,
+    component: componentKey.value,
+    schema: schema.value,
+    values: cloneFormValues(rendererModelValue.value),
+    formMode: props.formMode,
+  }
+  recordNodeEvent('submit', runtimePayload)
+  emit('runtime-action', runtimePayload)
+}
+
+function handleFormReset(payload: { values: Record<string, unknown> }) {
+  rendererModelValue.value = cloneFormValues(payload.values)
+  recordNodeEvent('reset', payload)
+}
+
 function recordNodeEvent(type: string, payload?: unknown) {
   if (!props.observe) {
     return
@@ -253,6 +327,10 @@ function forwardScope(scope: RenderRuntimeNodeScope) {
 
 function forwardDeveloperAction(action: RendererAction) {
   emit('developer-action', action)
+}
+
+function forwardRuntimeAction(payload: RenderRuntimeActionPayload) {
+  emit('runtime-action', payload)
 }
 
 function mergeDatasource(value: Record<string, unknown>) {
@@ -341,8 +419,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         :global-filter-values="globalFilterValues"
         :path="`${path}.${index}`"
         :developer-actions="developerActions"
+        :readonly="readonly"
+        :form-mode="formMode"
+        :submitting="submitting"
         @scope-change="forwardScope"
         @developer-action="forwardDeveloperAction"
+        @runtime-action="forwardRuntimeAction"
       />
     </component>
     <template v-else-if="definition">
@@ -355,6 +437,9 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         @query-change="handleQueryChange"
         @reload="handleReload"
         @action="handleAction"
+        @update:model-value="handleFormModelUpdate"
+        @submit="handleFormSubmit"
+        @reset="handleFormReset"
       />
       <RenderJsonRuntimeNode
         v-for="(child, index) in node.children || []"
@@ -365,8 +450,12 @@ function isRecord(value: unknown): value is Record<string, unknown> {
         :global-filter-values="globalFilterValues"
         :path="`${path}.${index}`"
         :developer-actions="developerActions"
+        :readonly="readonly"
+        :form-mode="formMode"
+        :submitting="submitting"
         @scope-change="forwardScope"
         @developer-action="forwardDeveloperAction"
+        @runtime-action="forwardRuntimeAction"
       />
     </template>
     <div v-else class="render-json-runtime-node__error" role="alert">

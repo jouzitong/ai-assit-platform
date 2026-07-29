@@ -7,11 +7,18 @@ defineProps<{
   description?: string
   actions?: FormRendererAction[]
   actionsAlign?: 'left' | 'center' | 'right'
+  submitting?: boolean
 }>()
 
 const emit = defineEmits<{
   action: [action: FormRendererAction]
 }>()
+
+const mutationActionKeys = new Set(['SUBMIT', 'SAVE', 'CREATE', 'UPDATE'])
+
+function isMutationAction(action: FormRendererAction) {
+  return mutationActionKeys.has(action.action)
+}
 
 </script>
 
@@ -35,6 +42,8 @@ const emit = defineEmits<{
           :icon="resolveRendererActionIcon(action)"
           :style="action.options?.style"
           :class="action.options?.class"
+          :loading="submitting && isMutationAction(action)"
+          :disabled="submitting"
           @click="emit('action', action)"
         >
           {{ action.name }}

@@ -10,6 +10,7 @@ export {
 } from './node-catalog'
 export type {
   RenderRuntimeNodeEvent,
+  RenderRuntimeActionPayload,
   RenderRuntimeNodeKind,
   RenderRuntimeNodeScope,
 } from './observability'

@@ -2,8 +2,9 @@
 import { computed } from 'vue'
 import type { RendererFilter } from '../schema'
 import type { RendererAction } from '../renderers/list/types'
+import type { FormRendererMode } from '../renderers/form/types'
 import RenderJsonRuntimeNode from './RenderJsonRuntimeNode.vue'
-import type { RenderRuntimeNodeScope } from './observability'
+import type { RenderRuntimeActionPayload, RenderRuntimeNodeScope } from './observability'
 
 interface RenderJsonRuntimeDocument {
   protocol?: string
@@ -22,6 +23,9 @@ const props = withDefaults(
     developerActions?: RendererAction[]
     globalFilters?: RendererFilter[]
     globalFilterValues?: Record<string, unknown>
+    readonly?: boolean
+    formMode?: FormRendererMode
+    submitting?: boolean
   }>(),
   {
     document: null,
@@ -31,12 +35,16 @@ const props = withDefaults(
     developerActions: () => [],
     globalFilters: () => [],
     globalFilterValues: () => ({}),
+    readonly: false,
+    formMode: 'edit',
+    submitting: false,
   },
 )
 
 const emit = defineEmits<{
   'scope-change': [scope: RenderRuntimeNodeScope]
   'developer-action': [action: RendererAction]
+  'runtime-action': [payload: RenderRuntimeActionPayload]
 }>()
 
 const hasRootNode = computed(() => Boolean(props.document?.root))
@@ -68,8 +76,12 @@ const protocolLabel = computed(() => props.document?.protocol || 'render-json')
           :developer-actions="developerActions"
           :global-filters="globalFilters"
           :global-filter-values="globalFilterValues"
+          :readonly="readonly"
+          :form-mode="formMode"
+          :submitting="submitting"
           @scope-change="emit('scope-change', $event)"
           @developer-action="emit('developer-action', $event)"
+          @runtime-action="emit('runtime-action', $event)"
         />
       </div>
 
