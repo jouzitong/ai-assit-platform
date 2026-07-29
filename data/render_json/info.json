@@ -18,6 +18,7 @@
       "field": [
         "id"
       ],
+      "hide": true,
       "options": {
         "readonly": true
       }
@@ -170,7 +171,7 @@
         "desc",
         "tags"
       ],
-      "columns": 1
+      "columns": 2
     },
     {
       "key": "audit",

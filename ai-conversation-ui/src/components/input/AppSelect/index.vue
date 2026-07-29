@@ -47,7 +47,11 @@ const props = withDefaults(
 
 const responsiveOverlayTarget = useResponsiveOverlayTarget()
 const resolvedTeleported = computed(() => props.teleported ?? true)
-const resolvedAppendTo = computed(() => props.appendTo ?? responsiveOverlayTarget.value)
+const resolvedAppendTo = computed(() => (
+  props.appendTo
+  ?? responsiveOverlayTarget.value
+  ?? 'body'
+))
 
 const emit = defineEmits<{
   'update:modelValue': [value: string | number | boolean | Array<string | number | boolean> | null]

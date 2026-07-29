@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import FormFieldRenderer from './FormFieldRenderer.vue'
+import { isFormFieldHidden } from '../schema'
 import type { FormRendererField, NormalizedFormRendererGroup } from '../types'
 
 const props = defineProps<{
@@ -19,12 +20,19 @@ const emit = defineEmits<{
 const resolvedFields = computed(() =>
   props.group.fields
     .map((fieldKey) => props.fields[fieldKey])
-    .filter((field): field is FormRendererField => Boolean(field)),
+    .filter((field): field is FormRendererField => Boolean(field))
+    .filter((field) => !isFormFieldHidden(field)),
 )
 
-const gridStyle = computed(() => ({
-  gridTemplateColumns: `repeat(${Math.max(props.group.columns || 1, 1)}, minmax(0, 1fr))`,
-}))
+const GROUP_COLUMN_SPANS: Record<number, number> = {
+  1: 12,
+  2: 6,
+  3: 4,
+  4: 3,
+  6: 2,
+  12: 1,
+}
+const defaultFieldSpan = computed(() => GROUP_COLUMN_SPANS[props.group.columns] || 6)
 </script>
 
 <template>
@@ -36,7 +44,7 @@ const gridStyle = computed(() => ({
       </div>
     </header>
 
-    <div class="form-group-panel__grid" :style="gridStyle">
+    <div class="form-group-panel__grid">
       <FormFieldRenderer
         v-for="field in resolvedFields"
         :key="field.key"
@@ -45,6 +53,7 @@ const gridStyle = computed(() => ({
         :error="errors?.[field.key]"
         :schema-component="schemaComponent"
         :readonly="readonly"
+        :default-span="defaultFieldSpan"
         @change="emit('change', $event)"
       />
     </div>
@@ -89,6 +98,7 @@ const gridStyle = computed(() => ({
 
 .form-group-panel__grid {
   display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
   column-gap: var(--app-space-6);
   row-gap: var(--app-space-5);
   padding: var(--app-space-5);
@@ -97,7 +107,7 @@ const gridStyle = computed(() => ({
 
 @container application-form-layout (max-width: 680px) {
   .form-group-panel__grid {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
   }
 }
 </style>

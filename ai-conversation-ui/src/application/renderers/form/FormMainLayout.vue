@@ -6,6 +6,7 @@ import {
   cloneFormValues,
   createFieldMap,
   getFieldValue,
+  isFormFieldHidden,
   normalizeSchema,
   setFieldValue,
 } from './schema'
@@ -124,7 +125,7 @@ function replaceFormState(values: Record<string, unknown>) {
 function validateForm() {
   clearValidationErrors()
   normalizedSchema.value.fields.forEach((field) => {
-    if (!field.options?.required || field.options.hidden || field.options.readonly) {
+    if (!field.options?.required || isFormFieldHidden(field) || field.options.readonly) {
       return
     }
     if (isEmptyValue(getFieldValue(formState, field))) {

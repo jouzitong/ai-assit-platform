@@ -8,7 +8,7 @@ import AppSelect from '../../../../components/input/AppSelect/index.vue'
 import AppSelectTree from '../../../../components/input/AppSelectTree/index.vue'
 import AppSwitch from '../../../../components/input/AppSwitch/index.vue'
 import AppTimePicker from '../../../../components/input/AppTimePicker/index.vue'
-import { formatFieldValue, getFieldValue } from '../schema'
+import { formatFieldValue, getFieldValue, isFormFieldHidden } from '../schema'
 import type { FormRendererField, FormRendererLabelPosition } from '../types'
 
 const props = defineProps<{
@@ -17,6 +17,7 @@ const props = defineProps<{
   schemaComponent?: string
   readonly?: boolean
   error?: string
+  defaultSpan?: number
 }>()
 
 const emit = defineEmits<{
@@ -114,7 +115,21 @@ const componentProps = computed(() => {
   }
 })
 const displayValue = computed(() => formatFieldValue(fieldValue.value))
-const wrapperStyle = computed(() => props.field.options?.styles || {})
+const fieldSpan = computed(() => {
+  const configuredSpan = normalizeSpan(props.field.options?.span)
+  if (configuredSpan) {
+    return configuredSpan
+  }
+  if (isLongFormField(props.field)) {
+    return 12
+  }
+  return normalizeSpan(props.defaultSpan) || 6
+})
+const wrapperStyle = computed<Record<string, string | number>>(() => ({
+  ...(props.field.options?.styles || {}),
+  '--form-field-span': String(fieldSpan.value),
+  '--form-field-mobile-span': String(Math.min(fieldSpan.value, 6)),
+}))
 const labelPosition = computed<FormRendererLabelPosition>(() => {
   const configuredPosition = props.field.options?.labelPosition
   if (configuredPosition === 'inner') {
@@ -130,11 +145,26 @@ const usesInlineLabel = computed(() => labelPosition.value === 'inline')
 function handleChange(value: unknown) {
   emit('change', { key: props.field.key, value })
 }
+
+function normalizeSpan(value: unknown) {
+  const span = Number(value)
+  if (!Number.isInteger(span) || span < 1 || span > 12) {
+    return undefined
+  }
+  return span
+}
+
+function isLongFormField(field: FormRendererField) {
+  return field.component === 'zg-textarea'
+    || field.component === 'zg-code-editor'
+    || field.type === 'textarea'
+    || field.type === 'code'
+}
 </script>
 
 <template>
   <div
-    v-if="!field.options?.hidden"
+    v-if="!isFormFieldHidden(field)"
     class="form-field-renderer"
     :class="field.options?.className"
     :style="wrapperStyle"
@@ -181,6 +211,7 @@ function handleChange(value: unknown) {
 
 <style scoped>
 .form-field-renderer {
+  grid-column: span var(--form-field-span, 6);
   min-width: 0;
 }
 
@@ -196,6 +227,11 @@ function handleChange(value: unknown) {
 .form-field-renderer__editor--left,
 .form-field-renderer__display--left {
   grid-template-columns: var(--form-field-label-width, 96px) minmax(0, 1fr);
+}
+
+.form-field-renderer__editor--left > .form-field-renderer__label,
+.form-field-renderer__display--left > .form-field-renderer__label {
+  text-align: right;
 }
 
 .form-field-renderer__editor--right,
@@ -289,6 +325,12 @@ function handleChange(value: unknown) {
   padding-top: var(--app-space-3);
 }
 
+@container application-form-layout (max-width: 680px) {
+  .form-field-renderer {
+    grid-column: span var(--form-field-mobile-span, 6);
+  }
+}
+
 @container application-form-layout (max-width: 520px) {
   .form-field-renderer__editor--left,
   .form-field-renderer__editor--right,
@@ -312,6 +354,11 @@ function handleChange(value: unknown) {
   .form-field-renderer__editor--right .form-field-renderer__control,
   .form-field-renderer__display--right .form-field-renderer__value {
     grid-row: 2;
+  }
+
+  .form-field-renderer__editor--left > .form-field-renderer__label,
+  .form-field-renderer__display--left > .form-field-renderer__label {
+    text-align: left;
   }
 }
 </style>

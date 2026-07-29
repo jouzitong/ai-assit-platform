@@ -200,6 +200,8 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - `form` 宿主通过独立查询参数 `formMode=view|edit|add` 控制查看、编辑和新增状态；默认是 `view`。`model` 继续保留给 `preview=1` 时的虚拟模型绑定，不得复用为表单状态。
 - `view` 必须将表单整体设为只读并隐藏提交类动作；`edit` 使用加载的数据作为初值；`add` 使用 `form_config.defaultValues`。提交类动作由 Renderer 输出完整表单值，再由 Runtime 根据 `form_config.submit.executor` 分发给已注册执行器。
 - 表单字段 label 默认使用 `left` 与控件同行；字段可通过 `options.labelPosition` 配置 `left`、`right`、`top`、`inline`，历史 `inner` 只作为 `inline` 兼容别名。同行 label 宽度统一由 `form_config.labelWidth` 控制。
+- 表单字段区使用 12 栅格；普通字段默认 `options.span = 6`，textarea/code 默认占 12，字段可显式配置 1-12。小容器降级为 6 栅格，字段实际 span 必须限制到最多 6，禁止宽字段溢出容器。
+- 表单字段使用顶层 `hide: true` 声明隐藏；隐藏字段不渲染、不占栅格、不参与必填校验，但必须保留在表单数据与提交值中。历史 `options.hidden` 仅作兼容别名。
 - Render JSON 可以在 `presentation` 中声明 `defaultMode`、`allowedModes`、`title`、`description`、`refreshInterval`、`responsivePreset`。显式路由 mode 优先，但必须通过 `allowedModes` 校验。
 - 内部容器继续使用 Layout Registry 的稳定 key，例如 `zg-stack-layout`、`zg-grid-layout`、`zg-split-layout`、`zg-section-layout`、`zg-sheet-layout`，禁止把这些 key 扩展成路由 mode。
 - 历史裸 renderer schema 可以在 Runtime Loader 中归一化为标准 `RenderDocument.root`，Renderer 和 Layout 不承担历史协议兼容。

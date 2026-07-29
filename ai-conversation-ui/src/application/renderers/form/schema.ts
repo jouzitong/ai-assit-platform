@@ -104,6 +104,10 @@ export function formatFieldValue(value: unknown) {
   return String(value)
 }
 
+export function isFormFieldHidden(field: FormRendererField) {
+  return field.hide === true || field.options?.hidden === true
+}
+
 function normalizeGroups(groups: NormalizedFormRendererGroup[] | FormRendererSchema['groups'], fields: FormRendererField[]) {
   if (!groups?.length) {
     return [

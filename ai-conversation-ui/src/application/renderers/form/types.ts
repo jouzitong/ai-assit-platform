@@ -3,6 +3,7 @@ import type { RendererAction } from '../../schema/action'
 export type FormRendererAction = RendererAction
 export type FormRendererMode = 'view' | 'edit' | 'add'
 export type FormRendererLabelPosition = 'top' | 'inline' | 'left' | 'right'
+export type FormRendererFieldSpan = 1 | 2 | 3 | 4 | 5 | 6 | 7 | 8 | 9 | 10 | 11 | 12
 
 export interface FormRendererSubmitConfig {
   /** 由页面 Runtime 注册并执行的稳定提交器 key。 */
@@ -28,6 +29,8 @@ export interface FormRendererFieldOptions {
   disabled?: boolean
   /** label 布局：默认 left；inner 仅作为历史 inline 别名兼容。 */
   labelPosition?: FormRendererLabelPosition | 'inner'
+  /** 12 栅格占位；普通字段默认 6，长文本和代码字段默认 12。 */
+  span?: FormRendererFieldSpan
   rows?: number
   placeholder?: string
   className?: string
@@ -40,6 +43,8 @@ export interface FormRendererField {
   name?: string
   label: string
   field?: string[]
+  /** 隐藏字段；隐藏后不渲染、不占栅格，但仍保留在表单数据中。 */
+  hide?: boolean
   component?: string
   type?: 'text' | 'textarea' | 'select' | 'date' | 'daterange' | 'time' | 'checkbox' | 'switch' | 'code' | 'display'
   list?: Array<{ key: string; value: string | number | boolean; disabled?: boolean }>

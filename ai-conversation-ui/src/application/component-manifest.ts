@@ -388,7 +388,7 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     tags: ['form', 'schema', 'renderer'],
     documentation: {
       summary: '通用表单渲染器根据 Schema 生成字段、分组和动作区，并通过 modelValue 提供可控的编辑数据入口。',
-      usageGuide: '在 schema.fields 中声明字段控件，在 schema.groups 中组织表单分区，通过 modelValue 传入初始值并监听 update:modelValue/change。字段 label 默认使用 left 与控件同行，可通过 field.options.labelPosition 配置 left、right、top、inline；form_config.labelWidth 控制同行 label 宽度。field 路径支持嵌套值读取和写回；formMode 支持 view、edit、add。schema.actions 的每一项使用 { key, name, action, options? }；保存动作通过 submit 事件交给 Runtime，并由 form_config.submit.executor 选择已注册提交器。',
+      usageGuide: '在 schema.fields 中声明字段控件，在 schema.groups 中组织表单分区，通过 modelValue 传入初始值并监听 update:modelValue/change。字段设置 hide: true 后不渲染、不占栅格，但对应数据仍会保留；历史 field.options.hidden 继续兼容。字段区使用 12 栅格，普通字段默认占 6，textarea/code 默认占 12，可通过 field.options.span 配置 1-12；小容器降级为 6 栅格并自动压缩超长 span。字段 label 默认使用 left 与控件同行，可通过 field.options.labelPosition 配置 left、right、top、inline；form_config.labelWidth 控制同行 label 宽度。field 路径支持嵌套值读取和写回；formMode 支持 view、edit、add。schema.actions 的每一项使用 { key, name, action, options? }；保存动作通过 submit 事件交给 Runtime，并由 form_config.submit.executor 选择已注册提交器。',
       limitations: '当前字段控件以已注册的 Application 输入组件为准；远程选项、权限和服务端校验仍由 Runtime 或页面服务负责，未注册的提交器不会执行。',
       notes: '示例覆盖文本、选择、长文本、开关、双分组和顶部动作，适合作为新增或编辑类页面的基础模板。',
     },

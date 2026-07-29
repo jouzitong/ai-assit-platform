@@ -234,6 +234,46 @@ Renderer Schema 是具体组件契约，不等同于 RenderDocument。以列表�
 }
 ```
 
+### 5.2 表单字段 12 栅格
+
+表单分组的字段区固定使用 12 栅格。普通字段默认 `span = 6`，因此一行两个；
+textarea 和 code 字段默认 `span = 12`。字段可通过 `options.span` 配置 1-12，
+例如 `span = 3` 时一行最多四个字段。
+
+```json
+{
+  "key": "status",
+  "label": "状态",
+  "component": "zg-selector",
+  "options": {
+    "span": 3
+  }
+}
+```
+
+当表单容器宽度不足时，字段区降级为 6 栅格：默认字段占 6，即一行一个；
+原 span 大于 6 的字段会自动压缩为 6，避免 `span = 12` 的长文本框溢出屏幕。
+历史 `group.columns` 仍作为该分组普通字段的默认跨度快捷配置：1、2、3、4、6、12
+列分别映射为 span 12、6、4、3、2、1；字段显式 `options.span` 优先，textarea/code
+的 12 栅格默认也优先于分组列数。
+
+### 5.3 表单字段隐藏
+
+字段可在顶层设置 `hide: true`。隐藏字段不会渲染、不占用栅格，也不参与必填校验；
+字段对应的数据仍保留在表单模型和提交值中。历史 `options.hidden` 继续兼容，新配置统一使用 `hide`。
+
+```json
+{
+  "key": "id",
+  "label": "ID",
+  "field": ["id"],
+  "hide": true,
+  "options": {
+    "readonly": true
+  }
+}
+```
+
 ## 6. Datasource 配置
 
 ### 6.1 direct-json
