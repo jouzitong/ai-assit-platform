@@ -156,7 +156,9 @@
       "key": "create",
       "name": "新建",
       "action": "CREATE",
-      "type": "primary"
+      "options": {
+        "type": "primary"
+      }
     }
   ],
   "summary": {
@@ -183,13 +185,17 @@
         "key": "view",
         "name": "查看",
         "action": "VIEW",
-        "type": "primary"
+        "options": {
+          "type": "primary"
+        }
       },
       {
         "key": "delete",
         "name": "删除",
         "action": "DELETE",
-        "type": "danger"
+        "options": {
+          "type": "danger"
+        }
       }
     ],
     "pagination": {

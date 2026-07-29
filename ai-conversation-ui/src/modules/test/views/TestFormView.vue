@@ -37,7 +37,7 @@ const baseSchema = {
       key: 'save',
       name: '保存',
       action: 'SAVE',
-      type: 'primary',
+      options: { type: 'primary' },
     },
   ],
   data: {

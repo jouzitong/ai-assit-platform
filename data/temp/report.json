@@ -31,22 +31,21 @@
   },
   "actions": [
     {
-      "id": "local-operations-report-refresh",
       "key": "refresh",
       "name": "刷新",
-      "icon": "refresh",
-      "type": "primary",
       "action": "RELOAD",
-      "targets": [
-        "*"
-      ]
+      "options": {
+        "type": "primary",
+        "icon": "refresh"
+      }
     },
     {
-      "id": "local-operations-report-print",
       "key": "print",
       "name": "打印",
-      "icon": "print",
-      "action": "PRINT"
+      "action": "PRINT",
+      "options": {
+        "icon": "print"
+      }
     }
   ],
   "filters": [

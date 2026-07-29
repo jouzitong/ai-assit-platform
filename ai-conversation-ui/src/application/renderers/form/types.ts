@@ -1,10 +1,6 @@
-export interface FormRendererAction {
-  key: string
-  name: string
-  action: string
-  type?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | ''
-  disabled?: boolean
-}
+import type { RendererAction } from '../../schema/action'
+
+export type FormRendererAction = RendererAction
 
 export interface FormRendererRelation {
   key: string

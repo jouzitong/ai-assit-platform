@@ -6,6 +6,8 @@ import {
   RADAR_CHART_RENDERER_CATALOG_ENTRY,
   type ApplicationRendererExposure,
 } from './registry/catalog'
+import type { FormRendererSchema } from './renderers/form/types'
+import type { ListRendererSchema } from './schema/list'
 
 export type ApplicationComponentControl = 'text' | 'number' | 'boolean' | 'json'
 export type ApplicationComponentParameterItemType = 'boolean' | 'number' | 'object' | 'string'
@@ -149,7 +151,7 @@ const listSchemaExample = {
     { key: 'status', name: 'status', label: '状态', field: ['status'] },
   ],
   actions: [
-    { key: 'create', name: '新建', action: 'CREATE', type: 'primary' },
+    { key: 'create', name: '新建', action: 'CREATE', options: { type: 'primary' } },
   ],
   summary: {
     cards: [
@@ -161,12 +163,12 @@ const listSchemaExample = {
     variant: 'workbench',
     itemType: 'table',
     actionColumns: [
-      { key: 'view', name: '查看', action: 'VIEW', type: 'primary' },
-      { key: 'delete', name: '删除', action: 'DELETE', type: 'danger' },
+      { key: 'view', name: '查看', action: 'VIEW', options: { type: 'primary' } },
+      { key: 'delete', name: '删除', action: 'DELETE', options: { type: 'danger' } },
     ],
     pagination: { enabled: true, pageSize: 10, pageSizeOptions: [10, 20, 50] },
   },
-}
+} satisfies ListRendererSchema
 
 const listRecordsExample = [
   { id: 'TASK-001', name: '核对组件资产文档', owner: '平台组', status: '进行中' },
@@ -250,7 +252,7 @@ const formSchemaExample = {
     },
   ],
   actions: [
-    { key: 'save', name: '保存', action: 'SAVE', type: 'primary' },
+    { key: 'save', name: '保存', action: 'SAVE', options: { type: 'primary' } },
     { key: 'reset', name: '重置', action: 'RESET' },
   ],
   form_config: {
@@ -260,7 +262,7 @@ const formSchemaExample = {
     description: '用于演示动态字段、分组和受控表单数据。',
   },
   data: {},
-}
+} satisfies FormRendererSchema
 
 const formModelValueExample = {
   name: '通用列表渲染器',
@@ -331,12 +333,12 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     tags: ['list', 'schema', 'renderer'],
     documentation: {
       summary: '通用列表渲染器将页面标题、动作、页签、左侧树、筛选器、摘要卡片、数据表格和分页统一收敛到声明式 Schema 中。',
-      usageGuide: '先在 schema 中声明字段、筛选项、动作和分页策略，再通过 records、treeData 与 total 传入受控数据。筛选、页签和分页变化通过 queryChange/reload 事件交给 Runtime 或页面服务重新取数。',
+      usageGuide: '先在 schema 中声明字段、筛选项、动作和分页策略，再通过 records、treeData 与 total 传入受控数据。actions 与 actionColumns 的每一项使用 { key, name, action, options? }；options 可省略，只承载 type、style、class、icon。type 支持 default、primary、success、warning、danger、info，icon 支持 download、fullscreen、operation、print、refresh。筛选、页签和分页变化通过 queryChange/reload 事件交给 Runtime 或页面服务重新取数。',
       limitations: 'Renderer 不直接请求后端，也不执行 CREATE、VIEW、DELETE 等业务动作；外部必须监听语义事件并负责权限、请求、跳转和错误处理。',
       notes: '示例同时覆盖树分组、页签、筛选、摘要、行内动作和分页，可直接作为列表类 Render JSON 的起始模板。',
     },
     parameters: [
-      { key: 'schema', label: '列表 Schema', type: 'ListRendererSchema', control: 'json', required: true, defaultValue: listSchemaExample, description: '定义列表结构、字段、筛选、动作和分页行为。' },
+      { key: 'schema', label: '列表 Schema', type: 'ListRendererSchema', control: 'json', required: true, defaultValue: listSchemaExample, description: '定义列表结构、字段、筛选、动作和分页行为；动作只使用 { key, name, action, options? }。' },
       { key: 'data', label: '列表数据入口', type: 'Partial<ListRendererData>', control: 'json', defaultValue: listDataExample, description: '推荐入口，统一提供 records、treeData 与 total。' },
       { key: 'state', label: '列表运行状态', type: 'ApplicationRendererState', control: 'json', defaultValue: listStateExample, description: '推荐入口，统一提供 loading、empty 与 error 等受控状态。' },
       { key: 'records', label: '列表数据（兼容）', type: 'Record<string, unknown>[]', control: 'json', defaultValue: listRecordsExample, description: '历史兼容入口；新配置优先使用 data.records。' },
@@ -375,12 +377,12 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     tags: ['form', 'schema', 'renderer'],
     documentation: {
       summary: '通用表单渲染器根据 Schema 生成字段、分组和动作区，并通过 modelValue 提供可控的编辑数据入口。',
-      usageGuide: '在 schema.fields 中声明字段控件，在 schema.groups 中组织表单分区，通过 modelValue 传入初始值并监听 update:modelValue/change。保存、重置等动作由 action 事件交给上层处理。',
+      usageGuide: '在 schema.fields 中声明字段控件，在 schema.groups 中组织表单分区，通过 modelValue 传入初始值并监听 update:modelValue/change。schema.actions 的每一项使用 { key, name, action, options? }；options 可省略，只承载 type、style、class、icon。type 支持 default、primary、success、warning、danger、info，icon 支持 download、fullscreen、operation、print、refresh。保存、重置等动作由 action 事件交给上层处理。',
       limitations: '当前字段控件以已注册的 Application 输入组件为准；Renderer 不负责远程选项加载、表单提交、权限判断和服务端校验。',
       notes: '示例覆盖文本、选择、长文本、开关、双分组和顶部动作，适合作为新增或编辑类页面的基础模板。',
     },
     parameters: [
-      { key: 'schema', label: '表单 Schema', type: 'FormRendererSchema', control: 'json', required: true, defaultValue: formSchemaExample, description: '定义字段、分组、动作、关系与表单布局。' },
+      { key: 'schema', label: '表单 Schema', type: 'FormRendererSchema', control: 'json', required: true, defaultValue: formSchemaExample, description: '定义字段、分组、动作、关系与表单布局；动作只使用 { key, name, action, options? }。' },
       { key: 'modelValue', label: '表单数据', type: 'Record<string, unknown>', control: 'json', defaultValue: formModelValueExample, description: '表单受控数据对象。' },
       { key: 'readonly', label: '只读模式', type: 'boolean', control: 'boolean', defaultValue: false, description: '开启后所有字段仅展示不可编辑。' },
     ],

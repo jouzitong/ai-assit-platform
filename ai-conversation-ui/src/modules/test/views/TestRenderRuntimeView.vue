@@ -225,7 +225,7 @@ const baseSchema: ListRendererSchema = {
       key: 'reload',
       name: '刷新',
       action: 'RELOAD',
-      type: 'primary',
+      options: { type: 'primary' },
     },
   ],
   list_config: {
@@ -236,7 +236,7 @@ const baseSchema: ListRendererSchema = {
         key: 'view',
         name: '查看',
         action: 'VIEW',
-        type: 'primary',
+        options: { type: 'primary' },
       },
     ],
     pagination: {
@@ -312,14 +312,13 @@ const developerActions = computed<NonNullable<ListRendererSchema['actions']>>(()
       key: '__metadata__',
       name: '元数据配置',
       action: 'METADATA',
-      type: 'info',
+      options: { type: 'info' },
     },
     {
       key: '__runtime_context__',
-      name: '',
+      name: 'SCOPE',
       action: 'DEBUG_CONTEXT',
-      icon: 'operation',
-      type: 'info',
+      options: { icon: 'operation', type: 'info' },
     },
   ]
 })

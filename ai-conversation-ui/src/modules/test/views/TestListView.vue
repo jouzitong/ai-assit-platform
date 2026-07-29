@@ -160,31 +160,28 @@ const baseSchema: ListRendererSchema = {
       key: 'edit-page',
       name: '编辑页',
       action: 'EDIT_PAGE',
-      type: '',
     },
     {
       key: 'create',
       name: '新增',
       action: 'ADD',
-      type: 'primary',
+      options: { type: 'primary' },
     },
     {
       key: 'sync',
       name: '同步',
       action: 'SYNC',
-      type: '',
     },
     {
       key: 'main',
       name: '主按钮',
       action: 'PRIMARY_ACTION',
-      type: 'success',
+      options: { type: 'success' },
     },
     {
       key: 'more',
       name: '更多操作',
       action: 'MORE',
-      type: '',
     },
   ],
   summary: {
@@ -205,7 +202,7 @@ const baseSchema: ListRendererSchema = {
         key: 'view',
         name: '查看',
         action: 'VIEW',
-        type: 'primary',
+        options: { type: 'primary' },
       },
     ],
     pagination: {
@@ -234,7 +231,7 @@ const schemaWithMetadataAction = computed<ListRendererSchema>(() => ({
       key: '__metadata__',
       name: '元数据',
       action: 'METADATA',
-      type: 'info',
+      options: { type: 'info' },
     },
   ],
 }))

@@ -9,7 +9,7 @@ import {
   type RenderRuntimeNodeScope,
 } from '../../../application/runtime'
 import { getDefaultFilterValue } from '../../../application/renderers/list/schema'
-import type { RendererAction } from '../../../application/renderers/list/types'
+import type { RendererAction } from '../../../application/schema'
 import { getDeveloperModeEnabled } from '../../../utils/developerMode'
 import RenderDeveloperTools from '../components/RenderDeveloperTools.vue'
 import RenderModeHost from '../components/RenderModeHost.vue'
@@ -66,15 +66,13 @@ const developerActions = computed<RendererAction[]>(() => developerModeEnabled.v
         key: RENDER_META_ACTION,
         name: '元数据配置',
         action: RENDER_META_ACTION,
-        type: 'warning',
+        options: { type: 'warning' },
       },
       {
         key: RENDER_SCOPE_ACTION,
-        name: '',
-        title: 'SCOPE 上下文',
+        name: 'SCOPE',
         action: RENDER_SCOPE_ACTION,
-        icon: 'operation',
-        type: 'info',
+        options: { icon: 'operation', type: 'info' },
       },
     ]
   : [])
@@ -379,6 +377,7 @@ function containsListRenderer(node: unknown): boolean {
     :refreshable="Boolean(renderDocument)"
     :last-refreshed-at="lastRefreshedAt"
     :responsive-preset="responsivePreset"
+    :actions="renderDocument?.actions"
     @refresh="refreshRuntime"
     @action="handlePageAction"
     @filters-change="handleGlobalFiltersChange"

@@ -214,7 +214,11 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 - `direct-json` 列表数据使用最简单的 `{ records, total, ... }` 结构；resolver 统一转成 renderer 的 `data`。
 - 关联查询使用 `ext.relations[{ key, model, type, on, filter }]`，不要在前端 schema 中再定义 `foreign_key/local_key` 这类平行结构。
 - filter 触发查询由 schema 声明：选择器、树选择、日期类 filter 默认 `change` 后触发 reload；输入类 filter 默认回车触发 reload。特殊场景可通过 `filter.query.submitOnChange`、`filter.query.submitOnEnter` 或 `filter.options.submitOnChange`、`filter.options.submitOnEnter` 覆盖。
-- `schema.actions[].action` 表达业务动作 key，`schema.actions[].type` 只表达按钮视觉类型。
+- Renderer/Page 动作统一使用 `{ key, name, action, options? }`。`options` 只承载可选展示配置：`type`、`style`、`class`、`icon`；例如 `{ "key": "refresh", "name": "刷新", "action": "RELOAD", "options": { "type": "primary", "icon": "refresh" } }`。
+- `action` 表达业务动作 key；按钮视觉类型必须写为 `options.type`。列表顶部动作、表单动作和 `list_config.actionColumns` 都使用同一契约。
+- `options.type` 支持 `default`、`primary`、`success`、`warning`、`danger`、`info`；`options.icon` 只解析已注册的 `download`、`fullscreen`、`operation`、`print`、`refresh`。`style` 与 `class` 会经过安全归一化，未知或不安全配置不透传。
+- Renderer/Page 动作不得使用旧的扁平 `type`、`icon`，也不得声明 `id`、`target`/`targets`、`title`、`disabled` 等字段；需要动态可用性时由 Runtime 或页面 action executor 决定。
+- Python Agent 执行计划中的 `RenderNode.actions` 使用独立的 Agent 契约，不属于 Renderer/Page 动作，不能按本契约迁移或解释。
 - 行内动作、顶部动作、表单动作统一通过事件抛出，由 Event Dispatcher 分发给通用 action executor 或页面私有 action executor，不在 renderer 内部直接执行。
 - 枚举、选择器、远程数据源等能力在协议未稳定前，只保留声明字段和 TODO，不提前写死单一实现。
 
@@ -222,7 +226,7 @@ Manifest 不应该定义真实 Vue component，也不应该替代 registry。需
 
 - renderer key 使用稳定短横线命名，并统一使用 `zg-` 前缀，例如 `zg-list-main-layout`、`zg-form-main-layout`、`zg-line-chart-renderer`。
 - renderer 内部 schema 类型使用业务语义命名，例如 `ListRendererSchema`、`FormRendererSchema`。
-- action key 使用业务语义，例如 `CREATE`、`SAVE`、`DELETE`；视觉样式使用 `type` 单独表达。
+- action key 使用业务语义，例如 `CREATE`、`SAVE`、`DELETE`；视觉样式统一放在 `options` 中表达，例如 `options.type`。
 - 字段 key、filter key、group key 保持可追踪，不使用临时序号或展示文案作为唯一标识。
 
 ## 11. 新增 Renderer / Layout 流程

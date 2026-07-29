@@ -1,14 +1,7 @@
 import type { DbQueryListDatasource, DbQueryOperation } from './db-query'
+import type { RendererAction } from './action'
 
-export interface RendererAction {
-  key: string
-  name: string
-  title?: string
-  action: string
-  type?: 'primary' | 'success' | 'warning' | 'danger' | 'info' | ''
-  icon?: 'operation' | string
-  disabled?: boolean
-}
+export type { RendererAction, RendererActionOptions, RendererActionType } from './action'
 
 export interface RendererTabItem {
   key: string

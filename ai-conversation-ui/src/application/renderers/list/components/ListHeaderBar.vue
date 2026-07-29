@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { Operation } from '@element-plus/icons-vue'
 import { computed } from 'vue'
+import { resolveRendererActionIcon } from '../../action'
 import type { ListRendererSchema, RendererAction } from '../types'
 
 const props = withDefaults(defineProps<{
@@ -24,13 +24,6 @@ const actions = computed(() => {
   ]
 })
 
-const toButtonType = (type?: RendererAction['type']) => type || 'default'
-const resolveActionIcon = (action: RendererAction) => {
-  if (action.icon === 'operation') {
-    return Operation
-  }
-  return undefined
-}
 </script>
 
 <template>
@@ -44,17 +37,15 @@ const resolveActionIcon = (action: RendererAction) => {
         <el-button
           v-for="action in actions"
           :key="action.key"
-          :type="toButtonType(action.type)"
-          :disabled="action.disabled"
-          :circle="Boolean(resolveActionIcon(action) && !action.name)"
-          :title="action.title || action.name"
-          :aria-label="action.title || action.name || action.key"
+          :type="action.options?.type"
+          :icon="resolveRendererActionIcon(action)"
+          :style="action.options?.style"
+          :class="action.options?.class"
+          :title="action.name"
+          :aria-label="action.name"
           @click="emit('action', action)"
         >
-          <el-icon v-if="resolveActionIcon(action)">
-            <component :is="resolveActionIcon(action)" />
-          </el-icon>
-          <span v-if="action.name">{{ action.name }}</span>
+          {{ action.name }}
         </el-button>
       </div>
     </div>

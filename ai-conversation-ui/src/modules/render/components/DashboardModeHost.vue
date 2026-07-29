@@ -21,7 +21,7 @@ const emit = defineEmits<{
 const hostRef = ref<HTMLElement | null>(null)
 const resolvedActions = computed(() => props.actions?.length
   ? props.actions
-  : [{ key: 'refresh', name: '刷新', action: 'RELOAD', icon: 'refresh' }])
+  : [{ key: 'refresh', name: '刷新', action: 'RELOAD', options: { icon: 'refresh' } }])
 
 async function openFullscreen() {
   if (document.fullscreenElement) {

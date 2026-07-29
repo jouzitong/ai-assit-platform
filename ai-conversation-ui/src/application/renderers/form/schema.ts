@@ -1,3 +1,4 @@
+import { normalizeRendererActions } from '../../schema/action'
 import type {
   FormRendererField,
   FormRendererSchema,
@@ -18,7 +19,7 @@ export function normalizeSchema(schema: FormRendererSchema): NormalizedFormRende
     component: schema.component || 'zg-common-form',
     fields,
     groups: normalizeGroups(schema.groups || [], fields),
-    actions: schema.actions || [],
+    actions: normalizeRendererActions(schema.actions),
     children: schema.children || [],
     form_relations: schema.form_relations || [],
     life_cycle: schema.life_cycle || {},

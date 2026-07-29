@@ -333,17 +333,28 @@ Agent 校验器还识别：
 
 ## 8. Actions 与 Events
 
-声明示例：
+Renderer/Page 动作声明示例：
 
 ```json
 {
   "actions": [
     {
       "key": "refresh",
-      "type": "refresh",
-      "action": "RELOAD"
+      "name": "刷新",
+      "action": "RELOAD",
+      "options": {
+        "type": "primary",
+        "icon": "refresh"
+      }
     }
-  ],
+  ]
+}
+```
+
+节点事件声明示例：
+
+```json
+{
   "events": [
     {
       "event": "queryChange",
@@ -356,8 +367,11 @@ Agent 校验器还识别：
 当前需要区分：
 
 - Renderer 自身通过 Vue emit 发出的 `query-change`、`reload`、`action` 已被节点监听。
-- JSON 中声明的通用 events/actions 尚未被正式 Runtime 完整解释执行。
-- `action` 是业务语义，按钮视觉类型应使用独立 `type` 字段。
+- JSON 中声明的通用节点 events/actions 尚未被正式 Runtime 完整解释执行；它们不是 Renderer/Page 按钮配置。
+- Renderer/Page 动作的唯一契约为 `{ key, name, action, options? }`。`options` 可包含 `type`、`style`、`class`、`icon`，其中按钮视觉类型使用 `options.type`。
+- `options.type` 支持 `default`、`primary`、`success`、`warning`、`danger`、`info`；当前内置 icon 为 `download`、`fullscreen`、`operation`、`print`、`refresh`。`style` 与 `class` 会经过安全归一化。
+- 此契约同时适用于页面 `actions`、列表/表单 schema 的 `actions` 和列表的 `list_config.actionColumns`。旧的扁平 `type`、`icon` 以及 `id`、`target`/`targets`、`title`、`disabled` 都不是 Renderer/Page 动作字段。
+- Python Agent 执行计划的 `RenderNode.actions` 是独立 Agent 契约；不要将其字段或校验规则与 Renderer/Page 动作混用。
 - 任意删除、写入、跳转等有副作用动作必须映射到受信任实现，不能执行 JSON 中的函数或 URL。
 
 ## 9. 版本兼容

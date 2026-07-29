@@ -17,8 +17,8 @@ const emit = defineEmits<{
 const resolvedActions = computed(() => props.actions?.length
   ? props.actions
   : [
-      { key: 'refresh', name: '刷新', action: 'RELOAD', icon: 'refresh' },
-      { key: 'print', name: '打印', action: 'PRINT', type: 'primary', icon: 'print' },
+      { key: 'refresh', name: '刷新', action: 'RELOAD', options: { icon: 'refresh' } },
+      { key: 'print', name: '打印', action: 'PRINT', options: { type: 'primary', icon: 'print' } },
     ])
 
 </script>

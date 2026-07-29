@@ -1,3 +1,4 @@
+import { normalizeRendererActions } from '../../../application/schema/action'
 import type { RendererAction, RendererFilter } from '../../../application/schema'
 
 export const RENDER_APP_MODES = [
@@ -99,7 +100,7 @@ export function normalizeRenderRuntimeDocument(
     ...(title ? { title } : {}),
     ...(hasPresentationValue(presentation) ? { presentation } : {}),
     ...(Array.isArray(content.actions)
-      ? { actions: content.actions.filter(isRecord) as RendererAction[] }
+      ? { actions: normalizeRendererActions(content.actions) }
       : {}),
     ...(Array.isArray(content.filters)
       ? { filters: content.filters.filter(isRecord) as RendererFilter[] }

@@ -1,3 +1,4 @@
+import { normalizeRendererActions } from '../../schema/action'
 import type {
   ListRendererSchema,
   RendererField,
@@ -14,7 +15,7 @@ export function normalizeSchema(schema: ListRendererSchema): ListRendererSchema 
     component: schema.component || 'zg-common-list',
     filters: schema.filters || [],
     fields: schema.fields || [],
-    actions: schema.actions || [],
+    actions: normalizeRendererActions(schema.actions),
     tab: {
       activeTab: schema.tab?.activeTab || schema.tab?.tabs?.[0]?.key || 'all',
       tabs: schema.tab?.tabs || [],
@@ -24,7 +25,7 @@ export function normalizeSchema(schema: ListRendererSchema): ListRendererSchema 
       itemType: normalizeItemType(schema.list_config?.itemType),
       cardItem: schema.list_config?.cardItem || {},
       item_operate: schema.list_config?.item_operate || {},
-      actionColumns: schema.list_config?.actionColumns || [],
+      actionColumns: normalizeRendererActions(schema.list_config?.actionColumns),
       pagination: {
         enabled: schema.list_config?.pagination?.enabled ?? true,
         pageSize: schema.list_config?.pagination?.pageSize || DEFAULT_PAGE_SIZE,

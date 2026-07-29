@@ -125,8 +125,10 @@
     {
       "key": "reload",
       "name": "刷新",
-      "type": "primary",
-      "action": "RELOAD"
+      "action": "RELOAD",
+      "options": {
+        "type": "primary"
+      }
     }
   ],
   "filters": [
@@ -226,8 +228,10 @@
       {
         "key": "view",
         "name": "查看",
-        "type": "primary",
-        "action": "VIEW"
+        "action": "VIEW",
+        "options": {
+          "type": "primary"
+        }
       }
     ]
   }

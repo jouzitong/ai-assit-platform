@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { resolveRendererActionIcon } from '../../action'
 import { getColumnMinWidth, getFieldValue } from '../schema'
 import type { ListRendererSchema, RendererAction } from '../types'
 
@@ -75,7 +76,10 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
             v-for="action in rowActions"
             :key="action.key"
             link
-            :type="action.type || 'primary'"
+            :type="action.options?.type || 'primary'"
+            :icon="resolveRendererActionIcon(action)"
+            :style="action.options?.style"
+            :class="action.options?.class"
             @click="handleItemAction(action, row)"
           >
             {{ action.name }}
@@ -114,7 +118,10 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
             v-for="action in rowActions"
             :key="action.key"
             link
-            :type="action.type || 'primary'"
+            :type="action.options?.type || 'primary'"
+            :icon="resolveRendererActionIcon(action)"
+            :style="action.options?.style"
+            :class="action.options?.class"
             @click="handleItemAction(action, row)"
           >
             {{ action.name }}

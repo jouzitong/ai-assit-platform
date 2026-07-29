@@ -1,11 +1,5 @@
 <script setup lang="ts">
-import {
-  Download,
-  FullScreen,
-  Operation,
-  Printer,
-  RefreshRight,
-} from '@element-plus/icons-vue'
+import { resolveRendererActionIcon } from '../../../application/renderers/action'
 import type { RendererAction } from '../../../application/schema'
 
 const props = withDefaults(defineProps<{
@@ -22,20 +16,6 @@ const emit = defineEmits<{
   action: [action: RendererAction]
 }>()
 
-const ACTION_ICONS = {
-  download: Download,
-  fullscreen: FullScreen,
-  operation: Operation,
-  print: Printer,
-  refresh: RefreshRight,
-} as const
-
-function resolveActionIcon(action: RendererAction) {
-  return action.icon && action.icon in ACTION_ICONS
-    ? ACTION_ICONS[action.icon as keyof typeof ACTION_ICONS]
-    : undefined
-}
-
 function isReloadAction(action: RendererAction) {
   return action.action === 'RELOAD'
 }
@@ -45,15 +25,16 @@ function isReloadAction(action: RendererAction) {
   <el-button
     v-for="action in props.actions"
     :key="action.key"
-    :type="action.type || undefined"
-    :icon="resolveActionIcon(action)"
+    :type="action.options?.type"
+    :icon="resolveRendererActionIcon(action)"
+    :style="action.options?.style"
+    :class="action.options?.class"
     :loading="isReloadAction(action) && loading"
-    :disabled="action.disabled || (isReloadAction(action) && !refreshable)"
-    :circle="Boolean(resolveActionIcon(action) && !action.name)"
-    :title="action.title || action.name"
-    :aria-label="action.title || action.name || action.key"
+    :disabled="isReloadAction(action) && !refreshable"
+    :title="action.name"
+    :aria-label="action.name"
     @click="emit('action', action)"
   >
-    <span v-if="action.name">{{ action.name }}</span>
+    {{ action.name }}
   </el-button>
 </template>

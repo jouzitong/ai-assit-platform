@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { resolveRendererActionIcon } from '../../action'
 import type { FormRendererAction } from '../types'
 
 defineProps<{
@@ -12,7 +13,6 @@ const emit = defineEmits<{
   action: [action: FormRendererAction]
 }>()
 
-const toButtonType = (type?: FormRendererAction['type']) => type || 'default'
 </script>
 
 <template>
@@ -31,8 +31,10 @@ const toButtonType = (type?: FormRendererAction['type']) => type || 'default'
         <el-button
           v-for="action in actions"
           :key="action.key"
-          :type="toButtonType(action.type)"
-          :disabled="action.disabled"
+          :type="action.options?.type"
+          :icon="resolveRendererActionIcon(action)"
+          :style="action.options?.style"
+          :class="action.options?.class"
           @click="emit('action', action)"
         >
           {{ action.name }}
