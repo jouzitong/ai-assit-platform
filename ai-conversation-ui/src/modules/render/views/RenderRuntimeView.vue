@@ -441,6 +441,8 @@ function containsListRenderer(node: unknown): boolean {
     :last-refreshed-at="lastRefreshedAt"
     :responsive-preset="responsivePreset"
     :actions="renderDocument?.actions"
+    :filters="documentFilters"
+    :filter-values="pendingGlobalFilterValues"
     @refresh="refreshRuntime"
     @action="handlePageAction"
     @filters-change="handleGlobalFiltersChange"

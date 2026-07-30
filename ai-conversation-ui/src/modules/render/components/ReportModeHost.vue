@@ -28,7 +28,6 @@ const resolvedActions = computed(() => props.actions?.length
     <header class="report-mode-host__header">
       <div>
         <h1>{{ title }}</h1>
-        <p v-if="description">{{ description }}</p>
       </div>
       <div class="report-mode-host__actions">
         <RenderActionBar
@@ -98,12 +97,6 @@ const resolvedActions = computed(() => props.actions?.length
   font-size: var(--app-font-size-title-lg);
 }
 
-.report-mode-host__header p {
-  margin: var(--app-space-2) 0 0;
-  color: var(--app-text-soft);
-  font-size: var(--app-font-size-body-lg);
-}
-
 .report-mode-host__actions {
   grid-area: actions;
   display: flex;
@@ -114,6 +107,7 @@ const resolvedActions = computed(() => props.actions?.length
 .report-mode-host__filters {
   grid-area: filters;
   min-width: 0;
+  container: application-list-layout / inline-size;
 }
 
 .report-mode-host__filters :deep(.list-filter-bar) {
@@ -137,8 +131,16 @@ const resolvedActions = computed(() => props.actions?.length
   }
 
   .report-mode-host__header {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas:
+      'heading'
+      'filters'
+      'actions';
     align-items: flex-start;
-    flex-direction: column;
+  }
+
+  .report-mode-host__actions {
+    width: 100%;
   }
 }
 
