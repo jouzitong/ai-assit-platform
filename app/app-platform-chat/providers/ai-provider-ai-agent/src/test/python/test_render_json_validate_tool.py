@@ -182,6 +182,103 @@ class RenderJsonValidateToolTest(unittest.TestCase):
         self.assertFalse(result["valid"])
         self.assertTrue(any("filter value is too complex" in item["message"] for item in result["errors"]))
 
+    def test_accepts_proof_bound_count_query(self) -> None:
+        document = {
+            "protocol": "render-json",
+            "protocolVersion": "1.0",
+            "pageId": "knowledge-summary",
+            "root": {
+                "id": "document-count",
+                "component": "line-chart-renderer",
+                "componentVersion": "1.0.0",
+                "props": {"categories": []},
+                "datasource": {
+                    "key": "knowledge-document-count",
+                    "type": "semantic-query",
+                    "queryType": "count",
+                    "model": "ai_kb_document",
+                    "fields": ["id", "status", "is_delete"],
+                    "measures": [
+                        {"field": "id", "aggregation": "count", "alias": "document_count"}
+                    ],
+                    "filters": [
+                        {"field": "status", "operator": "eq", "value": 1},
+                        {"field": "is_delete", "operator": "eq", "value": 0},
+                    ],
+                    "contractRef": "data-contract/ai-kb-document/v1",
+                    "previewProofRef": "data-preview/ai-kb-document-count/v1",
+                },
+            },
+        }
+
+        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+
+        self.assertTrue(result["valid"])
+
+    def test_accepts_proof_bound_aggregate_query(self) -> None:
+        document = {
+            "protocol": "render-json",
+            "protocolVersion": "1.0",
+            "pageId": "sales-summary",
+            "root": {
+                "id": "region-paid-amount",
+                "component": "line-chart-renderer",
+                "componentVersion": "1.0.0",
+                "props": {"categories": []},
+                "datasource": {
+                    "key": "sales-order-region-paid-amount",
+                    "type": "semantic-query",
+                    "queryType": "aggregate",
+                    "model": "sales_order",
+                    "fields": ["region_name", "paid_amount", "paid_at"],
+                    "dimensions": ["region_name"],
+                    "measures": [
+                        {"field": "paid_amount", "aggregation": "sum", "alias": "paid_amount_sum"}
+                    ],
+                    "timeRange": {"field": "paid_at", "preset": "LAST_6_MONTHS"},
+                    "sorts": [{"field": "paid_amount", "direction": "DESC"}],
+                    "limit": 20,
+                    "contractRef": "data-contract/sales-order/virtual-model-v12",
+                    "previewProofRef": "data-preview/sales-order-region-paid-amount/virtual-model-v12",
+                },
+            },
+        }
+
+        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+
+        self.assertTrue(result["valid"])
+
+    def test_rejects_invalid_count_query_shape(self) -> None:
+        document = {
+            "protocol": "render-json",
+            "protocolVersion": "1.0",
+            "pageId": "knowledge-summary",
+            "root": {
+                "id": "document-count",
+                "component": "line-chart-renderer",
+                "componentVersion": "1.0.0",
+                "props": {"categories": []},
+                "datasource": {
+                    "key": "knowledge-document-count",
+                    "type": "semantic-query",
+                    "queryType": "count",
+                    "model": "ai_kb_document",
+                    "fields": ["id", "owner"],
+                    "dimensions": ["owner"],
+                    "measures": [{"field": "id", "aggregation": "sum"}],
+                    "contractRef": "data-contract/ai-kb-document/v1",
+                    "previewProofRef": "data-preview/ai-kb-document-count/v1",
+                },
+            },
+        }
+
+        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+
+        self.assertFalse(result["valid"])
+        messages = {item["message"] for item in result["errors"]}
+        self.assertIn("count query must not declare dimensions", messages)
+        self.assertIn("count query requires exactly one measure using count aggregation", messages)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -149,6 +149,7 @@
         "queryType": {
           "enum": [
             "list",
+            "count",
             "aggregate",
             "pivot"
           ]
@@ -166,7 +167,144 @@
             "$ref": "#/$defs/stableKey"
           },
           "uniqueItems": true
+        },
+        "dimensions": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/stableKey"
+          },
+          "uniqueItems": true
+        },
+        "measures": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/measure"
+          }
+        },
+        "filters": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/filter"
+          }
+        },
+        "timeRange": {
+          "$ref": "#/$defs/timeRange"
+        },
+        "sorts": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/sort"
+          }
         }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "queryType": { "const": "count" } },
+            "required": ["queryType"]
+          },
+          "then": {
+            "properties": {
+              "dimensions": { "maxItems": 0 },
+              "measures": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "properties": { "aggregation": { "const": "count" } },
+                  "required": ["aggregation"]
+                }
+              }
+            },
+            "required": ["measures"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "queryType": { "const": "aggregate" } },
+            "required": ["queryType"]
+          },
+          "then": {
+            "properties": { "measures": { "minItems": 1 } },
+            "required": ["measures"]
+          }
+        }
+      ]
+    },
+    "measure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "aggregation"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "aggregation": { "enum": ["count", "sum", "min", "max", "avg"] },
+        "label": { "type": "string" },
+        "alias": { "$ref": "#/$defs/stableKey" }
+      }
+    },
+    "filter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "operator"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "operator": { "enum": ["eq", "ne", "gt", "gte", "lt", "lte", "in", "not_in", "is_null", "is_not_null", "like", "starts_with", "ends_with"] },
+        "value": true,
+        "values": { "type": "array" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "operator": { "enum": ["in", "not_in"] } },
+            "required": ["operator"]
+          },
+          "then": {
+            "required": ["values"],
+            "not": { "required": ["value"] }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operator": { "enum": ["is_null", "is_not_null"] } },
+            "required": ["operator"]
+          },
+          "then": {
+            "not": { "anyOf": [{ "required": ["value"] }, { "required": ["values"] }] }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operator": {
+                "not": { "enum": ["in", "not_in", "is_null", "is_not_null"] }
+              }
+            },
+            "required": ["operator"]
+          },
+          "then": {
+            "required": ["value"],
+            "not": { "required": ["values"] }
+          }
+        }
+      ]
+    },
+    "timeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "preset": { "type": "string" },
+        "start": { "type": "string" },
+        "end": { "type": "string" }
+      }
+    },
+    "sort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "direction": { "enum": ["ASC", "DESC", "asc", "desc"] }
       }
     },
     "component": {

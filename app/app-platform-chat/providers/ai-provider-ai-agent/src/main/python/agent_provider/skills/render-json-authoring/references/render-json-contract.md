@@ -53,41 +53,35 @@ Use only:
 
 Declare a datasource at node level. The runtime merges it into list/form schema when needed.
 
-### Inline list data
+### Database list query (canonical for examples)
 
 ```json
 {
-  "key": "task-data",
-  "type": "direct-json",
-  "data": {
-    "records": [
-      { "id": "TASK-001", "name": "核对 Render JSON" }
-    ],
-    "total": 1
-  }
-}
-```
-
-### Database list query
-
-```json
-{
-  "key": "task-query",
+  "key": "knowledge-document-query",
   "type": "db-query-list",
-  "model": "task",
-  "filter_dict": { "status": 1 },
-  "filterExpr": "status",
+  "model": "ai_kb_document",
+  "filter_dict": { "status": 1, "is_delete": 0 },
+  "filterExpr": "status and is_delete",
   "page": 1,
   "page_size": 10,
   "ext": {
-    "fields": ["id", "name", "owner"],
+    "fields": ["id", "title", "owner", "deadline", "priority", "tag.title"],
+    "relations": [
+      {
+        "key": "tag",
+        "model": "ai_kb_document_tag",
+        "type": "left",
+        "on": { "id": "document_id" },
+        "filter": { "status": 1, "is_delete": 0 }
+      }
+    ],
     "sorts": [{ "field": "id", "order": "desc" }]
   }
 }
 ```
 
-- Use semantic model and field identifiers already accepted by preview.
-- Use `direct-json` for prepared JSON and `db-query-list` for the current list resolver.
+- Use the concrete model/table and fields already accepted by preview; do not replace them with placeholders such as `task` or `items`.
+- Every list test/template in this skill uses `db-query-list`; do not use `local` or `direct-json` as a shortcut.
 - Use `semantic-query`, `preview-result`, or `static` only when the current tool contract explicitly authorizes them.
 - Never include endpoints, headers, tokens, credentials, physical SQL, or arbitrary URLs.
 

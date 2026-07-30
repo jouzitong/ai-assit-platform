@@ -30,13 +30,20 @@ ALLOWED_DATASOURCE_TYPES = {
 }
 ALLOWED_DATASOURCE_KEYS = {
     "key", "type", "model", "page", "page_size", "filter_dict", "filterExpr", "ext",
-    "fields", "contractRef", "previewProofRef", "summary", "data",
+    "fields", "queryType", "dimensions", "measures", "filters", "timeRange", "sorts", "limit",
+    "contractRef", "previewProofRef", "summary", "data",
 }
 ALLOWED_BINDING_KEYS = {"source", "transform", "fallback"}
 ALLOWED_EVENT_KEYS = {"event", "name", "type", "actionRef", "action"}
 ALLOWED_ACTION_KEYS = {"key", "type", "action", "target", "params"}
 ALLOWED_TRANSFORMS = {
     "identity", "number", "percent", "currency", "date", "datetime", "category-series",
+}
+ALLOWED_QUERY_TYPES = {"list", "count", "aggregate"}
+ALLOWED_AGGREGATIONS = {"count", "sum", "min", "max", "avg"}
+ALLOWED_QUERY_FILTER_OPERATORS = {
+    "eq", "ne", "gt", "gte", "lt", "lte", "in", "not_in", "is_null", "is_not_null",
+    "like", "starts_with", "ends_with",
 }
 _STABLE_KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]{0,127}$")
 _SEMANTIC_PATH_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*(?:\[\d+\])?$")
@@ -442,6 +449,24 @@ def _validate_datasource(
     key = datasource.get("key")
     if not isinstance(key, str) or not _STABLE_KEY_PATTERN.fullmatch(key.strip()):
         state.error("SCHEMA_INVALID", "datasource.key is required", f"{path}.key", node_id)
+    query_type = datasource.get("queryType")
+    if query_type is not None:
+        if not isinstance(query_type, str) or query_type not in ALLOWED_QUERY_TYPES:
+            state.error(
+                "SCHEMA_INVALID",
+                f"Unsupported datasource.queryType: {query_type}",
+                f"{path}.queryType",
+                node_id,
+            )
+        elif datasource_type != "semantic-query":
+            state.error(
+                "SCHEMA_INVALID",
+                "datasource.queryType is only supported by semantic-query",
+                f"{path}.queryType",
+                node_id,
+            )
+        else:
+            _validate_semantic_query_shape(datasource, query_type, path, node_id, state)
     if datasource_type in {"db-query-list", "semantic-query"}:
         model = datasource.get("model")
         if not isinstance(model, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,127}", model.strip()):
@@ -475,9 +500,14 @@ def _validate_datasource(
         if not isinstance(fields, list) or len(fields) > 100:
             state.error("SCHEMA_INVALID", "datasource.fields must be an array of at most 100 items", f"{path}.fields", node_id)
         else:
+            seen_fields: set[str] = set()
             for index, field in enumerate(fields):
                 if not isinstance(field, str) or not re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,127}", field.strip()):
                     state.error("SCHEMA_INVALID", "datasource field must be a stable semantic identifier", f"{path}.fields[{index}]", node_id)
+                elif field in seen_fields:
+                    state.error("SCHEMA_INVALID", "datasource.fields must not contain duplicates", f"{path}.fields[{index}]", node_id)
+                else:
+                    seen_fields.add(field)
     for text_key in ("contractRef", "previewProofRef"):
         if text_key in datasource and not isinstance(datasource[text_key], str):
             state.error("SCHEMA_INVALID", f"datasource.{text_key} must be text", f"{path}.{text_key}", node_id)
@@ -491,6 +521,237 @@ def _validate_datasource(
         state.error("SCHEMA_INVALID", "datasource.filter_dict must be an object", f"{path}.filter_dict", node_id)
     if "filterExpr" in datasource and not isinstance(datasource.get("filterExpr"), str):
         state.error("SCHEMA_INVALID", "datasource.filterExpr must be text", f"{path}.filterExpr", node_id)
+
+
+def _validate_semantic_query_shape(
+    datasource: dict[str, Any],
+    query_type: str,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> None:
+    """Validate the proof-bound query declaration used by count and aggregates."""
+
+    fields = datasource.get("fields")
+    if not isinstance(fields, list) or not fields:
+        state.error("SCHEMA_INVALID", "semantic query requires at least one concrete field", f"{path}.fields", node_id)
+    dimensions = _validate_query_dimensions(datasource.get("dimensions"), f"{path}.dimensions", node_id, state)
+    measures = _validate_query_measures(datasource.get("measures"), f"{path}.measures", node_id, state)
+    _validate_query_filters(datasource.get("filters"), f"{path}.filters", node_id, state)
+    _validate_time_range(datasource.get("timeRange"), f"{path}.timeRange", node_id, state)
+    _validate_query_sorts(datasource.get("sorts"), f"{path}.sorts", node_id, state)
+
+    limit = datasource.get("limit")
+    if limit is not None and (
+        isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 100
+    ):
+        state.error("SCHEMA_INVALID", "datasource.limit must be between 1 and 100", f"{path}.limit", node_id)
+    if "filter_dict" in datasource and "filters" in datasource:
+        state.error(
+            "SCHEMA_INVALID",
+            "semantic query must use filters instead of combining filters with filter_dict",
+            path,
+            node_id,
+        )
+
+    concrete_fields = {
+        field.strip()
+        for field in fields
+        if isinstance(field, str) and re.fullmatch(r"[A-Za-z][A-Za-z0-9_.-]{0,127}", field.strip())
+    } if isinstance(fields, list) else set()
+    for index, dimension in enumerate(dimensions):
+        if dimension not in concrete_fields:
+            state.error(
+                "SCHEMA_INVALID",
+                "datasource.dimensions field must also be declared in datasource.fields",
+                f"{path}.dimensions[{index}]",
+                node_id,
+            )
+    for index, measure in enumerate(measures):
+        field = measure.get("field")
+        if isinstance(field, str) and field not in concrete_fields:
+            state.error(
+                "SCHEMA_INVALID",
+                "datasource.measures field must also be declared in datasource.fields",
+                f"{path}.measures[{index}].field",
+                node_id,
+            )
+
+    if query_type == "list":
+        if dimensions:
+            state.error("SCHEMA_INVALID", "list query must not declare dimensions", f"{path}.dimensions", node_id)
+        if measures:
+            state.error("SCHEMA_INVALID", "list query must not declare measures", f"{path}.measures", node_id)
+    elif query_type == "count":
+        if dimensions:
+            state.error("SCHEMA_INVALID", "count query must not declare dimensions", f"{path}.dimensions", node_id)
+        if len(measures) != 1 or any(measure.get("aggregation") != "count" for measure in measures):
+            state.error(
+                "SCHEMA_INVALID",
+                "count query requires exactly one measure using count aggregation",
+                f"{path}.measures",
+                node_id,
+            )
+    elif query_type == "aggregate" and not measures:
+        state.error("SCHEMA_INVALID", "aggregate query requires at least one measure", f"{path}.measures", node_id)
+
+
+def _validate_query_dimensions(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> list[str]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > 50:
+        state.error("SCHEMA_INVALID", "datasource.dimensions must be an array of at most 50 fields", path, node_id)
+        return []
+    dimensions: list[str] = []
+    seen: set[str] = set()
+    for index, field in enumerate(value):
+        if not isinstance(field, str) or not _STABLE_KEY_PATTERN.fullmatch(field.strip()):
+            state.error("SCHEMA_INVALID", "dimension must be a stable semantic identifier", f"{path}[{index}]", node_id)
+        elif field in seen:
+            state.error("SCHEMA_INVALID", "datasource.dimensions must not contain duplicates", f"{path}[{index}]", node_id)
+        else:
+            seen.add(field)
+            dimensions.append(field)
+    return dimensions
+
+
+def _validate_query_measures(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> list[dict[str, Any]]:
+    if value is None:
+        return []
+    if not isinstance(value, list) or len(value) > 50:
+        state.error("SCHEMA_INVALID", "datasource.measures must be an array of at most 50 measures", path, node_id)
+        return []
+    measures: list[dict[str, Any]] = []
+    aliases: set[str] = set()
+    for index, measure in enumerate(value):
+        measure_path = f"{path}[{index}]"
+        if not isinstance(measure, dict):
+            state.error("SCHEMA_INVALID", "measure must be an object", measure_path, node_id)
+            continue
+        for key in sorted(set(measure) - {"field", "aggregation", "label", "alias"}):
+            state.error("SCHEMA_INVALID", f"Unknown measure field: {key}", f"{measure_path}.{key}", node_id)
+        field = measure.get("field")
+        if not isinstance(field, str) or not _STABLE_KEY_PATTERN.fullmatch(field.strip()):
+            state.error("SCHEMA_INVALID", "measure.field must be a stable semantic identifier", f"{measure_path}.field", node_id)
+        aggregation = measure.get("aggregation")
+        if aggregation not in ALLOWED_AGGREGATIONS:
+            state.error("SCHEMA_INVALID", f"Unsupported measure aggregation: {aggregation}", f"{measure_path}.aggregation", node_id)
+        label = measure.get("label")
+        if label is not None and (not isinstance(label, str) or not label.strip()):
+            state.error("SCHEMA_INVALID", "measure.label must be non-empty text", f"{measure_path}.label", node_id)
+        alias = measure.get("alias")
+        if alias is not None and (not isinstance(alias, str) or not _STABLE_KEY_PATTERN.fullmatch(alias.strip())):
+            state.error("SCHEMA_INVALID", "measure.alias must be a stable identifier", f"{measure_path}.alias", node_id)
+        elif isinstance(alias, str):
+            if alias in aliases:
+                state.error("SCHEMA_INVALID", "datasource.measures must not reuse aliases", f"{measure_path}.alias", node_id)
+            aliases.add(alias)
+        measures.append(measure)
+    return measures
+
+
+def _validate_query_filters(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> None:
+    if value is None:
+        return
+    if not isinstance(value, list) or len(value) > 50:
+        state.error("SCHEMA_INVALID", "datasource.filters must be an array of at most 50 filters", path, node_id)
+        return
+    for index, query_filter in enumerate(value):
+        filter_path = f"{path}[{index}]"
+        if not isinstance(query_filter, dict):
+            state.error("SCHEMA_INVALID", "query filter must be an object", filter_path, node_id)
+            continue
+        for key in sorted(set(query_filter) - {"field", "operator", "value", "values"}):
+            state.error("SCHEMA_INVALID", f"Unknown query filter field: {key}", f"{filter_path}.{key}", node_id)
+        field = query_filter.get("field")
+        if not isinstance(field, str) or not _STABLE_KEY_PATTERN.fullmatch(field.strip()):
+            state.error("SCHEMA_INVALID", "query filter field must be a stable semantic identifier", f"{filter_path}.field", node_id)
+        operator = query_filter.get("operator")
+        if operator not in ALLOWED_QUERY_FILTER_OPERATORS:
+            state.error("SCHEMA_INVALID", f"Unsupported query filter operator: {operator}", f"{filter_path}.operator", node_id)
+            continue
+        has_value = "value" in query_filter
+        has_values = "values" in query_filter
+        if operator in {"in", "not_in"}:
+            if has_value or not has_values or not isinstance(query_filter.get("values"), list) or not query_filter["values"]:
+                state.error("SCHEMA_INVALID", f"{operator} filter requires a non-empty values array only", filter_path, node_id)
+            elif not _bounded_json_value(query_filter["values"]):
+                state.error("SCHEMA_INVALID", "query filter values are too complex", f"{filter_path}.values", node_id)
+        elif operator in {"is_null", "is_not_null"}:
+            if has_value or has_values:
+                state.error("SCHEMA_INVALID", f"{operator} filter must not declare value or values", filter_path, node_id)
+        elif not has_value or has_values:
+            state.error("SCHEMA_INVALID", f"{operator} filter requires value and must not declare values", filter_path, node_id)
+        elif not _bounded_json_value(query_filter.get("value")):
+            state.error("SCHEMA_INVALID", "query filter value is too complex", f"{filter_path}.value", node_id)
+
+
+def _validate_time_range(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> None:
+    if value is None:
+        return
+    if not isinstance(value, dict):
+        state.error("SCHEMA_INVALID", "datasource.timeRange must be an object", path, node_id)
+        return
+    for key in sorted(set(value) - {"field", "preset", "start", "end"}):
+        state.error("SCHEMA_INVALID", f"Unknown timeRange field: {key}", f"{path}.{key}", node_id)
+    field = value.get("field")
+    if not isinstance(field, str) or not _STABLE_KEY_PATTERN.fullmatch(field.strip()):
+        state.error("SCHEMA_INVALID", "timeRange.field must be a stable semantic identifier", f"{path}.field", node_id)
+    preset = value.get("preset")
+    start = value.get("start")
+    end = value.get("end")
+    has_preset = isinstance(preset, str) and bool(preset.strip())
+    has_bounds = isinstance(start, str) and bool(start.strip()) and isinstance(end, str) and bool(end.strip())
+    if has_preset == has_bounds:
+        state.error("SCHEMA_INVALID", "timeRange requires exactly one of preset or start/end", path, node_id)
+    elif (preset is not None and not has_preset) or ((start is not None or end is not None) and not has_bounds):
+        state.error("SCHEMA_INVALID", "timeRange preset and bounds must be non-empty text", path, node_id)
+
+
+def _validate_query_sorts(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> None:
+    if value is None:
+        return
+    if not isinstance(value, list) or len(value) > 50:
+        state.error("SCHEMA_INVALID", "datasource.sorts must be an array of at most 50 sorts", path, node_id)
+        return
+    for index, sort in enumerate(value):
+        sort_path = f"{path}[{index}]"
+        if not isinstance(sort, dict):
+            state.error("SCHEMA_INVALID", "sort must be an object", sort_path, node_id)
+            continue
+        for key in sorted(set(sort) - {"field", "direction"}):
+            state.error("SCHEMA_INVALID", f"Unknown sort field: {key}", f"{sort_path}.{key}", node_id)
+        field = sort.get("field")
+        if not isinstance(field, str) or not _STABLE_KEY_PATTERN.fullmatch(field.strip()):
+            state.error("SCHEMA_INVALID", "sort.field must be a stable semantic identifier", f"{sort_path}.field", node_id)
+        direction = sort.get("direction")
+        if direction is not None and direction not in {"asc", "desc", "ASC", "DESC"}:
+            state.error("SCHEMA_INVALID", "sort.direction must be ASC or DESC", f"{sort_path}.direction", node_id)
 
 
 def _validate_bindings(

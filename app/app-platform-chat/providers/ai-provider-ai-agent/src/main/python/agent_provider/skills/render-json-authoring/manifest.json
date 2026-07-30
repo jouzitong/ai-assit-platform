@@ -1,6 +1,6 @@
 {
   "code": "render-json-authoring",
-  "version": 2,
+  "version": 6,
   "name": "Render JSON Authoring",
   "description": "Create catalog-bound Render JSON with component guidance, reusable node templates, a complete document template, and deterministic validation.",
   "files": [
@@ -25,11 +25,19 @@
       "mediaType": "application/json"
     },
     {
+      "path": "assets/query-patterns.json",
+      "mediaType": "application/json"
+    },
+    {
       "path": "references/layout-and-static-nodes.md",
       "mediaType": "text/markdown"
     },
     {
       "path": "references/render-json-contract.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "references/query-types.md",
       "mediaType": "text/markdown"
     },
     {

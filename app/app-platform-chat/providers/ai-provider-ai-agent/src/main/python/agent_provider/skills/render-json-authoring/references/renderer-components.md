@@ -38,7 +38,7 @@ Schema notes:
 - Define fields as `{ key, name, label, field?, options? }`; `field` is a nested path array.
 - Define renderer buttons as `{ key, name, action, options? }`.
 - Configure pagination in `schema.list_config.pagination`.
-- Put `direct-json` or `db-query-list` in node `datasource`; the runtime merges it into schema.
+- Put a concrete `db-query-list` in node `datasource`; the runtime merges it into schema. Examples must include model, fields, filters, relations, and sort rules from preview.
 
 Reference node:
 
@@ -55,18 +55,18 @@ Reference node:
       "component": "zg-common-list",
       "filters": [
         {
-          "key": "keyword",
-          "label": "任务名称",
-          "component": "zg-input",
-          "options": {
-            "placeholder": "输入名称后回车搜索",
-            "query": { "field": "name", "op": "like", "submitOnEnter": true }
-          }
+            "key": "title",
+            "label": "任务标题",
+            "component": "zg-input",
+            "options": {
+              "placeholder": "输入名称后回车搜索",
+              "query": { "field": "title", "op": "like", "submitOnEnter": true }
+            }
         }
       ],
       "fields": [
         { "key": "id", "name": "id", "label": "编号", "field": ["id"] },
-        { "key": "name", "name": "name", "label": "任务名称", "field": ["name"] },
+        { "key": "title", "name": "title", "label": "任务标题", "field": ["title"] },
         { "key": "owner", "name": "owner", "label": "负责人", "field": ["owner"] }
       ],
       "actions": [
@@ -79,11 +79,25 @@ Reference node:
     }
   },
   "datasource": {
-    "key": "task-data",
-    "type": "direct-json",
-    "data": {
-      "records": [{ "id": "TASK-001", "name": "核对 Render JSON", "owner": "平台组" }],
-      "total": 1
+    "key": "knowledge-document-query",
+    "type": "db-query-list",
+    "model": "ai_kb_document",
+    "filter_dict": { "status": 1, "is_delete": 0 },
+    "filterExpr": "status and is_delete",
+    "page": 1,
+    "page_size": 10,
+    "ext": {
+      "fields": ["id", "title", "owner", "deadline", "priority", "tag.title"],
+      "relations": [
+        {
+          "key": "tag",
+          "model": "ai_kb_document_tag",
+          "type": "left",
+          "on": { "id": "document_id" },
+          "filter": { "status": 1, "is_delete": 0 }
+        }
+      ],
+      "sorts": [{ "field": "id", "order": "desc" }]
     }
   },
   "layout": { "minHeight": "520px" }

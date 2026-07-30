@@ -16,7 +16,7 @@
           "filters": [],
           "fields": [
             { "key": "id", "name": "id", "label": "编号", "field": ["id"] },
-            { "key": "name", "name": "name", "label": "名称", "field": ["name"] }
+            { "key": "title", "name": "title", "label": "标题", "field": ["title"] }
           ],
           "actions": [],
           "list_config": {
@@ -26,9 +26,26 @@
         }
       },
       "datasource": {
-        "key": "list-data",
-        "type": "direct-json",
-        "data": { "records": [{ "id": "ITEM-001", "name": "示例数据" }], "total": 1 }
+        "key": "knowledge-document-query",
+        "type": "db-query-list",
+        "model": "ai_kb_document",
+        "filter_dict": { "status": 1, "is_delete": 0 },
+        "filterExpr": "status and is_delete",
+        "page": 1,
+        "page_size": 10,
+        "ext": {
+          "fields": ["id", "title", "owner", "deadline", "priority", "tag.title"],
+          "relations": [
+            {
+              "key": "tag",
+              "model": "ai_kb_document_tag",
+              "type": "left",
+              "on": { "id": "document_id" },
+              "filter": { "status": 1, "is_delete": 0 }
+            }
+          ],
+          "sorts": [{ "field": "id", "order": "desc" }]
+        }
       },
       "layout": { "minHeight": "480px" }
     },

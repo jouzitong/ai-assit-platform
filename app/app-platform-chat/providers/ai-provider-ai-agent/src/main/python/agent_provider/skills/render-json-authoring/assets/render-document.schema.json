@@ -117,6 +117,9 @@
         "model": {
           "$ref": "#/$defs/stableKey"
         },
+        "queryType": {
+          "enum": ["list", "count", "aggregate"]
+        },
         "page": {
           "type": "integer",
           "minimum": 1
@@ -143,6 +146,31 @@
           },
           "uniqueItems": true
         },
+        "dimensions": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/stableKey" },
+          "uniqueItems": true
+        },
+        "measures": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/measure" }
+        },
+        "filters": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/queryFilter" }
+        },
+        "timeRange": {
+          "$ref": "#/$defs/timeRange"
+        },
+        "sorts": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/querySort" }
+        },
+        "limit": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        },
         "contractRef": {
           "type": "string",
           "minLength": 1
@@ -155,6 +183,135 @@
           "type": "object"
         },
         "data": true
+      },
+      "allOf": [
+        {
+          "if": { "required": ["queryType"] },
+          "then": { "properties": { "type": { "const": "semantic-query" } } }
+        },
+        {
+          "if": {
+            "properties": { "queryType": { "const": "list" } },
+            "required": ["queryType"]
+          },
+          "then": {
+            "properties": { "fields": { "minItems": 1 } },
+            "required": ["fields"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "queryType": { "const": "count" } },
+            "required": ["queryType"]
+          },
+          "then": {
+            "properties": {
+              "type": { "const": "semantic-query" },
+              "fields": { "minItems": 1 },
+              "dimensions": { "maxItems": 0 },
+              "measures": {
+                "minItems": 1,
+                "maxItems": 1,
+                "items": {
+                  "properties": { "aggregation": { "const": "count" } },
+                  "required": ["aggregation"]
+                }
+              }
+            },
+            "required": ["type", "model", "fields", "contractRef", "previewProofRef", "measures"]
+          }
+        },
+        {
+          "if": {
+            "properties": { "queryType": { "const": "aggregate" } },
+            "required": ["queryType"]
+          },
+          "then": {
+            "properties": {
+              "type": { "const": "semantic-query" },
+              "fields": { "minItems": 1 },
+              "measures": { "minItems": 1 }
+            },
+            "required": ["type", "model", "fields", "contractRef", "previewProofRef", "measures"]
+          }
+        }
+      ]
+    },
+    "measure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "aggregation"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "aggregation": { "enum": ["count", "sum", "min", "max", "avg"] },
+        "label": { "type": "string" },
+        "alias": { "$ref": "#/$defs/stableKey" }
+      }
+    },
+    "queryFilter": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field", "operator"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "operator": { "enum": ["eq", "ne", "gt", "gte", "lt", "lte", "in", "not_in", "is_null", "is_not_null", "like", "starts_with", "ends_with"] },
+        "value": true,
+        "values": { "type": "array" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "operator": { "enum": ["in", "not_in"] } },
+            "required": ["operator"]
+          },
+          "then": {
+            "required": ["values"],
+            "not": { "required": ["value"] }
+          }
+        },
+        {
+          "if": {
+            "properties": { "operator": { "enum": ["is_null", "is_not_null"] } },
+            "required": ["operator"]
+          },
+          "then": {
+            "not": { "anyOf": [{ "required": ["value"] }, { "required": ["values"] }] }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "operator": {
+                "not": { "enum": ["in", "not_in", "is_null", "is_not_null"] }
+              }
+            },
+            "required": ["operator"]
+          },
+          "then": {
+            "required": ["value"],
+            "not": { "required": ["values"] }
+          }
+        }
+      ]
+    },
+    "timeRange": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "preset": { "type": "string" },
+        "start": { "type": "string" },
+        "end": { "type": "string" }
+      }
+    },
+    "querySort": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["field"],
+      "properties": {
+        "field": { "$ref": "#/$defs/stableKey" },
+        "direction": { "enum": ["ASC", "DESC", "asc", "desc"] }
       }
     },
     "binding": {
