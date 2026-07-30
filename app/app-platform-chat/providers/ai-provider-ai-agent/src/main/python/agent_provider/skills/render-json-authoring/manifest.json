@@ -1,8 +1,8 @@
 {
   "code": "render-json-authoring",
-  "version": 1,
+  "version": 2,
   "name": "Render JSON Authoring",
-  "description": "Plan a data application and author catalog-bound Render JSON after semantic preview succeeds.",
+  "description": "Create catalog-bound Render JSON with component guidance, reusable node templates, a complete document template, and deterministic validation.",
   "files": [
     {
       "path": "SKILL.md",
@@ -13,8 +13,28 @@
       "mediaType": "application/schema+json"
     },
     {
+      "path": "assets/component-node-templates.json",
+      "mediaType": "application/json"
+    },
+    {
       "path": "assets/render-document.schema.json",
       "mediaType": "application/schema+json"
+    },
+    {
+      "path": "assets/render-document.template.json",
+      "mediaType": "application/json"
+    },
+    {
+      "path": "references/layout-and-static-nodes.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "references/render-json-contract.md",
+      "mediaType": "text/markdown"
+    },
+    {
+      "path": "references/renderer-components.md",
+      "mediaType": "text/markdown"
     }
   ]
 }

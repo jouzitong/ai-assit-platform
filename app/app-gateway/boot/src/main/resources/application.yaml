@@ -18,6 +18,8 @@ spring:
             uri: lb://user
             predicates:
               - Path=/user/**
+            metadata:
+              response-timeout: -1
           - id: ai-chat-service-route
             uri: lb://chat
             predicates:
