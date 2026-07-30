@@ -33,7 +33,7 @@
     },
     {
       "queryType": "count",
-      "useWhen": "Bind one previewed row-count metric to a live catalog component that accepts it.",
+      "useWhen": "Bind one previewed row-count metric to a skill-documented component that accepts it.",
       "datasource": {
         "key": "knowledge-document-count",
         "type": "semantic-query",
@@ -58,7 +58,7 @@
     },
     {
       "queryType": "aggregate",
-      "useWhen": "Bind previewed grouped or aggregate metrics to a live catalog chart, table, or summary-capable component.",
+      "useWhen": "Bind previewed grouped or aggregate metrics to a skill-documented chart, table, or summary-capable component.",
       "datasource": {
         "key": "sales-order-region-paid-amount",
         "type": "semantic-query",

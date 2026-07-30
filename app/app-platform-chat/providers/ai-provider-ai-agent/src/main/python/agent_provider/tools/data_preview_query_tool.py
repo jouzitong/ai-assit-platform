@@ -179,6 +179,7 @@ def preview_data_contract(run: dict[str, Any], data_contract: str | dict[str, An
         ),
         trace_id=_run_text(run, "traceId"),
         run_id=_run_text(run, "runId"),
+        session_code=_run_text(run, "sessionCode"),
     )
     if not result.get("success"):
         return {"tool": "data_preview_query_tool", **result}

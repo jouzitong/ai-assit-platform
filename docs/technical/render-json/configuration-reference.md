@@ -462,7 +462,7 @@ Renderer/Page 动作声明示例：
 | 聊天 Artifact Normalizer | 默认补 `1.0.0`，不执行支持版本判断 |
 | Agent Validator | 只接受精确 `1.0` 或 `1.0.0` |
 
-新增协议字段时应先统一这三处策略，再更新组件目录、示例和文档。只修改 TypeScript interface 不会自动形成运行时兼容。
+新增协议字段时应先统一这三处策略，再更新组件 Skill、示例和文档。只修改 TypeScript interface 不会自动形成运行时兼容。
 
 ## 10. 配置检查清单
 
@@ -470,7 +470,7 @@ Renderer/Page 动作声明示例：
 
 - `protocol`、`protocolVersion` 和 `root` 正确。
 - 顶层 `id` 和节点 `key` 稳定，不使用随机展示文案。
-- component 已在前端 Registry 注册；AI 产物还需要存在于已发布组件目录。
+- component 已在前端 Registry 注册；AI 产物还需要存在于当前 `render-json-authoring` Skill 快照。
 - componentVersion 与组件契约匹配。
 - datasource 只描述查询意图，不含 URL、SQL 或凭据。
 - `model` 使用已发布虚拟实体编码，fields 和 relations 使用虚拟字段。

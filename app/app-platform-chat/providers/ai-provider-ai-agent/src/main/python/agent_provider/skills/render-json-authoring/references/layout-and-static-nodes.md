@@ -10,7 +10,7 @@
 
 ## Availability rule
 
-The frontend runtime recognizes the keys in this reference, but the Python agent validator requires every node to resolve to a live published component contract with a verifiable version. Query the live catalog for each key. If a layout or static node is absent, do not emit it in a validator-bound RenderDocument; use a supported public renderer as the root instead.
+The frontend runtime recognizes the keys in this reference. For the current Agent phase, this skill is the authoritative source for these layouts and static nodes, and all documented entries use component version `1.0.0`. Do not emit undocumented aliases or components.
 
 ## Shared layout fields
 
@@ -35,7 +35,7 @@ Alias: `page`. Use as the outer natural-flow page container.
 {
   "id": "page-root",
   "component": "zg-page-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "gap": "24px", "padding": "24px", "minHeight": "100%" },
   "children": []
 }
@@ -49,7 +49,7 @@ Alias: `container`. Use for a neutral nested vertical container without section 
 {
   "id": "content-container",
   "component": "zg-container-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "gap": "16px", "width": "100%" },
   "children": []
 }
@@ -63,7 +63,7 @@ Alias: `section`. Use for a bordered, raised content section.
 {
   "id": "summary-section",
   "component": "zg-section-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "gap": "16px" },
   "children": []
 }
@@ -77,7 +77,7 @@ Alias: `stack`. Use for row or column flow; enable `wrap` for responsive wrappin
 {
   "id": "action-stack",
   "component": "zg-stack-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "direction": "row", "wrap": true, "gap": "12px", "alignItems": "center" },
   "children": []
 }
@@ -91,7 +91,7 @@ Alias: `grid`. Use for dashboard grids. If `gridTemplateColumns` is absent, the 
 {
   "id": "dashboard-grid",
   "component": "zg-grid-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": {
     "gridTemplateColumns": "repeat(2, minmax(0, 1fr))",
     "gridAutoRows": "minmax(320px, auto)",
@@ -109,7 +109,7 @@ Alias: `split`. Use for two-column master/detail content. The runtime defaults t
 {
   "id": "master-detail",
   "component": "zg-split-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "gridTemplateColumns": "minmax(240px, 1fr) minmax(0, 2fr)", "gap": "20px" },
   "children": []
 }
@@ -123,7 +123,7 @@ Alias: `sheet`. Use for report-like printable sheets with a solid surface and pr
 {
   "id": "report-sheet",
   "component": "zg-sheet-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "gap": "20px", "minHeight": "720px" },
   "children": []
 }
@@ -139,7 +139,7 @@ Alias: `title`. Render a level-two heading. The runtime reads `props.value`, the
 {
   "id": "page-heading",
   "component": "heading",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "props": { "text": "经营分析" }
 }
 ```
@@ -152,38 +152,38 @@ Render plain paragraph text. The runtime reads `props.value`, then `props.text`,
 {
   "id": "page-description",
   "component": "text",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "props": { "text": "展示已通过数据预览验证的核心指标。" }
 }
 ```
 
 ## Composition example
 
-Replace every `LIVE_VERSION` from live catalog responses before validation.
+Use the exact `1.0.0` versions documented by this skill snapshot.
 
 ```json
 {
   "id": "dashboard-root",
   "component": "zg-page-layout",
-  "componentVersion": "LIVE_VERSION",
+  "componentVersion": "1.0.0",
   "layout": { "gap": "20px", "padding": "24px" },
   "children": [
     {
       "id": "dashboard-title",
       "component": "heading",
-      "componentVersion": "LIVE_VERSION",
+      "componentVersion": "1.0.0",
       "props": { "text": "经营分析" }
     },
     {
       "id": "dashboard-grid",
       "component": "zg-grid-layout",
-      "componentVersion": "LIVE_VERSION",
+      "componentVersion": "1.0.0",
       "layout": { "gridTemplateColumns": "repeat(2, minmax(0, 1fr))", "gap": "16px" },
       "children": [
         {
           "id": "trend-chart",
           "component": "line-chart-renderer",
-          "componentVersion": "LIVE_VERSION",
+          "componentVersion": "1.0.0",
           "props": {
             "categories": ["1月", "2月", "3月"],
             "series": [{ "name": "成交额", "data": [128, 176, 204] }],
@@ -193,7 +193,7 @@ Replace every `LIVE_VERSION` from live catalog responses before validation.
         {
           "id": "quality-chart",
           "component": "radar-chart-renderer",
-          "componentVersion": "LIVE_VERSION",
+          "componentVersion": "1.0.0",
           "props": {
             "indicators": [
               { "name": "稳定性", "max": 100 },

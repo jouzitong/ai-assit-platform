@@ -158,7 +158,6 @@ class AiAgentProcessExecutorTest {
                 + "\\\"chatBaseUrl\\\":\\\"$AI_AGENT_CHAT_BASE_URL\\\","
                 + "\\\"kbSearchUrl\\\":\\\"$AI_AGENT_KB_SEARCH_URL\\\","
                 + "\\\"dataPreviewUrl\\\":\\\"$AI_AGENT_DATA_PREVIEW_URL\\\","
-                + "\\\"componentCatalogUrl\\\":\\\"$AI_AGENT_RENDER_COMPONENT_CATALOG_URL\\\","
                 + "\\\"toolUrl\\\":\\\"$AI_AGENT_TOOL_GATEWAY_URL\\\","
                 + "\\\"skillUrl\\\":\\\"$AI_AGENT_SKILL_GATEWAY_URL\\\","
                 + "\\\"toolToken\\\":\\\"$AI_AGENT_TOOL_GATEWAY_TOKEN\\\","
@@ -180,7 +179,6 @@ class AiAgentProcessExecutorTest {
                         "AI_AGENT_SKILL_GATEWAY_URL", "http://skill-service/direct",
                         "AI_AGENT_KB_SEARCH_URL", "http://gateway/legacy-kb-search",
                         "AI_AGENT_DATA_PREVIEW_URL", "http://db-engine/direct-preview",
-                        "AI_AGENT_RENDER_COMPONENT_CATALOG_URL", "http://render/direct-catalog",
                         "AI_AGENT_TOOL_GATEWAY_TOKEN", "tool-token",
                         "AI_AGENT_SKILL_GATEWAY_TOKEN", "skill-token"
                 )
@@ -191,7 +189,6 @@ class AiAgentProcessExecutorTest {
         assertThat(result.path("skillUrl").asText()).isEqualTo("http://127.0.0.1:13103/chat");
         assertThat(result.path("kbSearchUrl").asText()).isEmpty();
         assertThat(result.path("dataPreviewUrl").asText()).isEmpty();
-        assertThat(result.path("componentCatalogUrl").asText()).isEmpty();
         assertThat(result.path("toolToken").asText()).isEqualTo("tool-token");
         assertThat(result.path("skillToken").asText()).isEqualTo("skill-token");
     }

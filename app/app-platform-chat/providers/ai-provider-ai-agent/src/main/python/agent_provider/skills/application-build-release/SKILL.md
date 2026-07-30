@@ -12,7 +12,7 @@ Coordinate the build as a sequence of evidence-backed gates. Read `assets/applic
 1. Produce and confirm the `ApplicationBrief`.
 2. Produce the semantic `DataContract` from authorized knowledge and explicit assumptions.
 3. Obtain a successful server-issued data preview proof. Stop or clarify on failure.
-4. Produce an `ApplicationPlan` bound to the previewed semantic fields and authoritative component catalog.
+4. Produce an `ApplicationPlan` bound to the previewed semantic fields and authoritative `render-json-authoring` component snapshot.
 5. Produce the declarative `RenderDocument`.
 6. Obtain a deterministic `ValidationReport`. If invalid, use the bounded repair workflow and count every attempt against the three-attempt build budget.
 

@@ -2,7 +2,7 @@
   "code": "render-json-authoring",
   "version": 6,
   "name": "Render JSON Authoring",
-  "description": "Create catalog-bound Render JSON with component guidance, reusable node templates, a complete document template, and deterministic validation.",
+  "description": "Create skill-bound Render JSON with frozen component guidance, reusable node templates, a complete document template, and deterministic validation.",
   "files": [
     {
       "path": "SKILL.md",

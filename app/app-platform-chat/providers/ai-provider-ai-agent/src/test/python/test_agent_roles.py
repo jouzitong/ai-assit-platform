@@ -57,7 +57,6 @@ class AgentRoleTest(unittest.TestCase):
             [
                 "knowledge_base_search_tool",
                 "data_preview_query_tool",
-                "render_component_catalog_tool",
                 "render_json_validate_tool",
             ],
             graph.root.tool_names,
@@ -65,7 +64,7 @@ class AgentRoleTest(unittest.TestCase):
         self.assertEqual(
             [
                 "skill://semantic-data-contract/v1",
-                "skill://render-json-authoring/v1",
+                "skill://render-json-authoring/v6",
                 "skill://render-json-repair/v1",
                 "skill://application-build-release/v1",
             ],

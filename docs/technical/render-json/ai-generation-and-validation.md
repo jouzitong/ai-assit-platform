@@ -31,48 +31,41 @@ Agent 不允许跳过数据契约直接生成最终页面，也不允许把未�
 | --- | --- |
 | `knowledge_base_search_tool` | 检索业务语义和知识文档 |
 | `data_preview_query_tool` | 用真实虚拟模型与字段验证数据契约和受控预览 |
-| `render_component_catalog_tool` | 查询当前已发布组件及机器可读契约 |
-| `render_json_validate_tool` | 对完整 RenderDocument 做确定性校验 |
+| `render_json_validate_tool` | 对完整 RenderDocument 做结构、数据源和安全确定性校验 |
 | `semantic-data-contract` Skill | 构造业务和数据契约 |
-| `render-json-authoring` Skill | 按组件契约生成 RenderDocument |
+| `render-json-authoring` Skill | 提供冻结的组件信息并按组件契约生成 RenderDocument |
 | `render-json-repair` Skill | 根据稳定错误码做最小修复 |
 | `application-build-release` Skill | 描述构建状态；当前不代表已经发布页面 |
 
-模型负责理解与生成，Tool 负责可以确定性判断的协议、组件、数据和安全约束。
+模型负责理解与生成，Skill 提供当前阶段的组件契约，Tool 负责可以确定性判断的协议、数据和安全约束。
 
-## 3. 组件目录链路
+## 3. 组件 Skill 链路
 
-Render JSON 校验不会信任模型记忆中的组件信息，而是读取实时已发布组件目录：
+组件信息不依赖在线查询工具，也不能来自模型记忆。Agent 必须读取 `render-json-authoring` Skill 中冻结的组件说明、版本、参数、事件和模板：
 
 ```mermaid
 sequenceDiagram
     participant Agent as Dashboard Agent
+    participant Skill as render-json-authoring Skill
     participant Validator as render_json_validate_tool
-    participant CatalogTool as render_component_catalog_tool
-    participant ChatFacade as Chat 内部工具接口
-    participant Render as Render Component Catalog
 
+    Agent->>Skill: 读取组件 references / assets
+    Skill-->>Agent: keys + versions + props + events + examples
+    Agent->>Agent: 生成 RenderDocument
     Agent->>Validator: render_json 字符串
-    Validator->>Validator: 解析文档并收集 component keys
-    Validator->>CatalogTool: fetch_component_catalog(keys)
-    CatalogTool->>ChatFacade: POST internal catalog query
-    ChatFacade->>Render: 查询已发布组件目录
-    Render-->>ChatFacade: component contracts + catalogRevision
-    ChatFacade-->>CatalogTool: 平台响应
-    CatalogTool-->>Validator: 归一化组件契约
-    Validator->>Validator: 校验 props/events/version/security
+    Validator->>Validator: 校验结构、版本格式、datasource、binding、action 和安全约束
     Validator-->>Agent: ValidationReport
 ```
 
-组件目录结果必须提供：
+当前组件 Skill 必须提供：
 
 - 唯一的 component key。
-- 可验证的 componentVersion。
-- `sha256:` 格式的 sourceRevision。
+- 固定的 componentVersion。
 - 参数和事件契约。
-- `sha256:` 格式的 catalogRevision。
+- 可复制的节点模板和完整示例。
+- 稳定来源引用 `skill://render-json-authoring/v6`。
 
-目录不可用或组件没有机器可读契约时，校验失败，不能降级为“仅检查 JSON 语法后成功”。
+`ValidationReport.catalogRevision` 暂时作为兼容字段，值为上述 Skill 来源引用。当前校验器不会在线验证组件是否发布，也不会检查具体 props/events 是否属于组件；这些信息由 Skill 负责，正式发布前仍需与前端 Registry 做一致性校验。
 
 ## 4. 确定性校验过程
 
@@ -83,10 +76,8 @@ flowchart TD
     I["输入 render_json"] --> P["JSON 解析与大小检查"]
     P --> D["文档顶层结构校验"]
     D --> N["递归节点校验"]
-    N --> C["收集组件 key"]
-    C --> L["加载实时组件目录"]
-    L --> PC["props / events / version 契约校验"]
-    PC --> S["datasource / binding / action 安全扫描"]
+    N --> C["收集组件 key 并校验 componentVersion 格式"]
+    C --> S["datasource / binding / action 安全扫描"]
     S --> R["ValidationReport"]
 ```
 
@@ -97,7 +88,6 @@ flowchart TD
 - 禁止重复对象 key。
 - 最大节点数：1000。
 - 最大深度：32。
-- 单次最多引用 100 个不同组件 key。
 
 ### 4.2 文档协议
 
@@ -132,11 +122,12 @@ bindings, events, actions, children
 校验器检查：
 
 - 节点 id 的稳定性和唯一性。
-- component key 是否存在于实时已发布目录。
-- componentVersion 是否符合目录契约。
-- props 是否符合参数契约。
-- events 是否属于组件声明事件。
+- component key 是否是稳定标识。
+- componentVersion 是否存在并符合版本格式。
+- props、events 和 actions 是否具有合法 JSON 结构。
 - children 是否是合法节点数组。
+
+组件是否受支持、具体 props/events 契约和精确版本由 `render-json-authoring` Skill 定义，当前静态校验器不重复维护一份组件目录。
 
 ### 4.4 Datasource 与安全
 
@@ -170,9 +161,9 @@ Render JSON 的安全模型是“只允许声明稳定意图，由平台可信�
 - `jsonPath`：问题字段路径。
 - `nodeId`：可定位时返回节点 id。
 - `recoverable`：Agent 是否可以尝试最小修复。
-- 文档摘要、规则版本和组件目录 revision。
+- 文档摘要、规则版本和组件 Skill 来源引用。
 
-Agent 提示要求校验失败后最多修复三次，并且只针对稳定错误码做最小修改。不可恢复错误或组件目录不可用时应停止并说明阻塞原因。
+Agent 提示要求校验失败后最多修复三次，并且只针对稳定错误码做最小修改。不可恢复错误应停止并说明阻塞原因。
 
 ## 6. Artifact 生成与 Provider 输出
 
@@ -281,7 +272,7 @@ ConversationArtifact.content
 后续发布流程至少应包含：
 
 1. 选择目标页面或创建页面草稿。
-2. 重新读取最新组件目录并校验。
+2. 重新读取目标版本的组件 Skill，并与前端 Registry 做一致性校验。
 3. 使用与正式 Runtime 一致的协议校验器。
 4. 执行受控数据预览和权限检查。
 5. 显式用户确认。
@@ -296,11 +287,11 @@ ConversationArtifact.content
 
 ### 10.2 保存接口接入服务端校验
 
-Render Meta POST 当前没有深度校验。建议把协议、组件目录、安全规则封装为服务端能力，在任何内容落库前执行，不能只依赖开发者页面的 TypeScript 检查。
+Render Meta POST 当前没有深度校验。建议把协议、组件 Registry 一致性和安全规则封装为服务端能力，在任何内容落库前执行，不能只依赖开发者页面的 TypeScript 检查。
 
 ### 10.3 统一组件资产与前端 Registry
 
-Agent 读取的是后端已发布组件目录，Runtime 使用的是前端静态 Registry。两者若不同步，可能出现“校验通过但前端未注册”或“前端能渲染但 Agent 目录不可用”。组件发布过程应验证双方 key、版本和契约一致。
+Agent 读取的是冻结的组件 Skill，Runtime 使用的是前端静态 Registry。两者若不同步，可能出现“Skill 允许但前端未注册”或“前端已支持但 Skill 尚未更新”。组件变更时应同步更新 Skill，并验证双方 key、版本和契约一致。
 
 ### 10.4 接入通用 Event Dispatcher
 

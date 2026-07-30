@@ -1,7 +1,7 @@
 {
   "schemaVersion": "render-component-node-templates/v1",
   "snapshotVersion": "1.0.0",
-  "instructions": "Use these as structural examples. Query the live catalog and replace componentVersion and props before validation.",
+  "instructions": "Use these as authoritative structural examples for the current skill snapshot. Keep componentVersion aligned with the documented component version.",
   "publicRenderers": {
     "zg-list-main-layout": {
       "id": "list-node",
@@ -117,14 +117,14 @@
     }
   },
   "runtimeBuiltIns": {
-    "zg-page-layout": { "id": "page-node", "component": "zg-page-layout", "componentVersion": "LIVE_VERSION", "layout": { "gap": "24px", "padding": "24px" }, "children": [] },
-    "zg-container-layout": { "id": "container-node", "component": "zg-container-layout", "componentVersion": "LIVE_VERSION", "layout": { "gap": "16px" }, "children": [] },
-    "zg-section-layout": { "id": "section-node", "component": "zg-section-layout", "componentVersion": "LIVE_VERSION", "layout": { "gap": "16px" }, "children": [] },
-    "zg-stack-layout": { "id": "stack-node", "component": "zg-stack-layout", "componentVersion": "LIVE_VERSION", "layout": { "direction": "row", "wrap": true, "gap": "12px" }, "children": [] },
-    "zg-grid-layout": { "id": "grid-node", "component": "zg-grid-layout", "componentVersion": "LIVE_VERSION", "layout": { "gridTemplateColumns": "repeat(2, minmax(0, 1fr))", "gap": "16px" }, "children": [] },
-    "zg-split-layout": { "id": "split-node", "component": "zg-split-layout", "componentVersion": "LIVE_VERSION", "layout": { "gridTemplateColumns": "minmax(240px, 1fr) minmax(0, 2fr)", "gap": "20px" }, "children": [] },
-    "zg-sheet-layout": { "id": "sheet-node", "component": "zg-sheet-layout", "componentVersion": "LIVE_VERSION", "layout": { "gap": "20px", "minHeight": "720px" }, "children": [] },
-    "heading": { "id": "heading-node", "component": "heading", "componentVersion": "LIVE_VERSION", "props": { "text": "页面标题" } },
-    "text": { "id": "text-node", "component": "text", "componentVersion": "LIVE_VERSION", "props": { "text": "页面说明文字。" } }
+    "zg-page-layout": { "id": "page-node", "component": "zg-page-layout", "componentVersion": "1.0.0", "layout": { "gap": "24px", "padding": "24px" }, "children": [] },
+    "zg-container-layout": { "id": "container-node", "component": "zg-container-layout", "componentVersion": "1.0.0", "layout": { "gap": "16px" }, "children": [] },
+    "zg-section-layout": { "id": "section-node", "component": "zg-section-layout", "componentVersion": "1.0.0", "layout": { "gap": "16px" }, "children": [] },
+    "zg-stack-layout": { "id": "stack-node", "component": "zg-stack-layout", "componentVersion": "1.0.0", "layout": { "direction": "row", "wrap": true, "gap": "12px" }, "children": [] },
+    "zg-grid-layout": { "id": "grid-node", "component": "zg-grid-layout", "componentVersion": "1.0.0", "layout": { "gridTemplateColumns": "repeat(2, minmax(0, 1fr))", "gap": "16px" }, "children": [] },
+    "zg-split-layout": { "id": "split-node", "component": "zg-split-layout", "componentVersion": "1.0.0", "layout": { "gridTemplateColumns": "minmax(240px, 1fr) minmax(0, 2fr)", "gap": "20px" }, "children": [] },
+    "zg-sheet-layout": { "id": "sheet-node", "component": "zg-sheet-layout", "componentVersion": "1.0.0", "layout": { "gap": "20px", "minHeight": "720px" }, "children": [] },
+    "heading": { "id": "heading-node", "component": "heading", "componentVersion": "1.0.0", "props": { "text": "页面标题" } },
+    "text": { "id": "text-node", "component": "text", "componentVersion": "1.0.0", "props": { "text": "页面说明文字。" } }
   }
 }

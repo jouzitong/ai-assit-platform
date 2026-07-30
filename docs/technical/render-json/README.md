@@ -24,7 +24,7 @@ key 解析成真实 Vue 组件和后端请求。
 - [配置参考](./configuration-reference.md)
     - RenderDocument、节点、布局、组件、数据源、查询字段和示例。
 - [AI 生成、校验与聊天产物](./ai-generation-and-validation.md)
-    - Agent 构建流程、组件目录、确定性校验、Artifact 持久化与展示。
+    - Agent 构建流程、组件 Skill、确定性校验、Artifact 持久化与展示。
 
 关联文档：
 
@@ -110,7 +110,7 @@ flowchart TB
 
 - 正式页面前端会检查协议主版本、`root` 和页面模式，但 Render 服务保存接口目前只校验页面存在与 code 非空，没有调用完整
   Render JSON 校验器。
-- Agent 的 `render_json_validate_tool` 校验更严格，会检查协议、节点、组件目录、props/events、数据源和安全规则。
+- Agent 的 `render_json_validate_tool` 校验更严格，会检查协议、节点、组件版本格式、数据源和安全规则；具体组件 props/events 来自 `render-json-authoring` Skill。
 - Agent 校验器当前允许的文档顶层字段比正式页面 Runtime 更少；正式页面使用的 `presentation`、`title` 尚未进入 Agent
   校验器的顶层白名单。
 - `createRuntimeEventDispatcher` 已提供通用事件与 Hook 抽象，但正式 `RenderJsonRuntimeNode` 当前仍直接处理 `queryChange`、

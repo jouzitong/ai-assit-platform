@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import re
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from typing import Any
+
+from ..artifacts import render_document_hash
 
 
 RULE_VERSION = "render-validator/1.0.0"
@@ -13,7 +14,7 @@ SUPPORTED_PROTOCOL_VERSIONS = {"1.0", "1.0.0"}
 MAX_DOCUMENT_BYTES = 1024 * 1024
 MAX_NODES = 1000
 MAX_DEPTH = 32
-MAX_COMPONENT_KEYS = 100
+COMPONENT_SKILL_REF = "skill://render-json-authoring/v6"
 ALLOWED_NODE_KEYS = {
     "id", "component", "componentVersion", "props", "layout", "datasource",
     "bindings", "events", "actions", "children",
@@ -48,7 +49,6 @@ ALLOWED_QUERY_FILTER_OPERATORS = {
 _STABLE_KEY_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_.:-]{0,127}$")
 _SEMANTIC_PATH_PATTERN = re.compile(r"^[A-Za-z][A-Za-z0-9_]*(?:\.[A-Za-z][A-Za-z0-9_]*)*(?:\[\d+\])?$")
 _FILTER_EXPR_TOKEN_PATTERN = re.compile(r"\s*(?:[A-Za-z][A-Za-z0-9_.]*|\(|\)|$)")
-_SHA256_PATTERN = re.compile(r"^sha256:[0-9a-f]{64}$")
 ALLOWED_ACTION_TYPES = {
     "filter.update",
     "selection.update",
@@ -84,7 +84,6 @@ class ValidationState:
     warnings: list[dict[str, Any]] = field(default_factory=list)
     node_ids: set[str] = field(default_factory=set)
     component_keys: set[str] = field(default_factory=set)
-    nodes: list[tuple[dict[str, Any], str]] = field(default_factory=list)
     node_count: int = 0
     max_depth: int = 0
 
@@ -111,7 +110,6 @@ class ValidationState:
 
 def validate_render_document(
     render_json: str | dict[str, Any],
-    catalog_loader: Callable[[list[str]], dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     parsed, parse_issue = _parse_document(render_json)
     if parse_issue is not None:
@@ -127,118 +125,7 @@ def validate_render_document(
     if isinstance(root, dict):
         _walk_node(root, "$.root", 1, state)
 
-    catalog_revision: str | None = None
-    if state.component_keys:
-        if len(state.component_keys) > MAX_COMPONENT_KEYS:
-            state.error(
-                "COMPONENT_CATALOG_REQUEST_TOO_LARGE",
-                f"Render document references more than {MAX_COMPONENT_KEYS} components",
-                "$.root",
-                recoverable=False,
-            )
-        elif catalog_loader is None:
-            state.error(
-                "COMPONENT_CATALOG_UNAVAILABLE",
-                "Live component catalog is required for deterministic validation",
-                "$.root",
-                recoverable=False,
-            )
-        else:
-            try:
-                catalog_result = catalog_loader(sorted(state.component_keys))
-            except Exception as exc:
-                catalog_result = {
-                    "success": False,
-                    "error": f"catalog loader failed: {exc}",
-                }
-            if not isinstance(catalog_result, dict) or not catalog_result.get("success"):
-                message = "Live component catalog request failed"
-                if isinstance(catalog_result, dict) and catalog_result.get("error"):
-                    message = str(catalog_result["error"])
-                state.error(
-                    "COMPONENT_CATALOG_UNAVAILABLE",
-                    message,
-                    "$.root",
-                    recoverable=False,
-                )
-            else:
-                catalog_revision = _text(catalog_result.get("catalogRevision"))
-                if not catalog_revision:
-                    state.error(
-                        "COMPONENT_CATALOG_REVISION_MISSING",
-                        "Live component catalog must return a non-empty catalog revision",
-                        "$.root",
-                        recoverable=False,
-                    )
-                elif not _SHA256_PATTERN.fullmatch(catalog_revision):
-                    state.error(
-                        "COMPONENT_CATALOG_REVISION_INVALID",
-                        "Live component catalog revision must be sha256 hex text",
-                        "$.root",
-                        recoverable=False,
-                    )
-                raw_components = catalog_result.get("components")
-                if not isinstance(raw_components, list):
-                    state.error(
-                        "COMPONENT_CATALOG_RESPONSE_INVALID",
-                        "Live component catalog must return a components array",
-                        "$.root",
-                        recoverable=False,
-                    )
-                    catalog = {}
-                else:
-                    catalog = {}
-                    for item in raw_components:
-                        if not isinstance(item, dict):
-                            state.error(
-                                "COMPONENT_CATALOG_RESPONSE_INVALID",
-                                "Live component catalog contains a non-object component",
-                                "$.root",
-                                recoverable=False,
-                            )
-                            continue
-                        key = _text(item.get("key")) or _text(item.get("componentKey"))
-                        if not key:
-                            state.error(
-                                "COMPONENT_CATALOG_RESPONSE_INVALID",
-                                "Live component catalog contains a component without a key",
-                                "$.root",
-                                recoverable=False,
-                            )
-                            continue
-                        if not _STABLE_KEY_PATTERN.fullmatch(key):
-                            state.error(
-                                "COMPONENT_CATALOG_RESPONSE_INVALID",
-                                f"Live component catalog contains an invalid component key: {key}",
-                                "$.root",
-                                recoverable=False,
-                            )
-                        if not _text(item.get("sourceRevision")):
-                            state.error(
-                                "COMPONENT_SOURCE_REVISION_MISSING",
-                                f"Published component has no source revision: {key}",
-                                "$.root",
-                                recoverable=False,
-                            )
-                        elif not _SHA256_PATTERN.fullmatch(_text(item.get("sourceRevision")) or ""):
-                            state.error(
-                                "COMPONENT_SOURCE_REVISION_INVALID",
-                                f"Published component has an invalid source revision: {key}",
-                                "$.root",
-                                recoverable=False,
-                            )
-                        if key in catalog:
-                            state.error(
-                                "COMPONENT_CATALOG_RESPONSE_INVALID",
-                                f"Live component catalog contains duplicate component: {key}",
-                                "$.root",
-                                recoverable=False,
-                            )
-                        catalog[key] = item
-                for node, path in state.nodes:
-                    _validate_component_contract(node, path, catalog, state)
-
-    return _report(parsed, state, catalog_revision)
+    return _report(parsed, state)
 
 
 def _parse_document(value: str | dict[str, Any]) -> tuple[Any | None, dict[str, Any] | None]:
@@ -395,6 +282,30 @@ def _walk_node(node: dict[str, Any], path: str, depth: int, state: ValidationSta
     else:
         state.component_keys.add(component)
 
+    raw_component_version = node.get("componentVersion")
+    component_version = _text(raw_component_version)
+    if raw_component_version is not None and component_version is None:
+        state.error(
+            "SCHEMA_INVALID",
+            "node.componentVersion must be non-empty text",
+            f"{path}.componentVersion",
+            node_id,
+        )
+    elif component_version is None:
+        state.error(
+            "COMPONENT_VERSION_REQUIRED",
+            "node.componentVersion must pin the version documented by render-json-authoring skill",
+            f"{path}.componentVersion",
+            node_id,
+        )
+    elif not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", component_version):
+        state.error(
+            "COMPONENT_VERSION_INVALID",
+            f"Invalid component version: {component_version}",
+            f"{path}.componentVersion",
+            node_id,
+        )
+
     unknown_keys = sorted(set(node) - ALLOWED_NODE_KEYS)
     for key in unknown_keys:
         state.error("SCHEMA_INVALID", f"Unknown Render node field: {key}", f"{path}.{key}", node_id)
@@ -418,7 +329,6 @@ def _walk_node(node: dict[str, Any], path: str, depth: int, state: ValidationSta
     action_keys = _validate_actions(actions, f"{path}.actions", node_id, state)
     _validate_events(node.get("events"), f"{path}.events", node_id, action_keys, state)
 
-    state.nodes.append((node, path))
     children = node.get("children")
     if isinstance(children, list):
         for index, child in enumerate(children):
@@ -946,222 +856,6 @@ def _validate_events(
             state.error("ACTION_REFERENCE_NOT_FOUND", f"Event references an undeclared action: {action_ref}", event_path, node_id)
 
 
-def _validate_component_contract(
-    node: dict[str, Any],
-    path: str,
-    catalog: dict[str, dict[str, Any]],
-    state: ValidationState,
-) -> None:
-    node_id = _text(node.get("id"))
-    component_key = _text(node.get("component"))
-    if component_key is None:
-        return
-    component = catalog.get(component_key)
-    if component is None:
-        state.error(
-            "RENDERER_NOT_FOUND",
-            f"Published component not found: {component_key}",
-            f"{path}.component",
-            node_id,
-        )
-        return
-
-    catalog_version = _text(component.get("componentVersion"))
-    raw_requested_version = node.get("componentVersion")
-    requested_version = _text(raw_requested_version)
-    if raw_requested_version is not None and requested_version is None:
-        state.error(
-            "SCHEMA_INVALID",
-            "node.componentVersion must be non-empty text",
-            f"{path}.componentVersion",
-            node_id,
-        )
-    if not catalog_version:
-        state.error(
-            "COMPONENT_VERSION_UNAVAILABLE",
-            f"Published component has no verifiable version: {component_key}",
-            f"{path}.componentVersion",
-            node_id,
-            recoverable=False,
-        )
-    elif len(catalog_version) > 128 or not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9._+-]{0,127}", catalog_version):
-        state.error(
-            "COMPONENT_VERSION_INVALID",
-            f"Published component has an invalid version: {catalog_version}",
-            f"{path}.componentVersion",
-            node_id,
-            recoverable=False,
-        )
-    elif not requested_version:
-        state.error(
-            "COMPONENT_VERSION_REQUIRED",
-            f"Component {component_key} must pin the published component version",
-            f"{path}.componentVersion",
-            node_id,
-        )
-    elif requested_version != catalog_version:
-        state.error(
-            "COMPONENT_VERSION_MISMATCH",
-            f"Component {component_key} requires version {catalog_version}, got {requested_version}",
-            f"{path}.componentVersion",
-            node_id,
-        )
-
-    if component.get("contractAvailable") is not True:
-        state.error(
-            "COMPONENT_CONTRACT_UNAVAILABLE",
-            f"Published component has no machine-readable parameter contract: {component_key}",
-            f"{path}.component",
-            node_id,
-            recoverable=False,
-        )
-        return
-
-    raw_parameters = component.get("parameters")
-    parameters: dict[str, dict[str, Any]] = {}
-    if isinstance(raw_parameters, list):
-        for index, item in enumerate(raw_parameters):
-            if not isinstance(item, dict) or not _text(item.get("key")):
-                state.error(
-                    "COMPONENT_CONTRACT_INVALID",
-                    f"Component {component_key} has an invalid parameter contract row",
-                    f"{path}.component",
-                    node_id,
-                    recoverable=False,
-                )
-                continue
-            parameter_key = _text(item.get("key")) or ""
-            if parameter_key in parameters:
-                state.error(
-                    "COMPONENT_CONTRACT_INVALID",
-                    f"Component {component_key} declares duplicate prop: {parameter_key}",
-                    f"{path}.component",
-                    node_id,
-                    recoverable=False,
-                )
-            parameters[parameter_key] = item
-    props = node.get("props") if isinstance(node.get("props"), dict) else {}
-    for key in sorted(set(props) - set(parameters)):
-        state.error(
-            "PROP_NOT_ALLOWED",
-            f"Component {component_key} does not declare prop: {key}",
-            f"{path}.props.{key}",
-            node_id,
-        )
-    for key, definition in parameters.items():
-        if definition.get("required") and key not in props:
-            state.error(
-                "PROP_REQUIRED",
-                f"Component {component_key} requires prop: {key}",
-                f"{path}.props.{key}",
-                node_id,
-            )
-        if key in props and not _matches_declared_type(props[key], definition):
-            state.error(
-                "PROP_TYPE_INVALID",
-                f"Prop {component_key}.{key} must match {definition.get('type') or 'its declared type'}",
-                f"{path}.props.{key}",
-                node_id,
-            )
-
-    allowed_events: set[str] = set()
-    raw_catalog_events = component.get("events", [])
-    if isinstance(raw_catalog_events, list):
-        for item in raw_catalog_events:
-            event_name = _text(item.get("name")) if isinstance(item, dict) else None
-            if event_name:
-                if event_name in allowed_events:
-                    state.error(
-                        "COMPONENT_CONTRACT_INVALID",
-                        f"Component {component_key} declares duplicate event: {event_name}",
-                        f"{path}.component",
-                        node_id,
-                        recoverable=False,
-                    )
-                allowed_events.add(event_name)
-    raw_events = node.get("events")
-    if isinstance(raw_events, list):
-        for index, event in enumerate(raw_events):
-            event_path = f"{path}.events[{index}]"
-            if not isinstance(event, dict):
-                continue
-            event_name = _text(event.get("event")) or _text(event.get("name")) or _text(event.get("type"))
-            if event_name and event_name not in allowed_events:
-                state.error(
-                    "EVENT_NOT_ALLOWED",
-                    f"Component {component_key} does not declare event: {event_name}",
-                    event_path,
-                    node_id,
-                )
-
-
-def _matches_declared_type(value: Any, definition: dict[str, Any]) -> bool:
-    declared = str(definition.get("type") or "").strip()
-    if declared:
-        branches = [part.strip() for part in _split_union(declared)]
-        if any(_matches_type_branch(value, branch) for branch in branches):
-            return True
-        if any(_known_type_branch(branch) for branch in branches):
-            return False
-    if "example" in definition:
-        example = definition.get("example")
-        if example is None:
-            return True
-        if isinstance(example, bool):
-            return isinstance(value, bool)
-        if isinstance(example, (int, float)) and not isinstance(example, bool):
-            return isinstance(value, (int, float)) and not isinstance(value, bool)
-        return isinstance(value, type(example))
-    return True
-
-
-def _split_union(value: str) -> list[str]:
-    parts: list[str] = []
-    buffer: list[str] = []
-    depth = 0
-    for character in value:
-        if character in "<([{":
-            depth += 1
-        elif character in ">)]}" and depth > 0:
-            depth -= 1
-        if character == "|" and depth == 0:
-            parts.append("".join(buffer))
-            buffer = []
-        else:
-            buffer.append(character)
-    parts.append("".join(buffer))
-    return parts
-
-
-def _known_type_branch(branch: str) -> bool:
-    lowered = branch.lower().replace(" ", "")
-    return (
-        lowered in {"string", "number", "integer", "boolean", "bool", "object", "unknown", "any", "null"}
-        or lowered.endswith("[]")
-        or lowered.startswith(("array<", "record<", "map<"))
-        or lowered.endswith(("schema", "option"))
-    )
-
-
-def _matches_type_branch(value: Any, branch: str) -> bool:
-    lowered = branch.lower().replace(" ", "")
-    if lowered in {"unknown", "any"}:
-        return True
-    if lowered == "null":
-        return value is None
-    if lowered == "string":
-        return isinstance(value, str)
-    if lowered in {"number", "integer"}:
-        return isinstance(value, (int, float)) and not isinstance(value, bool)
-    if lowered in {"boolean", "bool"}:
-        return isinstance(value, bool)
-    if lowered == "object" or lowered.startswith(("record<", "map<")) or lowered.endswith(("schema", "option")):
-        return isinstance(value, dict)
-    if lowered.endswith("[]") or lowered.startswith("array<"):
-        return isinstance(value, list)
-    return False
-
-
 def _scan_security(value: Any, path: str, node_id: str | None, state: ValidationState) -> None:
     if isinstance(value, dict):
         for key, child in value.items():
@@ -1216,9 +910,8 @@ def _bounded_json_value(value: Any, depth: int = 0) -> bool:
 def _report(
     document: Any | None,
     state: ValidationState,
-    catalog_revision: str | None = None,
 ) -> dict[str, Any]:
-    document_hash = _document_hash(document) if isinstance(document, dict) else None
+    document_hash = render_document_hash(document)
     summary = (
         f"Validated {state.node_count} Render node(s): "
         f"{len(state.errors)} error(s), {len(state.warnings)} warning(s)."
@@ -1229,7 +922,9 @@ def _report(
         "rulesVersion": RULE_VERSION,
         "ruleVersion": RULE_VERSION,
         "documentHash": document_hash,
-        "catalogRevision": catalog_revision,
+        # Kept for the stable ValidationReport schema. The component source is
+        # now the frozen authoring skill rather than an online catalog response.
+        "catalogRevision": COMPONENT_SKILL_REF,
         "protocolVersion": document.get("protocolVersion") if isinstance(document, dict) else None,
         "errors": state.errors,
         "warnings": state.warnings,
@@ -1242,17 +937,6 @@ def _report(
         },
         "summary": summary,
     }
-
-
-def _document_hash(value: dict[str, Any]) -> str:
-    canonical = json.dumps(
-        value,
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-        allow_nan=False,
-    )
-    return "sha256:" + hashlib.sha256(canonical.encode("utf-8")).hexdigest()
 
 
 def _issue(

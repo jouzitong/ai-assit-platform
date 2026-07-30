@@ -1,8 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, field
 from typing import Any
 
+from ..artifacts import RunArtifactCollector
 from ..compiler import CompiledAgent, CompiledGraph
 from ..events import EventEmitter
 from ..gateway import build_gateway_tool
@@ -16,6 +18,13 @@ class SdkGraph:
     root: Any
     agents: dict[str, Any]
     reverse: dict[int, CompiledAgent]
+    artifact_collector: RunArtifactCollector = field(default_factory=RunArtifactCollector)
+    agent_builder: Callable[[str], Any] | None = field(default=None, repr=False)
+
+    def agent_for_key(self, key: str) -> Any | None:
+        if self.agent_builder is not None:
+            return self.agent_builder(key)
+        return self.agents.get(key)
 
     def compiled_for(self, sdk_agent: Any) -> CompiledAgent | None:
         if sdk_agent is None:
@@ -35,18 +44,17 @@ class AgentFactory:
         self.emitter = emitter
         self._built: dict[str, Any] = {}
         self._reverse: dict[int, CompiledAgent] = {}
+        self._artifact_collector = RunArtifactCollector()
 
         from agents import Agent, ModelSettings, function_tool
 
         from ..tools import (
             build_data_preview_query_tool,
-            build_render_component_catalog_tool,
             build_render_json_validate_tool,
             data_preview_query_tool,
             data_format_validate_tool,
             build_knowledge_base_search_tool,
             knowledge_base_search_tool,
-            render_component_catalog_tool,
             render_json_validate_tool,
             web_search_tool,
         )
@@ -56,13 +64,11 @@ class AgentFactory:
         self._function_tool = function_tool
         self._build_data_preview_query_tool = build_data_preview_query_tool
         self._build_knowledge_base_search_tool = build_knowledge_base_search_tool
-        self._build_render_component_catalog_tool = build_render_component_catalog_tool
         self._build_render_json_validate_tool = build_render_json_validate_tool
         self._tool_registry = {
             "data_preview_query_tool": data_preview_query_tool,
             "data_format_validate_tool": data_format_validate_tool,
             "knowledge_base_search_tool": knowledge_base_search_tool,
-            "render_component_catalog_tool": render_component_catalog_tool,
             "render_json_validate_tool": render_json_validate_tool,
             "web_search_tool": web_search_tool,
         }
@@ -72,11 +78,18 @@ class AgentFactory:
             self._build,
             self.compiled_for,
             function_tool,
+            self._artifact_collector,
         )
 
     def build_root(self) -> SdkGraph:
         root = self._build(resolve_main_agent(self.graph).key)
-        return SdkGraph(root=root, agents=self._built, reverse=self._reverse)
+        return SdkGraph(
+            root=root,
+            agents=self._built,
+            reverse=self._reverse,
+            artifact_collector=self._artifact_collector,
+            agent_builder=self._build,
+        )
 
     def _build(self, key: str) -> Any:
         existing = self._built.get(key)
@@ -116,9 +129,6 @@ class AgentFactory:
                 if tool is not None:
                     tools.append(tool)
                 continue
-            if name == "render_component_catalog_tool":
-                tools.append(self._build_render_component_catalog_tool(self.graph.payload["run"], self._function_tool))
-                continue
             if name == "render_json_validate_tool":
                 tools.append(self._build_render_json_validate_tool(self.graph.payload["run"], self._function_tool))
                 continue
@@ -139,7 +149,13 @@ class AgentFactory:
         return self._dispatcher.tools_for(spec)
 
     def compiled_for(self, sdk_agent: Any) -> CompiledAgent | None:
-        return SdkGraph(None, self._built, self._reverse).compiled_for(sdk_agent)
+        return SdkGraph(
+            None,
+            self._built,
+            self._reverse,
+            self._artifact_collector,
+            self._build,
+        ).compiled_for(sdk_agent)
 
 
 def _runtime_model(value: str | None) -> str:

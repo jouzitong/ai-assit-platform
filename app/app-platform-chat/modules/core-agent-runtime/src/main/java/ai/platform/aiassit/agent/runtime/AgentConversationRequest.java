@@ -20,6 +20,7 @@ public class AgentConversationRequest {
     private Long modelId;
     private String input;
     private AgentTarget target = AgentTarget.homeChat();
+    private AgentArtifactDelivery artifactDelivery = AgentArtifactDelivery.STANDARD;
     private List<ChatMessage> messages = new ArrayList<>();
     private Map<String, Object> context = new LinkedHashMap<>();
 }

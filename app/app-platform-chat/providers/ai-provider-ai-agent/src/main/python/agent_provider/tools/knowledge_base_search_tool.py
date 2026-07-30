@@ -1,25 +1,16 @@
-import json
-import os
 from typing import Any
-from urllib import error, request
 
 from agents import function_tool
 
 from agent_provider.chat_endpoint import chat_endpoint
+
+from .platform_http import post_platform_json
 
 KB_SEARCH_CHAT_ROUTE = "/api/v1/ai/execution/kb/search"
 
 
 def _kb_search_url() -> str:
     return chat_endpoint(KB_SEARCH_CHAT_ROUTE)
-
-
-def _kb_search_headers() -> dict[str, str]:
-    headers = {"Content-Type": "application/json; charset=utf-8"}
-    token = (os.getenv("AI_AGENT_KB_SEARCH_TOKEN") or "").strip()
-    if token:
-        headers["Authorization"] = token if token.lower().startswith("bearer ") else f"Bearer {token}"
-    return headers
 
 
 def _build_request_payload(
@@ -60,40 +51,25 @@ def _normalize_items(items: Any) -> list[dict[str, Any]]:
     return normalized
 
 
-def _request_kb_search(payload: dict[str, Any]) -> dict[str, Any]:
-    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
-    req = request.Request(
+def _request_kb_search(
+    payload: dict[str, Any],
+    *,
+    trace_id: str | None = None,
+    run_id: str | None = None,
+    session_code: str | None = None,
+) -> dict[str, Any]:
+    result = post_platform_json(
         _kb_search_url(),
-        data=body,
-        headers=_kb_search_headers(),
-        method="POST",
+        payload,
+        token_env_keys=("AI_AGENT_KB_SEARCH_TOKEN", "AI_AGENT_PLATFORM_TOKEN"),
+        trace_id=trace_id,
+        run_id=run_id,
+        session_code=session_code,
     )
-    try:
-        with request.urlopen(req, timeout=20) as response:
-            text = response.read().decode("utf-8")
-    except error.HTTPError as exc:
-        text = exc.read().decode("utf-8", errors="replace")
-        return {
-            "success": False,
-            "error": f"KB search HTTP {exc.code}: {text[:500]}",
-            "items": [],
-        }
-    except error.URLError as exc:
-        return {
-            "success": False,
-            "error": f"KB search request failed: {exc.reason}",
-            "items": [],
-        }
+    if not result.get("success"):
+        return {**result, "items": []}
 
-    try:
-        data = json.loads(text) if text else {}
-    except json.JSONDecodeError:
-        return {
-            "success": False,
-            "error": f"KB search returned non-JSON response: {text[:500]}",
-            "items": [],
-        }
-
+    data = result.get("data") if isinstance(result.get("data"), dict) else {}
     items = _normalize_items(data.get("items"))
     return {
         "success": True,
@@ -152,15 +128,20 @@ def search_authorized_knowledge_base(
         }
     if not isinstance(query, str) or not query.strip():
         return {"tool": "knowledge_base_search_tool", "success": False, "error": "query is required."}
-    trace_id = run.get("traceId") if isinstance(run.get("traceId"), str) else None
+    trace_id = _run_text(run, "traceId")
     payload = _build_request_payload(
         kb_code=normalized_code,
         query_text=query.strip(),
         top_k=max(1, int(top_k or 5)),
-        trace_id=trace_id.strip() if trace_id and trace_id.strip() else None,
+        trace_id=trace_id,
         scene=scene,
     )
-    result = _request_kb_search(payload)
+    result = _request_kb_search(
+        payload,
+        trace_id=trace_id,
+        run_id=_run_text(run, "runId"),
+        session_code=_run_text(run, "sessionCode"),
+    )
     result["tool"] = "knowledge_base_search_tool"
     result["kbCode"] = normalized_code
     result["topK"] = payload["topK"]
@@ -209,9 +190,17 @@ def knowledge_base_search_tool(
         trace_id=trace_id.strip() if isinstance(trace_id, str) and trace_id.strip() else None,
         scene=scene.strip() if isinstance(scene, str) and scene.strip() else "ai-agent-tool",
     )
-    result = _request_kb_search(payload)
+    result = _request_kb_search(
+        payload,
+        trace_id=payload["meta"].get("traceId"),
+    )
     result["tool"] = "knowledge_base_search_tool"
     result["topK"] = payload["topK"]
     if result.get("success"):
         result["summary"] = f"Returned {len(result.get('items', []))} knowledge hits."
     return result
+
+
+def _run_text(run: dict[str, Any], key: str) -> str | None:
+    value = run.get(key) if isinstance(run, dict) else None
+    return value.strip() if isinstance(value, str) and value.strip() else None

@@ -3,8 +3,6 @@ package ai.platform.aiassit.agent.controller;
 import ai.platform.aiassit.agent.runtime.tool.AiAgentPlatformToolFacadeService;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryRequest;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryResponse;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogQueryRequest;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogResponse;
 import ai.platform.aiassit.service.ai.api.AiAgentPlatformToolInternalApi;
 import org.athena.framework.web.vo.R;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -28,14 +26,5 @@ public class AiAgentPlatformToolInternalController implements AiAgentPlatformToo
             @RequestBody(required = false) DataPreviewQueryRequest request
     ) {
         return R.ok(facadeService.queryDataPreview(runId, traceId, request));
-    }
-
-    @Override
-    public R<RenderComponentCatalogResponse> queryRenderComponentCatalog(
-            @RequestHeader(value = "X-Agent-Run-Id", required = false) String runId,
-            @RequestHeader(value = "X-Trace-Id", required = false) String traceId,
-            @RequestBody(required = false) RenderComponentCatalogQueryRequest request
-    ) {
-        return R.ok(facadeService.queryRenderComponentCatalog(runId, traceId, request));
     }
 }

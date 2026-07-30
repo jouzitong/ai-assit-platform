@@ -43,7 +43,8 @@
         "string",
         "null"
       ],
-      "minLength": 1
+      "minLength": 1,
+      "description": "Compatibility field containing the component source reference used for authoring."
     },
     "protocolVersion": {
       "type": [

@@ -3,6 +3,7 @@ package ai.platform.aiassit.agent.runtime;
 import ai.platform.aiassit.conversation.workflow.artifact.ArtifactAcceptanceResult;
 import ai.platform.aiassit.conversation.workflow.artifact.ArtifactAcceptanceService;
 import ai.platform.aiassit.conversation.workflow.artifact.ArtifactCheckResult;
+import ai.platform.aiassit.conversation.workflow.artifact.DefaultArtifactAcceptanceService;
 import ai.platform.aiassit.model.entity.dto.AiModelConfigDTO;
 import ai.platform.aiassit.model.service.AiModelConfigService;
 import ai.platform.aiassit.service.ai.spi.agent.AgentCancellation;
@@ -16,6 +17,7 @@ import ai.platform.aiassit.service.ai.spi.agent.AgentRuntimeCapabilities;
 import ai.platform.aiassit.service.ai.spi.agent.AgentRuntimeType;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
+import org.arthena.framework.common.exception.BizException;
 
 import java.lang.reflect.Proxy;
 import java.util.ArrayDeque;
@@ -59,6 +61,195 @@ class DefaultAgentConversationRunnerTest {
 
         assertThatThrownBy(() -> runner.resolveModel(request))
                 .satisfies(error -> assertThat(error.toString()).contains("42"));
+    }
+
+    @Test
+    void ordinaryTextTurnKeepsDefaultFinalAnswerAcceptance() {
+        StubRuntime runtime = runtime(result("ordinary answer"));
+        DefaultAgentConversationRunner runner = executableRunner(runtime,
+                new DefaultArtifactAcceptanceService(new ObjectMapper()));
+
+        AgentConversationOutcome outcome = runner.run(request(), AgentRunObserver.NOOP, AgentCancellation.NONE);
+
+        assertThat(outcome.getStatus()).isEqualTo("SUCCESS");
+        assertThat(runtime.invocations).isEqualTo(1);
+        assertThat(runtime.snapshots)
+                .singleElement()
+                .satisfies(snapshot -> assertThat(snapshot.getWorkflowSnapshot()).isEmpty());
+    }
+
+    @Test
+    void runtimeClarificationDoesNotRequireRenderArtifacts() {
+        AgentRunResult clarification = result("请补充看板的数据范围和需要展示的指标。");
+        clarification.setStatus("INPUT_REQUIRED");
+        markAppliedRoute(clarification, false, "dashboard-application-builder");
+        StubRuntime runtime = runtime(clarification);
+        DefaultArtifactAcceptanceService delegate = new DefaultArtifactAcceptanceService(new ObjectMapper());
+        List<Map<String, Object>> acceptedWorkflows = new ArrayList<>();
+        DefaultAgentConversationRunner runner = executableRunner(runtime, (workflow, artifacts, answer) -> {
+            acceptedWorkflows.add(Map.copyOf(workflow));
+            return delegate.accept(workflow, artifacts, answer);
+        });
+        AgentConversationRequest request = request();
+        request.setTarget(AgentTarget.explicit("dashboard-application-builder", 1));
+        request.setArtifactDelivery(AgentArtifactDelivery.RENDER_DOCUMENT);
+        List<AgentRunEvent> events = new ArrayList<>();
+
+        AgentConversationOutcome outcome = runner.run(request, events::add, AgentCancellation.NONE);
+
+        assertThat(outcome.getStatus()).isEqualTo("INPUT_REQUIRED");
+        assertThat(outcome.getAnswer()).isEqualTo("请补充看板的数据范围和需要展示的指标。");
+        assertThat(runtime.invocations).isEqualTo(1);
+        assertThat(acceptedWorkflows).containsExactly(Map.of());
+        assertThat(outcome.getArtifacts())
+                .extracting(artifact -> artifact.get("artifactCode"))
+                .containsExactly("final-answer");
+        assertThat(event(events, "execution.result.completed").getExt())
+                .containsEntry("resultStatus", "INPUT_REQUIRED");
+    }
+
+    @Test
+    void renderDeliveryCannotPassAcceptanceWithOnlyFinalAnswerText() {
+        AgentRunResult routedTextOnly = result("text only");
+        routedTextOnly.setStatus("INPUT_REQUIRED");
+        markAppliedRoute(routedTextOnly, true, "dashboard-application-builder");
+        StubRuntime runtime = runtime(routedTextOnly, result("still text only"));
+        DefaultAgentConversationRunner runner = executableRunner(runtime,
+                new DefaultArtifactAcceptanceService(new ObjectMapper()));
+        AgentConversationRequest request = request();
+        List<AgentRunEvent> events = new ArrayList<>();
+
+        assertThatThrownBy(() -> runner.run(request, events::add, AgentCancellation.NONE))
+                .isInstanceOf(BizException.class)
+                .satisfies(error -> assertThat(error.toString()).contains("required-render-document"));
+
+        assertThat(runtime.invocations).isEqualTo(2);
+        assertThat(runtime.executionAttempts).containsExactly(1, 2);
+        assertThat(runtime.snapshots).hasSize(2);
+        assertThat(runtime.snapshots.get(0).getWorkflowSnapshot()).isEmpty();
+        assertThat(runtime.snapshots.get(1).getWorkflowSnapshot())
+                .containsEntry("workflowRef", "workflow://render-document-delivery/v1");
+        assertThat(list(map(runtime.snapshots.get(1).getWorkflowSnapshot().get("spec")).get("artifacts")))
+                .filteredOn(contract -> List.of(
+                                "application-brief",
+                                "data-contract",
+                                "application-plan",
+                                "application-build-state")
+                        .contains(contract.get("code")))
+                .hasSize(4)
+                .allSatisfy(contract -> assertThat(contract)
+                        .containsEntry("artifactType", "JSON")
+                        .containsEntry("contentFormat", "JSON")
+                        .containsEntry("required", false)
+                        .containsEntry("inlineSchema", Map.of("type", "object")));
+        assertThat(events)
+                .filteredOn(event -> "check.completed".equals(event.getEventType())
+                        && "required-render-document".equals(event.getExt().get("checkCode")))
+                .hasSize(2)
+                .allSatisfy(event -> {
+                    assertThat(event.getStatus()).isEqualTo("FAILED");
+                    assertThat(event.getExt()).containsEntry("passed", false);
+                });
+        assertThat(events)
+                .filteredOn(event -> "artifact.repair.requested".equals(event.getEventType()))
+                .hasSize(1);
+        assertThat(event(events, "execution.result.completed").getExt())
+                .containsEntry("resultStatus", "FAILED")
+                .containsEntry("remediationAttempts", 1);
+    }
+
+    @Test
+    void renderDeliveryAcceptsAValidRenderJsonArtifact() {
+        AgentRunResult renderResult = validRenderResult();
+        StubRuntime runtime = runtime(renderResult);
+        DefaultAgentConversationRunner runner = executableRunner(runtime,
+                new DefaultArtifactAcceptanceService(new ObjectMapper()));
+        AgentConversationRequest request = request();
+        List<AgentRunEvent> events = new ArrayList<>();
+
+        AgentConversationOutcome outcome = runner.run(request, events::add, AgentCancellation.NONE);
+
+        assertThat(outcome.getStatus()).isEqualTo("SUCCESS");
+        assertThat(outcome.getArtifacts())
+                .filteredOn(artifact -> "render-document".equals(artifact.get("artifactCode")))
+                .singleElement()
+                .satisfies(artifact -> assertThat(artifact)
+                        .containsEntry("artifactType", "RENDER_JSON")
+                        .containsEntry("visible", true));
+        assertThat(event(events, "execution.result.completed").getExt())
+                .containsEntry("resultStatus", "SUCCESS")
+                .containsEntry("artifactCount", 4);
+        assertThat(events)
+                .filteredOn(event -> "check.completed".equals(event.getEventType()))
+                .allSatisfy(event -> assertThat(event.getStatus()).isEqualTo("SUCCESS"));
+    }
+
+    @Test
+    void renderDeliveryAcceptsDeclaredOptionalDashboardArtifactsWhenProduced() {
+        AgentRunResult renderResult = validRenderResult();
+        List<Map<String, Object>> artifacts = new ArrayList<>(renderResult.getArtifacts());
+        artifacts.addAll(List.of(
+                optionalJsonArtifact("application-brief"),
+                optionalJsonArtifact("data-contract"),
+                optionalJsonArtifact("application-plan"),
+                optionalJsonArtifact("application-build-state")
+        ));
+        renderResult.setArtifacts(artifacts);
+        StubRuntime runtime = runtime(renderResult);
+        DefaultAgentConversationRunner runner = executableRunner(runtime,
+                new DefaultArtifactAcceptanceService(new ObjectMapper()));
+
+        AgentConversationOutcome outcome = runner.run(
+                request(), AgentRunObserver.NOOP, AgentCancellation.NONE);
+
+        assertThat(outcome.getStatus()).isEqualTo("SUCCESS");
+        assertThat(outcome.getArtifacts())
+                .extracting(artifact -> artifact.get("artifactCode"))
+                .contains(
+                        "application-brief",
+                        "data-contract",
+                        "application-plan",
+                        "application-build-state");
+    }
+
+    @Test
+    void renderDeliveryStillRejectsAnArtifactOutsideTheExpandedContract() {
+        AgentRunResult invalidResult = validRenderResult();
+        List<Map<String, Object>> artifacts = new ArrayList<>(invalidResult.getArtifacts());
+        artifacts.add(optionalJsonArtifact("shadow-render"));
+        invalidResult.setArtifacts(artifacts);
+        StubRuntime runtime = runtime(invalidResult, invalidResult);
+        DefaultAgentConversationRunner runner = executableRunner(runtime,
+                new DefaultArtifactAcceptanceService(new ObjectMapper()));
+        List<AgentRunEvent> events = new ArrayList<>();
+
+        assertThatThrownBy(() -> runner.run(request(), events::add, AgentCancellation.NONE))
+                .isInstanceOf(BizException.class)
+                .satisfies(error -> assertThat(error.toString()).contains("shadow-render"));
+
+        assertThat(runtime.invocations).isEqualTo(2);
+        assertThat(events)
+                .filteredOn(event -> "check.completed".equals(event.getEventType())
+                        && "ARTIFACT_CODE".equals(event.getExt().get("checkerType")))
+                .hasSize(2)
+                .allSatisfy(event -> assertThat(event.getStatus()).isEqualTo("FAILED"));
+    }
+
+    @Test
+    void unappliedRenderRouteRecommendationDoesNotChangeOrdinaryChatAcceptance() {
+        AgentRunResult recommendation = result("ordinary answer");
+        markAppliedRoute(recommendation, false, "dashboard-application-builder");
+        StubRuntime runtime = runtime(recommendation);
+        DefaultAgentConversationRunner runner = executableRunner(runtime,
+                new DefaultArtifactAcceptanceService(new ObjectMapper()));
+
+        AgentConversationOutcome outcome = runner.run(request(), AgentRunObserver.NOOP, AgentCancellation.NONE);
+
+        assertThat(outcome.getStatus()).isEqualTo("SUCCESS");
+        assertThat(runtime.invocations).isEqualTo(1);
+        assertThat(runtime.snapshots)
+                .singleElement()
+                .satisfies(snapshot -> assertThat(snapshot.getWorkflowSnapshot()).isEmpty());
     }
 
     @Test
@@ -312,6 +503,71 @@ class DefaultAgentConversationRunnerTest {
         return result;
     }
 
+    private AgentRunResult validRenderResult() {
+        AgentRunResult renderResult = result("rendered address list");
+        renderResult.setArtifacts(List.of(
+                Map.of(
+                        "artifactCode", "final-answer",
+                        "artifactType", "TEXT",
+                        "contentFormat", "MARKDOWN",
+                        "content", "rendered address list"
+                ),
+                Map.of(
+                        "artifactCode", "data-preview",
+                        "artifactType", "JSON",
+                        "contentFormat", "JSON",
+                        "content", Map.of(
+                                "tool", "data_preview_query_tool",
+                                "success", true,
+                                "model", "ods_trade_account_user_address",
+                                "catalogVersion", 7,
+                                "sourceRevision", "virtual-model/v7",
+                                "columns", List.of(Map.of("name", "id")),
+                                "records", List.of(Map.of("id", 1))
+                        )
+                ),
+                Map.of(
+                        "artifactCode", "render-document",
+                        "artifactType", "RENDER_JSON",
+                        "contentFormat", "JSON",
+                        "visible", true,
+                        "content", Map.of(
+                                "protocol", "render-json",
+                                "protocolVersion", "1.0.0",
+                                "pageId", "user-addresses",
+                                "root", Map.of("component", "zg-common-list")
+                        )
+                ),
+                Map.of(
+                        "artifactCode", "validation-report",
+                        "artifactType", "JSON",
+                        "contentFormat", "JSON",
+                        "content", Map.of(
+                                "tool", "render_json_validate_tool",
+                                "valid", true
+                        )
+                )
+        ));
+        markAppliedRoute(renderResult, true, "dashboard-application-builder");
+        return renderResult;
+    }
+
+    private Map<String, Object> optionalJsonArtifact(String artifactCode) {
+        return Map.of(
+                "artifactCode", artifactCode,
+                "artifactType", "JSON",
+                "contentFormat", "JSON",
+                "content", Map.of("section", artifactCode)
+        );
+    }
+
+    private void markAppliedRoute(AgentRunResult result, boolean routeApplied, String selectedAgentCode) {
+        result.getProviderMeta().put("requestAnalysis", Map.of(
+                "routeApplied", routeApplied,
+                "selectedAgentCode", selectedAgentCode
+        ));
+    }
+
     private ArtifactAcceptanceService acceptanceService(ArtifactAcceptanceResult... results) {
         Deque<ArtifactAcceptanceResult> queue = new ArrayDeque<>(List.of(results));
         return (workflow, artifacts, answer) -> queue.removeFirst();
@@ -410,6 +666,7 @@ class DefaultAgentConversationRunnerTest {
     private static final class StubRuntime implements AgentRuntime {
         private final Deque<Object> results;
         private final List<Integer> executionAttempts = new ArrayList<>();
+        private final List<AgentDefinitionSnapshot> snapshots = new ArrayList<>();
         private int invocations;
 
         private StubRuntime(Object... results) {
@@ -431,6 +688,7 @@ class DefaultAgentConversationRunnerTest {
                                   AgentCancellation cancellation) {
             invocations++;
             executionAttempts.add((Integer) command.getContext().get("executionAttempt"));
+            snapshots.add(new ObjectMapper().convertValue(snapshot, AgentDefinitionSnapshot.class));
             Object next = results.removeFirst();
             if (next instanceof RuntimeException error) {
                 throw error;

@@ -65,10 +65,6 @@
             <artifactId>app-platform-db-engine-api</artifactId>
         </dependency>
         <dependency>
-            <groupId>ai.platform.aiassit</groupId>
-            <artifactId>app-platform-render-api</artifactId>
-        </dependency>
-        <dependency>
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>

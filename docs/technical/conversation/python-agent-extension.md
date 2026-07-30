@@ -366,7 +366,6 @@ contract-review/
 - `knowledge_base_search_tool`
 - `data_preview_query_tool`
 - `data_format_validate_tool`
-- `render_component_catalog_tool`
 - `render_json_validate_tool`
 - `web_search_tool`
 

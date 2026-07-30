@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-assit-platform.local/schemas/application-plan/v1",
   "title": "ApplicationPlan",
-  "description": "A catalog-bound plan that connects a previewed semantic contract to an application layout.",
+  "description": "A skill-bound plan that connects a previewed semantic contract to an application layout.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -54,7 +54,8 @@
     },
     "catalogRevision": {
       "type": "string",
-      "minLength": 1
+      "minLength": 1,
+      "description": "Compatibility field containing the frozen component source reference, currently skill://render-json-authoring/v6."
     },
     "assumptions": {
       "type": "array",

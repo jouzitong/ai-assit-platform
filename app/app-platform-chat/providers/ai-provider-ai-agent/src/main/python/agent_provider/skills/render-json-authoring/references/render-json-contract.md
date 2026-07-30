@@ -30,8 +30,8 @@ Use only:
 ```json
 {
   "id": "stable-node-id",
-  "component": "catalog-component-key",
-  "componentVersion": "catalog-version",
+  "component": "skill-component-key",
+  "componentVersion": "skill-component-version",
   "props": {},
   "layout": {},
   "datasource": {},
@@ -42,11 +42,11 @@ Use only:
 }
 ```
 
-- Require `id`, `component`, and the live `componentVersion` for published components.
+- Require `id`, `component`, and the component version documented by this skill.
 - Keep node IDs unique across the complete tree.
 - Use `props` only for declared component parameters.
 - Use node `layout` for placement: `gridColumn`, `gridRow`, `width`, `height`, and `minHeight` are consumed by the current runtime node.
-- Use `children` only with components that the runtime and live catalog both support.
+- Use `children` only with components that this skill explicitly documents as containers.
 - Do not add Vue component references, callbacks, stores, routers, HTTP clients, or other runtime objects.
 
 ## Datasources and bindings
@@ -94,7 +94,7 @@ Bindings map named component targets to semantic result paths:
 }
 ```
 
-Allowed bundled transforms are `identity`, `number`, `percent`, `currency`, `date`, `datetime`, and `category-series`. Use only bindings accepted by the live component and validator contracts.
+Allowed bundled transforms are `identity`, `number`, `percent`, `currency`, `date`, `datetime`, and `category-series`. Use only bindings accepted by the skill-documented component and validator contracts.
 
 ## Events and actions
 
@@ -131,8 +131,8 @@ Renderer buttons inside list or form `props.schema` use a different frontend con
 
 ## Authoring rules
 
-1. Prefer canonical catalog keys; accept aliases only if the live catalog publishes the alias as its exact key.
-2. Pin the exact live component version on every node.
+1. Prefer canonical component keys; accept aliases only when this skill explicitly documents the alias.
+2. Pin the exact component version documented by this skill on every node.
 3. Keep all values valid JSON. Do not use comments, trailing commas, `NaN`, or duplicate object keys.
 4. Avoid dangerous keys such as credentials, headers, URLs, scripts, handlers, expressions, raw SQL, or prototype-related keys.
 5. Keep charts' `option` serializable; never place formatter functions in it.
@@ -144,10 +144,10 @@ Renderer buttons inside list or form `props.schema` use a different frontend con
 ## Validation checklist
 
 - The semantic preview proof succeeded.
-- Every component exists in the live catalog.
+- Every component exists in the current skill snapshot.
 - Every `componentVersion` equals the published version.
 - Every required prop exists and every extra prop is removed.
 - Every event is declared by its component and references a local node action.
 - Every datasource and binding uses previewed fields.
 - Node IDs are unique; depth and node count remain bounded.
-- The final `render_json_validate_tool` result reports `valid: true` and includes a catalog revision.
+- The final `render_json_validate_tool` result reports `valid: true` and identifies `skill://render-json-authoring/v6` in the compatibility `catalogRevision` field.

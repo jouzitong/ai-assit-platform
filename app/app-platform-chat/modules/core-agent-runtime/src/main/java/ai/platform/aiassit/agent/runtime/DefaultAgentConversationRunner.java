@@ -71,7 +71,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         if (request == null || !StringUtils.hasText(request.getInput())) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_MESSAGE);
         }
-        AgentDefinitionSnapshot snapshot = pythonRuntimeSnapshot();
+        AgentDefinitionSnapshot snapshot = pythonRuntimeSnapshot(request);
         AgentRuntime runtime = resolveRuntime(AgentRuntimeType.OPENAI_AGENTS_PYTHON);
         AiModelConfigDTO model = resolveModel(request);
 
@@ -97,6 +97,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
             if (!StringUtils.hasText(settled.getRunId())) {
                 settled.setRunId(runId);
             }
+            reconcileArtifactDelivery(snapshot, settled);
             acceptanceAttempt++;
             acceptance = accept(snapshot, settled, enrichingObserver, runId, request, acceptanceAttempt);
             while (!acceptance.isAccepted() && acceptance.isRepairable()
@@ -115,6 +116,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
                 }
                 settled = repaired == null ? new AgentRunResult() : repaired;
                 settled.setRunId(runId);
+                reconcileArtifactDelivery(snapshot, settled);
                 emitRepairCompleted(enrichingObserver, snapshot, request, runId, repairAttempt,
                         acceptance, settled);
                 acceptanceAttempt++;
@@ -122,7 +124,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
             }
             String status;
             if (acceptance.isAccepted()) {
-                status = "SUCCESS";
+                status = runtimeInputRequired(settled) ? "INPUT_REQUIRED" : "SUCCESS";
             } else if (acceptance.isInputRequired()) {
                 status = "INPUT_REQUIRED";
                 settled.setFinalOutput(acceptance.getRepairMessage());
@@ -135,7 +137,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
             AgentRunAuditRecord finished = audit(snapshot, request, runId, status, startedAt, Instant.now(),
                     usageJson(settled), null);
             auditStores.forEach(store -> store.update(finished));
-            String resultStatus = executionResultStatus(acceptance);
+            String resultStatus = executionResultStatus(acceptance, settled);
             resultEventEmitted = true;
             emitExecutionResult(enrichingObserver, snapshot, request, runId, resultStatus,
                     settled, acceptance, repairAttempt, acceptanceAttempt, null);
@@ -367,11 +369,15 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         observer.onEvent(event);
     }
 
-    private String executionResultStatus(ArtifactAcceptanceResult acceptance) {
+    private String executionResultStatus(ArtifactAcceptanceResult acceptance,
+                                         AgentRunResult result) {
         if (acceptance == null) {
             return "FAILED";
         }
         if (acceptance.isAccepted()) {
+            if (runtimeInputRequired(result)) {
+                return "INPUT_REQUIRED";
+            }
             return checks(acceptance).stream().anyMatch(check -> !check.isPassed())
                     ? "PARTIAL" : "SUCCESS";
         }
@@ -768,14 +774,163 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         return message.length() <= 512 ? message : message.substring(0, 512);
     }
 
-    private AgentDefinitionSnapshot pythonRuntimeSnapshot() {
+    private AgentDefinitionSnapshot pythonRuntimeSnapshot(AgentConversationRequest request) {
         AgentDefinitionSnapshot snapshot = new AgentDefinitionSnapshot();
         snapshot.setAgentCode("python-agent-runtime");
         snapshot.setAgentVersion(1);
         snapshot.setRuntimeType(AgentRuntimeType.OPENAI_AGENTS_PYTHON);
         snapshot.setSdkVersion("python-local");
         snapshot.setSnapshotHash("python-local");
+        snapshot.setWorkflowSnapshot(workflowSnapshot(request == null
+                ? AgentArtifactDelivery.STANDARD : request.getArtifactDelivery()));
         return snapshot;
+    }
+
+    private void reconcileArtifactDelivery(AgentDefinitionSnapshot snapshot, AgentRunResult result) {
+        if (snapshot == null) {
+            return;
+        }
+        boolean renderRouteApplied = appliedRenderRoute(result);
+        if (renderRouteApplied) {
+            snapshot.setWorkflowSnapshot(workflowSnapshot(AgentArtifactDelivery.RENDER_DOCUMENT));
+        } else if (runtimeInputRequired(result)) {
+            snapshot.setWorkflowSnapshot(workflowSnapshot(AgentArtifactDelivery.STANDARD));
+        }
+    }
+
+    private boolean appliedRenderRoute(AgentRunResult result) {
+        if (result == null || result.getProviderMeta() == null
+                || !(result.getProviderMeta().get("requestAnalysis") instanceof Map<?, ?> analysis)) {
+            return false;
+        }
+        Object selectedAgentCode = analysis.get("selectedAgentCode");
+        return AgentArtifactDelivery.forValidatedRoute(
+                Boolean.TRUE.equals(analysis.get("routeApplied")),
+                selectedAgentCode == null ? null : String.valueOf(selectedAgentCode)
+        ) == AgentArtifactDelivery.RENDER_DOCUMENT;
+    }
+
+    private boolean runtimeInputRequired(AgentRunResult result) {
+        return result != null && "INPUT_REQUIRED".equalsIgnoreCase(result.getStatus());
+    }
+
+    private Map<String, Object> workflowSnapshot(AgentArtifactDelivery delivery) {
+        if (delivery != AgentArtifactDelivery.RENDER_DOCUMENT) {
+            return new LinkedHashMap<>();
+        }
+        Map<String, Object> finalAnswer = Map.of(
+                "code", "final-answer",
+                "artifactType", "TEXT",
+                "contentFormat", "MARKDOWN",
+                "required", true,
+                "inlineSchema", Map.of("type", "string")
+        );
+        Map<String, Object> applicationBrief = optionalJsonArtifact("application-brief");
+        Map<String, Object> dataContract = optionalJsonArtifact("data-contract");
+        Map<String, Object> dataPreview = Map.of(
+                "code", "data-preview",
+                "artifactType", "JSON",
+                "contentFormat", "JSON",
+                "required", true,
+                "inlineSchema", dataPreviewSchema()
+        );
+        Map<String, Object> applicationPlan = optionalJsonArtifact("application-plan");
+        Map<String, Object> renderDocument = Map.of(
+                "code", "render-document",
+                "artifactType", "RENDER_JSON",
+                "contentFormat", "JSON",
+                "required", true,
+                "inlineSchema", renderDocumentSchema()
+        );
+        Map<String, Object> validationReport = Map.of(
+                "code", "validation-report",
+                "artifactType", "JSON",
+                "contentFormat", "JSON",
+                "required", true,
+                "inlineSchema", validationReportSchema()
+        );
+        Map<String, Object> applicationBuildState = optionalJsonArtifact("application-build-state");
+        Map<String, Object> specification = Map.of(
+                "artifacts", List.of(
+                        finalAnswer,
+                        applicationBrief,
+                        dataContract,
+                        dataPreview,
+                        applicationPlan,
+                        renderDocument,
+                        validationReport,
+                        applicationBuildState),
+                "completionPolicy", Map.of(
+                        "requireAllRequiredArtifacts", true,
+                        "requireAllBlockingChecksPassed", true
+                ),
+                "repairPolicy", Map.of(
+                        "maxRepairAttempts", 1,
+                        "onExhausted", "FAILED"
+                )
+        );
+        Map<String, Object> workflow = new LinkedHashMap<>();
+        workflow.put("workflowRef", "workflow://render-document-delivery/v1");
+        workflow.put("apiVersion", "ai.platform/v1alpha1");
+        workflow.put("kind", "ArtifactWorkflow");
+        workflow.put("metadata", Map.of("code", "render-document-delivery", "version", 1));
+        workflow.put("spec", specification);
+        return workflow;
+    }
+
+    private Map<String, Object> optionalJsonArtifact(String code) {
+        return Map.of(
+                "code", code,
+                "artifactType", "JSON",
+                "contentFormat", "JSON",
+                "required", false,
+                "inlineSchema", Map.of("type", "object")
+        );
+    }
+
+    private Map<String, Object> dataPreviewSchema() {
+        return Map.of(
+                "type", "object",
+                "required", List.of(
+                        "tool", "success", "model", "catalogVersion",
+                        "sourceRevision", "columns", "records"),
+                "properties", Map.of(
+                        "tool", Map.of(
+                                "type", "string", "enum", List.of("data_preview_query_tool")),
+                        "success", Map.of("type", "boolean", "enum", List.of(true)),
+                        "model", Map.of("type", "string"),
+                        "catalogVersion", Map.of("type", "integer"),
+                        "sourceRevision", Map.of("type", "string"),
+                        "columns", Map.of("type", "array"),
+                        "records", Map.of("type", "array")
+                )
+        );
+    }
+
+    private Map<String, Object> renderDocumentSchema() {
+        return Map.of(
+                "type", "object",
+                "required", List.of("protocol", "protocolVersion", "pageId", "root"),
+                "properties", Map.of(
+                        "protocol", Map.of("type", "string", "enum", List.of("render-json")),
+                        "protocolVersion", Map.of(
+                                "type", "string", "enum", List.of("1.0", "1.0.0")),
+                        "pageId", Map.of("type", "string"),
+                        "root", Map.of("type", "object")
+                )
+        );
+    }
+
+    private Map<String, Object> validationReportSchema() {
+        return Map.of(
+                "type", "object",
+                "required", List.of("tool", "valid"),
+                "properties", Map.of(
+                        "tool", Map.of(
+                                "type", "string", "enum", List.of("render_json_validate_tool")),
+                        "valid", Map.of("type", "boolean", "enum", List.of(true))
+                )
+        );
     }
 
     private record WorkflowRef(String code, Integer version) {

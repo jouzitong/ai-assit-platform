@@ -3,8 +3,6 @@ package ai.platform.aiassit.agent.controller;
 import ai.platform.aiassit.agent.runtime.tool.AiAgentPlatformToolFacadeService;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryRequest;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryResponse;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogQueryRequest;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogResponse;
 import ai.platform.aiassit.service.ai.api.AiAgentPlatformToolInternalApi;
 import org.athena.framework.web.vo.R;
 import org.junit.jupiter.api.Test;
@@ -32,21 +30,12 @@ class AiAgentPlatformToolInternalControllerTest {
                 String.class,
                 DataPreviewQueryRequest.class
         );
-        Method catalogMethod = AiAgentPlatformToolInternalApi.class.getMethod(
-                "queryRenderComponentCatalog",
-                String.class,
-                String.class,
-                RenderComponentCatalogQueryRequest.class
-        );
 
         assertThat(feignClient.name()).isEqualTo("chat");
         assertThat(feignClient.path()).isEqualTo("/chat");
         assertThat(previewMethod.getAnnotation(PostMapping.class).value())
                 .containsExactly("/internal/v1/ai/agent-tools/data-preview/query");
-        assertThat(catalogMethod.getAnnotation(PostMapping.class).value())
-                .containsExactly("/internal/v1/ai/agent-tools/render-components/catalog/query");
         assertOptionalTransportInputs(previewMethod);
-        assertOptionalTransportInputs(catalogMethod);
     }
 
     @Test
@@ -64,22 +53,6 @@ class AiAgentPlatformToolInternalControllerTest {
         assertThat(facadeService.dataPreviewRequest).isSameAs(request);
     }
 
-    @Test
-    void wrapsTheCheckedRenderCatalogResult() {
-        RenderComponentCatalogQueryRequest request = new RenderComponentCatalogQueryRequest();
-        RenderComponentCatalogResponse response = new RenderComponentCatalogResponse();
-        facadeService.renderCatalogResponse = response;
-
-        R<RenderComponentCatalogResponse> actual =
-                controller.queryRenderComponentCatalog("run-1", null, request);
-
-        assertThat(actual.getCode()).isZero();
-        assertThat(actual.getData()).isSameAs(response);
-        assertThat(facadeService.runId).isEqualTo("run-1");
-        assertThat(facadeService.traceId).isNull();
-        assertThat(facadeService.renderCatalogRequest).isSameAs(request);
-    }
-
     private void assertOptionalTransportInputs(Method method) {
         assertThat(method.getParameters()[0].getAnnotation(RequestHeader.class).required()).isFalse();
         assertThat(method.getParameters()[1].getAnnotation(RequestHeader.class).required()).isFalse();
@@ -92,11 +65,9 @@ class AiAgentPlatformToolInternalControllerTest {
         private String traceId;
         private DataPreviewQueryRequest dataPreviewRequest;
         private DataPreviewQueryResponse dataPreviewResponse;
-        private RenderComponentCatalogQueryRequest renderCatalogRequest;
-        private RenderComponentCatalogResponse renderCatalogResponse;
 
         private RecordingFacadeService() {
-            super(request -> null, request -> null);
+            super(request -> null);
         }
 
         @Override
@@ -107,18 +78,6 @@ class AiAgentPlatformToolInternalControllerTest {
             this.traceId = traceId;
             dataPreviewRequest = request;
             return dataPreviewResponse;
-        }
-
-        @Override
-        public RenderComponentCatalogResponse queryRenderComponentCatalog(
-                String runId,
-                String traceId,
-                RenderComponentCatalogQueryRequest request
-        ) {
-            this.runId = runId;
-            this.traceId = traceId;
-            renderCatalogRequest = request;
-            return renderCatalogResponse;
         }
     }
 }

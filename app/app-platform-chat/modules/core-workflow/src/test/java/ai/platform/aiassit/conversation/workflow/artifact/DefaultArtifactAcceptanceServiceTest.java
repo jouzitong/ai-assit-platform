@@ -182,4 +182,107 @@ class DefaultArtifactAcceptanceServiceTest {
         assertThat(result.isAccepted()).isFalse();
         assertThat(result.getRepairMessage()).contains("schemaRef was not resolved");
     }
+
+    @Test
+    void rejectsArtifactWhoseTypeDoesNotMatchThePublishedContract() {
+        Map<String, Object> workflow = Map.of("artifacts", List.of(Map.of(
+                "code", "render-document",
+                "artifactType", "RENDER_JSON",
+                "required", true
+        )));
+        List<Map<String, Object>> artifacts = List.of(Map.of(
+                "artifactCode", "render-document",
+                "artifactType", "TEXT",
+                "content", Map.of("pageId", "addresses")
+        ));
+
+        ArtifactAcceptanceResult result = service.accept(workflow, artifacts, "answer");
+
+        assertThat(result.isAccepted()).isFalse();
+        assertThat(result.isRepairable()).isFalse();
+        assertThat(result.getChecks())
+                .filteredOn(check -> "type-render-document".equals(check.getCheckCode()))
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.getCheckerType()).isEqualTo("ARTIFACT_TYPE");
+                    assertThat(check.isBlocking()).isTrue();
+                    assertThat(check.isRetryable()).isTrue();
+                    assertThat(check.isPassed()).isFalse();
+                    assertThat(check.getMessage()).contains("must be RENDER_JSON");
+                });
+    }
+
+    @Test
+    void explicitWorkflowRejectsUnknownAndDuplicateArtifactCodesFailClosed() {
+        Map<String, Object> workflow = Map.of(
+                "artifacts", List.of(
+                        Map.of("code", "final-answer", "required", true),
+                        Map.of("code", "render-document", "required", true)
+                ),
+                "completionPolicy", Map.of("requireAllBlockingChecksPassed", false)
+        );
+        List<Map<String, Object>> artifacts = List.of(
+                Map.of("artifactCode", "final-answer", "content", "done"),
+                Map.of("artifactCode", "render-document", "content", Map.of("pageId", "one")),
+                Map.of("artifactCode", "render-document", "content", Map.of("pageId", "two")),
+                Map.of("artifactCode", "shadow-render", "content", Map.of("pageId", "shadow"))
+        );
+
+        ArtifactAcceptanceResult result = service.accept(workflow, artifacts, "done");
+
+        assertThat(result.isAccepted()).isFalse();
+        assertThat(result.getChecks())
+                .filteredOn(check -> "ARTIFACT_CODE".equals(check.getCheckerType()))
+                .hasSize(2)
+                .allSatisfy(check -> {
+                    assertThat(check.isBlocking()).isTrue();
+                    assertThat(check.isRetryable()).isTrue();
+                    assertThat(check.isPassed()).isFalse();
+                });
+        assertThat(result.getRepairMessage())
+                .contains("Artifact code must be unique within one result: render-document")
+                .contains("Artifact code is not declared by the Workflow contract: shadow-render");
+    }
+
+    @Test
+    void explicitWorkflowRejectsArtifactWhoseContentFormatDoesNotMatchContract() {
+        Map<String, Object> workflow = Map.of("artifacts", List.of(Map.of(
+                "code", "render-document",
+                "contentFormat", "JSON",
+                "required", true
+        )));
+        List<Map<String, Object>> artifacts = List.of(Map.of(
+                "artifactCode", "render-document",
+                "contentFormat", "MARKDOWN",
+                "content", Map.of("pageId", "addresses")
+        ));
+
+        ArtifactAcceptanceResult result = service.accept(workflow, artifacts, null);
+
+        assertThat(result.isAccepted()).isFalse();
+        assertThat(result.getChecks())
+                .filteredOn(check -> "format-render-document".equals(check.getCheckCode()))
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.getCheckerType()).isEqualTo("CONTENT_FORMAT");
+                    assertThat(check.isPassed()).isFalse();
+                    assertThat(check.getMessage()).contains("must be JSON").contains("MARKDOWN");
+                });
+    }
+
+    @Test
+    void ordinaryTurnKeepsCompatibilityForUncontractedAndDuplicateArtifacts() {
+        List<Map<String, Object>> artifacts = List.of(
+                Map.of("artifactCode", "render-document", "contentFormat", "MARKDOWN", "content", "one"),
+                Map.of("artifactCode", "render-document", "contentFormat", "JSON", "content", "two")
+        );
+
+        ArtifactAcceptanceResult result = service.accept(Map.of(), artifacts, "ordinary answer");
+
+        assertThat(result.isAccepted()).isTrue();
+        assertThat(result.getChecks())
+                .singleElement()
+                .satisfies(check -> assertThat(check.getCheckCode()).isEqualTo("required-final-answer"));
+        assertThat(result.getArtifacts()).hasSize(3);
+    }
 }

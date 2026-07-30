@@ -30,6 +30,7 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
                                            String finalAnswer) {
         Map<String, Object> spec = spec(workflowSnapshot);
         List<Map<String, Object>> contracts = maps(spec.get("artifacts"));
+        boolean hasExplicitArtifactContracts = !contracts.isEmpty();
         List<Map<String, Object>> normalized = normalizeArtifacts(artifacts, finalAnswer);
         Map<String, Map<String, Object>> byCode = index(normalized);
         List<ArtifactCheckResult> checks = new ArrayList<>();
@@ -38,6 +39,9 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
             contracts = List.of(defaultFinalAnswerContract());
         }
         Map<String, Map<String, Object>> contractsByCode = index(contracts);
+        if (hasExplicitArtifactContracts) {
+            checks.addAll(validateDeclaredArtifactCodes(contracts, artifacts));
+        }
         Map<String, Object> completionPolicy = map(spec.get("completionPolicy"));
         boolean requireAllRequiredArtifacts = !Boolean.FALSE.equals(
                 completionPolicy.get("requireAllRequiredArtifacts"));
@@ -57,6 +61,30 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
                         true, true, true, "PASSED", "Required artifact is present: " + code));
             }
             if (artifact != null) {
+                String expectedType = text(contract.get("artifactType"));
+                if (StringUtils.hasText(expectedType)) {
+                    String actualType = text(artifact.get("artifactType"), artifact.get("type"));
+                    boolean typeMatches = StringUtils.hasText(actualType)
+                            && expectedType.equalsIgnoreCase(actualType);
+                    checks.add(result("type-" + code, code, "ARTIFACT_TYPE", "ERROR",
+                            true, true, typeMatches, typeMatches ? "PASSED" : "FAILED",
+                            typeMatches
+                                    ? "Artifact type matches contract: " + expectedType
+                                    : "Artifact type must be " + expectedType + ", but was "
+                                    + (StringUtils.hasText(actualType) ? actualType : "missing")));
+                }
+                String expectedFormat = text(contract.get("contentFormat"), contract.get("format"));
+                if (StringUtils.hasText(expectedFormat)) {
+                    String actualFormat = text(artifact.get("contentFormat"), artifact.get("format"));
+                    boolean formatMatches = StringUtils.hasText(actualFormat)
+                            && expectedFormat.equalsIgnoreCase(actualFormat);
+                    checks.add(result("format-" + code, code, "CONTENT_FORMAT", "ERROR",
+                            true, true, formatMatches, formatMatches ? "PASSED" : "FAILED",
+                            formatMatches
+                                    ? "Artifact content format matches contract: " + expectedFormat
+                                    : "Artifact content format must be " + expectedFormat + ", but was "
+                                    + (StringUtils.hasText(actualFormat) ? actualFormat : "missing")));
+                }
                 Map<String, Object> schema = map(contract.get("inlineSchema"));
                 if (schema.isEmpty()) {
                     schema = map(contract.get("schema"));
@@ -111,9 +139,12 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
 
         boolean requiredFailure = checks.stream().anyMatch(check -> "REQUIRED".equals(check.getCheckerType())
                 && !check.isPassed());
+        boolean artifactCodeFailure = checks.stream().anyMatch(check -> "ARTIFACT_CODE".equals(check.getCheckerType())
+                && !check.isPassed());
         boolean blockingCheckFailure = checks.stream().anyMatch(check -> !"REQUIRED".equals(check.getCheckerType())
                 && check.isBlocking() && !check.isPassed());
-        boolean accepted = !requiredFailure && (!requireAllBlockingChecksPassed || !blockingCheckFailure);
+        boolean accepted = !requiredFailure && !artifactCodeFailure
+                && (!requireAllBlockingChecksPassed || !blockingCheckFailure);
         boolean repairable = !accepted && checks.stream().anyMatch(check -> !check.isPassed() && check.isRetryable());
         Map<String, Object> repairPolicy = map(spec.get("repairPolicy"));
         int maxAttempts = intValue(repairPolicy.get("maxRepairAttempts"), 0);
@@ -129,6 +160,45 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
         result.setChecks(checks);
         result.setRepairMessage(repairMessage(checks));
         return result;
+    }
+
+    private List<ArtifactCheckResult> validateDeclaredArtifactCodes(List<Map<String, Object>> contracts,
+                                                                    List<Map<String, Object>> artifacts) {
+        Set<String> declaredCodes = new LinkedHashSet<>();
+        for (Map<String, Object> contract : contracts) {
+            String code = text(contract.get("code"), contract.get("artifactCode"));
+            if (StringUtils.hasText(code)) {
+                declaredCodes.add(code);
+            }
+        }
+
+        List<ArtifactCheckResult> checks = new ArrayList<>();
+        Set<String> seenCodes = new LinkedHashSet<>();
+        Set<String> reportedUnknownCodes = new LinkedHashSet<>();
+        Set<String> reportedDuplicateCodes = new LinkedHashSet<>();
+        if (artifacts == null) {
+            return checks;
+        }
+        for (Map<String, Object> artifact : artifacts) {
+            if (artifact == null) {
+                continue;
+            }
+            String code = text(artifact.get("artifactCode"), artifact.get("code"));
+            if (!StringUtils.hasText(code)) {
+                continue;
+            }
+            if (!declaredCodes.contains(code) && reportedUnknownCodes.add(code)) {
+                checks.add(result("declared-artifact-" + checks.size(), code, "ARTIFACT_CODE", "ERROR",
+                        true, true, false, "FAILED",
+                        "Artifact code is not declared by the Workflow contract: " + code));
+            }
+            if (!seenCodes.add(code) && reportedDuplicateCodes.add(code)) {
+                checks.add(result("unique-artifact-" + checks.size(), code, "ARTIFACT_CODE", "ERROR",
+                        true, true, false, "FAILED",
+                        "Artifact code must be unique within one result: " + code));
+            }
+        }
+        return checks;
     }
 
     private List<Map<String, Object>> normalizeArtifacts(List<Map<String, Object>> source, String finalAnswer) {
@@ -261,7 +331,6 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
     private Map<String, Object> defaultFinalAnswerContract() {
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("code", "final-answer");
-        result.put("artifactType", "TEXT");
         result.put("required", true);
         return result;
     }

@@ -20,6 +20,7 @@ def post_platform_json(
     token_env_keys: Iterable[str],
     trace_id: str | None = None,
     run_id: str | None = None,
+    session_code: str | None = None,
     timeout_seconds: int = DEFAULT_TIMEOUT_SECONDS,
 ) -> dict[str, Any]:
     """POST JSON to an authenticated platform endpoint and normalize its envelope."""
@@ -39,6 +40,8 @@ def post_platform_json(
         headers["X-Trace-Id"] = str(trace_id).strip()
     if _text(run_id):
         headers["X-Agent-Run-Id"] = str(run_id).strip()
+    if _text(session_code):
+        headers["X-Session-Code"] = str(session_code).strip()
 
     try:
         body = json.dumps(payload, ensure_ascii=False, separators=(",", ":")).encode("utf-8")

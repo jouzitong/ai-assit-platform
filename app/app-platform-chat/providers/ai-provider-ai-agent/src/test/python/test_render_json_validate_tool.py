@@ -4,27 +4,6 @@ import unittest
 from agent_provider.tools.render_validation import validate_render_document
 
 
-def catalog_result(*keys: str):
-    return {
-        "success": True,
-        "catalogRevision": "sha256:" + "c" * 64,
-        "components": [
-            {
-                "key": key,
-                "componentVersion": "1.0.0",
-                "sourceRevision": "sha256:" + "d" * 64,
-                "contractAvailable": True,
-                "parameters": [
-                    {"key": "categories", "type": "Array<string | number>", "required": True},
-                    {"key": "smooth", "type": "boolean", "required": False},
-                ],
-                "events": [{"name": "reload"}],
-            }
-            for key in keys
-        ],
-    }
-
-
 class RenderJsonValidateToolTest(unittest.TestCase):
     def test_accepts_a_complete_document_and_returns_validation_proof(self) -> None:
         document = {
@@ -41,17 +20,14 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(
-            json.dumps(document, ensure_ascii=False),
-            lambda keys: catalog_result(*keys),
-        )
+        result = validate_render_document(json.dumps(document, ensure_ascii=False))
 
         self.assertTrue(result["valid"])
         self.assertTrue(result["documentHash"].startswith("sha256:"))
         self.assertEqual("render-validator/1.0.0", result["ruleVersion"])
-        self.assertEqual("sha256:" + "c" * 64, result["catalogRevision"])
+        self.assertEqual("skill://render-json-authoring/v6", result["catalogRevision"])
 
-    def test_reports_duplicate_ids_unknown_props_and_missing_required_props(self) -> None:
+    def test_reports_duplicate_ids_and_missing_component_versions(self) -> None:
         document = {
             "protocol": "render-json",
             "protocolVersion": "1.0",
@@ -64,14 +40,12 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(document, lambda keys: catalog_result("line-chart-renderer"))
+        result = validate_render_document(document)
         codes = {item["code"] for item in result["errors"]}
 
         self.assertFalse(result["valid"])
         self.assertIn("DUPLICATE_NODE_ID", codes)
-        self.assertIn("PROP_NOT_ALLOWED", codes)
-        self.assertIn("PROP_REQUIRED", codes)
-        self.assertIn("RENDERER_NOT_FOUND", codes)
+        self.assertIn("COMPONENT_VERSION_REQUIRED", codes)
         self.assertTrue(all("jsonPath" in item and "recoverable" in item for item in result["errors"]))
 
     def test_rejects_dangerous_urls_sql_and_executable_strings(self) -> None:
@@ -92,7 +66,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
         violations = [item for item in result["errors"] if item["code"] == "SECURITY_VIOLATION"]
 
         self.assertFalse(result["valid"])
@@ -111,7 +85,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
                 "events": [{"event": "reload", "actionRef": "MISSING"}],
             },
         }
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
         codes = {item["code"] for item in result["errors"]}
         self.assertIn("SCHEMA_INVALID", codes)
         self.assertIn("COMPONENT_VERSION_REQUIRED", codes)
@@ -129,22 +103,27 @@ class RenderJsonValidateToolTest(unittest.TestCase):
                 "props": {"categories": ["ws://evil.invalid", "file:///etc/passwd"]},
             },
         }
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
         self.assertFalse(result["valid"])
         self.assertTrue(any(item["code"] == "SECURITY_VIOLATION" for item in result["errors"]))
 
-    def test_fails_closed_when_live_catalog_is_unavailable(self) -> None:
+    def test_validates_without_an_online_component_catalog(self) -> None:
         document = {
             "protocol": "render-json",
             "protocolVersion": "1.0",
             "pageId": "page",
-            "root": {"id": "root", "component": "line-chart-renderer", "props": {"categories": []}},
+            "root": {
+                "id": "root",
+                "component": "line-chart-renderer",
+                "componentVersion": "1.0.0",
+                "props": {"categories": []},
+            },
         }
 
-        result = validate_render_document(document, lambda _keys: {"success": False, "error": "offline"})
+        result = validate_render_document(document)
 
-        self.assertFalse(result["valid"])
-        self.assertEqual("COMPONENT_CATALOG_UNAVAILABLE", result["errors"][-1]["code"])
+        self.assertTrue(result["valid"])
+        self.assertEqual("skill://render-json-authoring/v6", result["catalogRevision"])
 
     def test_rejects_non_standard_numbers_and_duplicate_json_keys(self) -> None:
         invalid_documents = (
@@ -154,7 +133,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
 
         for document in invalid_documents:
             with self.subTest(document=document):
-                result = validate_render_document(document, lambda keys: catalog_result(*keys))
+                result = validate_render_document(document)
                 self.assertFalse(result["valid"])
                 self.assertEqual("JSON_PARSE_FAILED", result["errors"][0]["code"])
 
@@ -177,7 +156,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
 
         self.assertFalse(result["valid"])
         self.assertTrue(any("filter value is too complex" in item["message"] for item in result["errors"]))
@@ -211,7 +190,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
 
         self.assertTrue(result["valid"])
 
@@ -244,7 +223,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
 
         self.assertTrue(result["valid"])
 
@@ -272,7 +251,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             },
         }
 
-        result = validate_render_document(document, lambda keys: catalog_result(*keys))
+        result = validate_render_document(document)
 
         self.assertFalse(result["valid"])
         messages = {item["message"] for item in result["errors"]}

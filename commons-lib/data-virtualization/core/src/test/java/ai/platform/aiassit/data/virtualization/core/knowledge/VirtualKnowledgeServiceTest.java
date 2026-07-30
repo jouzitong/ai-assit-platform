@@ -82,11 +82,13 @@ class VirtualKnowledgeServiceTest {
         assertTrue(content.startsWith("---\ndocumentType: data-semantic-model\nmodel: order\n"));
         assertTrue(content.contains("modelAliases: [\"订单\"]"));
         assertTrue(content.contains("domain:\ndescription:"));
-        assertTrue(content.contains("sourceRevision: virtual-model/order/v3"));
+        assertTrue(content.contains("sourceRevision: virtual-model/v3"));
+        assertTrue(content.contains("catalogVersion: 3"));
         assertTrue(content.contains("owner:\n---"));
         assertTrue(content.contains("# 订单（order）"));
         assertTrue(content.contains("## 字段目录（机器可读）"));
         assertTrue(content.contains("\"model\" : \"order\""));
+        assertTrue(content.contains("\"catalogVersion\" : 3"));
         assertTrue(content.contains("\"code\" : \"customer_id\""));
         assertTrue(content.contains("\"logicalType\" : \"long\""));
         assertTrue(content.contains("\"key\" : \"order_customer\""));
@@ -97,6 +99,7 @@ class VirtualKnowledgeServiceTest {
         assertTrue(content.contains("## 值域与口径\n\n## 已审核示例"));
         assertFalse(content.contains("虚拟表"));
         assertFalse(content.contains("虚拟字段"));
+        assertFalse(content.contains("virtual-model/order/v3"));
     }
 
     @Test

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://ai-assit-platform.local/schemas/render-document/v1",
   "title": "RenderDocument",
-  "description": "A declarative Render JSON document composed from approved catalog components.",
+  "description": "A declarative Render JSON document composed from components approved by the authoring skill.",
   "type": "object",
   "additionalProperties": false,
   "required": [

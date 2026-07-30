@@ -72,7 +72,11 @@ class DataPreviewQueryToolTest(unittest.TestCase):
             "agent_provider.tools.data_preview_query_tool.post_platform_json",
             return_value=response,
         ) as post:
-            result = preview_data_contract({"runId": "run-1", "traceId": "trace-1"}, contract, 10)
+            result = preview_data_contract(
+                {"runId": "run-1", "traceId": "trace-1", "sessionCode": "session-1"},
+                contract,
+                10,
+            )
 
         self.assertTrue(result["success"])
         self.assertEqual(1, len(result["records"]))
@@ -83,6 +87,7 @@ class DataPreviewQueryToolTest(unittest.TestCase):
         self.assertEqual("sales_order", post.call_args.args[1]["model"])
         self.assertEqual("trace-1", post.call_args.kwargs["trace_id"])
         self.assertEqual("run-1", post.call_args.kwargs["run_id"])
+        self.assertEqual("session-1", post.call_args.kwargs["session_code"])
         self.assertEqual(10, post.call_args.args[1]["limit"])
 
     def test_rejects_non_standard_numbers_and_duplicate_json_keys(self) -> None:

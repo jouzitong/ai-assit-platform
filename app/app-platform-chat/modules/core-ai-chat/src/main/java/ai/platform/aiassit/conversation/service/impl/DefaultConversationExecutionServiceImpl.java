@@ -44,8 +44,12 @@ import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -58,6 +62,9 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
 
     private static final int MAX_HISTORY_MESSAGES = 40;
     private static final int MAX_HISTORY_CHARACTERS = 60_000;
+    private static final int MAX_RENDER_PAGE_CODE_LENGTH = 64;
+    private static final String RENDER_DOCUMENT_ARTIFACT_CODE = "render-document";
+    private static final String CHAT_RENDER_PAGE_CODE_PREFIX = "chat-render-";
     private static final Set<String> RENDER_LAYOUTS = Set.of("standard", "dashboard", "report", "embedded");
     private static final Set<String> RENDER_REFERENCE_KEYS = Set.of("pageCode", "layout");
 
@@ -212,12 +219,13 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         request.setUserId(context.getSession().getUserId());
         request.setModelId(command.getModelId());
         request.setInput(command.getMessage());
-        request.setTarget(StringUtils.hasText(command.getAgentCode())
+        AgentTarget target = StringUtils.hasText(command.getAgentCode())
                 ? AgentTarget.explicit(command.getAgentCode(), command.getAgentVersion())
                 : new AgentTarget(AgentTarget.TYPE_AGENT,
                         StringUtils.hasText(command.getAgentEntryCode()) ? command.getAgentEntryCode() : "HOME_CHAT",
                         null,
-                        null));
+                        null);
+        request.setTarget(target);
         ConversationMessageDTO current = context.getOrCreateUserMessageContext().getCurrentMessage();
         request.setMessages(toAgentMessages(
                 context.getOrCreateUserMessageContext().getSessionMessages(),
@@ -356,8 +364,8 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         }
     }
 
-    private void persistArtifacts(ConversationRuntimeContext context,
-                                  AgentConversationOutcome outcome) {
+    void persistArtifacts(ConversationRuntimeContext context,
+                          AgentConversationOutcome outcome) {
         if (outcome.getArtifacts() == null) {
             return;
         }
@@ -369,11 +377,16 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
             if (artifactType == null || !shouldPersistArtifact(artifact)) {
                 continue;
             }
+            if (artifactType == ConversationArtifactType.RENDER_JSON
+                    && !RENDER_DOCUMENT_ARTIFACT_CODE.equals(text(
+                    artifact.get("artifactCode"), artifact.get("code")))) {
+                continue;
+            }
             String contentFormat = text(artifact.get("contentFormat"), artifact.get("format"), "JSON");
             Object content = artifact.containsKey("content") ? artifact.get("content") : artifact;
             String title = text(artifact.get("title"), artifact.get("artifactCode"), artifactType.name());
             if (artifactType == ConversationArtifactType.RENDER_JSON) {
-                content = persistRenderPage(artifact, content, title);
+                content = persistRenderPage(context, outcome, artifact, content, title);
                 contentFormat = ConversationContentFormat.JSON.name();
             }
             ConversationArtifactDTO created = historyRecorder.saveArtifact(
@@ -438,26 +451,34 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                 || "COMPLETED".equalsIgnoreCase(status);
     }
 
-    private Map<String, Object> persistRenderPage(Map<String, Object> artifact, Object rawContent, String title) {
+    private Map<String, Object> persistRenderPage(ConversationRuntimeContext context,
+                                                  AgentConversationOutcome outcome,
+                                                  Map<String, Object> artifact,
+                                                  Object rawContent,
+                                                  String title) {
         Map<String, Object> content = objectContent(rawContent);
         Map<String, Object> presentation = mapValue(content.get("presentation"));
-        String pageCode = text(
+        boolean referenceOnly = isRenderReference(content);
+        String pageIdentity = text(
+                referenceOnly ? content.get("pageCode") : content.get("pageId"),
                 content.get("pageCode"),
                 artifact.get("pageCode"),
-                artifact.get("renderPageCode"),
-                content.get("pageId")
+                artifact.get("renderPageCode")
         );
-        if (!StringUtils.hasText(pageCode)) {
+        if (!StringUtils.hasText(pageIdentity)) {
             throw BizException.of(AiChatBizCodeConstant.AGENT_EXECUTION_FAILED,
                     "RENDER_JSON artifact requires pageCode or pageId");
         }
+        String pageCode = referenceOnly
+                ? pageIdentity
+                : namespacedRenderPageCode(context, outcome, pageIdentity);
         String layout = normalizeRenderLayout(text(
                 content.get("layout"),
                 artifact.get("layout"),
                 presentation.get("defaultMode")
         ));
 
-        if (!isRenderReference(content)) {
+        if (!referenceOnly) {
             RenderUpsertRequest request = new RenderUpsertRequest();
             request.setCode(pageCode);
             request.setName(StringUtils.hasText(title) ? title : pageCode);
@@ -470,6 +491,30 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         reference.put("pageCode", pageCode);
         reference.put("layout", layout);
         return reference;
+    }
+
+    private String namespacedRenderPageCode(ConversationRuntimeContext context,
+                                            AgentConversationOutcome outcome,
+                                            String pageId) {
+        String sessionCode = context == null || context.getSession() == null
+                ? "" : textOrEmpty(context.getSession().getSessionCode());
+        String roundCode = context == null || context.getRound() == null
+                ? "" : textOrEmpty(context.getRound().getRoundCode());
+        String runId = outcome == null ? "" : textOrEmpty(outcome.getRunId());
+        String source = String.join("\u001f", sessionCode, roundCode, runId, pageId.trim());
+        try {
+            String digest = HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(source.getBytes(StandardCharsets.UTF_8)));
+            int digestLength = MAX_RENDER_PAGE_CODE_LENGTH - CHAT_RENDER_PAGE_CODE_PREFIX.length();
+            return CHAT_RENDER_PAGE_CODE_PREFIX + digest.substring(0, digestLength);
+        } catch (NoSuchAlgorithmException ex) {
+            throw new IllegalStateException("SHA-256 is not available", ex);
+        }
+    }
+
+    private String textOrEmpty(Object value) {
+        String result = text(value);
+        return result == null ? "" : result;
     }
 
     static boolean isRenderReference(Map<String, Object> content) {

@@ -4,6 +4,7 @@ from unittest.mock import patch
 
 from agent_provider.tools.knowledge_base_search_tool import (
     _kb_search_url,
+    _request_kb_search,
     available_knowledge_bases,
     build_knowledge_base_search_tool,
 )
@@ -63,7 +64,12 @@ class KnowledgeBaseSearchToolTest(unittest.TestCase):
             return decorator
 
         build_knowledge_base_search_tool(
-            {"traceId": "trace-1", "context": {"knowledgeBases": [{"kbCode": "product"}]}},
+            {
+                "runId": "run-1",
+                "traceId": "trace-1",
+                "sessionCode": "session-1",
+                "context": {"knowledgeBases": [{"kbCode": "product"}]},
+            },
             fake_function_tool,
         )
         with patch(
@@ -76,6 +82,37 @@ class KnowledgeBaseSearchToolTest(unittest.TestCase):
         self.assertEqual("product", result["kbCode"])
         self.assertEqual("product", search.call_args.args[0]["kbCode"])
         self.assertEqual("trace-1", search.call_args.args[0]["meta"]["traceId"])
+        self.assertEqual("trace-1", search.call_args.kwargs["trace_id"])
+        self.assertEqual("run-1", search.call_args.kwargs["run_id"])
+        self.assertEqual("session-1", search.call_args.kwargs["session_code"])
+
+    def test_uses_the_shared_authenticated_platform_http_client(self) -> None:
+        with patch(
+            "agent_provider.tools.knowledge_base_search_tool.post_platform_json",
+            return_value={
+                "success": True,
+                "data": {
+                    "kbCode": "product",
+                    "items": [{"documentId": "doc-1", "content": "content"}],
+                },
+            },
+        ) as post:
+            result = _request_kb_search(
+                {"kbCode": "product", "query": "query", "topK": 3, "meta": {}},
+                trace_id="trace-1",
+                run_id="run-1",
+                session_code="session-1",
+            )
+
+        self.assertTrue(result["success"])
+        self.assertEqual("doc-1", result["items"][0]["documentId"])
+        self.assertEqual(
+            ("AI_AGENT_KB_SEARCH_TOKEN", "AI_AGENT_PLATFORM_TOKEN"),
+            post.call_args.kwargs["token_env_keys"],
+        )
+        self.assertEqual("trace-1", post.call_args.kwargs["trace_id"])
+        self.assertEqual("run-1", post.call_args.kwargs["run_id"])
+        self.assertEqual("session-1", post.call_args.kwargs["session_code"])
 
 
 if __name__ == "__main__":

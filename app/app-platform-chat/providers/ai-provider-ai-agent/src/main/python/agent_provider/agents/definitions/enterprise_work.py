@@ -15,6 +15,9 @@ ENTERPRISE_WORK_AGENT = AgentDefinition(
         "遇到问数请求时先区分用户只要分析结论，还是希望生成可交互看板/应用；如果两者无法确定，"
         "必须先追问，不能默认创建或发布页面。需要构建应用时委派看板与应用构建 Agent，"
         "并保留其 ApplicationBrief、DataContract、ApplicationPlan、RenderDocument 与 ValidationReport。"
+        "当用户已经明确要求数据库实际记录或明细，并要求用数据列表、表格、看板或页面展示时，"
+        "这属于应用构建请求，不再重复询问是否需要页面，必须调用 ask_dashboard_application_builder；"
+        "不得仅查询知识库后用字段说明或 Markdown 表格冒充真实数据列表。"
         "任何写入、发布、提交、发起流程或改变业务数据的操作，都必须先明确影响范围并取得用户确认；"
         "未调用已授权工具时，不得声称已经查询数据、读取文件、填写表单或完成系统操作。"
     ),

@@ -3,10 +3,6 @@ package ai.platform.aiassit.agent.runtime.tool;
 import ai.platform.aiassit.db.engine.api.DataPreviewApi;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryRequest;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryResponse;
-import ai.platform.aiassit.render.api.RenderComponentCatalogInternalApi;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogComponentDTO;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogQueryRequest;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogResponse;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.context.SystemContext;
@@ -37,7 +33,6 @@ public class AiAgentPlatformToolFacadeService {
 
     static final String AGENT_CREDENTIAL_PURPOSE = "AI_AGENT_CHILD_PROCESS";
     static final String DATA_PREVIEW_TOOL = "data_preview_query_tool";
-    static final String RENDER_COMPONENT_CATALOG_TOOL = "render_component_catalog_tool";
 
     private static final int MAX_PREVIEW_ROWS = 100;
     private static final int MAX_MEASURES = 20;
@@ -45,7 +40,6 @@ public class AiAgentPlatformToolFacadeService {
     private static final int MAX_FILTERS = 50;
     private static final int MAX_SORTS = 10;
     private static final int MAX_FILTER_VALUES = 100;
-    private static final int MAX_COMPONENTS = 100;
     private static final Pattern RUN_ID_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,63}");
     private static final Pattern TRACE_ID_PATTERN = Pattern.compile("[A-Za-z0-9][A-Za-z0-9._:-]{0,127}");
     private static final Pattern MODEL_PATTERN = Pattern.compile("[A-Za-z_][A-Za-z0-9_]{0,63}");
@@ -53,8 +47,6 @@ public class AiAgentPlatformToolFacadeService {
             "[A-Za-z_][A-Za-z0-9_]{0,63}(?:\\.[A-Za-z_][A-Za-z0-9_]{0,63})?"
     );
     private static final Pattern SOURCE_REVISION_PATTERN = Pattern.compile("^(?:virtual-model/)?v([1-9][0-9]*)$");
-    private static final Pattern COMPONENT_KEY_PATTERN = Pattern.compile("[A-Za-z][A-Za-z0-9_.:-]{0,127}");
-    private static final Pattern SHA256_REVISION_PATTERN = Pattern.compile("sha256:[0-9a-f]{64}");
     private static final Set<String> AGGREGATIONS = Set.of("COUNT", "SUM", "MIN", "MAX", "AVG");
     private static final Set<String> FILTER_OPERATORS = Set.of(
             "EQ", "NE", "GT", "GTE", "LT", "LTE", "IN", "NOT_IN",
@@ -62,12 +54,9 @@ public class AiAgentPlatformToolFacadeService {
     );
 
     private final DataPreviewApi dataPreviewApi;
-    private final RenderComponentCatalogInternalApi renderComponentCatalogApi;
 
-    public AiAgentPlatformToolFacadeService(DataPreviewApi dataPreviewApi,
-                                            RenderComponentCatalogInternalApi renderComponentCatalogApi) {
+    public AiAgentPlatformToolFacadeService(DataPreviewApi dataPreviewApi) {
         this.dataPreviewApi = dataPreviewApi;
-        this.renderComponentCatalogApi = renderComponentCatalogApi;
     }
 
     public DataPreviewQueryResponse queryDataPreview(String runId,
@@ -96,41 +85,9 @@ public class AiAgentPlatformToolFacadeService {
         }
     }
 
-    public RenderComponentCatalogResponse queryRenderComponentCatalog(
-            String runId,
-            String traceId,
-            RenderComponentCatalogQueryRequest request
-    ) {
-        long startedAt = System.currentTimeMillis();
-        InvocationContext context = null;
-        try {
-            context = requireInvocationContext(runId, traceId, RENDER_COMPONENT_CATALOG_TOOL);
-            validateRenderCatalogRequest(request);
-            RenderComponentCatalogResponse response = requireDownstreamData(
-                    renderComponentCatalogApi.queryCatalog(request),
-                    RENDER_COMPONENT_CATALOG_TOOL
-            );
-            validateRenderCatalogResponse(request, response);
-            auditSuccess(context, RENDER_COMPONENT_CATALOG_TOOL, "render", startedAt,
-                    response.getComponents().size(), "component-catalog");
-            return response;
-        } catch (BizException exception) {
-            auditBizException(context, runId, traceId, RENDER_COMPONENT_CATALOG_TOOL,
-                    "render", startedAt, exception);
-            throw exception;
-        } catch (RuntimeException exception) {
-            auditFailed(context, runId, traceId, RENDER_COMPONENT_CATALOG_TOOL,
-                    "render", startedAt, exception);
-            throw new BizException(
-                    AiChatBizCodeConstant.TOOL_INVOCATION_FAILED,
-                    exception,
-                    RENDER_COMPONENT_CATALOG_TOOL
-            );
-        }
-    }
-
     private InvocationContext requireInvocationContext(String runId, String traceId, String toolCode) {
         Object current = SystemContext.getUserContext();
+        log.debug("requireInvocationContext: {}", current);
         if (!(current instanceof UserContext userContext)
                 || userContext.subject() == null
                 || userContext.subject().userId() == null) {
@@ -269,55 +226,6 @@ public class AiAgentPlatformToolFacadeService {
         }
     }
 
-    private void validateRenderCatalogRequest(RenderComponentCatalogQueryRequest request) {
-        if (request == null) {
-            return;
-        }
-        requireSize(request.getComponentKeys(), MAX_COMPONENTS, "componentKeys");
-        Set<String> seen = new HashSet<>();
-        for (String componentKey : safe(request.getComponentKeys())) {
-            requirePattern(componentKey, COMPONENT_KEY_PATTERN, "componentKeys");
-            if (!seen.add(componentKey.trim())) {
-                throw invalidInput("componentKeys must be unique");
-            }
-        }
-        requireOptionalText(request.getKeyword(), 128, "keyword");
-        requireOptionalText(request.getCategory(), 64, "category");
-        if (request.getLimit() != null && (request.getLimit() < 1 || request.getLimit() > MAX_COMPONENTS)) {
-            throw invalidInput("limit must be between 1 and 100");
-        }
-    }
-
-    private void validateRenderCatalogResponse(RenderComponentCatalogQueryRequest request,
-                                               RenderComponentCatalogResponse response) {
-        if (response == null
-                || !matches(response.getCatalogRevision(), SHA256_REVISION_PATTERN)
-                || response.getComponents() == null) {
-            throw downstreamInvalid(RENDER_COMPONENT_CATALOG_TOOL);
-        }
-        int requestedLimit = request == null || request.getLimit() == null ? MAX_COMPONENTS : request.getLimit();
-        if (response.getComponents().size() > Math.min(requestedLimit, MAX_COMPONENTS)) {
-            throw downstreamInvalid(RENDER_COMPONENT_CATALOG_TOOL);
-        }
-        Set<String> requestedKeys = new HashSet<>();
-        if (request != null) {
-            safe(request.getComponentKeys()).stream().map(String::trim).forEach(requestedKeys::add);
-        }
-        String requestedCategory = request == null ? null : text(request.getCategory());
-        Set<String> returnedKeys = new HashSet<>();
-        for (RenderComponentCatalogComponentDTO component : response.getComponents()) {
-            if (component == null
-                    || !matches(component.getComponentKey(), COMPONENT_KEY_PATTERN)
-                    || !returnedKeys.add(component.getComponentKey())
-                    || !matches(component.getSourceRevision(), SHA256_REVISION_PATTERN)
-                    || (!requestedKeys.isEmpty() && !requestedKeys.contains(component.getComponentKey()))
-                    || (StringUtils.hasText(requestedCategory)
-                    && !requestedCategory.equalsIgnoreCase(component.getCategory()))) {
-                throw downstreamInvalid(RENDER_COMPONENT_CATALOG_TOOL);
-            }
-        }
-    }
-
     private void validateScalar(Object value, String label) {
         if (value == null || value instanceof Boolean) {
             return;
@@ -361,12 +269,6 @@ public class AiAgentPlatformToolFacadeService {
         return matcher;
     }
 
-    private void requireOptionalText(String value, int maxLength, String label) {
-        if (value != null && value.trim().length() > maxLength) {
-            throw invalidInput(label + " is too long");
-        }
-    }
-
     private void requireSize(List<?> values, int maxSize, String label) {
         if (values != null && values.size() > maxSize) {
             throw invalidInput(label + " exceeds the maximum size of " + maxSize);
@@ -400,10 +302,6 @@ public class AiAgentPlatformToolFacadeService {
 
     private String normalizeEnum(String value) {
         return value == null ? "" : value.trim().toUpperCase(Locale.ROOT);
-    }
-
-    private boolean matches(String value, Pattern pattern) {
-        return StringUtils.hasText(value) && pattern.matcher(value.trim()).matches();
     }
 
     private String text(Object value) {

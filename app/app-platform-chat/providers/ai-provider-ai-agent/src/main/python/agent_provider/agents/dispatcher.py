@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any
 
+from ..artifacts import RunArtifactCollector, combine_event_observers
 from ..compiler import AgentLink, CompiledAgent, CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
 
@@ -15,12 +16,14 @@ class AgentDispatcher:
                  emitter: EventEmitter,
                  build_agent: Callable[[str], Any],
                  compiled_for: Callable[[Any], CompiledAgent | None],
-                 function_tool: Any) -> None:
+                 function_tool: Any,
+                 artifact_collector: RunArtifactCollector | None = None) -> None:
         self.graph = graph
         self.emitter = emitter
         self.build_agent = build_agent
         self.compiled_for = compiled_for
         self.function_tool = function_tool
+        self.artifact_collector = artifact_collector
 
     def tools_for(self, owner: CompiledAgent) -> list[Any]:
         return [self._tool_for(link) for link in owner.agent_tools]
@@ -50,6 +53,15 @@ class AgentDispatcher:
 
             child_result = Runner.run_streamed(child, task, max_turns=self.graph.max_turns)
             evidence_collector = KnowledgeEvidenceCollector()
+            artifact_observer = (
+                self.artifact_collector.observe
+                if self.artifact_collector is not None
+                else None
+            )
+            mapped_event_observer = combine_event_observers(
+                evidence_collector.observe,
+                artifact_observer,
+            )
             async for event in child_result.stream_events():
                 emit_sdk_event(
                     event,
@@ -57,7 +69,7 @@ class AgentDispatcher:
                     self.compiled_for,
                     self._gateway_tool_identity,
                     emit_output_deltas=not confidence_policy.requires_guard,
-                    mapped_event_observer=evidence_collector.observe,
+                    mapped_event_observer=mapped_event_observer,
                 )
             self.emitter.event(
                 "agent.delegation.completed",
@@ -76,6 +88,9 @@ class AgentDispatcher:
                 policy=confidence_policy,
                 initial_evidence=evidence_collector.evidence,
             )
+            if self.artifact_collector is not None:
+                self.artifact_collector.collect_output(child_result.final_output)
+                self.artifact_collector.collect_output(guarded_output.text)
             return guarded_output.text
 
         decorator = self.function_tool(

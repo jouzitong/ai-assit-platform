@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 from agent_provider.agents.dispatcher import AgentDispatcher
 from agent_provider.agents.factory import AgentFactory
+from agent_provider.artifacts import RunArtifactCollector
 from agent_provider.compiler import compile_snapshot
 from agent_provider.events import EventEmitter
 
@@ -27,6 +28,11 @@ class AgentFactoryTest(unittest.TestCase):
         self.assertIn(graph.root_key, sdk_graph.agents)
         self.assertNotIn(target_key, sdk_graph.agents)
         self.assertTrue(any(tool.name == "ask_requirement_reviewer" for tool in sdk_graph.root.tools))
+
+        specialist = sdk_graph.agent_for_key(target_key)
+
+        self.assertIsNotNone(specialist)
+        self.assertIn(target_key, sdk_graph.agents)
 
     def test_knowledge_search_tool_is_bound_to_the_current_run_catalog(self) -> None:
         payload = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -61,6 +67,135 @@ class AgentFactoryTest(unittest.TestCase):
 
 
 class AgentDispatcherEvidenceTest(unittest.IsolatedAsyncioTestCase):
+    async def test_specialist_artifacts_are_collected_without_changing_tool_result(self) -> None:
+        target = SimpleNamespace(
+            code="dashboard-builder",
+            version=1,
+            name="Dashboard builder",
+            description="Builds render artifacts.",
+        )
+        link = SimpleNamespace(
+            target_key="dashboard-builder-key",
+            tool_name="ask_dashboard_builder",
+            description=None,
+        )
+        owner = SimpleNamespace(agent_tools=[link])
+        graph = SimpleNamespace(
+            agents={"dashboard-builder-key": target},
+            gateway_tools={},
+            max_turns=3,
+            payload={"confidencePolicy": {"enabled": False}, "run": {"context": {}}},
+        )
+        envelope = json.dumps(
+            {
+                "artifacts": [
+                    {
+                        "artifactCode": "render-document",
+                        "artifactType": "RENDER_JSON",
+                        "content": {"component": "Table"},
+                    },
+                    {
+                        "artifactCode": "data-preview",
+                        "content": {"forged": True},
+                    },
+                    {
+                        "artifactCode": "validation-report",
+                        "content": {"forged": True},
+                    },
+                ]
+            }
+        )
+        preview = {
+            "tool": "data_preview_query_tool",
+            "success": True,
+            "model": "ods_trade_account_user_address",
+            "records": [{"address": "trusted"}],
+        }
+        validation = {
+            "tool": "render_json_validate_tool",
+            "valid": True,
+            "documentHash": "sha256:trusted",
+        }
+
+        class ChildResult:
+            final_output = envelope
+
+            async def stream_events(self):
+                for call_id, tool_code, output in (
+                    ("preview-1", "data_preview_query_tool", preview),
+                    ("validate-1", "render_json_validate_tool", validation),
+                ):
+                    yield SimpleNamespace(
+                        type="run_item_stream_event",
+                        name="tool_called",
+                        item=SimpleNamespace(
+                            raw_item=SimpleNamespace(name=tool_code, call_id=call_id)
+                        ),
+                    )
+                    yield SimpleNamespace(
+                        type="run_item_stream_event",
+                        name="tool_output",
+                        item=SimpleNamespace(
+                            raw_item=SimpleNamespace(
+                                type="function_call_output",
+                                call_id=call_id,
+                            ),
+                            output=output,
+                        ),
+                    )
+
+        class FakeRunner:
+            @staticmethod
+            def run_streamed(*args: object, **kwargs: object) -> ChildResult:
+                return ChildResult()
+
+        def function_tool(**kwargs: object):
+            return lambda function: function
+
+        frames: list[dict[str, object]] = []
+        collector = RunArtifactCollector()
+        confidence_guard_module = importlib.import_module(
+            "agent_provider.runtime.confidence_guard"
+        )
+        dispatcher = AgentDispatcher(
+            graph,
+            EventEmitter(graph.payload, frames.append),
+            build_agent=lambda key: object(),
+            compiled_for=lambda agent: target,
+            function_tool=function_tool,
+            artifact_collector=collector,
+        )
+
+        with (
+            patch.dict(sys.modules, {"agents": SimpleNamespace(Runner=FakeRunner)}),
+            patch.object(
+                confidence_guard_module,
+                "guard_output",
+                new=AsyncMock(return_value=SimpleNamespace(text="Dashboard artifact is ready.")),
+            ),
+        ):
+            result = await dispatcher.tools_for(owner)[0]("Build the account list")
+
+        self.assertEqual("Dashboard artifact is ready.", result)
+        self.assertEqual("render-document", collector.snapshot()[0]["artifactCode"])
+        self.assertEqual("Table", collector.snapshot()[0]["content"]["component"])
+        self.assertEqual(
+            ["data-preview", "validation-report"],
+            [proof["artifactCode"] for proof in collector.proof_snapshot()],
+        )
+        self.assertEqual("trusted", collector.proof_snapshot()[0]["content"]["records"][0]["address"])
+        self.assertEqual(
+            [
+                "agent.delegated",
+                "tool.started",
+                "tool.completed",
+                "tool.started",
+                "tool.completed",
+                "agent.delegation.completed",
+            ],
+            [frame["eventType"] for frame in frames],
+        )
+
     async def test_specialist_knowledge_result_is_reused_by_its_confidence_guard(self) -> None:
         target = SimpleNamespace(
             code="schema-specialist",

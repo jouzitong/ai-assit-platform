@@ -31,6 +31,35 @@ class CompilerTest(unittest.TestCase):
 
         self.assertIn("Language requirement: use English", graph.root.instructions)
 
+    def test_python_local_agents_preserve_the_server_workflow_contract(self) -> None:
+        workflow = {
+            "workflowRef": "workflow://render-document-delivery/v1",
+            "kind": "ArtifactWorkflow",
+            "metadata": {"code": "render-document-delivery", "version": 1},
+            "spec": {
+                "artifacts": [
+                    {
+                        "code": "render-document",
+                        "artifactType": "RENDER_JSON",
+                        "contentFormat": "JSON",
+                        "required": True,
+                    }
+                ],
+                "completionPolicy": {
+                    "requireAllRequiredArtifacts": True,
+                    "requireAllBlockingChecksPassed": True,
+                },
+            },
+        }
+
+        graph = compile_snapshot({
+            "agentDefinitionSource": "PYTHON_LOCAL",
+            "run": {"context": {"agentEntry": "HOME_CHAT"}},
+            "workflowSnapshot": workflow,
+        })
+
+        self.assertEqual(workflow, graph.payload["workflowSnapshot"])
+
     def test_compiles_recursive_agent_graph_and_capability_aliases(self) -> None:
         graph = compile_snapshot(json.loads(FIXTURE.read_text(encoding="utf-8")))
 

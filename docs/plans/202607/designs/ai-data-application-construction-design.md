@@ -51,7 +51,6 @@ AI 问数不应被实现为“模型一次性生成 Render JSON”。目标链�
 | 优先级 | 建议 kbCode | RAGFlow 知识库名称 | 内容与文档粒度 | 主要使用阶段 |
 |---|---|---|---|---|
 | 必需 | `data-semantic-catalog` | 数据语义目录 | 一份“已发布虚拟业务模型”一个文档；不要仅按物理表拆分 | 识别模型、字段、同义词、关系、指标口径 |
-| 必需 | `render-component-catalog` | Render 组件目录 | 一个启用组件版本一个文档 | 选择 renderer、生成 props/events/bindings |
 | 必需 | `render-build-faq` | Render 构建诊断 FAQ | 一个错误类型或已审核修复案例一个文档 | 低置信、校验失败、预览失败后的修复 |
 | 强烈建议 | `render-app-templates` | Render 应用模板库 | 一份已审核的完整页面/看板模板一个文档 | 按页面类型选择稳定布局与示例 |
 | 按业务域启用 | `enterprise-business-knowledge` | 企业业务知识库 | 制度、业务术语、流程、项目资料等 | 理解企业特有业务语义与展示约束 |
@@ -75,13 +74,13 @@ AI 问数不应被实现为“模型一次性生成 Render JSON”。目标链�
 - 不在文档中重复维护运行时查询能力、默认分页、权限或授权规则；这些由 `data_preview_query_tool` 和服务端虚拟目录实时判定。
 - 虚拟目录发布、字段变更或模型下线后，必须自动更新对应文档；检索结果必须携带 `sourceRevision` 和 `updatedAt`。
 
-### 4.2 `render-component-catalog`：Render 组件目录
+### 4.2 `render-json-authoring` Skill：Render 组件信息
 
-每份文档对应一个已启用的组件版本，来源为 `data-component` 的组件说明与示例 JSON，并与前端 registry/manifest 的稳定 key 对齐。
+Skill 中的组件 reference 和 asset 对应当前允许生成的组件版本，来源为前端 registry/manifest 的稳定 key、组件说明与示例 JSON。
 
-必填内容：`componentKey`、版本、类别、适用场景、输入 props、必填字段、events、限制条件、示例 JSON、常见错误、替代组件和 `sourceRevision`。
+必填内容：`componentKey`、版本、类别、适用场景、输入 props、必填字段、events、限制条件、示例 JSON、常见错误和替代组件。
 
-这个知识库用于给模型提供可读说明；后续的 `render_component_catalog_tool` 必须读取实时启用组件并做最终确认，避免知识库过期时生成已下线组件。
+当前阶段不提供在线组件目录 Tool；组件信息统一冻结在 `render-json-authoring` Skill 中，并在组件变更时与前端 Registry 同步更新。
 
 ### 4.3 `render-build-faq`：Render 构建诊断 FAQ
 
@@ -142,7 +141,7 @@ FAQ 仅提供修复建议，不能覆盖校验器、组件目录或权限系统�
 
 ### 5.3 `ApplicationPlan`
 
-数据预览成功后，选择页面布局、组件、图表类型、过滤器、数据绑定和交互。组件选择先检索 `render-component-catalog` 或模板库；最终通过实时组件目录确认 key、版本与 props。
+数据预览成功后，选择页面布局、组件、图表类型、过滤器、数据绑定和交互。组件 key、版本与 props 统一读取 `render-json-authoring` Skill；模板库只提供可选的设计参考。
 
 ### 5.4 `RenderDocument`
 
@@ -177,11 +176,11 @@ RenderDocument
 | Skill | 责任 | 主要读取的知识库 |
 |---|---|---|
 | `semantic-data-contract` | 将自然语言需求转换为受限的 DataContract，并处理同义词与不确定性 | `data-semantic-catalog`、`enterprise-business-knowledge` |
-| `render-json-authoring` | 基于 ApplicationPlan、组件契约和模板生成声明式 Render JSON | `render-component-catalog`、`render-app-templates` |
-| `render-json-repair` | 根据校验或预览错误做最小修复 | `render-build-faq`、`render-component-catalog` |
+| `render-json-authoring` | 基于 ApplicationPlan、Skill 内组件契约和模板生成声明式 Render JSON | `render-app-templates` |
+| `render-json-repair` | 根据校验或预览错误做最小修复 | `render-build-faq` |
 | `application-build-release` | 组织校验、预览、直接发布及发布结果回传 | 无固定知识库 |
 
-Skill 只保存流程、产物 Schema、检查清单和少量审核样例；实时组件状态、数据字段和权限不写入 Skill。
+Skill 保存流程、产物 Schema、检查清单、组件契约和审核样例；实时数据字段和权限不写入 Skill。
 
 ### 6.2 Tool
 
@@ -189,14 +188,13 @@ Skill 只保存流程、产物 Schema、检查清单和少量审核样例；实�
 |---|---|---|---|
 | `knowledge_base_search_tool` | 发现/诊断 | 按 Run 白名单检索上述 RAGFlow 知识库 | 已有，按 KB 建设接入 |
 | `data_preview_query_tool` | DataContract 验证 | 使用已发布虚拟模型与字段做限量只读预览，强制权限 | 已实现 |
-| `render_component_catalog_tool` | ApplicationPlan/校验 | 获取实时启用组件、版本、props、events、示例 | 已实现 |
-| `render_json_validate_tool` | RenderDocument 校验 | 升级为协议、组件、绑定、安全的确定性校验 | 已有基础能力，待升级 |
+| `render_json_validate_tool` | RenderDocument 校验 | 校验协议结构、组件版本格式、绑定、数据源和安全约束 | 已实现 |
 | `render_preview_tool` | 运行时验证 | 装载 Render JSON，返回渲染结果、截图或稳定错误码 | 待建设 |
 | `render_publish_tool` | 发布 | 校验发布前置证明后写入页面并创建快照 | 待建设 |
 
 `data_catalog_search_tool` 不在第一阶段建设。若未来 RAGFlow 同步存在明显延迟、模型数量过大或需要一次精确返回全量字段，再新增 `data_catalog_verify_tool`，仅用于对已选定的 `model + fields` 做实时确认，不承担自然语言语义搜索。
 
-Python Tool 不持有 DB Engine、Render 或网关地址。所有平台内部请求统一发送到本机 Chat Base URL；Chat 的固定 internal facade 校验子进程凭证、Agent runId 和请求边界，记录审计信息后，再同步调用 DB Engine 或 Render 的领域 API。第三方 Web Search 等明确的外部出网能力不属于该内部服务代理链路。
+Python Tool 不持有 DB Engine 或网关地址。所有平台内部请求统一发送到本机 Chat Base URL；Chat 的固定 internal facade 校验子进程凭证、Agent runId 和请求边界，记录审计信息后，再同步调用 DB Engine 的领域 API。组件信息由 Skill 提供，不经过平台内部 HTTP 接口。第三方 Web Search 等明确的外部出网能力不属于该内部服务代理链路。
 
 ## 7. 分期实施计划
 
@@ -205,20 +203,19 @@ Python Tool 不持有 DB Engine、Render 或网关地址。所有平台内部请
 1. 在 RAGFlow 创建第 4 章列出的必需知识库；业务知识库按实际领域决定是否创建。
 2. 定义 `ApplicationBrief`、`DataContract`、`ApplicationPlan`、`RenderDocument`、`ValidationReport` 的 JSON Schema。
 3. 建立虚拟模型/字段到 `data-semantic-catalog` 文档的同步任务。
-4. 建立组件目录到 `render-component-catalog` 文档的同步任务。
+4. 建立前端 Registry 到 `render-json-authoring` Skill 的组件信息同步流程。
 5. 录入最小可用模板和诊断 FAQ；每个案例必须有版本与审核人。
 
-验收：用 10 个真实业务问句能检索到正确或可解释的候选数据模型与字段；组件目录能检索到当前启用组件。
+验收：用 10 个真实业务问句能检索到正确或可解释的候选数据模型与字段；组件 Skill 覆盖当前允许生成的组件。
 
 ### Phase 1：受控构建与静态校验
 
 1. 为看板与应用构建 Agent 增加知识库检索能力与上述四个 Skill。
 2. 实现 `data_preview_query_tool`，仅允许限量只读虚拟查询。
-3. 实现 `render_component_catalog_tool`。
-4. 升级 `render_json_validate_tool`，输出稳定错误码、jsonPath、nodeId 和可修复标记。
-5. Agent 在校验失败时检索 FAQ 并限制修复次数。
+3. 升级 `render_json_validate_tool`，输出稳定错误码、jsonPath、nodeId 和可修复标记。
+4. Agent 在校验失败时检索 FAQ 并限制修复次数。
 
-验收：可从自然语言生成通过静态校验的 Render JSON；字段不存在、组件不存在、非法 props 和危险配置均可被确定性拦截。
+验收：可从自然语言生成通过静态校验的 Render JSON；字段不存在和危险配置可被确定性拦截，组件 key、版本和 props/events 只允许来自冻结 Skill。
 
 ### Phase 2：预览与直接发布
 

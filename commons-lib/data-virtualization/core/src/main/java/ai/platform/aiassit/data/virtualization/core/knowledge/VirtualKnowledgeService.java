@@ -36,6 +36,7 @@ import java.util.Set;
 public class VirtualKnowledgeService {
 
     private static final String SOURCE_SYSTEM = "dataVirtualization";
+    private static final String SOURCE_REVISION_PREFIX = "virtual-model/v";
     private static final String DOCUMENT_PREFIX = "vt-";
     private static final String LEGACY_DOCUMENT_PREFIX = "virtual-table/";
 
@@ -210,6 +211,7 @@ public class VirtualKnowledgeService {
         content.append("domain:\n");
         content.append("description: ").append(yamlValue(knowledgeDescription(entity.getDescription()))).append("\n");
         content.append("sourceRevision: ").append(sourceRevision(entity)).append("\n");
+        content.append("catalogVersion: ").append(entity.getCatalogVersion() == null ? "" : entity.getCatalogVersion()).append("\n");
         content.append("updatedAt: ").append(LocalDate.now()).append("\n");
         content.append("owner:\n");
         content.append("---\n\n");
@@ -230,6 +232,7 @@ public class VirtualKnowledgeService {
         Map<String, Object> catalog = new LinkedHashMap<>();
         catalog.put("schemaVersion", "1.0");
         catalog.put("model", entity.getEntityCode());
+        catalog.put("catalogVersion", entity.getCatalogVersion());
         catalog.put("primaryKeys", fields.stream()
                 .filter(field -> Boolean.TRUE.equals(field.getPrimaryKey()))
                 .map(VirtualFieldEntity::getFieldCode)
@@ -354,7 +357,7 @@ public class VirtualKnowledgeService {
 
     private String sourceRevision(VirtualEntityEntity entity) {
         if (entity.getCatalogVersion() == null) return "";
-        return "virtual-model/" + entity.getEntityCode().trim() + "/v" + entity.getCatalogVersion();
+        return SOURCE_REVISION_PREFIX + entity.getCatalogVersion();
     }
 
     private String firstNonBlank(String... values) {

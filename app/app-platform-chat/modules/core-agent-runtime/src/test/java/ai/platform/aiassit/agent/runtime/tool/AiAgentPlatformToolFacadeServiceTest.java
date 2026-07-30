@@ -3,10 +3,6 @@ package ai.platform.aiassit.agent.runtime.tool;
 import ai.platform.aiassit.db.engine.api.DataPreviewApi;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryRequest;
 import ai.platform.aiassit.db.engine.api.dto.DataPreviewQueryResponse;
-import ai.platform.aiassit.render.api.RenderComponentCatalogInternalApi;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogComponentDTO;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogQueryRequest;
-import ai.platform.aiassit.render.api.dto.RenderComponentCatalogResponse;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.arthena.framework.common.context.SystemContext;
 import org.arthena.framework.common.exception.BizException;
@@ -26,15 +22,13 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class AiAgentPlatformToolFacadeServiceTest {
 
     private RecordingDataPreviewApi dataPreviewApi;
-    private RecordingRenderComponentCatalogApi renderComponentCatalogApi;
     private AiAgentPlatformToolFacadeService service;
     private MutableUserContext userContext;
 
     @BeforeEach
     void setUp() {
         dataPreviewApi = new RecordingDataPreviewApi();
-        renderComponentCatalogApi = new RecordingRenderComponentCatalogApi();
-        service = new AiAgentPlatformToolFacadeService(dataPreviewApi, renderComponentCatalogApi);
+        service = new AiAgentPlatformToolFacadeService(dataPreviewApi);
 
         userContext = new MutableUserContext();
         userContext.setSubject(new Subject(7L, "agent-user", "default", "USER"));
@@ -62,7 +56,6 @@ class AiAgentPlatformToolFacadeServiceTest {
         assertThat(actual).isSameAs(response);
         assertThat(dataPreviewApi.request).isSameAs(request);
         assertThat(dataPreviewApi.invocationCount).isEqualTo(1);
-        assertThat(renderComponentCatalogApi.invocationCount).isZero();
     }
 
     @Test
@@ -159,55 +152,8 @@ class AiAgentPlatformToolFacadeServiceTest {
                         assertThat(exception.getCode()).isEqualTo(AiChatBizCodeConstant.TOOL_INVOCATION_FAILED));
     }
 
-    @Test
-    void delegatesAValidRenderCatalogRequestAndReturnsTheCheckedResponse() {
-        RenderComponentCatalogQueryRequest request = new RenderComponentCatalogQueryRequest();
-        request.setComponentKeys(List.of("chart.line"));
-        request.setLimit(10);
-        RenderComponentCatalogResponse response = renderCatalogResponse();
-        renderComponentCatalogApi.response = R.ok(response);
-
-        RenderComponentCatalogResponse actual = service.queryRenderComponentCatalog(
-                "run-1",
-                "trace-1",
-                request
-        );
-
-        assertThat(actual).isSameAs(response);
-        assertThat(renderComponentCatalogApi.request).isSameAs(request);
-        assertThat(renderComponentCatalogApi.invocationCount).isEqualTo(1);
-        assertThat(dataPreviewApi.invocationCount).isZero();
-    }
-
-    @Test
-    void acceptsAValidCatalogEntryWhoseOptionalContractContentIsUnavailable() {
-        RenderComponentCatalogQueryRequest request = new RenderComponentCatalogQueryRequest();
-        request.setComponentKeys(List.of("chart.line"));
-        RenderComponentCatalogResponse response = renderCatalogResponse();
-        response.getComponents().get(0).setComponentVersion(null);
-        response.getComponents().get(0).setDocMarkdown(null);
-        response.getComponents().get(0).setExampleJson(null);
-        renderComponentCatalogApi.response = R.ok(response);
-
-        assertThat(service.queryRenderComponentCatalog("run-1", null, request)).isSameAs(response);
-    }
-
-    @Test
-    void failsClosedWhenRenderReturnsAnInvalidSourceRevision() {
-        RenderComponentCatalogQueryRequest request = new RenderComponentCatalogQueryRequest();
-        request.setComponentKeys(List.of("chart.line"));
-        RenderComponentCatalogResponse response = renderCatalogResponse();
-        response.getComponents().get(0).setSourceRevision("not-a-revision");
-        renderComponentCatalogApi.response = R.ok(response);
-
-        assertThatThrownBy(() -> service.queryRenderComponentCatalog("run-1", null, request))
-                .isInstanceOfSatisfying(BizException.class, exception ->
-                        assertThat(exception.getCode()).isEqualTo(AiChatBizCodeConstant.TOOL_INVOCATION_FAILED));
-    }
-
     private void assertNoDownstreamInteractions() {
         assertThat(dataPreviewApi.invocationCount).isZero();
-        assertThat(renderComponentCatalogApi.invocationCount).isZero();
     }
 
     private DataPreviewQueryRequest previewRequest() {
@@ -238,22 +184,6 @@ class AiAgentPlatformToolFacadeServiceTest {
         return response;
     }
 
-    private RenderComponentCatalogResponse renderCatalogResponse() {
-        RenderComponentCatalogComponentDTO component = new RenderComponentCatalogComponentDTO();
-        component.setComponentKey("chart.line");
-        component.setName("Line Chart");
-        component.setCategory("chart");
-        component.setComponentVersion("1.0.0");
-        component.setSourceRevision("sha256:" + "b".repeat(64));
-        component.setDocMarkdown("## 4. 参数契约\n|参数|类型|必填|使用|默认值|说明|\n|---|---|---|---|---|---|");
-        component.setExampleJson("{\"schemaVersion\":\"component-asset/v1\"}");
-
-        RenderComponentCatalogResponse response = new RenderComponentCatalogResponse();
-        response.setCatalogRevision("sha256:" + "a".repeat(64));
-        response.setComponents(List.of(component));
-        return response;
-    }
-
     private static final class RecordingDataPreviewApi implements DataPreviewApi {
 
         private DataPreviewQueryRequest request;
@@ -262,21 +192,6 @@ class AiAgentPlatformToolFacadeServiceTest {
 
         @Override
         public R<DataPreviewQueryResponse> query(DataPreviewQueryRequest request) {
-            this.request = request;
-            invocationCount++;
-            return response;
-        }
-    }
-
-    private static final class RecordingRenderComponentCatalogApi
-            implements RenderComponentCatalogInternalApi {
-
-        private RenderComponentCatalogQueryRequest request;
-        private R<RenderComponentCatalogResponse> response;
-        private int invocationCount;
-
-        @Override
-        public R<RenderComponentCatalogResponse> queryCatalog(RenderComponentCatalogQueryRequest request) {
             this.request = request;
             invocationCount++;
             return response;

@@ -56,5 +56,5 @@ public class AiAgentProperties {
     private String validateStructure = "";
 
     /** 调用超时（毫秒） */
-    private Integer timeoutMs = 60000;
+    private Long timeoutMs = 1000L * 60 * 30;
 }

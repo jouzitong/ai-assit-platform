@@ -11,7 +11,7 @@
 
 ## Source and version policy
 
-This reference mirrors the frontend Renderer Catalog and Component Manifest at authoring time. The snapshot version is `1.0.0`. Query the live component catalog before final output; its key, version, required props, and events override this reference.
+This reference is the authoritative component snapshot for the current Agent phase. Its component snapshot version is `1.0.0`, and its skill source reference is `skill://render-json-authoring/v6`.
 
 ## `zg-list-main-layout`
 

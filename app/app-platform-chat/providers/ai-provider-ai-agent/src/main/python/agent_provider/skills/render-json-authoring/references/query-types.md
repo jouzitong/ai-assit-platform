@@ -10,7 +10,7 @@ Use only fields, relations, filters, time ranges, and aggregations returned by t
 
 ## Count
 
-Use `queryType: "count"` instead of manufacturing a Count/KPI renderer. It must declare exactly one measure with `aggregation: "count"`, and it cannot declare dimensions. Bind the returned alias to a component only after the live catalog proves that component accepts the target prop.
+Use `queryType: "count"` instead of manufacturing a Count/KPI renderer. It must declare exactly one measure with `aggregation: "count"`, and it cannot declare dimensions. Bind the returned alias only to a component whose contract in this skill accepts the target prop.
 
 ## Aggregate
 

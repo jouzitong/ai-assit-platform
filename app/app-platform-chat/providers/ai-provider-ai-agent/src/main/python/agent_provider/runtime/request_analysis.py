@@ -23,6 +23,104 @@ MAX_MESSAGE_CHARS = 1_200
 MAX_PAGE_CONTEXT_CHARS = 6_000
 READY_SCORE = 0.8
 PARTIAL_SCORE = 0.55
+RENDER_APPLICATION_AGENT_CODE = "dashboard-application-builder"
+RENDER_APPLICATION_REQUIRED_TOOLS = {
+    "data_preview_query_tool",
+    "render_json_validate_tool",
+}
+_SCHEMA_ONLY_NEGATION_PATTERNS = (
+    re.compile(
+        r"(?:不要|别|不能|不应|请勿)\s*(?:再)?\s*(?:只|仅|仅仅|单纯)\s*"
+        r"(?:做|进行)?\s*(?:说明|介绍|解释|描述|展示)\s*"
+        r"(?:数据)?(?:字段|列名|表结构)(?:的)?(?:含义|定义|说明|类型|结构)?"
+    ),
+)
+_EXPLICIT_RECORD_QUERY_NEGATION_PATTERNS = (
+    re.compile(
+        r"(?:不要|无需|无须|不需要|不必|请勿|禁止|避免)"
+        r"[^，,。！？!?；;\n]{0,16}"
+        r"(?:查询|读取|获取|展示|显示|列出|返回|提供|查看|呈现)"
+        r"[^，,。！？!?；;\n]{0,96}"
+        r"(?:数据|记录|数据行|明细)"
+    ),
+    re.compile(
+        r"(?:全部|所有|全量|整表)"
+        r"[^，,。！？!?；;\n]{0,16}(?:数据|记录|数据行|明细)"
+        r"[^，,。！？!?；;\n]{0,16}"
+        r"(?:不要|无需|无须|不需要|不必|请勿|禁止|避免)"
+        r"[^，,。！？!?；;\n]{0,8}"
+        r"(?:查询|读取|获取|展示|显示|列出|返回|提供|查看|呈现)"
+    ),
+    re.compile(
+        r"\b(?:do not|don't|no need to|avoid)\s+"
+        r"(?:query|fetch|read|show|display|list|return|provide)\b"
+        r"[^.!?;\n]{0,32}\b(?:data|records?|rows?|details?)\b",
+        re.IGNORECASE,
+    ),
+)
+_FULL_RECORD_SCOPE_PATTERN = re.compile(
+    r"(?:全部|所有|全量|整表)"
+    r"[^，,。！？!?；;\n]{0,16}(?:数据|记录|数据行|明细)"
+    r"|\b(?:all|entire|full)\s+(?:data|records?|rows?|details?)\b",
+    re.IGNORECASE,
+)
+_POSITIVE_LIMITED_RECORD_QUERY_PATTERNS = (
+    re.compile(
+        r"(?:只|仅|仅需|请|需要|要|希望|帮我)?\s*"
+        r"(?:查询|读取|获取|展示|显示|列出|返回|提供|查看|呈现)"
+        r"[^，,。！？!?；;\n]{0,96}"
+        r"(?:最近|最新|前|后|随机|任意)\s*"
+        r"(?:\d+|[一二三四五六七八九十百千两]+)\s*"
+        r"(?:条|行|个)?\s*(?:数据|记录|数据行|明细)?"
+    ),
+    re.compile(
+        r"\b(?:query|fetch|read|show|display|list|return|provide)\b"
+        r"[^.!?;\n]{0,96}\b(?:latest|first|last|top)\s+\d+\s+"
+        r"(?:data|records?|rows?|details?)\b",
+        re.IGNORECASE,
+    ),
+)
+_SCHEMA_DESCRIPTION_REQUEST_PATTERNS = (
+    re.compile(
+        r"(?:字段|数据列|列名)[^，,。！？!?；;\n]{0,16}"
+        r"(?:含义|定义|说明|描述|解释|类型|结构|列表|清单|有哪些|是什么)"
+    ),
+    re.compile(
+        r"(?:有哪些|什么|说明|介绍|解释|描述|列出|展示)"
+        r"[^，,。！？!?；;\n]{0,16}"
+        r"(?:数据)?(?:字段|数据列|列名|表结构|数据结构|字段类型|数据类型|数据字典)"
+    ),
+    re.compile(r"(?:表结构|字段结构|字段类型|数据类型|数据字典|字段含义|列含义)"),
+    re.compile(
+        r"\b(?:schema|table\s+schema|data\s+dictionary|"
+        r"(?:field|column)\s+(?:meaning|definition|description|type|list)s?)\b",
+        re.IGNORECASE,
+    ),
+)
+_CONCRETE_DATA_RECORD_REQUEST_PATTERNS = (
+    re.compile(r"(?:实际|具体|明细).{0,12}(?:数据|记录|行)"),
+    re.compile(
+        r"(?<![a-zA-Z0-9_])(?:ods|dwd|dws|dim|fact|fct|ads|stg|tmp|tbl)_"
+        r"[a-zA-Z0-9_]+(?![a-zA-Z0-9_])"
+        r".{0,24}(?:列表数据|数据列表|记录|明细|数据行)",
+        re.IGNORECASE,
+    ),
+    re.compile(r"\b(?:actual|detailed|database)\s+(?:data|records?|rows?)\b", re.IGNORECASE),
+)
+_DATA_RECORD_REQUEST_PATTERNS = (
+    *_CONCRETE_DATA_RECORD_REQUEST_PATTERNS,
+    re.compile(r"(?:数据库|数据源|模型|表).{0,24}(?:数据|记录|明细)"),
+)
+_RENDER_PRESENTATION_PATTERNS = (
+    re.compile(r"(?:数据)?列表(?:展示|显示|呈现)?"),
+    re.compile(r"表格(?:形式)?(?:展示|显示|呈现)?"),
+    re.compile(r"(?:可交互|交互式).{0,12}(?:列表|表格|看板|页面)"),
+    re.compile(r"(?:看板|轻应用|数据应用|可视化页面)"),
+    re.compile(
+        r"\b(?:render[ -]?json|dashboard|data\s+table|interactive\s+(?:list|table))\b",
+        re.IGNORECASE,
+    ),
+)
 
 
 class RequestRouteDraft(BaseModel):
@@ -153,6 +251,9 @@ class RequestAnalysis:
     usage: dict[str, int] = field(
         default_factory=lambda: {"inputTokens": 0, "outputTokens": 0, "totalTokens": 0}
     )
+    # Internal trust marker. Only allowlist validation or the deterministic
+    # policy may authorize the runner to apply a specialist route.
+    route_validated: bool = False
 
     def output_summary(self) -> str:
         sections = [
@@ -241,8 +342,9 @@ async def analyze_request(
             usage=usage,
         )
     except Exception as exc:
+        degraded = degraded_request_analysis(graph, request, type(exc).__name__)
         return replace(
-            degraded_request_analysis(graph, request, type(exc).__name__),
+            _apply_deterministic_route_policy(degraded, graph, request),
             duration_ms=_elapsed_ms(started_at),
         )
 
@@ -405,7 +507,7 @@ def _validate_analysis(
         remediations = _default_remediations(allowed_kbs, gaps)
 
     status = "DEGRADED" if warnings else "SUCCESS"
-    return RequestAnalysis(
+    analysis = RequestAnalysis(
         status=status,
         goal=_bounded_text(draft.goal, MAX_ANALYSIS_TEXT_CHARS, _request_goal(request)),
         deliverable=_bounded_text(
@@ -444,6 +546,100 @@ def _validate_analysis(
         low_readiness_remediation=remediations,
         validation_warnings=tuple(warnings),
         degraded_reason="ALLOWLIST_VALIDATION" if warnings else None,
+        route_validated=True,
+    )
+    return _apply_deterministic_route_policy(analysis, graph, request)
+
+
+def _apply_deterministic_route_policy(
+    analysis: RequestAnalysis,
+    graph: CompiledGraph,
+    request: str,
+) -> RequestAnalysis:
+    """Route explicit record-rendering requests to the only proof-bound builder.
+
+    Field/schema questions and ordinary Markdown formatting requests intentionally
+    remain with the model-selected route.  The override requires both a request
+    for concrete records and an explicit interactive/list presentation signal.
+    """
+
+    if not requires_render_application(request):
+        return analysis
+    target = next(
+        (
+            graph.agents[key]
+            for key in _reachable_agent_keys(graph)
+            if graph.agents[key].code == RENDER_APPLICATION_AGENT_CODE
+        ),
+        None,
+    )
+    if target is None:
+        return analysis
+    installed_tools = _installed_tool_names(graph, target)
+    if not RENDER_APPLICATION_REQUIRED_TOOLS.issubset(installed_tools):
+        return analysis
+    knowledge_bases = tuple(
+        code
+        for code in analysis.route.knowledge_base_codes
+        if code in _allowed_knowledge_base_codes(graph)
+    )
+    if not knowledge_bases and "data-semantic-catalog" in _allowed_knowledge_base_codes(graph):
+        knowledge_bases = ("data-semantic-catalog",)
+    route = RequestRoute(
+        mode="DELEGATE",
+        agent_code=target.code,
+        tool_codes=tuple(sorted(installed_tools)),
+        knowledge_base_codes=knowledge_bases,
+        rationale=(
+            "用户已同时明确要求数据库实际记录和列表化展示；必须使用受控数据预览、"
+            "组件目录与 Render JSON 校验链路，不能退化为字段说明或 Markdown 表格。"
+        ),
+    )
+    return replace(analysis, route=route, route_validated=True)
+
+
+def requires_render_application(request: str) -> bool:
+    normalized = str(request or "").strip()
+    if not normalized:
+        return False
+    record_negation_scope = normalized
+    for pattern in _SCHEMA_ONLY_NEGATION_PATTERNS:
+        record_negation_scope = pattern.sub("", record_negation_scope)
+    negations = (
+        match
+        for pattern in _EXPLICIT_RECORD_QUERY_NEGATION_PATTERNS
+        for match in pattern.finditer(record_negation_scope)
+    )
+    if any(
+        not _is_record_scope_limit(record_negation_scope, match)
+        for match in negations
+    ):
+        return False
+    requests_records = any(pattern.search(normalized) for pattern in _DATA_RECORD_REQUEST_PATTERNS)
+    requests_rendering = any(pattern.search(normalized) for pattern in _RENDER_PRESENTATION_PATTERNS)
+    if not requests_records or not requests_rendering:
+        return False
+    requests_schema_description = any(
+        pattern.search(normalized)
+        for pattern in _SCHEMA_DESCRIPTION_REQUEST_PATTERNS
+    )
+    if requests_schema_description and not any(
+        pattern.search(normalized)
+        for pattern in _CONCRETE_DATA_RECORD_REQUEST_PATTERNS
+    ):
+        return False
+    return True
+
+
+def _is_record_scope_limit(request: str, negation: re.Match[str]) -> bool:
+    """Return whether a full-set negation is followed by a positive subset request."""
+
+    if not _FULL_RECORD_SCOPE_PATTERN.search(negation.group(0)):
+        return False
+    positive_tail = request[negation.end() :]
+    return any(
+        pattern.search(positive_tail)
+        for pattern in _POSITIVE_LIMITED_RECORD_QUERY_PATTERNS
     )
 
 

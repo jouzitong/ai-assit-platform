@@ -217,7 +217,6 @@ public class AiAgentProcessExecutor {
         env.remove("AI_AGENT_SKILL_GATEWAY_URL");
         env.remove("AI_AGENT_KB_SEARCH_URL");
         env.remove("AI_AGENT_DATA_PREVIEW_URL");
-        env.remove("AI_AGENT_RENDER_COMPONENT_CATALOG_URL");
         env.put("OPENAI_API_KEY", apiKey);
         if (StringUtils.hasText(baseUrl)) {
             env.put("OPENAI_BASE_URL", baseUrl);
@@ -250,7 +249,6 @@ public class AiAgentProcessExecutor {
             String temporaryToken = temporaryTokenIssuer.issue(userContext, agentRunId);
             env.put("AI_AGENT_KB_SEARCH_TOKEN", temporaryToken);
             env.put("AI_AGENT_DATA_PREVIEW_TOKEN", temporaryToken);
-            env.put("AI_AGENT_RENDER_COMPONENT_CATALOG_TOKEN", temporaryToken);
             env.put("AI_AGENT_PLATFORM_TOKEN", temporaryToken);
             env.put("AI_AGENT_TOOL_GATEWAY_TOKEN", temporaryToken);
             env.put("AI_AGENT_SKILL_GATEWAY_TOKEN", temporaryToken);
@@ -668,11 +666,11 @@ public class AiAgentProcessExecutor {
         if (requestTimeout != null && requestTimeout > 0) {
             return requestTimeout;
         }
-        Integer configured = properties.getTimeoutMs();
+        Long configured = properties.getTimeoutMs();
         if (configured != null && configured > 0) {
             return configured;
         }
-        return Duration.ofSeconds(120).toMillis();
+        return Duration.ofMinutes(30).toMillis();
     }
 
     private void validate(String apiKey, String workerCommand) {
