@@ -50,6 +50,7 @@ public class AiAgentProcessExecutor {
     private static final String DEFAULT_PYTHON_COMMAND = "python3";
     private static final Pattern BEARER_TOKEN = Pattern.compile("(?i)bearer\\s+[^\\s,;]+");
     private static final Pattern OPENAI_KEY = Pattern.compile("\\bsk-[A-Za-z0-9_-]{8,}\\b");
+    private static final String WORKER_ENV_DIAGNOSTIC_PREFIX = "AI_AGENT_ENV ";
     private static final Set<String> RUNTIME_EXTENSION_KEYS = Set.of(
             "protocolVersion",
             "run",
@@ -252,6 +253,16 @@ public class AiAgentProcessExecutor {
             env.put("AI_AGENT_PLATFORM_TOKEN", temporaryToken);
             env.put("AI_AGENT_TOOL_GATEWAY_TOKEN", temporaryToken);
             env.put("AI_AGENT_SKILL_GATEWAY_TOKEN", temporaryToken);
+            log.debug("ai agent platform credential injected, agentRunId={}, thread={}, userId={}, tokenLength={}",
+                    agentRunId,
+                    Thread.currentThread().getName(),
+                    userContext.subject() == null ? null : userContext.subject().userId(),
+                    temporaryToken == null ? 0 : temporaryToken.length());
+        } else {
+            log.warn("ai agent platform credential not injected, agentRunId={}, thread={}, userContextType={}",
+                    agentRunId,
+                    Thread.currentThread().getName(),
+                    currentUser == null ? null : currentUser.getClass().getName());
         }
 
         Process process = null;
@@ -351,6 +362,9 @@ public class AiAgentProcessExecutor {
                     builder.append('\n');
                 }
                 builder.append(line);
+                if (line.startsWith(WORKER_ENV_DIAGNOSTIC_PREFIX)) {
+                    log.info("ai agent python startup environment, detail={}", line);
+                }
             }
             return builder.toString();
         } catch (Exception ex) {

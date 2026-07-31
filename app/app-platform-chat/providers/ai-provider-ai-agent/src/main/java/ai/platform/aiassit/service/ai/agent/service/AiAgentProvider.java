@@ -604,7 +604,7 @@ public class AiAgentProvider implements AiChatService, AgentRuntime {
     }
 
     private Duration resolveTimeout(Integer requestTimeoutMs) {
-        Integer timeoutMs = requestTimeoutMs != null && requestTimeoutMs > 0
+        Long timeoutMs = requestTimeoutMs != null && requestTimeoutMs > 0
                 ? requestTimeoutMs
                 : properties.getTimeoutMs();
         return Duration.ofMillis(timeoutMs != null && timeoutMs > 0 ? timeoutMs : 60000L);
