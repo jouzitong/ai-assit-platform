@@ -14,9 +14,9 @@ import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEven
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancellation;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationEventPublisher;
+import org.arthena.framework.common.thread.DefaultAsyncTaskExcutor;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -32,12 +32,12 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class DefaultConversationRunManagerTest {
 
-    private ThreadPoolTaskExecutor executor;
+    private DefaultAsyncTaskExcutor executor;
 
     @AfterEach
     void tearDown() {
         if (executor != null) {
-            executor.shutdown();
+            executor.close();
         }
     }
 
@@ -154,11 +154,7 @@ class DefaultConversationRunManagerTest {
     private DefaultConversationRunManager manager(ConversationExecutionService service,
                                                   ConversationRunClusterCoordinator coordinator,
                                                   ConversationRuntimeProperties properties) {
-        executor = new ThreadPoolTaskExecutor();
-        executor.setCorePoolSize(1);
-        executor.setMaxPoolSize(1);
-        executor.setQueueCapacity(8);
-        executor.initialize();
+        executor = new DefaultAsyncTaskExcutor();
         return new DefaultConversationRunManager(service, executor, coordinator, properties);
     }
 

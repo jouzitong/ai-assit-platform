@@ -53,14 +53,12 @@ import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionContentSe
 import ai.platform.aiassit.knowledge.manage.service.AiKbDocumentVersionService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbPublishTaskService;
-import ai.platform.aiassit.knowledge.manage.config.AiKbSyncTaskConfiguration;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.athena.framework.data.jdbc.vo.PageInfo;
 import org.athena.framework.data.jdbc.vo.PageResultVO;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.task.AsyncTaskExecutor;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
@@ -96,7 +94,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
     private final AiKbDocumentVersionContentService documentVersionContentService;
     private final AiKnowledgeExecutionService aiKnowledgeExecutionService;
     private final AiKbPublishTaskService publishTaskService;
-    private final AsyncTaskExecutor syncTaskExecutor;
+    private final AsyncTaskExcutor syncTaskExecutor;
     private final AiKbStoreManageDomainService storeManageDomainService;
 
     public AiKnowledgeManageDomainServiceImpl(AiKbStoreService storeService,
@@ -107,7 +105,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
                                                   AiKnowledgeExecutionService aiKnowledgeExecutionService,
                                                   AiKbPublishTaskService publishTaskService,
                                                   AiKbStoreManageDomainService storeManageDomainService,
-                                                  @Qualifier(AiKbSyncTaskConfiguration.EXECUTOR_NAME) AsyncTaskExecutor syncTaskExecutor) {
+                                                  AsyncTaskExcutor syncTaskExecutor) {
         this.storeService = storeService;
         this.documentService = documentService;
         this.contentService = contentService;
@@ -444,7 +442,7 @@ public class AiKnowledgeManageDomainServiceImpl implements AiKnowledgeManageDoma
 
         List<AiKbDocumentDTO> selectedDocuments = documents;
         AiKbPublishTaskDTO task = createSyncTask(query.getKbCode(), selectedDocuments);
-        syncTaskExecutor.execute(() -> executeSyncTask(task, selectedDocuments));
+        syncTaskExecutor.submit(() -> executeSyncTask(task, selectedDocuments));
 
         AiKbSyncResponse response = new AiKbSyncResponse();
         response.setAcceptedCount(selectedDocuments.size());

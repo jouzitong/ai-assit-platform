@@ -20,12 +20,6 @@ public class ConversationRuntimeProperties {
 
     private String nodeId;
 
-    private int corePoolSize = Math.max(4, Runtime.getRuntime().availableProcessors());
-
-    private int maxPoolSize = Math.max(16, Runtime.getRuntime().availableProcessors() * 4);
-
-    private int queueCapacity = 256;
-
     private int maxReplayEvents = 512;
 
     private Duration activeTtl = Duration.ofHours(2);
@@ -52,30 +46,6 @@ public class ConversationRuntimeProperties {
 
     public void setNodeId(String nodeId) {
         this.nodeId = nodeId;
-    }
-
-    public int getCorePoolSize() {
-        return corePoolSize;
-    }
-
-    public void setCorePoolSize(int corePoolSize) {
-        this.corePoolSize = corePoolSize;
-    }
-
-    public int getMaxPoolSize() {
-        return maxPoolSize;
-    }
-
-    public void setMaxPoolSize(int maxPoolSize) {
-        this.maxPoolSize = maxPoolSize;
-    }
-
-    public int getQueueCapacity() {
-        return queueCapacity;
-    }
-
-    public void setQueueCapacity(int queueCapacity) {
-        this.queueCapacity = queueCapacity;
     }
 
     public int getMaxReplayEvents() {

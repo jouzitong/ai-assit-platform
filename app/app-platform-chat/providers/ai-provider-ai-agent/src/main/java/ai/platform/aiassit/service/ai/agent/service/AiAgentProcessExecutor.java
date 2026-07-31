@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.context.SystemContext;
 import org.arthena.framework.common.exception.BizException;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.athena.framework.security.api.model.UserContext;
 import org.springframework.stereotype.Component;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,7 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.regex.Pattern;
@@ -95,16 +97,30 @@ public class AiAgentProcessExecutor {
 
     private final ObjectMapper objectMapper;
     private final AgentTemporaryTokenIssuer temporaryTokenIssuer;
+    private final Executor taskExecutor;
 
     public AiAgentProcessExecutor(ObjectMapper objectMapper) {
-        this(objectMapper, null);
+        this(objectMapper, null, Runnable::run);
+    }
+
+    public AiAgentProcessExecutor(ObjectMapper objectMapper,
+                                  AgentTemporaryTokenIssuer temporaryTokenIssuer) {
+        this(objectMapper, temporaryTokenIssuer, Runnable::run);
     }
 
     @Autowired
     public AiAgentProcessExecutor(ObjectMapper objectMapper,
-                                  AgentTemporaryTokenIssuer temporaryTokenIssuer) {
+                                  AgentTemporaryTokenIssuer temporaryTokenIssuer,
+                                  AsyncTaskExcutor asyncTaskExcutor) {
+        this(objectMapper, temporaryTokenIssuer, asyncTaskExcutor::submit);
+    }
+
+    private AiAgentProcessExecutor(ObjectMapper objectMapper,
+                                   AgentTemporaryTokenIssuer temporaryTokenIssuer,
+                                   Executor taskExecutor) {
         this.objectMapper = objectMapper;
         this.temporaryTokenIssuer = temporaryTokenIssuer;
+        this.taskExecutor = taskExecutor;
     }
 
     public JsonNode execute(AiAgentProperties properties, ProviderChatRequest request) {
@@ -276,9 +292,9 @@ public class AiAgentProcessExecutor {
             }
             AtomicReference<JsonNode> resultRef = new AtomicReference<>();
             CompletableFuture<Void> stdoutFuture = CompletableFuture.runAsync(
-                    () -> readFrames(activeProcess, frameConsumer, resultRef));
+                    () -> readFrames(activeProcess, frameConsumer, resultRef), taskExecutor);
             CompletableFuture<String> stderrFuture = CompletableFuture.supplyAsync(
-                    () -> readText(activeProcess.getErrorStream()));
+                    () -> readText(activeProcess.getErrorStream()), taskExecutor);
             boolean finished = waitFor(activeProcess, timeoutMs, cancellation, stdoutFuture);
             if (!finished) {
                 log.warn("ai agent process timeout, timeoutMs={}, scriptPath={}", timeoutMs, scriptPath);

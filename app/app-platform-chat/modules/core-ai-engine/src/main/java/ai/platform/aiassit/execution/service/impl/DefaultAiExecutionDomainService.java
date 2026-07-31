@@ -13,17 +13,13 @@ import ai.platform.aiassit.model.service.AiModelConfigService;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.spi.AiChatService;
 import org.arthena.framework.common.exception.BizException;
-import org.springframework.beans.factory.ObjectProvider;
-import org.arthena.framework.common.thread.schedule.ScheduleMonitor;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class DefaultAiExecutionDomainService implements AiExecutionDomainService {
@@ -33,14 +29,14 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
     private final AiRequestValidator validator;
     private final AiProviderRequestMapper requestMapper;
     private final AiModelConfigService modelConfigService;
-    private final ScheduleMonitor scheduleMonitor;
+    private final AsyncTaskExcutor asyncTaskExcutor;
 
     public DefaultAiExecutionDomainService(List<AiChatService> aiChatServices,
                                            AiCoreProperties properties,
                                            AiRequestValidator validator,
                                            AiProviderRequestMapper requestMapper,
                                            AiModelConfigService modelConfigService,
-                                           ObjectProvider<ScheduleMonitor> scheduleMonitorProvider) {
+                                           AsyncTaskExcutor asyncTaskExcutor) {
         for (AiChatService service : aiChatServices) {
             this.chatServices.put(service.chatClientType(), service);
         }
@@ -48,7 +44,7 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
         this.validator = validator;
         this.requestMapper = requestMapper;
         this.modelConfigService = modelConfigService;
-        this.scheduleMonitor = scheduleMonitorProvider.getIfAvailable();
+        this.asyncTaskExcutor = asyncTaskExcutor;
     }
 
     @Override
@@ -71,22 +67,7 @@ public class DefaultAiExecutionDomainService implements AiExecutionDomainService
 
     @Override
     public void chatStreamAsync(ChatRequest request, ChatStreamObserver observer) {
-        if (scheduleMonitor == null) {
-            CompletableFuture.runAsync(() -> chatStream(request, observer));
-            return;
-        }
-        AtomicReference<String> taskIdRef = new AtomicReference<>();
-        String taskId = scheduleMonitor.schedule(() -> {
-            try {
-                chatStream(request, observer);
-            } finally {
-                String id = taskIdRef.get();
-                if (id != null) {
-                    scheduleMonitor.cancel(id);
-                }
-            }
-        }, 1L, TimeUnit.MILLISECONDS);
-        taskIdRef.set(taskId);
+        asyncTaskExcutor.submit(() -> chatStream(request, observer));
     }
 
     private AiChatService resolveChatService(AiChatClientType requestedClientType) {

@@ -5,6 +5,8 @@ import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionResult;
 import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutor;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
@@ -24,6 +26,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 import java.util.regex.Pattern;
 
@@ -47,13 +50,30 @@ public class ManagedToolProcessExecutor implements ManagedToolExecutor {
     private final ObjectMapper objectMapper;
     private final String pythonCommand;
     private final String nodeCommand;
+    private final Executor taskExecutor;
 
     public ManagedToolProcessExecutor(ObjectMapper objectMapper,
                                       @Value("${ai.tool.runtime.python-command:python3}") String pythonCommand,
                                       @Value("${ai.tool.runtime.node-command:node}") String nodeCommand) {
+        this(objectMapper, pythonCommand, nodeCommand, Runnable::run);
+    }
+
+    @Autowired
+    public ManagedToolProcessExecutor(ObjectMapper objectMapper,
+                                      @Value("${ai.tool.runtime.python-command:python3}") String pythonCommand,
+                                      @Value("${ai.tool.runtime.node-command:node}") String nodeCommand,
+                                      AsyncTaskExcutor asyncTaskExcutor) {
+        this(objectMapper, pythonCommand, nodeCommand, asyncTaskExcutor::submit);
+    }
+
+    private ManagedToolProcessExecutor(ObjectMapper objectMapper,
+                                       String pythonCommand,
+                                       String nodeCommand,
+                                       Executor taskExecutor) {
         this.objectMapper = objectMapper;
         this.pythonCommand = pythonCommand;
         this.nodeCommand = nodeCommand;
+        this.taskExecutor = taskExecutor;
     }
 
     @Override
@@ -219,8 +239,10 @@ public class ManagedToolProcessExecutor implements ManagedToolExecutor {
         environment.put("PYTHONUNBUFFERED", "1");
         environment.putAll(additionalEnvironment);
         Process process = builder.start();
-        CompletableFuture<String> stdout = CompletableFuture.supplyAsync(() -> readLimited(process.getInputStream()));
-        CompletableFuture<String> stderr = CompletableFuture.supplyAsync(() -> readLimited(process.getErrorStream()));
+        CompletableFuture<String> stdout = CompletableFuture.supplyAsync(
+                () -> readLimited(process.getInputStream()), taskExecutor);
+        CompletableFuture<String> stderr = CompletableFuture.supplyAsync(
+                () -> readLimited(process.getErrorStream()), taskExecutor);
         try (OutputStream output = process.getOutputStream()) {
             if (stdin != null) output.write(stdin);
         }

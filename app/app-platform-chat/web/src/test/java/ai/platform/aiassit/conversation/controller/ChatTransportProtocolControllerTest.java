@@ -14,6 +14,7 @@ import ai.platform.aiassit.conversation.support.ConversationCommandFactory;
 import ai.platform.aiassit.conversation.support.ConversationRequestContextResolver;
 import ai.platform.aiassit.conversation.transport.sse.ProtocolSseConversationTransport;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.junit.jupiter.api.Test;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
@@ -112,7 +113,7 @@ class ChatTransportProtocolControllerTest {
         private String reconnectTraceId;
 
         private StubTransport() {
-            super(null, null, null, null);
+            super(null, null, null, null, (AsyncTaskExcutor) null);
         }
 
         @Override

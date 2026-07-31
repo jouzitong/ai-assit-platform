@@ -3,6 +3,8 @@ package ai.platform.aiassit.agent.runtime.tool;
 import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionRequest;
 import ai.platform.aiassit.service.ai.spi.tool.ManagedToolExecutionResult;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.arthena.framework.common.thread.DefaultAsyncTaskExcutor;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -12,8 +14,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ManagedToolProcessExecutorTest {
 
+    private final DefaultAsyncTaskExcutor asyncTaskExcutor = new DefaultAsyncTaskExcutor();
     private final ManagedToolProcessExecutor executor = new ManagedToolProcessExecutor(
-            new ObjectMapper(), "python3", "node");
+            new ObjectMapper(), "python3", "node", asyncTaskExcutor);
+
+    @AfterEach
+    void tearDown() {
+        asyncTaskExcutor.close();
+    }
 
     @Test
     void executesPythonEntrypointWithConfigAndTemporaryTokenEnvironment() {

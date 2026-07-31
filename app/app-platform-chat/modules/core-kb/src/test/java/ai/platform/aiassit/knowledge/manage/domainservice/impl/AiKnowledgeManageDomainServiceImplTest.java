@@ -28,11 +28,12 @@ import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbDocumentType;
 import ai.platform.aiassit.service.ai.api.enums.AiKbProviderSyncStatus;
 import ai.platform.aiassit.service.ai.api.enums.AiKbStoreSyncStatus;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.core.task.AsyncTaskExecutor;
 
+import java.util.concurrent.CompletableFuture;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -43,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -58,11 +60,15 @@ class AiKnowledgeManageDomainServiceImplTest {
     private final AiKnowledgeExecutionService aiKnowledgeExecutionService = mock(AiKnowledgeExecutionService.class);
     private final AiKbPublishTaskService publishTaskService = mock(AiKbPublishTaskService.class);
     private final AiKbStoreManageDomainService storeManageDomainService = mock(AiKbStoreManageDomainService.class);
-    private final AsyncTaskExecutor directExecutor = Runnable::run;
+    private final AsyncTaskExcutor directExecutor = mock(AsyncTaskExcutor.class);
     private AiKnowledgeManageDomainServiceImpl domainService;
 
     @BeforeEach
     void setUp() {
+        doAnswer(invocation -> {
+            invocation.getArgument(0, Runnable.class).run();
+            return CompletableFuture.completedFuture(null);
+        }).when(directExecutor).submit(any(Runnable.class));
         domainService = new AiKnowledgeManageDomainServiceImpl(
                 storeService,
                 documentService,

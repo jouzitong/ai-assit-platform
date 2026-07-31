@@ -2,7 +2,6 @@ package ai.platform.aiassit.conversation.runtime.impl;
 
 import ai.platform.aiassit.conversation.runtime.ConversationRunManager;
 import ai.platform.aiassit.conversation.runtime.cluster.ConversationRunClusterCoordinator;
-import ai.platform.aiassit.conversation.runtime.config.ConversationRuntimeConfiguration;
 import ai.platform.aiassit.conversation.runtime.config.ConversationRuntimeProperties;
 import ai.platform.aiassit.conversation.runtime.event.ConversationRunSubscriber;
 import ai.platform.aiassit.conversation.runtime.event.ConversationRunSubscription;
@@ -14,8 +13,7 @@ import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEven
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.runtime.ConversationCancelledException;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Qualifier;
-import org.springframework.core.task.AsyncTaskExecutor;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -38,14 +36,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class DefaultConversationRunManager implements ConversationRunManager {
 
     private final ConversationExecutionService executionService;
-    private final AsyncTaskExecutor runExecutor;
+    private final AsyncTaskExcutor runExecutor;
     private final ConversationRunClusterCoordinator clusterCoordinator;
     private final ConversationRuntimeProperties properties;
     private final Map<String, RunEntry> runs = new ConcurrentHashMap<>();
 
     public DefaultConversationRunManager(
             ConversationExecutionService executionService,
-            @Qualifier(ConversationRuntimeConfiguration.RUN_EXECUTOR) AsyncTaskExecutor runExecutor,
+            AsyncTaskExcutor runExecutor,
             ConversationRunClusterCoordinator clusterCoordinator,
             ConversationRuntimeProperties properties) {
         this.executionService = executionService;

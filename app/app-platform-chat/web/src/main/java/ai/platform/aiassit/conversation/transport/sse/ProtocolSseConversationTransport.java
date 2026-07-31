@@ -12,6 +12,7 @@ import ai.platform.aiassit.conversation.runtime.task.ConversationRunSnapshot;
 import ai.platform.aiassit.conversation.service.ConversationExecutionService;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -21,14 +22,9 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
-
-import jakarta.annotation.PreDestroy;
 
 @Component
 @Slf4j
@@ -40,20 +36,18 @@ public class ProtocolSseConversationTransport {
     private final ConversationExecutionService executionService;
     private final ChatTransportProtocolAdapter protocolAdapter;
     private final ChatProtocolEventCursor eventCursor;
-    private final ScheduledExecutorService heartbeatExecutor = Executors.newSingleThreadScheduledExecutor(runnable -> {
-        Thread thread = new Thread(runnable, "chat-event-v2-sse-heartbeat");
-        thread.setDaemon(true);
-        return thread;
-    });
+    private final AsyncTaskExcutor heartbeatExecutor;
 
     public ProtocolSseConversationTransport(ConversationRunManager runManager,
                                             ConversationExecutionService executionService,
                                             ChatTransportProtocolAdapter protocolAdapter,
-                                            ChatProtocolEventCursor eventCursor) {
+                                            ChatProtocolEventCursor eventCursor,
+                                            AsyncTaskExcutor heartbeatExecutor) {
         this.runManager = runManager;
         this.executionService = executionService;
         this.protocolAdapter = protocolAdapter;
         this.eventCursor = eventCursor;
+        this.heartbeatExecutor = heartbeatExecutor;
     }
 
     public SseEmitter start(ConversationQueryCommand command) {
@@ -84,7 +78,7 @@ public class ProtocolSseConversationTransport {
     private SseEmitter subscribe(String runId, Long userId, String lastEventId) {
         SseEmitter emitter = new SseEmitter(0L);
         AtomicReference<ConversationRunSubscription> subscriptionRef = new AtomicReference<>();
-        AtomicReference<ScheduledFuture<?>> heartbeatRef = new AtomicReference<>();
+        AtomicReference<String> heartbeatRef = new AtomicReference<>();
         AtomicBoolean completed = new AtomicBoolean(false);
         ConversationRunSubscriber subscriber = new ConversationRunSubscriber() {
             @Override
@@ -111,15 +105,15 @@ public class ProtocolSseConversationTransport {
                 if (current != null) {
                     current.close();
                 }
-                ScheduledFuture<?> heartbeat = heartbeatRef.getAndSet(null);
-                if (heartbeat != null) {
-                    heartbeat.cancel(false);
+                String heartbeatTaskId = heartbeatRef.getAndSet(null);
+                if (heartbeatTaskId != null) {
+                    heartbeatExecutor.cancel(heartbeatTaskId);
                 }
             };
             emitter.onCompletion(close);
             emitter.onTimeout(close);
             emitter.onError(error -> close.run());
-            ScheduledFuture<?> heartbeat = heartbeatExecutor.scheduleAtFixedRate(() -> {
+            String heartbeatTaskId = heartbeatExecutor.scheduleAtFixedRate(() -> {
                 try {
                     emitter.send(SseEmitter.event().comment("heartbeat"));
                 } catch (IOException | RuntimeException ex) {
@@ -131,7 +125,7 @@ public class ProtocolSseConversationTransport {
                     }
                 }
             }, HEARTBEAT_INTERVAL_SECONDS, HEARTBEAT_INTERVAL_SECONDS, TimeUnit.SECONDS);
-            heartbeatRef.set(heartbeat);
+            heartbeatRef.set(heartbeatTaskId);
             if (completed.get()) {
                 close.run();
             }
@@ -192,8 +186,4 @@ public class ProtocolSseConversationTransport {
                 .data(envelope, MediaType.APPLICATION_JSON));
     }
 
-    @PreDestroy
-    void shutdownHeartbeatExecutor() {
-        heartbeatExecutor.shutdownNow();
-    }
 }

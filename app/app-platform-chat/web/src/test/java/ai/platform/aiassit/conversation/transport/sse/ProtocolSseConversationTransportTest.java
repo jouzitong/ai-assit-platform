@@ -11,6 +11,7 @@ import ai.platform.aiassit.conversation.runtime.task.ConversationRunSnapshot;
 import ai.platform.aiassit.conversation.runtime.task.ConversationRunState;
 import ai.platform.aiassit.conversation.service.ConversationExecutionService;
 import ai.platform.aiassit.conversation.workflow.dto.ConversationQueryStreamEvent;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
@@ -33,8 +34,9 @@ class ProtocolSseConversationTransportTest {
     private final ConversationExecutionService executionService = mock(ConversationExecutionService.class);
     private final ChatTransportProtocolAdapter protocolAdapter = mock(ChatTransportProtocolAdapter.class);
     private final ChatProtocolEventCursor eventCursor = new ChatProtocolEventCursor();
+    private final AsyncTaskExcutor asyncTaskExcutor = mock(AsyncTaskExcutor.class);
     private final ProtocolSseConversationTransport transport = new ProtocolSseConversationTransport(
-            runManager, executionService, protocolAdapter, eventCursor);
+            runManager, executionService, protocolAdapter, eventCursor, asyncTaskExcutor);
 
     @Test
     void reconnectsToOwnedRuntimeRunUsingProjectedEventCursor() {

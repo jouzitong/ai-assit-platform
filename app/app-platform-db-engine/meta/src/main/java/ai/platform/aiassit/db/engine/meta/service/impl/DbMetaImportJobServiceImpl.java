@@ -17,7 +17,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
 import org.arthena.framework.common.exception.BizException;
-import org.arthena.framework.common.thread.AsyncTaskManager;
+import org.arthena.framework.common.thread.AsyncTaskExcutor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.TransactionDefinition;
@@ -48,7 +48,7 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
     private final DbMetaImportExecutor importExecutor;
     private final DbMetaImportJobMapper jobMapper;
     private final ObjectMapper objectMapper;
-    private final AsyncTaskManager asyncTaskManager;
+    private final AsyncTaskExcutor asyncTaskManager;
     private final TransactionTemplate requiresNewTransactionTemplate;
 
     public DbMetaImportJobServiceImpl(
@@ -56,7 +56,7 @@ public class DbMetaImportJobServiceImpl implements DbMetaImportJobService {
             DbMetaImportExecutor importExecutor,
             DbMetaImportJobMapper jobMapper,
             ObjectMapper objectMapper,
-            AsyncTaskManager asyncTaskManager,
+            AsyncTaskExcutor asyncTaskManager,
             PlatformTransactionManager transactionManager
     ) {
         this.importServices = importServices;
