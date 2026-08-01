@@ -4,20 +4,14 @@
 >
 > 适用范围：`app/app-platform-chat`、`ai-conversation-ui`
 >
-> 最后核对：2026-07-21
+> 最后核对：2026-08-01
 
 本专题说明聊天请求如何从 Controller 进入会话运行时、如何通过 SSE 到达前端，以及 Python Agent Worker 如何组织 Agent、Skill、Tool 和 MCP 扩展边界。
 
 ## 文档导航
 
-- [IConversationController 与 completionsStream](./completions-stream.md)
-  - `IConversationController` 全部接口职责。
-  - `/api/v1/chat/completions/stream` 的架构、实现、SSE 协议、重连与案例。
-  - 内部事件到 `chat-event.v2`、当前前端处理逻辑的完整映射。
-- [Python Agent 架构与扩展指南](./python-agent-extension.md)
-  - Java Run Plane 与 Python Worker 的职责分工。
-  - Agent、Skill、内置 Tool、平台 Tool Gateway 的扩展步骤。
-  - MCP 当前限制与建议演进方案。
+- [用户聊天端到端执行链路](./user-chat-end-to-end.md)
+  - 从主聊天页面发消息，到 Session/Round/Message 持久化、异步 Run、Python Agent、SSE、重连、取消和失败收口的完整链路。
 
 ## 当前实现结论
 

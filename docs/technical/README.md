@@ -7,8 +7,7 @@
 ### Conversation 与 Python Agent
 
 - [Conversation 技术文档总览](./conversation/README.md)
-- [IConversationController 与 completionsStream](./conversation/completions-stream.md)
-- [Python Agent 架构与扩展指南](./conversation/python-agent-extension.md)
+- [用户聊天端到端执行链路](./conversation/user-chat-end-to-end.md)
 
 ### Render JSON
 
