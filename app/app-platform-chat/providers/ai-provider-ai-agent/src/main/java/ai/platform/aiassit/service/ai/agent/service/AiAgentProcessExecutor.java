@@ -692,14 +692,14 @@ public class AiAgentProcessExecutor {
     }
 
     private long resolveTimeoutMs(AiAgentProperties properties, ProviderChatRequest request) {
-        Integer requestTimeout = request.getTimeoutMs();
-        if (requestTimeout != null && requestTimeout > 0) {
-            return requestTimeout;
-        }
-        Long configured = properties.getTimeoutMs();
-        if (configured != null && configured > 0) {
-            return configured;
-        }
+//        Integer requestTimeout = request.getTimeoutMs();
+//        if (requestTimeout != null && requestTimeout > 0) {
+//            return requestTimeout;
+//        }
+//        Long configured = properties.getTimeoutMs();
+//        if (configured != null && configured > 0) {
+//            return configured;
+//        }
         return Duration.ofMinutes(30).toMillis();
     }
 

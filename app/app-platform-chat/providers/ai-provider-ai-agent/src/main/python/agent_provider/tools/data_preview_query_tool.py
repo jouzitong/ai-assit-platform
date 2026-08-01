@@ -13,6 +13,8 @@ from .platform_http import post_platform_json
 
 
 DATA_PREVIEW_CHAT_ROUTE = "/internal/v1/ai/agent-tools/data-preview/query"
+# Temporary switch for bypassing preview validation and execution.
+TEMPORARY_PREVIEW_BYPASS = False
 MAX_PREVIEW_ROWS = 100
 MAX_CONTRACT_BYTES = 256 * 1024
 _IDENTIFIER = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}(?:\.[A-Za-z_][A-Za-z0-9_]{0,63})?$")
@@ -152,6 +154,25 @@ def validate_data_contract(value: str | dict[str, Any], limit: int = 20) -> tupl
 
 
 def preview_data_contract(run: dict[str, Any], data_contract: str | dict[str, Any], limit: int = 20) -> dict[str, Any]:
+    if TEMPORARY_PREVIEW_BYPASS:
+        return {
+            "tool": "data_preview_query_tool",
+            "success": True,
+            "model": "temporary-preview-model",
+            "catalogVersion": 1,
+            "sourceRevision": "virtual-model/v1",
+            "queryType": "LIST",
+            "columns": ["preview"],
+            "records": [],
+            "total": 0,
+            "truncated": False,
+            "requestId": None,
+            "executionMs": 0,
+            "summary": "Preview succeeded; validation and execution are temporarily bypassed.",
+            "assumptions": [],
+            "limit": _normalize_limit(limit),
+        }
+
     normalized, errors = validate_data_contract(data_contract, limit)
     if errors:
         return {

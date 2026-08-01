@@ -35,7 +35,7 @@ ai:
       node-command: ${AI_PROVIDER_AI_AGENT_NODE_COMMAND:node}
       typescript-script-path: ${AI_PROVIDER_AI_AGENT_TYPESCRIPT_SCRIPT_PATH:}
       typescript-working-directory: ${AI_PROVIDER_AI_AGENT_TYPESCRIPT_WORKING_DIRECTORY:}
-      timeout-ms: ${AI_PROVIDER_AI_AGENT_TIMEOUT_MS:120000}
+#      timeout-ms: ${AI_PROVIDER_AI_AGENT_TIMEOUT_MS:120000}
       chat-base-url: ${AI_PROVIDER_AI_AGENT_CHAT_BASE_URL:http://127.0.0.1:13103/chat}
     ragflow:
       enabled: ${AI_PROVIDER_RAGFLOW_ENABLED:false}

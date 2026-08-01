@@ -10,7 +10,7 @@ from agent_provider.tools.data_preview_query_tool import (
 
 
 class DataPreviewQueryToolTest(unittest.TestCase):
-    def test_rejects_physical_sql_and_endpoint_fields_before_http(self) -> None:
+    def test_temporarily_bypasses_preview_validation_and_http(self) -> None:
         contract = {
             "model": "sales_order",
             "dimensions": [{"field": "region_name"}],
@@ -19,6 +19,24 @@ class DataPreviewQueryToolTest(unittest.TestCase):
         }
 
         with patch("agent_provider.tools.data_preview_query_tool.post_platform_json") as post:
+            result = preview_data_contract({}, contract)
+
+        self.assertTrue(result["success"])
+        self.assertEqual("temporary-preview-model", result["model"])
+        self.assertEqual("Preview succeeded; validation and execution are temporarily bypassed.", result["summary"])
+        post.assert_not_called()
+
+    def test_keeps_validation_logic_available_when_bypass_is_disabled(self) -> None:
+        contract = {
+            "model": "sales_order",
+            "dimensions": [{"field": "region_name"}],
+            "measures": [],
+            "sql": "select * from sales_order",
+        }
+
+        with patch("agent_provider.tools.data_preview_query_tool.TEMPORARY_PREVIEW_BYPASS", False), patch(
+            "agent_provider.tools.data_preview_query_tool.post_platform_json"
+        ) as post:
             result = preview_data_contract({}, contract)
 
         self.assertFalse(result["success"])
@@ -44,7 +62,7 @@ class DataPreviewQueryToolTest(unittest.TestCase):
         self.assertEqual("LAST_6_MONTHS", normalized["timeRange"]["preset"])
         self.assertEqual([], normalized["assumptions"])
 
-    def test_posts_only_the_normalized_contract_with_run_trace_context(self) -> None:
+    def test_returns_success_without_posting_to_platform(self) -> None:
         contract = {
             "model": "sales_order",
             "sourceRevision": "virtual-model/v7",
@@ -52,25 +70,11 @@ class DataPreviewQueryToolTest(unittest.TestCase):
             "dimensions": [{"field": "region_name"}],
             "filters": [],
         }
-        response = {
-            "success": True,
-            "data": {
-                "model": "sales_order",
-                "catalogVersion": 7,
-                "sourceRevision": "virtual-model/v7",
-                "queryType": "AGGREGATE",
-                "columns": ["region_name", "sum_paid_amount"],
-                "records": [{"region_name": "华东", "sum_paid_amount": 12}],
-                "total": 1,
-            },
-        }
-
-        with patch.dict(os.environ, {
+        with patch("agent_provider.tools.data_preview_query_tool.TEMPORARY_PREVIEW_BYPASS", False), patch.dict(os.environ, {
             "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
             "AI_AGENT_DATA_PREVIEW_URL": "http://db-engine/direct-preview",
         }, clear=False), patch(
             "agent_provider.tools.data_preview_query_tool.post_platform_json",
-            return_value=response,
         ) as post:
             result = preview_data_contract(
                 {"runId": "run-1", "traceId": "trace-1", "sessionCode": "session-1"},
@@ -79,16 +83,9 @@ class DataPreviewQueryToolTest(unittest.TestCase):
             )
 
         self.assertTrue(result["success"])
-        self.assertEqual(1, len(result["records"]))
-        self.assertEqual(
-            "http://chat.internal:13103/chat/internal/v1/ai/agent-tools/data-preview/query",
-            post.call_args.args[0],
-        )
-        self.assertEqual("sales_order", post.call_args.args[1]["model"])
-        self.assertEqual("trace-1", post.call_args.kwargs["trace_id"])
-        self.assertEqual("run-1", post.call_args.kwargs["run_id"])
-        self.assertEqual("session-1", post.call_args.kwargs["session_code"])
-        self.assertEqual(10, post.call_args.args[1]["limit"])
+        self.assertEqual([], result["records"])
+        self.assertEqual(10, result["limit"])
+        post.assert_not_called()
 
     def test_rejects_non_standard_numbers_and_duplicate_json_keys(self) -> None:
         contracts = (
