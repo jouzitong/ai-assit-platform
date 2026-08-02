@@ -31,30 +31,28 @@ Agent 不允许跳过数据契约直接生成最终页面，也不允许把未�
 | --- | --- |
 | `knowledge_base_search_tool` | 检索业务语义和知识文档 |
 | `data_preview_query_tool` | 用真实虚拟模型与字段验证数据契约和受控预览 |
-| `render_json_validate_tool` | 对完整 RenderDocument 做结构、数据源和安全确定性校验 |
+| `render_json_validate_tool` | 从冻结组件测试用例和数据源配置物化完整 RenderDocument，并做结构、数据源和安全确定性校验 |
 | `semantic-data-contract` Skill | 构造业务和数据契约 |
-| `render-json-authoring` Skill | 提供冻结的组件信息并按组件契约生成 RenderDocument |
-| `render-json-repair` Skill | 根据稳定错误码做最小修复 |
+| `render-json-generation` Skill | 提供冻结的组件说明和组件测试用例；模型只选择 case 并提供数据源配置 |
 | `application-build-release` Skill | 描述构建状态；当前不代表已经发布页面 |
 
 模型负责理解与生成，Skill 提供当前阶段的组件契约，Tool 负责可以确定性判断的协议、数据和安全约束。
 
 ## 3. 组件 Skill 链路
 
-组件信息不依赖在线查询工具，也不能来自模型记忆。Agent 必须读取 `render-json-authoring` Skill 中冻结的组件说明、版本、参数、事件和模板：
+组件信息不依赖在线查询工具，也不能来自模型记忆。Agent 必须读取 `render-json-generation` Skill 中冻结的组件说明和组件测试用例：
 
 ```mermaid
 sequenceDiagram
     participant Agent as Dashboard Agent
-    participant Skill as render-json-authoring Skill
+    participant Skill as render-json-generation Skill
     participant Validator as render_json_validate_tool
 
     Agent->>Skill: 读取组件 references / assets
-    Skill-->>Agent: keys + versions + props + events + examples
-    Agent->>Agent: 生成 RenderDocument
-    Agent->>Validator: render_json 字符串
-    Validator->>Validator: 校验结构、版本格式、datasource、binding、action 和安全约束
-    Validator-->>Agent: ValidationReport
+    Skill-->>Agent: case + keys + versions + props + events
+    Agent->>Validator: component_test_case + datasource
+    Validator->>Validator: 物化 fixture，校验结构、版本格式、datasource、binding、action 和安全约束
+    Validator-->>Agent: RenderDocument + ValidationReport
 ```
 
 当前组件 Skill 必须提供：
@@ -62,8 +60,8 @@ sequenceDiagram
 - 唯一的 component key。
 - 固定的 componentVersion。
 - 参数和事件契约。
-- 可复制的节点模板和完整示例。
-- 稳定来源引用 `skill://render-json-authoring/v6`。
+- 每个受支持组件的一份冻结测试用例 JSON 和一份详细说明。
+- 稳定来源引用 `skill://render-json-generation/v1`。
 
 `ValidationReport.catalogRevision` 暂时作为兼容字段，值为上述 Skill 来源引用。当前校验器不会在线验证组件是否发布，也不会检查具体 props/events 是否属于组件；这些信息由 Skill 负责，正式发布前仍需与前端 Registry 做一致性校验。
 
@@ -127,7 +125,7 @@ bindings, events, actions, children
 - props、events 和 actions 是否具有合法 JSON 结构。
 - children 是否是合法节点数组。
 
-组件是否受支持、具体 props/events 契约和精确版本由 `render-json-authoring` Skill 定义，当前静态校验器不重复维护一份组件目录。
+组件是否受支持、具体 props/events 契约和精确版本由 `render-json-generation` Skill 定义，当前静态校验器不重复维护一份组件目录。
 
 ### 4.4 Datasource 与安全
 
@@ -163,7 +161,7 @@ Render JSON 的安全模型是“只允许声明稳定意图，由平台可信�
 - `recoverable`：Agent 是否可以尝试最小修复。
 - 文档摘要、规则版本和组件 Skill 来源引用。
 
-Agent 提示要求校验失败后最多修复三次，并且只针对稳定错误码做最小修改。不可恢复错误应停止并说明阻塞原因。
+Agent 提示要求校验失败后最多修复三次，并且只针对数据源事实做最小修改。不可恢复错误应停止并说明阻塞原因。
 
 ## 6. Artifact 生成与 Provider 输出
 
@@ -210,7 +208,7 @@ Agent 最终输出使用 JSON Artifact Envelope。至少应包含：
 }
 ```
 
-Provider 从最终输出中提取 artifacts。Provider 阶段的不完整元数据只用于内部执行记录；Chat 服务完成持久化后再发送权威 `artifact.created`，事件携带数据库 artifactCode、stage、title、content、contentFormat、seqNo 和 extJson，前端可直接展示。
+Provider 从最终输出中提取 artifacts，并以工具返回的哈希匹配 RenderDocument 覆盖模型声称的同名文档。Provider 阶段的不完整元数据只用于内部执行记录；Chat 服务完成持久化后再发送权威 `artifact.created`，事件携带数据库 artifactCode、stage、title、content、contentFormat、seqNo 和 extJson，前端可直接展示。
 
 ## 7. Chat 服务持久化
 

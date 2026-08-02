@@ -50,6 +50,9 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
         for (Map<String, Object> contract : contracts) {
             String code = text(contract.get("code"), contract.get("artifactCode"));
             boolean required = !Boolean.FALSE.equals(contract.get("required"));
+            boolean contractBlocking = required;
+            boolean contractRetryable = required;
+            String contractSeverity = required ? "ERROR" : "WARNING";
             Map<String, Object> artifact = byCode.get(code);
             if (requireAllRequiredArtifacts && required && artifact == null) {
                 checks.add(result("required-" + code, code, "REQUIRED", "ERROR",
@@ -66,8 +69,8 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
                     String actualType = text(artifact.get("artifactType"), artifact.get("type"));
                     boolean typeMatches = StringUtils.hasText(actualType)
                             && expectedType.equalsIgnoreCase(actualType);
-                    checks.add(result("type-" + code, code, "ARTIFACT_TYPE", "ERROR",
-                            true, true, typeMatches, typeMatches ? "PASSED" : "FAILED",
+                    checks.add(result("type-" + code, code, "ARTIFACT_TYPE", contractSeverity,
+                            contractBlocking, contractRetryable, typeMatches, typeMatches ? "PASSED" : "FAILED",
                             typeMatches
                                     ? "Artifact type matches contract: " + expectedType
                                     : "Artifact type must be " + expectedType + ", but was "
@@ -78,8 +81,8 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
                     String actualFormat = text(artifact.get("contentFormat"), artifact.get("format"));
                     boolean formatMatches = StringUtils.hasText(actualFormat)
                             && expectedFormat.equalsIgnoreCase(actualFormat);
-                    checks.add(result("format-" + code, code, "CONTENT_FORMAT", "ERROR",
-                            true, true, formatMatches, formatMatches ? "PASSED" : "FAILED",
+                    checks.add(result("format-" + code, code, "CONTENT_FORMAT", contractSeverity,
+                            contractBlocking, contractRetryable, formatMatches, formatMatches ? "PASSED" : "FAILED",
                             formatMatches
                                     ? "Artifact content format matches contract: " + expectedFormat
                                     : "Artifact content format must be " + expectedFormat + ", but was "
@@ -90,10 +93,11 @@ public class DefaultArtifactAcceptanceService implements ArtifactAcceptanceServi
                     schema = map(contract.get("schema"));
                 }
                 if (!schema.isEmpty()) {
-                    checks.add(validateSchema("schema-" + code, code, artifact.get("content"), schema, true, true));
+                    checks.add(validateSchema("schema-" + code, code, artifact.get("content"), schema,
+                            contractBlocking, contractRetryable));
                 } else if (StringUtils.hasText(text(contract.get("schemaRef")))) {
-                    checks.add(result("schema-" + code, code, "JSON_SCHEMA", "ERROR",
-                            true, true, false, "FAILED",
+                    checks.add(result("schema-" + code, code, "JSON_SCHEMA", contractSeverity,
+                            contractBlocking, contractRetryable, false, "FAILED",
                             "Published schemaRef was not resolved into the Workflow snapshot: "
                                     + contract.get("schemaRef")));
                 }

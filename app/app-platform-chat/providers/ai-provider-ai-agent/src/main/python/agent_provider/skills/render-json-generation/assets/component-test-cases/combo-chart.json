@@ -1,0 +1,41 @@
+{
+  "caseId": "combo-chart",
+  "component": "combo-chart-renderer",
+  "componentVersion": "1.0.0",
+  "materializer": "combo-chart",
+  "minimumFields": 3,
+  "description": "A bar-line chart. The first field is the category, the second is a bar series, and remaining fields are line series.",
+  "document": {
+    "protocol": "render-json",
+    "protocolVersion": "1.0.0",
+    "pageId": "generated-combo-chart",
+    "revision": "1",
+    "root": {
+      "id": "generated-combo-chart",
+      "component": "combo-chart-renderer",
+      "componentVersion": "1.0.0",
+      "props": {
+        "categories": [],
+        "barSeries": [],
+        "lineSeries": [],
+        "height": 340,
+        "legend": true,
+        "option": {}
+      },
+      "bindings": {
+        "category": { "field": "fixture_category" },
+        "barSeries": [{ "field": "fixture_bar", "name": "fixture_bar" }],
+        "lineSeries": [{ "field": "fixture_line", "name": "fixture_line", "yAxisIndex": 1 }]
+      },
+      "datasource": {
+        "key": "fixture-query",
+        "type": "db-query-list",
+        "model": "fixture_model",
+        "page": 1,
+        "page_size": 20,
+        "ext": { "fields": ["fixture_category", "fixture_bar", "fixture_line"] }
+      },
+      "layout": { "minHeight": "380px" }
+    }
+  }
+}

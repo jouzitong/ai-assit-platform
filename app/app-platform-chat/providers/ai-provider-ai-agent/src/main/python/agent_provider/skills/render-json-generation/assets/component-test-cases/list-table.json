@@ -1,0 +1,47 @@
+{
+  "caseId": "list-table",
+  "component": "zg-list-main-layout",
+  "componentVersion": "1.0.0",
+  "materializer": "list-table",
+  "minimumFields": 1,
+  "description": "A pageable table. The materializer derives every visible column from datasource.fields.",
+  "document": {
+    "protocol": "render-json",
+    "protocolVersion": "1.0.0",
+    "pageId": "generated-list",
+    "revision": "1",
+    "root": {
+      "id": "generated-list",
+      "component": "zg-list-main-layout",
+      "componentVersion": "1.0.0",
+      "props": {
+        "schema": {
+          "id": "generated-list-schema",
+          "version": "1.0.0",
+          "title": "数据列表",
+          "component": "zg-common-list",
+          "filters": [],
+          "fields": [],
+          "actions": [],
+          "list_config": {
+            "itemType": "table",
+            "pagination": {
+              "enabled": true,
+              "pageSize": 10,
+              "pageSizeOptions": [10, 20, 50]
+            }
+          }
+        }
+      },
+      "datasource": {
+        "key": "fixture-query",
+        "type": "db-query-list",
+        "model": "fixture_model",
+        "page": 1,
+        "page_size": 10,
+        "ext": { "fields": ["id"] }
+      },
+      "layout": { "minHeight": "480px" }
+    }
+  }
+}

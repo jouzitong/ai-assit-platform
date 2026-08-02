@@ -109,7 +109,7 @@ Python `compile_snapshot` 看到 `PYTHON_LOCAL` 后会：
 | --- | --- | --- | --- | --- |
 | `enterprise-work-assistant` | `HOME_CHAT` 根 Agent | `knowledge_base_search_tool` + 5 个 Agent-as-Tool | 无 | 默认的用户答复与路由所有者；命中已校验的 Builder 直路由时由 Builder 直接生成本轮正文 |
 | `data-analysis` | `ask_data_analysis` | `knowledge_base_search_tool` | 无 | 指标口径、查询规划、异常分析、结论解释；当前无真实数据预览能力 |
-| `dashboard-application-builder` | `ask_dashboard_application_builder`，或确定性直路由 | `knowledge_base_search_tool`、`data_preview_query_tool`、`render_json_validate_tool` | `semantic-data-contract`、`render-json-authoring`、`render-json-repair`、`application-build-release` | 受控构建真实数据列表、看板和 Render 产物 |
+| `dashboard-application-builder` | `ask_dashboard_application_builder`，或确定性直路由 | `knowledge_base_search_tool`、`data_preview_query_tool`、`render_json_validate_tool` | `semantic-data-contract`、`render-json-generation`、`application-build-release` | 用冻结组件测试用例和数据源配置受控构建真实数据列表、看板和 Render 产物 |
 
 根 Agent 还可以委派文档分析、企业知识和流程表单 Agent，但它们不属于本文的问数主链。
 

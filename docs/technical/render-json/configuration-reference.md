@@ -470,7 +470,7 @@ Renderer/Page 动作声明示例：
 
 - `protocol`、`protocolVersion` 和 `root` 正确。
 - 顶层 `id` 和节点 `key` 稳定，不使用随机展示文案。
-- component 已在前端 Registry 注册；AI 产物还需要存在于当前 `render-json-authoring` Skill 快照。
+- component 已在前端 Registry 注册；AI 产物还需要来自当前 `render-json-generation` Skill 的冻结测试用例。
 - componentVersion 与组件契约匹配。
 - datasource 只描述查询意图，不含 URL、SQL 或凭据。
 - `model` 使用已发布虚拟实体编码，fields 和 relations 使用虚拟字段。

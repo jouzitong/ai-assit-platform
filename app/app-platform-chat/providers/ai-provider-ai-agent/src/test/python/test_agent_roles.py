@@ -64,8 +64,7 @@ class AgentRoleTest(unittest.TestCase):
         self.assertEqual(
             [
                 "skill://semantic-data-contract/v1",
-                "skill://render-json-authoring/v6",
-                "skill://render-json-repair/v1",
+                "skill://render-json-generation/v1",
                 "skill://application-build-release/v1",
             ],
             graph.root.skill_refs,

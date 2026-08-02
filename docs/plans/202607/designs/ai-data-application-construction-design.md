@@ -74,13 +74,13 @@ AI 问数不应被实现为“模型一次性生成 Render JSON”。目标链�
 - 不在文档中重复维护运行时查询能力、默认分页、权限或授权规则；这些由 `data_preview_query_tool` 和服务端虚拟目录实时判定。
 - 虚拟目录发布、字段变更或模型下线后，必须自动更新对应文档；检索结果必须携带 `sourceRevision` 和 `updatedAt`。
 
-### 4.2 `render-json-authoring` Skill：Render 组件信息
+### 4.2 `render-json-generation` Skill：冻结 Render 组件测试用例
 
 Skill 中的组件 reference 和 asset 对应当前允许生成的组件版本，来源为前端 registry/manifest 的稳定 key、组件说明与示例 JSON。
 
-必填内容：`componentKey`、版本、类别、适用场景、输入 props、必填字段、events、限制条件、示例 JSON、常见错误和替代组件。
+必填内容：`SKILL.md`、每个组件的详细说明 Markdown，以及可直接物化的组件测试用例 JSON。测试用例固定页面结构、组件版本、props 和事件，Agent 只能提供数据源配置。
 
-当前阶段不提供在线组件目录 Tool；组件信息统一冻结在 `render-json-authoring` Skill 中，并在组件变更时与前端 Registry 同步更新。
+当前阶段不提供在线组件目录 Tool；组件信息统一冻结在 `render-json-generation` Skill 中，并在组件变更时与前端 Registry 同步更新。
 
 ### 4.3 `render-build-faq`：Render 构建诊断 FAQ
 
@@ -141,7 +141,7 @@ FAQ 仅提供修复建议，不能覆盖校验器、组件目录或权限系统�
 
 ### 5.3 `ApplicationPlan`
 
-数据预览成功后，选择页面布局、组件、图表类型、过滤器、数据绑定和交互。组件 key、版本与 props 统一读取 `render-json-authoring` Skill；模板库只提供可选的设计参考。
+数据预览成功后，选择一个与需求匹配的冻结组件测试用例。组件 key、版本、props、布局和事件均由 `render-json-generation` Skill 固定；Agent 只配置经过预览确认的数据源字段、过滤、排序和分页。
 
 ### 5.4 `RenderDocument`
 
@@ -176,8 +176,7 @@ RenderDocument
 | Skill | 责任 | 主要读取的知识库 |
 |---|---|---|
 | `semantic-data-contract` | 将自然语言需求转换为受限的 DataContract，并处理同义词与不确定性 | `data-semantic-catalog`、`enterprise-business-knowledge` |
-| `render-json-authoring` | 基于 ApplicationPlan、Skill 内组件契约和模板生成声明式 Render JSON | `render-app-templates` |
-| `render-json-repair` | 根据校验或预览错误做最小修复 | `render-build-faq` |
+| `render-json-generation` | 用冻结组件测试用例和数据源配置物化并校验声明式 Render JSON | 无固定知识库 |
 | `application-build-release` | 组织校验、预览、直接发布及发布结果回传 | 无固定知识库 |
 
 Skill 保存流程、产物 Schema、检查清单、组件契约和审核样例；实时数据字段和权限不写入 Skill。
@@ -203,7 +202,7 @@ Python Tool 不持有 DB Engine 或网关地址。所有平台内部请求统一
 1. 在 RAGFlow 创建第 4 章列出的必需知识库；业务知识库按实际领域决定是否创建。
 2. 定义 `ApplicationBrief`、`DataContract`、`ApplicationPlan`、`RenderDocument`、`ValidationReport` 的 JSON Schema。
 3. 建立虚拟模型/字段到 `data-semantic-catalog` 文档的同步任务。
-4. 建立前端 Registry 到 `render-json-authoring` Skill 的组件信息同步流程。
+4. 建立前端 Registry 到 `render-json-generation` Skill 的组件说明和测试用例同步流程。
 5. 录入最小可用模板和诊断 FAQ；每个案例必须有版本与审核人。
 
 验收：用 10 个真实业务问句能检索到正确或可解释的候选数据模型与字段；组件 Skill 覆盖当前允许生成的组件。

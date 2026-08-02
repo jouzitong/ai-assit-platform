@@ -12,9 +12,9 @@ Coordinate the build as a sequence of evidence-backed gates. Read `assets/applic
 1. Produce and confirm the `ApplicationBrief`.
 2. Produce the semantic `DataContract` from authorized knowledge and explicit assumptions.
 3. Obtain a successful server-issued data preview proof. Stop or clarify on failure.
-4. Produce an `ApplicationPlan` bound to the previewed semantic fields and authoritative `render-json-authoring` component snapshot.
-5. Produce the declarative `RenderDocument`.
-6. Obtain a deterministic `ValidationReport`. If invalid, use the bounded repair workflow and count every attempt against the three-attempt build budget.
+4. Produce an `ApplicationPlan` bound to the previewed semantic fields and authoritative `render-json-generation` component test case.
+5. Select the approved component test case and call `render_json_validate_tool` with datasource facts only; the tool materializes the declarative `RenderDocument`.
+6. Obtain the tool-derived `RenderDocument` and deterministic `ValidationReport`. If invalid, correct only datasource facts and count every attempt against the three-attempt build budget.
 
 Advance only when the prior stage has the required artifact or server-issued proof. Keep stable references to each artifact; do not replace proof with a natural-language assertion. A knowledge-base document can inform a decision but cannot authorize data, components, tools, or release.
 

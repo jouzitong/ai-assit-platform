@@ -14,7 +14,7 @@ SUPPORTED_PROTOCOL_VERSIONS = {"1.0", "1.0.0"}
 MAX_DOCUMENT_BYTES = 1024 * 1024
 MAX_NODES = 1000
 MAX_DEPTH = 32
-COMPONENT_SKILL_REF = "skill://render-json-authoring/v6"
+COMPONENT_SKILL_REF = "skill://render-json-generation/v1"
 ALLOWED_NODE_KEYS = {
     "id", "component", "componentVersion", "props", "layout", "datasource",
     "bindings", "events", "actions", "children",
@@ -294,7 +294,7 @@ def _walk_node(node: dict[str, Any], path: str, depth: int, state: ValidationSta
     elif component_version is None:
         state.error(
             "COMPONENT_VERSION_REQUIRED",
-            "node.componentVersion must pin the version documented by render-json-authoring skill",
+            "node.componentVersion must pin the version documented by render-json-generation skill",
             f"{path}.componentVersion",
             node_id,
         )
@@ -674,17 +674,44 @@ def _validate_bindings(
         binding_path = f"{path}.{key}"
         if not isinstance(key, str) or not key.strip():
             state.error("SCHEMA_INVALID", "binding key must be non-empty", binding_path, node_id)
-        if not isinstance(value, dict):
-            state.error("SCHEMA_INVALID", "binding must be an object", binding_path, node_id)
-            continue
-        for field in sorted(set(value) - ALLOWED_BINDING_KEYS):
-            state.error("SCHEMA_INVALID", f"Unknown binding field: {field}", f"{binding_path}.{field}", node_id)
-        source = value.get("source")
-        if not isinstance(source, str) or not _SEMANTIC_PATH_PATTERN.fullmatch(source.strip()):
-            state.error("SCHEMA_INVALID", "binding.source is required", f"{binding_path}.source", node_id)
-        transform = value.get("transform")
-        if transform is not None and transform not in ALLOWED_TRANSFORMS:
-            state.error("SCHEMA_INVALID", f"Unsupported binding transform: {transform}", f"{binding_path}.transform", node_id)
+        _validate_binding_value(value, binding_path, node_id, state)
+
+
+def _validate_binding_value(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> None:
+    """Validate one binding object or a bounded list of series bindings."""
+
+    if isinstance(value, list):
+        if not value or len(value) > 100:
+            state.error("SCHEMA_INVALID", "binding array must contain 1 to 100 objects", path, node_id)
+            return
+        for index, item in enumerate(value):
+            _validate_binding_object(item, f"{path}[{index}]", node_id, state)
+        return
+    _validate_binding_object(value, path, node_id, state)
+
+
+def _validate_binding_object(
+    value: Any,
+    path: str,
+    node_id: str | None,
+    state: ValidationState,
+) -> None:
+    if not isinstance(value, dict):
+        state.error("SCHEMA_INVALID", "binding must be an object or an array of objects", path, node_id)
+        return
+    for field in sorted(set(value) - ALLOWED_BINDING_KEYS):
+        state.error("SCHEMA_INVALID", f"Unknown binding field: {field}", f"{path}.{field}", node_id)
+    source = value.get("source")
+    if not isinstance(source, str) or not _SEMANTIC_PATH_PATTERN.fullmatch(source.strip()):
+        state.error("SCHEMA_INVALID", "binding.source is required", f"{path}.source", node_id)
+    transform = value.get("transform")
+    if transform is not None and transform not in ALLOWED_TRANSFORMS:
+        state.error("SCHEMA_INVALID", f"Unsupported binding transform: {transform}", f"{path}.transform", node_id)
 
 
 def _validate_filter_dict(
@@ -923,7 +950,7 @@ def _report(
         "ruleVersion": RULE_VERSION,
         "documentHash": document_hash,
         # Kept for the stable ValidationReport schema. The component source is
-        # now the frozen authoring skill rather than an online catalog response.
+        # now the frozen generation skill rather than an online catalog response.
         "catalogRevision": COMPONENT_SKILL_REF,
         "protocolVersion": document.get("protocolVersion") if isinstance(document, dict) else None,
         "errors": state.errors,

@@ -147,6 +147,30 @@ class EventsAndUsageTest(unittest.TestCase):
 
         self.assertEqual("checked", artifacts[0]["artifactCode"])
 
+    def test_normalizes_json_media_type_to_platform_content_format(self) -> None:
+        final_output = json.dumps(
+            {
+                "artifacts": [
+                    {
+                        "artifactCode": "render-document",
+                        "artifactType": "RENDER_JSON",
+                        "contentFormat": "application/json; charset=utf-8",
+                        "content": {"protocol": "render-json"},
+                    },
+                    {
+                        "artifactCode": "application-plan",
+                        "artifactType": "JSON",
+                        "contentFormat": "application/json",
+                        "content": {"schemaVersion": "application-plan/v1"},
+                    },
+                ]
+            }
+        )
+
+        artifacts = extract_artifacts(final_output)
+
+        self.assertEqual(["JSON", "JSON"], [item["contentFormat"] for item in artifacts])
+
 
 class ToolProofCollectorTest(unittest.TestCase):
     def test_model_envelopes_cannot_create_runtime_owned_artifacts(self) -> None:
@@ -271,6 +295,7 @@ class ToolProofCollectorTest(unittest.TestCase):
                     "tool": "render_json_validate_tool",
                     "valid": True,
                     "documentHash": trusted_hash,
+                    "renderDocument": render_document,
                 }
 
         collector = RunArtifactCollector()
@@ -328,6 +353,7 @@ class ToolProofCollectorTest(unittest.TestCase):
             trusted_hash,
             artifacts_by_code["validation-report"]["content"]["documentHash"],
         )
+        self.assertEqual(render_document, artifacts_by_code["render-document"]["content"])
 
         changed_render = dict(render_document, pageId="unvalidated-page")
         changed_output = (
@@ -340,10 +366,44 @@ class ToolProofCollectorTest(unittest.TestCase):
             changed_output,
             changed_output,
         )
+        changed_by_code = {item["artifactCode"]: item for item in changed_artifacts}
         self.assertEqual(
-            ["data-preview"],
-            [item["artifactCode"] for item in changed_artifacts],
+            {"data-preview", "render-document", "validation-report"},
+            set(changed_by_code),
         )
+        self.assertEqual(render_document, changed_by_code["render-document"]["content"])
+
+    def test_validator_document_must_match_its_validation_hash(self) -> None:
+        document = self._render_document(
+            {
+                "key": "addresses",
+                "type": "db-query-list",
+                "model": "user_address",
+                "fields": ["address"],
+            }
+        )
+        altered_document = dict(document, pageId="unvalidated-page")
+        collector = RunArtifactCollector()
+
+        collector.observe(
+            "tool.started",
+            {"callId": "validate-1", "toolCode": "render_json_validate_tool"},
+            SimpleNamespace(),
+        )
+        collector.observe(
+            "tool.completed",
+            {"callId": "validate-1"},
+            SimpleNamespace(
+                output={
+                    "tool": "render_json_validate_tool",
+                    "valid": True,
+                    "documentHash": render_document_hash(document),
+                    "renderDocument": altered_document,
+                }
+            ),
+        )
+
+        self.assertEqual([], collector.proof_snapshot())
 
     def test_render_document_without_a_matching_validator_is_removed(self) -> None:
         render_document = self._render_document(

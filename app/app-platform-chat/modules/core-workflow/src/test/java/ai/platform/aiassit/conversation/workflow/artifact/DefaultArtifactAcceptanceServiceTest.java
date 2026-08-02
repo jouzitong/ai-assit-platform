@@ -165,6 +165,79 @@ class DefaultArtifactAcceptanceServiceTest {
     }
 
     @Test
+    void keepsValidRequiredRenderDocumentWhenOptionalArtifactsFailTheirContracts() {
+        Map<String, Object> workflow = Map.of(
+                "artifacts", List.of(
+                        Map.of(
+                                "code", "render-document",
+                                "artifactType", "RENDER_JSON",
+                                "contentFormat", "JSON",
+                                "required", true,
+                                "inlineSchema", Map.of("type", "object")
+                        ),
+                        Map.of(
+                                "code", "application-plan",
+                                "artifactType", "JSON",
+                                "contentFormat", "JSON",
+                                "required", false,
+                                "inlineSchema", Map.of("type", "object")
+                        ),
+                        Map.of(
+                                "code", "application-build-state",
+                                "artifactType", "JSON",
+                                "contentFormat", "JSON",
+                                "required", false,
+                                "inlineSchema", Map.of("type", "object")
+                        )
+                ),
+                "repairPolicy", Map.of("maxRepairAttempts", 1)
+        );
+        List<Map<String, Object>> artifacts = List.of(
+                Map.of(
+                        "artifactCode", "render-document",
+                        "artifactType", "RENDER_JSON",
+                        "contentFormat", "JSON",
+                        "content", Map.of("pageId", "addresses")
+                ),
+                Map.of(
+                        "artifactCode", "application-plan",
+                        "artifactType", "TEXT",
+                        "contentFormat", "MARKDOWN",
+                        "content", "not an object"
+                ),
+                Map.of(
+                        "artifactCode", "application-build-state",
+                        "artifactType", "TEXT",
+                        "contentFormat", "MARKDOWN",
+                        "content", "not an object"
+                )
+        );
+
+        ArtifactAcceptanceResult result = service.accept(workflow, artifacts, "answer");
+
+        assertThat(result.isAccepted()).isTrue();
+        assertThat(result.isRepairable()).isFalse();
+        assertThat(result.getChecks())
+                .filteredOn(check -> List.of("application-plan", "application-build-state")
+                        .contains(check.getTargetArtifact()))
+                .hasSize(6)
+                .allSatisfy(check -> {
+                    assertThat(check.isPassed()).isFalse();
+                    assertThat(check.isBlocking()).isFalse();
+                    assertThat(check.isRetryable()).isFalse();
+                    assertThat(check.getSeverity()).isEqualTo("WARNING");
+                    assertThat(check.getStatus()).isEqualTo("FAILED");
+                });
+        assertThat(result.getChecks())
+                .filteredOn(check -> "required-render-document".equals(check.getCheckCode()))
+                .singleElement()
+                .satisfies(check -> {
+                    assertThat(check.isPassed()).isTrue();
+                    assertThat(check.isBlocking()).isTrue();
+                });
+    }
+
+    @Test
     void failsClosedWhenPublishedSchemaReferenceWasNotResolved() {
         Map<String, Object> workflow = Map.of("artifacts", List.of(Map.of(
                 "code", "render-document",

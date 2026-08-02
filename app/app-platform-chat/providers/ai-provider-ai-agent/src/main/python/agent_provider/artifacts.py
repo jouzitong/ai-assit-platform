@@ -17,6 +17,10 @@ TOOL_PROOF_ARTIFACT_CODES = frozenset({
     DATA_PREVIEW_ARTIFACT_CODE,
     VALIDATION_REPORT_ARTIFACT_CODE,
 })
+TOOL_DERIVED_ARTIFACT_CODES = frozenset({
+    *TOOL_PROOF_ARTIFACT_CODES,
+    RENDER_DOCUMENT_ARTIFACT_CODE,
+})
 RUNTIME_OWNED_ARTIFACT_CODES = frozenset({
     FINAL_ANSWER_ARTIFACT_CODE,
     *TOOL_PROOF_ARTIFACT_CODES,
@@ -34,6 +38,20 @@ LIST_RENDERER_COMPONENT_CODES = frozenset({
     "common-list",
     "common-tree-list",
 })
+CONTENT_FORMAT_VALUES = frozenset({
+    "PLAIN_TEXT",
+    "MARKDOWN",
+    "SQL",
+    "JSON",
+    "TABLE",
+    "CARD",
+})
+CONTENT_FORMAT_MEDIA_TYPE_ALIASES = {
+    "application/json": "JSON",
+    "text/json": "JSON",
+    "text/markdown": "MARKDOWN",
+    "text/plain": "PLAIN_TEXT",
+}
 
 
 class RunArtifactCollector:
@@ -77,25 +95,28 @@ class RunArtifactCollector:
         if event_type == "tool.started":
             if call_id and tool_code:
                 self._tool_codes[call_id] = tool_code
-            artifact_code = _artifact_code_for_tool(tool_code)
-            if artifact_code is not None:
+            artifact_codes = _artifact_codes_for_tool(tool_code)
+            if artifact_codes:
                 # A newer attempt supersedes the old proof immediately. If it
                 # never completes successfully, the run must fail closed.
-                self._tool_proofs.pop(artifact_code, None)
+                for artifact_code in artifact_codes:
+                    self._tool_proofs.pop(artifact_code, None)
             return
         if event_type not in {"tool.completed", "tool.failed"}:
             return
         resolved_tool_code = tool_code or (self._tool_codes.get(call_id) if call_id else None)
         if call_id:
             self._tool_codes.pop(call_id, None)
-        artifact_code = _artifact_code_for_tool(resolved_tool_code)
-        if artifact_code is None:
+        artifact_codes = _artifact_codes_for_tool(resolved_tool_code)
+        if not artifact_codes:
             return
-        proof = _tool_proof(resolved_tool_code, item) if event_type == "tool.completed" else None
-        if proof is not None:
-            self._tool_proofs[proof["artifactCode"]] = proof
+        proofs = _tool_proofs(resolved_tool_code, item) if event_type == "tool.completed" else ()
+        if proofs:
+            for proof in proofs:
+                self._tool_proofs[proof["artifactCode"]] = proof
         else:
-            self._tool_proofs.pop(artifact_code, None)
+            for artifact_code in artifact_codes:
+                self._tool_proofs.pop(artifact_code, None)
 
 
 def combine_event_observers(*observers: Any) -> Any:
@@ -145,7 +166,7 @@ def merge_authoritative_artifacts(
     authoritative_tool_proofs = (
         artifact
         for artifact in tool_proofs
-        if artifact.get("artifactCode") in TOOL_PROOF_ARTIFACT_CODES
+        if artifact.get("artifactCode") in TOOL_DERIVED_ARTIFACT_CODES
     )
     merged = merge_artifacts(trusted_model_artifacts, authoritative_tool_proofs)
     by_code = {
@@ -222,9 +243,10 @@ def extract_artifacts(final_output: Any) -> list[dict[str, Any]]:
         if "content" not in item:
             content = _first_value(item, "value", "data", "json", "text")
         artifact_type = _first_text(item.get("artifactType"), item.get("type")) or "AGENT_OUTPUT"
-        content_format = _first_text(item.get("contentFormat"), item.get("format"))
-        if not content_format:
-            content_format = "JSON" if isinstance(content, (dict, list)) else "PLAIN_TEXT"
+        content_format = _normalize_content_format(
+            _first_text(item.get("contentFormat"), item.get("format")),
+            content,
+        )
         artifact = dict(item)
         artifact.pop("code", None)
         artifact.pop("type", None)
@@ -570,23 +592,38 @@ def decode_json_value(value: Any) -> Any:
         return None
 
 
-def _tool_proof(tool_code: str | None, item: Any) -> dict[str, Any] | None:
+def _tool_proofs(tool_code: str | None, item: Any) -> tuple[dict[str, Any], ...]:
     output = _tool_output(item)
     if output is None or output.get("tool") != tool_code:
-        return None
+        return ()
     if tool_code == DATA_PREVIEW_TOOL_CODE and output.get("success") is True:
-        return _proof_artifact(DATA_PREVIEW_ARTIFACT_CODE, output)
+        return (_proof_artifact(DATA_PREVIEW_ARTIFACT_CODE, output),)
     if tool_code == RENDER_VALIDATE_TOOL_CODE and output.get("valid") is True:
-        return _proof_artifact(VALIDATION_REPORT_ARTIFACT_CODE, output)
-    return None
+        document = output.get("renderDocument")
+        if not isinstance(document, dict):
+            return ()
+        if output.get("documentHash") != render_document_hash(document):
+            return ()
+        report = dict(output)
+        report.pop("renderDocument", None)
+        return (
+            {
+                "artifactCode": RENDER_DOCUMENT_ARTIFACT_CODE,
+                "artifactType": "RENDER_JSON",
+                "contentFormat": "JSON",
+                "content": document,
+            },
+            _proof_artifact(VALIDATION_REPORT_ARTIFACT_CODE, report),
+        )
+    return ()
 
 
-def _artifact_code_for_tool(tool_code: str | None) -> str | None:
+def _artifact_codes_for_tool(tool_code: str | None) -> frozenset[str]:
     if tool_code == DATA_PREVIEW_TOOL_CODE:
-        return DATA_PREVIEW_ARTIFACT_CODE
+        return frozenset({DATA_PREVIEW_ARTIFACT_CODE})
     if tool_code == RENDER_VALIDATE_TOOL_CODE:
-        return VALIDATION_REPORT_ARTIFACT_CODE
-    return None
+        return frozenset({RENDER_DOCUMENT_ARTIFACT_CODE, VALIDATION_REPORT_ARTIFACT_CODE})
+    return frozenset()
 
 
 def _tool_output(item: Any) -> dict[str, Any] | None:
@@ -629,3 +666,16 @@ def _first_value(value: dict[str, Any], *keys: str) -> Any:
         if key in value:
             return value[key]
     return None
+
+
+def _normalize_content_format(value: str | None, content: Any) -> str:
+    """Normalize wire media types into the platform content-format enum."""
+
+    if not value:
+        return "JSON" if isinstance(content, (dict, list)) else "PLAIN_TEXT"
+    media_type = value.split(";", 1)[0].strip().lower()
+    aliased = CONTENT_FORMAT_MEDIA_TYPE_ALIASES.get(media_type)
+    if aliased is not None:
+        return aliased
+    normalized = value.strip().upper()
+    return normalized if normalized in CONTENT_FORMAT_VALUES else value

@@ -1,0 +1,39 @@
+{
+  "caseId": "line-chart",
+  "component": "line-chart-renderer",
+  "componentVersion": "1.0.0",
+  "materializer": "line-chart",
+  "minimumFields": 2,
+  "description": "A trend chart. The first field is the category and remaining fields are series.",
+  "document": {
+    "protocol": "render-json",
+    "protocolVersion": "1.0.0",
+    "pageId": "generated-line-chart",
+    "revision": "1",
+    "root": {
+      "id": "generated-line-chart",
+      "component": "line-chart-renderer",
+      "componentVersion": "1.0.0",
+      "props": {
+        "categories": [],
+        "series": [],
+        "height": 320,
+        "legend": true,
+        "option": {}
+      },
+      "bindings": {
+        "category": { "field": "fixture_category" },
+        "series": [{ "field": "fixture_value", "name": "fixture_value" }]
+      },
+      "datasource": {
+        "key": "fixture-query",
+        "type": "db-query-list",
+        "model": "fixture_model",
+        "page": 1,
+        "page_size": 20,
+        "ext": { "fields": ["fixture_category", "fixture_value"] }
+      },
+      "layout": { "minHeight": "360px" }
+    }
+  }
+}

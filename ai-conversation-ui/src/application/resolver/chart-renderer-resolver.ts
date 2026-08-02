@@ -48,6 +48,7 @@ function resolveBindingField(value: unknown) {
   if (typeof value === 'string' && value.trim()) return value.trim()
   if (!isRecord(value)) return ''
   if (typeof value.field === 'string' && value.field.trim()) return value.field.trim()
+  if (typeof value.source === 'string' && value.source.trim()) return value.source.trim()
   return ''
 }
 
@@ -59,7 +60,7 @@ function collectBindingFields(value: unknown, result = new Set<string>()): Set<s
   if (!isRecord(value)) return result
 
   Object.entries(value).forEach(([key, child]) => {
-    if (key === 'field' || ['category', 'x', 'y', 'value', 'group', 'seriesName'].includes(key)) {
+    if (key === 'field' || key === 'source' || ['category', 'x', 'y', 'value', 'group', 'seriesName'].includes(key)) {
       const field = resolveBindingField(child)
       if (field) result.add(field)
     }

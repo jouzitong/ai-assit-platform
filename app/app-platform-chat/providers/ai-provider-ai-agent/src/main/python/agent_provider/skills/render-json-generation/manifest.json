@@ -1,0 +1,19 @@
+{
+  "code": "render-json-generation",
+  "version": 1,
+  "name": "Render JSON Generation",
+  "description": "Materialize a validated Render JSON document from a frozen component test case and preview-approved datasource configuration.",
+  "files": [
+    { "path": "SKILL.md", "mediaType": "text/markdown" },
+    { "path": "assets/component-test-cases/combo-chart.json", "mediaType": "application/json" },
+    { "path": "assets/component-test-cases/form-edit.json", "mediaType": "application/json" },
+    { "path": "assets/component-test-cases/line-chart.json", "mediaType": "application/json" },
+    { "path": "assets/component-test-cases/list-table.json", "mediaType": "application/json" },
+    { "path": "assets/component-test-cases/radar-chart.json", "mediaType": "application/json" },
+    { "path": "references/components/combo-chart-renderer.md", "mediaType": "text/markdown" },
+    { "path": "references/components/form-main-layout.md", "mediaType": "text/markdown" },
+    { "path": "references/components/line-chart-renderer.md", "mediaType": "text/markdown" },
+    { "path": "references/components/radar-chart-renderer.md", "mediaType": "text/markdown" },
+    { "path": "references/components/zg-list-main-layout.md", "mediaType": "text/markdown" }
+  ]
+}

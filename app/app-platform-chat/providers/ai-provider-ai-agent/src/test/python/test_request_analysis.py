@@ -713,6 +713,7 @@ class RunnerRequestAnalysisIntegrationTest(unittest.IsolatedAsyncioTestCase):
             "tool": "render_json_validate_tool",
             "valid": True,
             "documentHash": render_document_hash(render_document),
+            "renderDocument": render_document,
         }
         raw_output = json.dumps(
             {
@@ -720,7 +721,7 @@ class RunnerRequestAnalysisIntegrationTest(unittest.IsolatedAsyncioTestCase):
                     {
                         "artifactCode": "render-document",
                         "artifactType": "RENDER_JSON",
-                        "contentFormat": "JSON",
+                        "contentFormat": "application/json; charset=utf-8",
                         "content": render_document,
                     },
                     {
@@ -832,6 +833,7 @@ class RunnerRequestAnalysisIntegrationTest(unittest.IsolatedAsyncioTestCase):
             {"render-document", "data-preview", "validation-report"},
             set(artifacts),
         )
+        self.assertEqual("JSON", artifacts["render-document"]["contentFormat"])
         self.assertEqual(
             "trusted-address",
             artifacts["data-preview"]["content"]["records"][0]["address"],
@@ -842,7 +844,10 @@ class RunnerRequestAnalysisIntegrationTest(unittest.IsolatedAsyncioTestCase):
             render_document_hash(render_document),
             artifacts["validation-report"]["content"]["documentHash"],
         )
-        self.assertEqual(validation_proof, artifacts["validation-report"]["content"])
+        self.assertEqual(
+            {key: value for key, value in validation_proof.items() if key != "renderDocument"},
+            artifacts["validation-report"]["content"],
+        )
         self.assertNotIn("forged", artifacts["validation-report"]["content"])
         self.assertEqual("render-document", collector.snapshot()[0]["artifactCode"])
         analysis_completed = next(

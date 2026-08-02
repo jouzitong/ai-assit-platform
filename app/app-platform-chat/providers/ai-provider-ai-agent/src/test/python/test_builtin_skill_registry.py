@@ -12,16 +12,19 @@ BUILT_IN_SKILL_ROOT = (
 )
 APPLICATION_SKILLS = {
     "semantic-data-contract",
-    "render-json-authoring",
-    "render-json-repair",
+    "render-json-generation",
     "application-build-release",
+}
+RENDER_JSON_GENERATION_CASES = {
+    "combo-chart": "combo-chart-renderer.md",
+    "form-edit": "form-main-layout.md",
+    "line-chart": "line-chart-renderer.md",
+    "list-table": "zg-list-main-layout.md",
+    "radar-chart": "radar-chart-renderer.md",
 }
 EXPECTED_SCHEMA_TITLES = {
     "ApplicationBrief",
     "DataContract",
-    "ApplicationPlan",
-    "RenderDocument",
-    "ValidationReport",
     "ApplicationBuildState",
 }
 
@@ -149,7 +152,22 @@ class ApplicationBuildSkillPackageTest(unittest.TestCase):
 
             self.assertEqual(actual, declared, code)
 
-    def test_schema_assets_are_valid_json_and_cover_stage_artifacts(self) -> None:
+    def test_generation_skill_has_a_frozen_fixture_and_reference_for_each_case(self) -> None:
+        skill_root = BUILT_IN_SKILL_ROOT / "render-json-generation"
+
+        for case_id, reference in RENDER_JSON_GENERATION_CASES.items():
+            with self.subTest(case_id=case_id):
+                fixture = json.loads(
+                    (skill_root / "assets" / "component-test-cases" / f"{case_id}.json").read_text(
+                        encoding="utf-8"
+                    )
+                )
+                self.assertEqual(case_id, fixture["caseId"])
+                self.assertIsInstance(fixture["document"], dict)
+                self.assertIsInstance(fixture["document"]["root"], dict)
+                self.assertTrue((skill_root / "references" / "components" / reference).is_file())
+
+    def test_remaining_stage_schema_assets_are_valid_json(self) -> None:
         schemas = []
         for code in APPLICATION_SKILLS:
             for path in (BUILT_IN_SKILL_ROOT / code / "assets").glob("*.schema.json"):

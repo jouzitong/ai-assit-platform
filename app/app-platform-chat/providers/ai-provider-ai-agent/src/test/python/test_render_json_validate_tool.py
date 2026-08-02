@@ -1,6 +1,13 @@
 import json
 import unittest
 
+from agents import function_tool
+
+from agent_provider.tools.render_json_validate_tool import (
+    build_render_json_validate_tool,
+    generate_render_json_for_run,
+    validate_render_json_for_run,
+)
 from agent_provider.tools.render_validation import validate_render_document
 
 
@@ -25,7 +32,135 @@ class RenderJsonValidateToolTest(unittest.TestCase):
         self.assertTrue(result["valid"])
         self.assertTrue(result["documentHash"].startswith("sha256:"))
         self.assertEqual("render-validator/1.0.0", result["ruleVersion"])
-        self.assertEqual("skill://render-json-authoring/v6", result["catalogRevision"])
+        self.assertEqual("skill://render-json-generation/v1", result["catalogRevision"])
+
+        tool_result = validate_render_json_for_run({}, document)
+        self.assertTrue(tool_result["valid"])
+        self.assertEqual(document, tool_result["renderDocument"])
+
+    def test_function_tool_uses_a_strict_typed_fixture_schema(self) -> None:
+        tool = build_render_json_validate_tool({}, function_tool)
+
+        schema = tool.params_json_schema
+        self.assertTrue(tool.strict_json_schema)
+        self.assertEqual("object", schema["type"])
+        self.assertEqual(["component_test_case", "datasource"], schema["required"])
+        self.assertNotIn("render_document", schema["properties"])
+        self.assertEqual(
+            ["combo-chart", "form-edit", "line-chart", "list-table", "radar-chart"],
+            sorted(schema["properties"]["component_test_case"]["enum"]),
+        )
+        self.assertEqual(
+            "object",
+            schema["$defs"]["RenderDatasourceInput"]["type"],
+        )
+        self.assertEqual(
+            "array",
+            schema["$defs"]["RenderDatasourceInput"]["properties"]["fields"]["type"],
+        )
+
+    def test_materializes_the_user_address_list_from_datasource_facts(self) -> None:
+        result = generate_render_json_for_run(
+            {},
+            "list-table",
+            {
+                "key": "address-query",
+                "model": "ods_trade_account_user_address",
+                "fields": [
+                    "id",
+                    "userId",
+                    "addressType",
+                    "city",
+                    "detailAddress",
+                    "isDefault",
+                ],
+                "filters": [],
+                "sorts": [],
+                "page": 1,
+                "page_size": 10,
+            },
+        )
+
+        self.assertTrue(result["valid"], result["errors"])
+        document = result["renderDocument"]
+        root = document["root"]
+        self.assertEqual("zg-list-main-layout", root["component"])
+        self.assertEqual("ods_trade_account_user_address", root["datasource"]["model"])
+        self.assertEqual(
+            ["id", "userId", "addressType", "city", "detailAddress", "isDefault"],
+            [field["key"] for field in root["props"]["schema"]["fields"]],
+        )
+        self.assertEqual(result["documentHash"], validate_render_document(document)["documentHash"])
+
+    def test_rejects_a_filter_or_sort_field_not_projected_by_the_datasource(self) -> None:
+        source = {
+            "key": "address-query",
+            "model": "ods_trade_account_user_address",
+            "fields": ["id"],
+            "filters": [{"field": "city", "operator": "eq", "value": "Shanghai"}],
+            "sorts": [],
+            "page": 1,
+            "page_size": 10,
+        }
+
+        result = generate_render_json_for_run({}, "list-table", source)
+
+        self.assertFalse(result["valid"])
+        self.assertEqual("DATASOURCE_CONFIGURATION_INVALID", result["errors"][0]["code"])
+        self.assertIn("Filter field is not in datasource.fields", result["errors"][0]["message"])
+
+    def test_materializes_and_validates_each_frozen_component_case(self) -> None:
+        cases = {
+            "list-table": ["id"],
+            "form-edit": ["id"],
+            "line-chart": ["month", "count"],
+            "combo-chart": ["month", "orders", "amount"],
+            "radar-chart": ["stability", "performance", "security"],
+        }
+
+        for case_id, fields in cases.items():
+            with self.subTest(case_id=case_id):
+                result = generate_render_json_for_run(
+                    {},
+                    case_id,
+                    {
+                        "key": "fixture-source",
+                        "model": "fixture_model",
+                        "fields": fields,
+                        "filters": [],
+                        "sorts": [],
+                        "page": 1,
+                        "page_size": 10,
+                    },
+                )
+
+                self.assertTrue(result["valid"], result["errors"])
+                self.assertEqual(case_id, result["componentTestCase"])
+                self.assertIn("renderDocument", result)
+
+    def test_materializes_filters_as_an_implicit_and_without_filter_expr(self) -> None:
+        result = generate_render_json_for_run(
+            {},
+            "list-table",
+            {
+                "key": "address-query",
+                "model": "ods_trade_account_user_address",
+                "fields": ["id", "city", "isDefault"],
+                "filters": [
+                    {"field": "city", "operator": "eq", "value": "Shanghai"},
+                    {"field": "isDefault", "operator": "eq", "value": True},
+                ],
+                "sorts": [{"field": "id", "direction": "desc"}],
+                "page": 1,
+                "page_size": 10,
+            },
+        )
+
+        self.assertTrue(result["valid"], result["errors"])
+        datasource = result["renderDocument"]["root"]["datasource"]
+        self.assertEqual({"city": "Shanghai", "isDefault": True}, datasource["filter_dict"])
+        self.assertNotIn("filterExpr", datasource)
+        self.assertEqual([{"field": "id", "order": "desc"}], datasource["ext"]["sorts"])
 
     def test_reports_duplicate_ids_and_missing_component_versions(self) -> None:
         document = {
@@ -123,7 +258,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
         result = validate_render_document(document)
 
         self.assertTrue(result["valid"])
-        self.assertEqual("skill://render-json-authoring/v6", result["catalogRevision"])
+        self.assertEqual("skill://render-json-generation/v1", result["catalogRevision"])
 
     def test_rejects_non_standard_numbers_and_duplicate_json_keys(self) -> None:
         invalid_documents = (

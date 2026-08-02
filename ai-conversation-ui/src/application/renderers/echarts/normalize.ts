@@ -41,6 +41,7 @@ function pathValue(record: JsonRecord, path: string) {
 function bindingField(value: unknown) {
   if (typeof value === 'string' && value.trim()) return value.trim()
   if (isRecord(value) && typeof value.field === 'string' && value.field.trim()) return value.field.trim()
+  if (isRecord(value) && typeof value.source === 'string' && value.source.trim()) return value.source.trim()
   return ''
 }
 
@@ -113,7 +114,7 @@ function normalizeRadarProps(props: JsonRecord, records: JsonRecord[], bindings:
     name: seriesNameField
       ? String(pathValue(record, seriesNameField) ?? `系列${index + 1}`)
       : String(record.name ?? `系列${index + 1}`),
-    data: indicatorBindings.map(binding => numericValue(pathValue(record, bindingField(binding.field)))),
+    data: indicatorBindings.map(binding => numericValue(pathValue(record, bindingField(binding)))),
   }))
 }
 

@@ -1,0 +1,42 @@
+{
+  "caseId": "radar-chart",
+  "component": "radar-chart-renderer",
+  "componentVersion": "1.0.0",
+  "materializer": "radar-chart",
+  "minimumFields": 3,
+  "description": "A radar chart. Every datasource field becomes one normalized indicator.",
+  "document": {
+    "protocol": "render-json",
+    "protocolVersion": "1.0.0",
+    "pageId": "generated-radar-chart",
+    "revision": "1",
+    "root": {
+      "id": "generated-radar-chart",
+      "component": "radar-chart-renderer",
+      "componentVersion": "1.0.0",
+      "props": {
+        "indicators": [],
+        "series": [],
+        "height": 360,
+        "legend": true,
+        "option": {}
+      },
+      "bindings": {
+        "indicators": [
+          { "field": "fixture_one", "name": "fixture_one", "max": 100 },
+          { "field": "fixture_two", "name": "fixture_two", "max": 100 },
+          { "field": "fixture_three", "name": "fixture_three", "max": 100 }
+        ]
+      },
+      "datasource": {
+        "key": "fixture-query",
+        "type": "db-query-list",
+        "model": "fixture_model",
+        "page": 1,
+        "page_size": 20,
+        "ext": { "fields": ["fixture_one", "fixture_two", "fixture_three"] }
+      },
+      "layout": { "minHeight": "400px" }
+    }
+  }
+}

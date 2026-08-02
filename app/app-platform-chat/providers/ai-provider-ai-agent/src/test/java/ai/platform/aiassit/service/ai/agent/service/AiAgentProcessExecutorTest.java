@@ -300,7 +300,7 @@ class AiAgentProcessExecutorTest {
     private AiAgentProperties properties(int timeoutMs) {
         AiAgentProperties properties = new AiAgentProperties();
         properties.setApiKey("test-api-key");
-        properties.setTimeoutMs(timeoutMs);
+        properties.setTimeoutMs(Long.valueOf(timeoutMs));
         return properties;
     }
 

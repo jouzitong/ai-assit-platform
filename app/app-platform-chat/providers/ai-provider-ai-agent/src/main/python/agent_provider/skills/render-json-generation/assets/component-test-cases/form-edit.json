@@ -1,0 +1,43 @@
+{
+  "caseId": "form-edit",
+  "component": "form-main-layout",
+  "componentVersion": "1.0.0",
+  "materializer": "form-edit",
+  "minimumFields": 1,
+  "description": "An edit form. The materializer derives readonly-safe text fields from datasource.fields.",
+  "document": {
+    "protocol": "render-json",
+    "protocolVersion": "1.0.0",
+    "pageId": "generated-form",
+    "revision": "1",
+    "root": {
+      "id": "generated-form",
+      "component": "form-main-layout",
+      "componentVersion": "1.0.0",
+      "props": {
+        "schema": {
+          "id": "generated-form-schema",
+          "version": "1.0.0",
+          "title": "数据详情",
+          "component": "zg-common-form",
+          "fields": [],
+          "groups": [],
+          "actions": [],
+          "form_config": { "columns": 2, "actionsAlign": "right" }
+        },
+        "modelValue": {},
+        "readonly": true,
+        "formMode": "view"
+      },
+      "datasource": {
+        "key": "fixture-query",
+        "type": "db-query-list",
+        "model": "fixture_model",
+        "page": 1,
+        "page_size": 1,
+        "ext": { "fields": ["id"] }
+      },
+      "layout": { "minHeight": "420px" }
+    }
+  }
+}

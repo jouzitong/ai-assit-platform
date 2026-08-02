@@ -8,7 +8,7 @@ from unittest.mock import AsyncMock, patch
 
 from agent_provider.agents.dispatcher import AgentDispatcher
 from agent_provider.agents.factory import AgentFactory
-from agent_provider.artifacts import RunArtifactCollector
+from agent_provider.artifacts import RunArtifactCollector, render_document_hash
 from agent_provider.compiler import compile_snapshot
 from agent_provider.events import EventEmitter
 
@@ -111,10 +111,12 @@ class AgentDispatcherEvidenceTest(unittest.IsolatedAsyncioTestCase):
             "model": "ods_trade_account_user_address",
             "records": [{"address": "trusted"}],
         }
+        validated_document = {"component": "Table"}
         validation = {
             "tool": "render_json_validate_tool",
             "valid": True,
-            "documentHash": "sha256:trusted",
+            "documentHash": render_document_hash(validated_document),
+            "renderDocument": validated_document,
         }
 
         class ChildResult:
@@ -180,7 +182,7 @@ class AgentDispatcherEvidenceTest(unittest.IsolatedAsyncioTestCase):
         self.assertEqual("render-document", collector.snapshot()[0]["artifactCode"])
         self.assertEqual("Table", collector.snapshot()[0]["content"]["component"])
         self.assertEqual(
-            ["data-preview", "validation-report"],
+            ["data-preview", "render-document", "validation-report"],
             [proof["artifactCode"] for proof in collector.proof_snapshot()],
         )
         self.assertEqual("trusted", collector.proof_snapshot()[0]["content"]["records"][0]["address"])
