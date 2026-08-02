@@ -12,6 +12,8 @@
 
 - [用户聊天端到端执行链路](./user-chat-end-to-end.md)
   - 从主聊天页面发消息，到 Session/Round/Message 持久化、异步 Run、Python Agent、SSE、重连、取消和失败收口的完整链路。
+- [智能问数 Agent 详细执行流程](./smart-query-agent-execution.md)
+  - 聚焦 Python Agent 的请求分析、路由、专业 Agent 协作、语义检索、受控数据预览、结果校验、异常补救和当前能力缺口。
 
 ## 当前实现结论
 
@@ -21,6 +23,7 @@
 4. 两套 SSE 入口共享同一个 `ConversationRunManager`、`ConversationExecutionService` 和 Python Agent 执行链路，差异主要在请求 DTO、事件投影和心跳机制。
 5. 当前 Java 只控制登录身份、会话、模型连接、运行调度、持久化和审计；Agent Prompt、协作拓扑、Skill 和 Python Tool 由 Python 本地目录定义。
 6. MCP binding 在 Python Snapshot 编译阶段会被拒绝；目前没有可直接挂载 MCP Server 的实现。
+7. 当前“实际记录 + 列表/表格/看板”请求具备受控数据预览链路；普通分析结论型问数尚未获得真实数据查询工具，只能使用知识库、用户提供的数据或输出查询方案。
 
 ## 主要源码目录
 
