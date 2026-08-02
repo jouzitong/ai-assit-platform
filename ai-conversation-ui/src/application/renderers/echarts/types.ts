@@ -8,6 +8,16 @@ export type BaseChartSeries = {
   color?: string
 }
 
+export type ProportionChartData = {
+  name: string
+  value: number
+  color?: string
+}
+
+export type PieDataItem = ProportionChartData
+export type PieChartData = ProportionChartData
+export type FunnelChartData = ProportionChartData
+
 export type LineChartSeries = BaseChartSeries & {
   smooth?: boolean
   area?: boolean
@@ -38,6 +48,30 @@ export type RadarSeries = BaseChartSeries & {
   symbol?: string
   symbolSize?: number
 }
+
+export type BarChartSeries = ComboBarSeries
+
+export type ScatterPoint =
+  | [number, number]
+  | {
+      name?: string
+      value: [number, number]
+    }
+
+export type ScatterSeries = {
+  name: string
+  data: ScatterPoint[]
+  color?: string
+  symbol?: string
+  symbolSize?: number
+}
+
+export type HeatmapPoint =
+  | [number, number, number]
+  | {
+      name?: string
+      value: [number, number, number]
+    }
 
 export type BaseChartProps = {
   option?: EChartsOption

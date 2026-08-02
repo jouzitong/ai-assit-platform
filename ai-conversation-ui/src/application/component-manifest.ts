@@ -1,9 +1,15 @@
 import {
   COMBO_CHART_RENDERER_CATALOG_ENTRY,
+  BAR_CHART_RENDERER_CATALOG_ENTRY,
   FORM_RENDERER_CATALOG_ENTRY,
+  FUNNEL_CHART_RENDERER_CATALOG_ENTRY,
+  GAUGE_CHART_RENDERER_CATALOG_ENTRY,
+  HEATMAP_CHART_RENDERER_CATALOG_ENTRY,
   LINE_CHART_RENDERER_CATALOG_ENTRY,
   LIST_RENDERER_CATALOG_ENTRY,
+  PIE_CHART_RENDERER_CATALOG_ENTRY,
   RADAR_CHART_RENDERER_CATALOG_ENTRY,
+  SCATTER_CHART_RENDERER_CATALOG_ENTRY,
   type ApplicationRendererExposure,
 } from './registry/catalog'
 import type { FormRendererSchema } from './renderers/form/types'
@@ -336,6 +342,91 @@ const radarChartPropsExample = {
   loading: false,
 }
 
+const pieChartPropsExample = {
+  data: [
+    { name: '直接访问', value: 580 },
+    { name: '搜索引擎', value: 420 },
+    { name: '外部链接', value: 260 },
+    { name: '站内推荐', value: 180 },
+  ],
+  option: {},
+  height: 320,
+  colors: CHART_COLORS,
+  donut: true,
+  legend: true,
+  loading: false,
+}
+
+const barChartPropsExample = {
+  categories: ['一线城市', '新一线', '二线城市', '其他'],
+  series: [
+    { name: '本季度', data: [820, 740, 620, 410], barMaxWidth: 30 },
+    { name: '上季度', data: [760, 680, 570, 380], barMaxWidth: 30 },
+  ],
+  option: {},
+  height: 320,
+  unit: ' 万',
+  colors: CHART_COLORS,
+  legend: true,
+  horizontal: false,
+  stacked: false,
+  loading: false,
+}
+
+const gaugeChartPropsExample = {
+  value: 78,
+  min: 0,
+  max: 100,
+  unit: '%',
+  option: {},
+  height: 280,
+  colors: CHART_COLORS,
+  loading: false,
+}
+
+const funnelChartPropsExample = {
+  data: [
+    { name: '访问页面', value: 1000 },
+    { name: '提交表单', value: 720 },
+    { name: '完成支付', value: 480 },
+    { name: '复购用户', value: 260 },
+  ],
+  option: {},
+  height: 320,
+  colors: CHART_COLORS,
+  legend: true,
+  loading: false,
+}
+
+const scatterChartPropsExample = {
+  series: [
+    { name: '客户样本', data: [[12, 18], [18, 26], [24, 32], [30, 44], [38, 51]] },
+    { name: '重点客户', data: [[16, 40], [28, 58], [42, 72]] },
+  ],
+  option: {},
+  height: 320,
+  colors: CHART_COLORS,
+  xName: '客单价',
+  yName: '生命周期价值',
+  legend: true,
+  loading: false,
+}
+
+const heatmapChartPropsExample = {
+  xCategories: ['周一', '周二', '周三', '周四', '周五'],
+  yCategories: ['上午', '中午', '下午', '晚上'],
+  data: [
+    [0, 0, 42], [1, 0, 55], [2, 0, 48], [3, 0, 62], [4, 0, 70],
+    [0, 1, 68], [1, 1, 72], [2, 1, 64], [3, 1, 80], [4, 1, 86],
+    [0, 2, 58], [1, 2, 63], [2, 2, 60], [3, 2, 74], [4, 2, 78],
+    [0, 3, 32], [1, 3, 38], [2, 3, 36], [3, 3, 45], [4, 3, 52],
+  ],
+  option: {},
+  height: 320,
+  colors: CHART_COLORS,
+  loading: false,
+}
+
 export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = [
   {
     ...LIST_RENDERER_CATALOG_ENTRY,
@@ -535,6 +626,208 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
         }),
       },
     ],
+  },
+  {
+    ...PIE_CHART_RENDERER_CATALOG_ENTRY,
+    description: '用于占比构成、来源分布和环形指标展示的 ECharts 饼图渲染器。',
+    useCases: ['渠道来源占比', '业务构成分析', '环形 KPI 分布'],
+    tags: ['chart', 'pie', 'echarts'],
+    documentation: {
+      summary: '饼图渲染器将名称和值映射为占比扇区，支持普通饼图与环形图，并沿用应用主题色和提示框样式。',
+      usageGuide: 'data 使用 { name, value } 数组；需要中空环形效果时开启 donut。复杂但可序列化的 ECharts 配置放入 option 覆盖。',
+      limitations: '分类过多会影响标签可读性，建议控制在 3 至 8 项；option 不能包含 formatter 函数或 ECharts 实例。',
+      notes: '默认案例展示渠道来源分布，并开启环形样式。',
+    },
+    parameters: [
+      { key: 'data', label: '占比数据', type: 'PieDataItem[]', control: 'json', required: true, defaultValue: pieChartPropsExample.data, description: '名称和值组成的扇区数据。' },
+      { key: 'option', label: 'ECharts 扩展配置', type: 'EChartsOption', control: 'json', defaultValue: pieChartPropsExample.option, description: '与默认配置合并的可序列化 ECharts option。' },
+      { key: 'height', label: '图表高度', type: 'number | string', control: 'number', defaultValue: pieChartPropsExample.height, description: '图表容器高度，数字以 px 计。' },
+      { key: 'colors', label: '颜色列表', type: 'string[]', control: 'json', defaultValue: pieChartPropsExample.colors, description: '按数据顺序应用的颜色数组。' },
+      { key: 'donut', label: '环形模式', type: 'boolean', control: 'boolean', defaultValue: pieChartPropsExample.donut, description: '是否将饼图显示为中空环形图。' },
+      { key: 'legend', label: '显示图例', type: 'boolean', control: 'boolean', defaultValue: pieChartPropsExample.legend, description: '是否显示图例。' },
+      { key: 'loading', label: '加载状态', type: 'boolean', control: 'boolean', defaultValue: pieChartPropsExample.loading, description: '是否显示 ECharts 加载效果。' },
+    ],
+    events: [],
+    examples: [{
+      key: 'traffic-source',
+      name: '渠道来源分布',
+      description: '按访问来源展示渠道占比的环形图案例。',
+      renderDocument: createRenderDocument({
+        pageId: 'component-example-pie-chart',
+        component: 'pie-chart-renderer',
+        props: pieChartPropsExample,
+        layout: { minHeight: '360px' },
+      }),
+    }],
+  },
+  {
+    ...BAR_CHART_RENDERER_CATALOG_ENTRY,
+    description: '用于分类数值比较、横向排名和堆叠构成分析的 ECharts 柱状图渲染器。',
+    useCases: ['分类排名', '季度指标比较', '堆叠结构分析'],
+    tags: ['chart', 'bar', 'echarts'],
+    documentation: {
+      summary: '柱状图渲染器面向离散分类之间的量值比较，支持纵向、横向和堆叠模式。',
+      usageGuide: 'categories 与 series.data 按相同顺序对齐；horizontal 切换横向条形图，stacked 开启默认堆叠，也可在单个序列中设置 stack。',
+      limitations: '分类过多时应配合横向模式或截断标签；option 只能保存可序列化配置。',
+      notes: '默认案例比较不同城市层级的两个季度数据。',
+    },
+    parameters: [
+      { key: 'categories', label: 'X 轴分类', type: 'Array<string | number>', control: 'json', required: true, defaultValue: barChartPropsExample.categories, description: '横轴分类或排名维度。' },
+      { key: 'series', label: '柱状序列', type: 'BarChartSeries[]', control: 'json', required: true, defaultValue: barChartPropsExample.series, description: '柱状序列及其数值、颜色和堆叠样式。' },
+      { key: 'option', label: 'ECharts 扩展配置', type: 'EChartsOption', control: 'json', defaultValue: barChartPropsExample.option, description: '与默认配置合并的可序列化 ECharts option。' },
+      { key: 'height', label: '图表高度', type: 'number | string', control: 'number', defaultValue: barChartPropsExample.height, description: '图表容器高度，数字以 px 计。' },
+      { key: 'unit', label: '数值单位', type: 'string', control: 'text', defaultValue: barChartPropsExample.unit, description: '工具提示与 Y 轴展示的数值单位。' },
+      { key: 'colors', label: '颜色列表', type: 'string[]', control: 'json', defaultValue: barChartPropsExample.colors, description: '按序列顺序应用的颜色数组。' },
+      { key: 'legend', label: '显示图例', type: 'boolean', control: 'boolean', defaultValue: barChartPropsExample.legend, description: '是否显示图例。' },
+      { key: 'horizontal', label: '横向模式', type: 'boolean', control: 'boolean', defaultValue: barChartPropsExample.horizontal, description: '是否切换为横向条形图。' },
+      { key: 'stacked', label: '堆叠模式', type: 'boolean', control: 'boolean', defaultValue: barChartPropsExample.stacked, description: '是否将未显式指定 stack 的序列堆叠。' },
+      { key: 'loading', label: '加载状态', type: 'boolean', control: 'boolean', defaultValue: barChartPropsExample.loading, description: '是否显示 ECharts 加载效果。' },
+    ],
+    events: [],
+    examples: [{
+      key: 'city-quarter-comparison',
+      name: '城市层级季度比较',
+      description: '比较不同城市层级两个季度业务量的柱状图案例。',
+      renderDocument: createRenderDocument({
+        pageId: 'component-example-bar-chart',
+        component: 'bar-chart-renderer',
+        props: barChartPropsExample,
+        layout: { minHeight: '360px' },
+      }),
+    }],
+  },
+  {
+    ...GAUGE_CHART_RENDERER_CATALOG_ENTRY,
+    description: '用于单值进度、达成率和容量状态展示的 ECharts 仪表盘渲染器。',
+    useCases: ['目标达成率', '系统容量监控', '单指标健康度'],
+    tags: ['chart', 'gauge', 'echarts'],
+    documentation: {
+      summary: '仪表盘渲染器以 min、max 和 value 表达单一指标在区间中的当前位置，并支持主题化进度弧线。',
+      usageGuide: '设置 value、min、max 定义数值区间，unit 仅影响中心详情文本；需要更细粒度刻度、分段或指针时使用 option。',
+      limitations: '仪表盘适合单指标概览，不适合同时展示多个维度；必须确保 max 大于 min。',
+      notes: '默认案例展示 78% 的目标达成率。',
+    },
+    parameters: [
+      { key: 'value', label: '当前值', type: 'number', control: 'number', required: true, defaultValue: gaugeChartPropsExample.value, description: '仪表盘当前数值。' },
+      { key: 'min', label: '最小值', type: 'number', control: 'number', defaultValue: gaugeChartPropsExample.min, description: '数值区间下限。' },
+      { key: 'max', label: '最大值', type: 'number', control: 'number', defaultValue: gaugeChartPropsExample.max, description: '数值区间上限。' },
+      { key: 'unit', label: '数值单位', type: 'string', control: 'text', defaultValue: gaugeChartPropsExample.unit, description: '中心详情文本后缀。' },
+      { key: 'option', label: 'ECharts 扩展配置', type: 'EChartsOption', control: 'json', defaultValue: gaugeChartPropsExample.option, description: '与默认配置合并的可序列化 ECharts option。' },
+      { key: 'height', label: '图表高度', type: 'number | string', control: 'number', defaultValue: gaugeChartPropsExample.height, description: '图表容器高度，数字以 px 计。' },
+      { key: 'colors', label: '颜色列表', type: 'string[]', control: 'json', defaultValue: gaugeChartPropsExample.colors, description: '进度弧线使用的颜色数组。' },
+      { key: 'loading', label: '加载状态', type: 'boolean', control: 'boolean', defaultValue: gaugeChartPropsExample.loading, description: '是否显示 ECharts 加载效果。' },
+    ],
+    events: [],
+    examples: [{
+      key: 'target-progress',
+      name: '目标达成率',
+      description: '展示单个目标完成进度的仪表盘案例。',
+      renderDocument: createRenderDocument({
+        pageId: 'component-example-gauge-chart',
+        component: 'gauge-chart-renderer',
+        props: gaugeChartPropsExample,
+        layout: { minHeight: '320px' },
+      }),
+    }],
+  },
+  {
+    ...FUNNEL_CHART_RENDERER_CATALOG_ENTRY,
+    description: '用于转化漏斗、流程阶段和逐级流失分析的 ECharts 漏斗图渲染器。',
+    useCases: ['营销转化漏斗', '流程阶段流失', '销售机会分层'],
+    tags: ['chart', 'funnel', 'echarts'],
+    documentation: {
+      summary: '漏斗图渲染器按 value 从高到低展示流程阶段规模，帮助识别各阶段的转化和流失。',
+      usageGuide: 'data 使用 { name, value } 数组，通常按流程顺序传入；组件默认按数值降序排列，可在 option 中覆盖 sort、标签和布局。',
+      limitations: '漏斗图只适合有明确阶段顺序且数值单调递减的流程，不适合一般分类比较。',
+      notes: '默认案例展示访问到复购的四阶段转化漏斗。',
+    },
+    parameters: [
+      { key: 'data', label: '漏斗数据', type: 'PieDataItem[]', control: 'json', required: true, defaultValue: funnelChartPropsExample.data, description: '流程阶段名称和值。' },
+      { key: 'option', label: 'ECharts 扩展配置', type: 'EChartsOption', control: 'json', defaultValue: funnelChartPropsExample.option, description: '与默认配置合并的可序列化 ECharts option。' },
+      { key: 'height', label: '图表高度', type: 'number | string', control: 'number', defaultValue: funnelChartPropsExample.height, description: '图表容器高度，数字以 px 计。' },
+      { key: 'colors', label: '颜色列表', type: 'string[]', control: 'json', defaultValue: funnelChartPropsExample.colors, description: '按阶段顺序应用的颜色数组。' },
+      { key: 'legend', label: '显示图例', type: 'boolean', control: 'boolean', defaultValue: funnelChartPropsExample.legend, description: '是否显示图例。' },
+      { key: 'loading', label: '加载状态', type: 'boolean', control: 'boolean', defaultValue: funnelChartPropsExample.loading, description: '是否显示 ECharts 加载效果。' },
+    ],
+    events: [],
+    examples: [{
+      key: 'conversion-funnel',
+      name: '转化漏斗',
+      description: '展示访问、提交、支付和复购阶段的漏斗图案例。',
+      renderDocument: createRenderDocument({
+        pageId: 'component-example-funnel-chart',
+        component: 'funnel-chart-renderer',
+        props: funnelChartPropsExample,
+        layout: { minHeight: '360px' },
+      }),
+    }],
+  },
+  {
+    ...SCATTER_CHART_RENDERER_CATALOG_ENTRY,
+    description: '用于两个连续变量关系、聚类分布和异常点识别的 ECharts 散点图渲染器。',
+    useCases: ['变量相关性分析', '客户分群', '异常点识别'],
+    tags: ['chart', 'scatter', 'echarts'],
+    documentation: {
+      summary: '散点图渲染器在连续的 X、Y 坐标中绘制样本点，并支持多组序列和坐标轴名称。',
+      usageGuide: 'series.data 使用 [x, y] 数组，也可以使用带 value 的对象；多组样本通过不同 series.name 区分。',
+      limitations: '散点图需要数值坐标，文本分类值应在进入 Renderer 前完成编码或转换；option 不能包含运行时函数。',
+      notes: '默认案例对比客户样本与重点客户的客单价和生命周期价值。',
+    },
+    parameters: [
+      { key: 'series', label: '散点序列', type: 'ScatterSeries[]', control: 'json', required: true, defaultValue: scatterChartPropsExample.series, description: '散点序列和二维数值点。' },
+      { key: 'option', label: 'ECharts 扩展配置', type: 'EChartsOption', control: 'json', defaultValue: scatterChartPropsExample.option, description: '与默认配置合并的可序列化 ECharts option。' },
+      { key: 'height', label: '图表高度', type: 'number | string', control: 'number', defaultValue: scatterChartPropsExample.height, description: '图表容器高度，数字以 px 计。' },
+      { key: 'colors', label: '颜色列表', type: 'string[]', control: 'json', defaultValue: scatterChartPropsExample.colors, description: '按序列顺序应用的颜色数组。' },
+      { key: 'xName', label: 'X 轴名称', type: 'string', control: 'text', defaultValue: scatterChartPropsExample.xName, description: 'X 轴标题。' },
+      { key: 'yName', label: 'Y 轴名称', type: 'string', control: 'text', defaultValue: scatterChartPropsExample.yName, description: 'Y 轴标题。' },
+      { key: 'legend', label: '显示图例', type: 'boolean', control: 'boolean', defaultValue: scatterChartPropsExample.legend, description: '是否显示图例。' },
+      { key: 'loading', label: '加载状态', type: 'boolean', control: 'boolean', defaultValue: scatterChartPropsExample.loading, description: '是否显示 ECharts 加载效果。' },
+    ],
+    events: [],
+    examples: [{
+      key: 'customer-value-distribution',
+      name: '客户价值分布',
+      description: '对比客户样本和重点客户价值分布的散点图案例。',
+      renderDocument: createRenderDocument({
+        pageId: 'component-example-scatter-chart',
+        component: 'scatter-chart-renderer',
+        props: scatterChartPropsExample,
+        layout: { minHeight: '360px' },
+      }),
+    }],
+  },
+  {
+    ...HEATMAP_CHART_RENDERER_CATALOG_ENTRY,
+    description: '用于时间段密度、区域活跃度和二维矩阵强度展示的 ECharts 热力图渲染器。',
+    useCases: ['星期时段活跃度', '区域密度分析', '二维指标矩阵'],
+    tags: ['chart', 'heatmap', 'echarts'],
+    documentation: {
+      summary: '热力图渲染器将二维分类坐标与数值映射为颜色强度，支持应用主题色阶和数值图例。',
+      usageGuide: 'xCategories、yCategories 定义两个分类轴，data 使用 [xIndex, yIndex, value]；需要自定义色阶或标签时放入 option。',
+      limitations: 'data 的坐标索引必须对应两个分类数组；矩阵过大时应控制标签和单元格数量。',
+      notes: '默认案例展示一周不同时段的活跃度矩阵。',
+    },
+    parameters: [
+      { key: 'xCategories', label: 'X 轴分类', type: 'Array<string | number>', control: 'json', required: true, defaultValue: heatmapChartPropsExample.xCategories, description: '横向分类数组。' },
+      { key: 'yCategories', label: 'Y 轴分类', type: 'Array<string | number>', control: 'json', required: true, defaultValue: heatmapChartPropsExample.yCategories, description: '纵向分类数组。' },
+      { key: 'data', label: '热力数据', type: 'HeatmapPoint[]', control: 'json', required: true, defaultValue: heatmapChartPropsExample.data, description: '由 X 索引、Y 索引和值组成的热力点。' },
+      { key: 'option', label: 'ECharts 扩展配置', type: 'EChartsOption', control: 'json', defaultValue: heatmapChartPropsExample.option, description: '与默认配置合并的可序列化 ECharts option。' },
+      { key: 'height', label: '图表高度', type: 'number | string', control: 'number', defaultValue: heatmapChartPropsExample.height, description: '图表容器高度，数字以 px 计。' },
+      { key: 'colors', label: '颜色列表', type: 'string[]', control: 'json', defaultValue: heatmapChartPropsExample.colors, description: '由低到高的色阶颜色数组。' },
+      { key: 'loading', label: '加载状态', type: 'boolean', control: 'boolean', defaultValue: heatmapChartPropsExample.loading, description: '是否显示 ECharts 加载效果。' },
+    ],
+    events: [],
+    examples: [{
+      key: 'weekly-activity',
+      name: '周活跃度热力图',
+      description: '展示一周各时段活跃度强弱的二维热力图案例。',
+      renderDocument: createRenderDocument({
+        pageId: 'component-example-heatmap-chart',
+        component: 'heatmap-chart-renderer',
+        props: heatmapChartPropsExample,
+        layout: { minHeight: '360px' },
+      }),
+    }],
   },
 ]
 

@@ -62,6 +62,66 @@ export const RADAR_CHART_RENDERER_CATALOG_ENTRY = {
   exposure: 'public',
 } as const satisfies ApplicationRendererCatalogEntry
 
+export const PIE_CHART_RENDERER_CATALOG_ENTRY = {
+  key: 'pie-chart-renderer',
+  aliases: ['zg-pie-chart-renderer'],
+  name: '饼图渲染器',
+  category: '数据可视化',
+  version: COMPONENT_VERSION,
+  sourcePath: 'src/application/renderers/echarts/PieChartRenderer.vue',
+  exposure: 'public',
+} as const satisfies ApplicationRendererCatalogEntry
+
+export const BAR_CHART_RENDERER_CATALOG_ENTRY = {
+  key: 'bar-chart-renderer',
+  aliases: ['zg-bar-chart-renderer'],
+  name: '柱状图渲染器',
+  category: '数据可视化',
+  version: COMPONENT_VERSION,
+  sourcePath: 'src/application/renderers/echarts/BarChartRenderer.vue',
+  exposure: 'public',
+} as const satisfies ApplicationRendererCatalogEntry
+
+export const GAUGE_CHART_RENDERER_CATALOG_ENTRY = {
+  key: 'gauge-chart-renderer',
+  aliases: ['zg-gauge-chart-renderer'],
+  name: '仪表盘渲染器',
+  category: '数据可视化',
+  version: COMPONENT_VERSION,
+  sourcePath: 'src/application/renderers/echarts/GaugeChartRenderer.vue',
+  exposure: 'public',
+} as const satisfies ApplicationRendererCatalogEntry
+
+export const FUNNEL_CHART_RENDERER_CATALOG_ENTRY = {
+  key: 'funnel-chart-renderer',
+  aliases: ['zg-funnel-chart-renderer'],
+  name: '漏斗图渲染器',
+  category: '数据可视化',
+  version: COMPONENT_VERSION,
+  sourcePath: 'src/application/renderers/echarts/FunnelChartRenderer.vue',
+  exposure: 'public',
+} as const satisfies ApplicationRendererCatalogEntry
+
+export const SCATTER_CHART_RENDERER_CATALOG_ENTRY = {
+  key: 'scatter-chart-renderer',
+  aliases: ['zg-scatter-chart-renderer'],
+  name: '散点图渲染器',
+  category: '数据可视化',
+  version: COMPONENT_VERSION,
+  sourcePath: 'src/application/renderers/echarts/ScatterChartRenderer.vue',
+  exposure: 'public',
+} as const satisfies ApplicationRendererCatalogEntry
+
+export const HEATMAP_CHART_RENDERER_CATALOG_ENTRY = {
+  key: 'heatmap-chart-renderer',
+  aliases: ['zg-heatmap-chart-renderer'],
+  name: '热力图渲染器',
+  category: '数据可视化',
+  version: COMPONENT_VERSION,
+  sourcePath: 'src/application/renderers/echarts/HeatmapChartRenderer.vue',
+  exposure: 'public',
+} as const satisfies ApplicationRendererCatalogEntry
+
 export const BASE_ECHART_CATALOG_ENTRY = {
   key: 'base-echart',
   aliases: [],
@@ -78,9 +138,14 @@ export const APPLICATION_RENDERER_CATALOG = [
   LINE_CHART_RENDERER_CATALOG_ENTRY,
   COMBO_CHART_RENDERER_CATALOG_ENTRY,
   RADAR_CHART_RENDERER_CATALOG_ENTRY,
+  PIE_CHART_RENDERER_CATALOG_ENTRY,
+  BAR_CHART_RENDERER_CATALOG_ENTRY,
+  GAUGE_CHART_RENDERER_CATALOG_ENTRY,
+  FUNNEL_CHART_RENDERER_CATALOG_ENTRY,
+  SCATTER_CHART_RENDERER_CATALOG_ENTRY,
+  HEATMAP_CHART_RENDERER_CATALOG_ENTRY,
   BASE_ECHART_CATALOG_ENTRY,
 ] as const satisfies readonly ApplicationRendererCatalogEntry[]
 
 export const PUBLIC_APPLICATION_RENDERER_CATALOG = APPLICATION_RENDERER_CATALOG
   .filter(item => item.exposure === 'public')
-

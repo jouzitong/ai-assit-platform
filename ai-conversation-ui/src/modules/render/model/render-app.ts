@@ -125,7 +125,7 @@ export function normalizeRenderRuntimeDocument(
       ? { actions: normalizeRendererActions(content.actions) }
       : {}),
     ...(Array.isArray(content.filters)
-      ? { filters: content.filters.filter(isRecord) as RendererFilter[] }
+      ? { filters: content.filters.filter(isRecord) as unknown as RendererFilter[] }
       : {}),
     root: normalizedRoot,
   }
@@ -310,6 +310,14 @@ function normalizeReportComponent(value: unknown, index: number) {
   const datasource = resolveReportDatasource(value, rawProps)
   if (datasource) {
     node.datasource = datasource
+  }
+  const bindings = isRecord(value.bindings)
+    ? value.bindings
+    : isRecord(rawProps.bindings)
+      ? rawProps.bindings
+      : undefined
+  if (bindings) {
+    node.bindings = bindings
   }
 
   if (

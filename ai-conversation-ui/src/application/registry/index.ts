@@ -1,19 +1,26 @@
 import { markRaw, type Component } from 'vue'
-import { resolveListRendererData } from '../resolver'
+import { resolveChartRendererData, resolveListRendererData } from '../resolver'
 import { APPLICATION_COMPONENT_MANIFEST } from '../component-manifest'
 import { assertApplicationRendererAssetDefinitions } from '../component-manifest-validation'
 import { APPLICATION_LAYOUT_CATALOG } from '../layout/catalog'
 import { APPLICATION_STATIC_RENDER_NODE_CATALOG } from '../runtime/node-catalog'
 import {
   APPLICATION_RENDERER_CATALOG,
+  BAR_CHART_RENDERER_CATALOG_ENTRY,
   COMBO_CHART_RENDERER_CATALOG_ENTRY,
   FORM_RENDERER_CATALOG_ENTRY,
+  FUNNEL_CHART_RENDERER_CATALOG_ENTRY,
+  GAUGE_CHART_RENDERER_CATALOG_ENTRY,
+  HEATMAP_CHART_RENDERER_CATALOG_ENTRY,
   LINE_CHART_RENDERER_CATALOG_ENTRY,
   LIST_RENDERER_CATALOG_ENTRY,
+  PIE_CHART_RENDERER_CATALOG_ENTRY,
   PUBLIC_APPLICATION_RENDERER_CATALOG,
   RADAR_CHART_RENDERER_CATALOG_ENTRY,
+  SCATTER_CHART_RENDERER_CATALOG_ENTRY,
 } from './catalog'
 import type { ApplicationRendererDefinition } from './types'
+import { createChartPropsNormalizer } from '../renderers/echarts/normalize'
 
 const RENDERER_COMPONENT_MODULES = import.meta.glob<Component>(
   ['../renderers/**/*.vue', '!../renderers/**/components/**/*.vue'],
@@ -45,6 +52,51 @@ const RENDERER_RUNTIME_OPTIONS: Record<
       modelValue: {},
       readonly: false,
     },
+  },
+  [LINE_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { categories: [], series: [] },
+    normalizeProps: createChartPropsNormalizer(LINE_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [COMBO_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { categories: [], barSeries: [], lineSeries: [] },
+    normalizeProps: createChartPropsNormalizer(COMBO_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [RADAR_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { indicators: [], series: [] },
+    normalizeProps: createChartPropsNormalizer(RADAR_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [PIE_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { data: [] },
+    normalizeProps: createChartPropsNormalizer(PIE_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [BAR_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { categories: [], series: [] },
+    normalizeProps: createChartPropsNormalizer(BAR_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [GAUGE_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { value: 0 },
+    normalizeProps: createChartPropsNormalizer(GAUGE_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [FUNNEL_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { data: [] },
+    normalizeProps: createChartPropsNormalizer(FUNNEL_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [SCATTER_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { series: [] },
+    normalizeProps: createChartPropsNormalizer(SCATTER_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
+  },
+  [HEATMAP_CHART_RENDERER_CATALOG_ENTRY.key]: {
+    defaultProps: { xCategories: [], yCategories: [], data: [] },
+    normalizeProps: createChartPropsNormalizer(HEATMAP_CHART_RENDERER_CATALOG_ENTRY.key),
+    resolveData: resolveChartRendererData,
   },
 }
 
@@ -80,6 +132,12 @@ export const CHART_RENDERER_DEFINITIONS = [
   rendererDefinition(LINE_CHART_RENDERER_CATALOG_ENTRY.key),
   rendererDefinition(COMBO_CHART_RENDERER_CATALOG_ENTRY.key),
   rendererDefinition(RADAR_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(PIE_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(BAR_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(GAUGE_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(FUNNEL_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(SCATTER_CHART_RENDERER_CATALOG_ENTRY.key),
+  rendererDefinition(HEATMAP_CHART_RENDERER_CATALOG_ENTRY.key),
 ]
 
 const APPLICATION_RENDERER_MAP = new Map<string, ApplicationRendererDefinition<any, any>>()

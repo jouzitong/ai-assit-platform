@@ -29,6 +29,7 @@ interface RuntimeNode {
   props?: Record<string, unknown>
   layout?: Record<string, unknown>
   datasource?: Record<string, unknown>
+  bindings?: Record<string, unknown>
   children?: RuntimeNode[]
 }
 
@@ -72,10 +73,16 @@ const rawNodeProps = computed(() => props.node.props || {})
 const schema = computed<Record<string, unknown> | null>(() => {
   const value = rawNodeProps.value.schema
   if (isRecord(value)) {
-    return mergeGlobalFilters(mergeDatasource(value))
+    return mergeGlobalFilters(mergeRuntimeSchema(value))
   }
   if (definition.value?.key === 'zg-list-main-layout' || definition.value?.key === 'form-main-layout') {
-    return mergeGlobalFilters(mergeDatasource(rawNodeProps.value))
+    return mergeGlobalFilters(mergeRuntimeSchema(rawNodeProps.value))
+  }
+  if (props.node.datasource || props.node.bindings) {
+    return mergeRuntimeSchema({
+      id: props.node.id || componentKey.value || 'renderer',
+      component: componentKey.value,
+    })
   }
   return null
 })
@@ -100,16 +107,29 @@ const runtimeProps = computed(() => {
     ...rawNodeProps.value,
   }
   if (!schema.value) {
-    return baseProps
+    return definition.value?.normalizeProps
+      ? definition.value.normalizeProps(baseProps)
+      : baseProps
   }
-  return {
+
+  const nextProps = {
     ...baseProps,
-    schema: schema.value,
-    data: resolvedData.value,
-    state: rendererState.value,
-    records: resolvedData.value.records || [],
-    treeData: resolvedData.value.treeData || [],
-    total: resolvedData.value.total || 0,
+    ...(isFormRenderer.value || definition.value?.key === 'zg-list-main-layout'
+      ? {
+          schema: schema.value,
+          data: resolvedData.value,
+          state: rendererState.value,
+          records: resolvedData.value.records || [],
+          treeData: resolvedData.value.treeData || [],
+          total: resolvedData.value.total || 0,
+        }
+      : definition.value?.normalizeProps
+        ? {
+            __runtimeSchema: schema.value,
+            __runtimeData: resolvedData.value,
+            __runtimeState: rendererState.value,
+          }
+        : {}),
     ...(isFormRenderer.value
       ? {
           modelValue: rendererModelValue.value,
@@ -125,6 +145,10 @@ const runtimeProps = computed(() => {
         }
       : {}),
   }
+
+  return definition.value?.normalizeProps
+    ? definition.value.normalizeProps(nextProps)
+    : nextProps
 })
 
 const nodeStyle = computed<CSSProperties>(() => {
@@ -333,9 +357,15 @@ function forwardRuntimeAction(payload: RenderRuntimeActionPayload) {
   emit('runtime-action', payload)
 }
 
-function mergeDatasource(value: Record<string, unknown>) {
-  if (!props.node.datasource || value.datasource) return value
-  return { ...value, datasource: props.node.datasource }
+function mergeRuntimeSchema(value: Record<string, unknown>) {
+  const next = { ...value }
+  if (props.node.datasource && !next.datasource) {
+    next.datasource = props.node.datasource
+  }
+  if (props.node.bindings && !next.bindings) {
+    next.bindings = props.node.bindings
+  }
+  return next
 }
 
 function mergeGlobalFilters(value: Record<string, unknown>) {
