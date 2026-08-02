@@ -37,7 +37,7 @@
     "commands": [
       {
         "name": "编译",
-        "command": "mvn -pl app/app-platform-ai-chat -am clean compile -DskipTests"
+        "command": "mvn -pl app/app-platform-chat -am clean compile -DskipTests"
       },
       {
         "name": "启动",
@@ -58,6 +58,22 @@
       {
         "name": "启动",
         "command": "./tools/service-manager/scripts/start-db-engine-local.sh",
+        "background": true
+      }
+    ]
+  },
+  {
+    "name": "Render",
+    "shell": "zsh",
+    "cwd": ".",
+    "commands": [
+      {
+        "name": "编译",
+        "command": "mvn -pl app/app-platform-render -am clean compile -DskipTests"
+      },
+      {
+        "name": "启动",
+        "command": "./tools/service-manager/scripts/start-render-local.sh",
         "background": true
       }
     ]

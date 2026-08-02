@@ -17,20 +17,13 @@ if [[ -n "${EXTRA_JVM_ARGS:-}" ]]; then
   JVM_ARGS="${JVM_ARGS} ${EXTRA_JVM_ARGS}"
 fi
 
-echo "Starting ai-chat service without proxy inheritance..."
+echo "Starting render service without proxy inheritance..."
 
-echo "Preparing ai-chat module dependencies..."
-mvn -f app/app-platform-chat/pom.xml -pl boot -am \
+echo "Preparing render module dependencies..."
+mvn -f app/app-platform-render/pom.xml -pl boot -am \
   -DskipTests \
   install
 
-CHAT_HOME="${REPO_ROOT}/app/app-platform-chat/boot/target/app-platform-chat"
-CHAT_LAUNCHER="${CHAT_HOME}/bin/chat"
-
-if [[ ! -x "${CHAT_LAUNCHER}" ]]; then
-  echo "Generated chat launcher not found: ${CHAT_LAUNCHER}" >&2
-  exit 1
-fi
-
-export EXTRA_JVM_ARGS="${JVM_ARGS}"
-exec "${CHAT_LAUNCHER}" run "${1:-dev}"
+exec mvn -f app/app-platform-render/boot/pom.xml spring-boot:run \
+  -Dspring-boot.run.jvmArguments="${JVM_ARGS}" \
+  "$@"
