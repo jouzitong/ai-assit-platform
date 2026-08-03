@@ -93,7 +93,7 @@ class AiAgentProviderTest {
 
         assertThat(provider.capabilities().getRuntimeType())
                 .isEqualTo(AgentRuntimeType.OPENAI_AGENTS_PYTHON);
-        assertThat(provider.capabilities().getSdkVersion()).isEqualTo("0.18.2");
+        assertThat(provider.capabilities().getSdkVersion()).isEqualTo("0.19.2");
         assertThat(provider.capabilities().getFeatures())
                 .contains("agent-as-tool", "handoffs", "skill-on-demand", "actual-usage");
     }

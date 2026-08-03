@@ -51,7 +51,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 @ConditionalOnProperty(prefix = "ai.provider.ai-agent", name = "enabled", havingValue = "true")
 public class AiAgentProvider implements AiChatService, AgentRuntime {
 
-    private static final String PYTHON_SDK_VERSION = "0.18.2";
+    private static final String PYTHON_SDK_VERSION = "0.19.2";
 
     private final AiAgentProperties properties;
     private final AiAgentProcessExecutor processExecutor;

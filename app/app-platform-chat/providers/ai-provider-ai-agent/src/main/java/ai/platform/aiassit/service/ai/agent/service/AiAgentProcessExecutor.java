@@ -780,7 +780,7 @@ public class AiAgentProcessExecutor {
 
     private String enrichWorkerError(String message) {
         if (message != null && message.contains("No module named 'agents'")) {
-            return "Python worker 缺少 openai-agents==0.18.2（导入模块 agents）；"
+            return "Python worker 缺少 openai-agents==0.19.2（导入模块 agents）；"
                     + "请设置 AI_PROVIDER_AI_AGENT_PYTHON_COMMAND 指向已安装依赖的 Python，"
                     + "或安装 src/main/python/pyproject.toml 中声明的依赖";
         }

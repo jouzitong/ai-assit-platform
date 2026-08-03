@@ -87,7 +87,7 @@ class AiAgentProcessExecutorTest {
                 Map.of()
         )).satisfies(error -> assertThat(error.toString())
                 .contains("AI_PROVIDER_AI_AGENT_PYTHON_COMMAND")
-                .contains("openai-agents==0.18.2"));
+                .contains("openai-agents==0.19.2"));
     }
 
     @Test

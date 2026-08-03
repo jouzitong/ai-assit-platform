@@ -1644,7 +1644,7 @@ codegraph status
 
 1. `AgentCapabilityGrantService` 当前使用 JVM 内 `ConcurrentHashMap` 保存短期 run grant，最长 TTL 30 分钟，不是分布式状态。Worker 的 Tool/Skill Gateway 请求必须回到创建该 Run 的同一 JVM；首期建议使用同实例 loopback，或基于 runId/会话做粘性路由。无此前提的普通负载均衡会因找不到 grant 而 fail-closed。后续多实例无粘性部署需把 grant 迁到共享存储。
 2. Python 和 TypeScript Worker 当前按 Run 启动子进程，不是长驻池。生产容量评估必须覆盖进程启动、依赖加载、并发上限、内存和取消回收。
-3. Python 要求 3.11 及以上并锁定 `openai-agents==0.18.2`；TypeScript Worker 以 Node.js 20 为目标并锁定 `@openai/agents==0.13.4`。构建产物已可随 JAR 打包，但目标镜像仍必须提供对应解释器和可用依赖。
+3. Python 要求 3.11 及以上并锁定 `openai-agents==0.19.2`；TypeScript Worker 以 Node.js 20 为目标并锁定 `@openai/agents==0.13.4`。构建产物已可随 JAR 打包，但目标镜像仍必须提供对应解释器和可用依赖。
 4. Tool Gateway 首期只执行 `HTTP/FUNCTION` 适配器并把调用转为受控 HTTP；`MCP`、`SCRIPT` 以及语言模块型 Binding 在便携 Gateway 中 fail-closed。需要审批或 Secret 的 Tool 必须先部署 `ToolApprovalVerifier`/`ToolSecretResolver` 实现。
 5. Skill ZIP 可以保留 `scripts/`、`templates/`、`data/`、`references/`、`assets/` 和未知合法文件，但 Runtime 首期只按需读取已发布资源，不会任意执行脚本。`allowed-tools` 只是元数据，不能扩大 Agent snapshot 和用户权限的交集。
 6. Skill 原始 ZIP 和拆分文件首期存为数据库 BLOB。部署方需评估数据库包大小、备份、复制和保留周期；迁移对象存储前不得绕过 checksum 与不可变版本语义。
