@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.1</version>
+        <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,6 @@
     <name>app-platform-db-engine</name>
 
     <properties>
-        <app.platform.db.engine.version>0.1.1</app.platform.db.engine.version>
         <dameng.jdbc.version>8.1.4.125</dameng.jdbc.version>
         <kingbase.jdbc.version>9.0.1</kingbase.jdbc.version>
         <gaussdb.jdbc.version>506.0.0.b058</gaussdb.jdbc.version>
@@ -66,52 +65,52 @@
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-api</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-meta</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-core</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-db-executor-spi</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-db-executor-mysql</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-db-executor-jdbc</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-db-executor-mongodb</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-data-executor-http</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-data-virtualization-adapter</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-db-engine-boot</artifactId>
-                <version>${app.platform.db.engine.version}</version>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

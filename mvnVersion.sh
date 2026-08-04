@@ -23,11 +23,12 @@ Examples:
   ./$SCRIPT_NAME --version 1.0.0-SNAPSHOT --message '开发版本'
 
 Behavior:
-  1. Update all Maven module versions.
-  2. Synchronize internal module version properties.
-  3. Run Maven package with tests skipped.
-  4. Commit the POM changes.
-  5. Create an annotated v<version> tag for stable versions.
+  1. Update the single root <revision> version source.
+  2. Run Maven package with tests skipped.
+  3. Commit the root POM change.
+  4. Create an annotated v<version> tag only for x.y.z versions.
+
+Versions with any suffix, such as -SNAPSHOT, -RC1, or .RELEASE, never create a tag.
 
 The script does not push commits or tags automatically.
 EOF
@@ -83,7 +84,7 @@ ensure_git_clean() {
 }
 
 current_version() {
-  sed -n 's/^[[:space:]]*<version>[[:space:]]*\([^<[:space:]]*\)[[:space:]]*<\/version>[[:space:]]*$/\1/p' "$ROOT_POM" \
+  sed -n 's/^[[:space:]]*<revision>[[:space:]]*\([^<[:space:]]*\)[[:space:]]*<\/revision>[[:space:]]*$/\1/p' "$ROOT_POM" \
     | head -n 1
 }
 
@@ -101,41 +102,14 @@ ensure_tag_available() {
 }
 
 update_versions() {
-  mvn -q versions:set \
-    -DnewVersion="$TARGET_VERSION" \
-    -DgenerateBackupPoms=false \
-    -DprocessAllModules=true \
-    -DprocessDependencies=true
-
-  TARGET_VERSION="$TARGET_VERSION" find "$ROOT_DIR" \
-    -type f \
-    -name pom.xml \
-    -not -path '*/target/*' \
-    -exec perl -0pi -e '
-      s{(<(?:app|commons)\.[A-Za-z0-9_.-]+\.version>\s*)[^<\s]+(\s*</(?:app|commons)\.[A-Za-z0-9_.-]+\.version>)}
-       {$1 . $ENV{TARGET_VERSION} . $2}ge;
-    ' {} +
-}
-
-validate_internal_version_properties() {
-  local stale_properties
-
-  stale_properties="$(TARGET_VERSION="$TARGET_VERSION" find "$ROOT_DIR" \
-    -type f \
-    -name pom.xml \
-    -not -path '*/target/*' \
-    -exec perl -0ne '
-      while (/<((?:app|commons)\.[A-Za-z0-9_.-]+\.version)>\s*([^<\s]+)\s*<\/\1>/g) {
-        print "$ARGV:$1=$2\n" if $2 ne $ENV{TARGET_VERSION};
-      }
-    ' {} +)"
-
-  [[ -z "$stale_properties" ]] \
-    || die "Internal module version properties are not synchronized:\n$stale_properties"
+  TARGET_VERSION="$TARGET_VERSION" perl -0pi -e '
+    s{(<revision>\s*)[^<\s]+(\s*</revision>)}
+     {$1 . $ENV{TARGET_VERSION} . $2}ge;
+  ' "$ROOT_POM"
 }
 
 commit_changes() {
-  git add -- pom.xml ':(glob)**/pom.xml'
+  git add -- "$ROOT_POM"
 
   if git diff --cached --quiet; then
     die "No POM changes detected / 未检测到 POM 版本变更"
@@ -182,10 +156,11 @@ main() {
 
   log "Current version: $before_version"
   log "Target version: $TARGET_VERSION"
-  log "Updating Maven module versions"
+  log "Updating root revision"
   update_versions
 
-  validate_internal_version_properties
+  [[ "$(current_version)" == "$TARGET_VERSION" ]] \
+    || die "Root revision was not updated / 根 POM 的 revision 更新失败"
 
   log "Run Maven package"
   mvn -q -DskipTests package

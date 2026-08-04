@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.1</version>
+        <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,6 @@
     <name>app-platform-chat</name>
 
     <properties>
-        <app.platform.chat.version>0.1.1</app.platform.chat.version>
         <spring.ai.version>1.0.7</spring.ai.version>
     </properties>
 
@@ -33,92 +32,92 @@
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-api</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-boot</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-data-conversation</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-data-meta</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-data-agent-control</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-data-kb</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-ai-engine</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-kb</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-ai-chat</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-agent-runtime</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-conversation-runtime</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-core-workflow</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-spi</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-provider-bailian-kb</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-provider-openai</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-provider-ragflow</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-chat-provider-ai-agent</artifactId>
-                <version>${app.platform.chat.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>

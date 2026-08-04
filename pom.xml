@@ -6,12 +6,13 @@
 
     <groupId>ai.platform.aiassit</groupId>
     <artifactId>ai-assit-platform</artifactId>
-    <version>0.1.1</version>
+    <version>${revision}</version>
     <name>ai-assit-platform</name>
     <description>AI Assit Platform</description>
     <packaging>pom</packaging>
 
     <properties>
+        <revision>0.1.1</revision>
         <java.version>17</java.version>
         <maven.compiler.source>17</maven.compiler.source>
         <maven.compiler.target>17</maven.compiler.target>

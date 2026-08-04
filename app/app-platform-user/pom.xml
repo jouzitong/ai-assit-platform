@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.1</version>
+        <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -15,41 +15,37 @@
     <packaging>pom</packaging>
     <name>app-platform-user</name>
 
-    <properties>
-        <app.platform.user.version>0.1.1</app.platform.user.version>
-    </properties>
-
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-user-api</artifactId>
-                <version>${app.platform.user.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-user-core</artifactId>
-                <version>${app.platform.user.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-user-boot</artifactId>
-                <version>${app.platform.user.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-user-system-settings-api</artifactId>
-                <version>${app.platform.user.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-user-data-system-settings</artifactId>
-                <version>${app.platform.user.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-user-data-err-code</artifactId>
-                <version>${app.platform.user.version}</version>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

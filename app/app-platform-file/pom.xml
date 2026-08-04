@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.1</version>
+        <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -15,26 +15,22 @@
     <packaging>pom</packaging>
     <name>app-platform-file</name>
 
-    <properties>
-        <app.platform.file.version>0.1.1</app.platform.file.version>
-    </properties>
-
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-file-api</artifactId>
-                <version>${app.platform.file.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-file-core</artifactId>
-                <version>${app.platform.file.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-platform-file-boot</artifactId>
-                <version>${app.platform.file.version}</version>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>

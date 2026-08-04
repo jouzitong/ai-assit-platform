@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.1</version>
+        <version>${revision}</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,6 @@
     <name>app-gateway</name>
 
     <properties>
-        <app.gateway.version>0.1.1</app.gateway.version>
         <spring-framework.version>6.1.15</spring-framework.version>
     </properties>
 
@@ -46,12 +45,12 @@
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-gateway-core</artifactId>
-                <version>${app.gateway.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>app-gateway-boot</artifactId>
-                <version>${app.gateway.version}</version>
+                <version>${revision}</version>
             </dependency>
         <dependency>
             <groupId>ai.platform.aiassit</groupId>

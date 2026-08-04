@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>commons-lib</artifactId>
-        <version>0.1.1</version>
+        <version>${revision}</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -15,31 +15,27 @@
     <packaging>pom</packaging>
     <name>commons-lib-data-virtualization</name>
 
-    <properties>
-        <commons.lib.data.virtualization.version>0.1.1</commons.lib.data.virtualization.version>
-    </properties>
-
     <dependencyManagement>
         <dependencies>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>commons-lib-data-virtualization-api</artifactId>
-                <version>${commons.lib.data.virtualization.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>commons-lib-data-virtualization-spi</artifactId>
-                <version>${commons.lib.data.virtualization.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>commons-lib-data-virtualization-data</artifactId>
-                <version>${commons.lib.data.virtualization.version}</version>
+                <version>${revision}</version>
             </dependency>
             <dependency>
                 <groupId>ai.platform.aiassit</groupId>
                 <artifactId>commons-lib-data-virtualization-core</artifactId>
-                <version>${commons.lib.data.virtualization.version}</version>
+                <version>${revision}</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
