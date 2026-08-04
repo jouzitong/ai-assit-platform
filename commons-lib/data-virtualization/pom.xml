@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>commons-lib</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.1</version>
         <relativePath>../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,7 @@
     <name>commons-lib-data-virtualization</name>
 
     <properties>
-        <commons.lib.data.virtualization.version>0.1.0</commons.lib.data.virtualization.version>
+        <commons.lib.data.virtualization.version>0.1.1</commons.lib.data.virtualization.version>
     </properties>
 
     <dependencyManagement>

@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.1</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,7 @@
     <name>app-platform-user</name>
 
     <properties>
-        <app.platform.user.version>0.1.0</app.platform.user.version>
+        <app.platform.user.version>0.1.1</app.platform.user.version>
     </properties>
 
     <dependencyManagement>

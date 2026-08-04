@@ -6,7 +6,7 @@
 
     <groupId>ai.platform.aiassit</groupId>
     <artifactId>ai-assit-platform</artifactId>
-    <version>0.1.0</version>
+    <version>0.1.1</version>
     <name>ai-assit-platform</name>
     <description>AI Assit Platform</description>
     <packaging>pom</packaging>

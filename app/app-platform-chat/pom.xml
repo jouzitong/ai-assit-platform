@@ -7,7 +7,7 @@
     <parent>
         <groupId>ai.platform.aiassit</groupId>
         <artifactId>ai-assit-platform</artifactId>
-        <version>0.1.0</version>
+        <version>0.1.1</version>
         <relativePath>../../pom.xml</relativePath>
     </parent>
 
@@ -16,7 +16,7 @@
     <name>app-platform-chat</name>
 
     <properties>
-        <app.platform.chat.version>0.1.0</app.platform.chat.version>
+        <app.platform.chat.version>0.1.1</app.platform.chat.version>
         <spring.ai.version>1.0.7</spring.ai.version>
     </properties>
 
