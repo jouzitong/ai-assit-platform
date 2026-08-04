@@ -16,7 +16,7 @@
     <name>app-platform-render</name>
 
     <properties>
-        <app.platform.render.version>1.0.0-SNAPSHOT</app.platform.render.version>
+        <app.platform.render.version>0.1.0</app.platform.render.version>
     </properties>
 
     <dependencyManagement>

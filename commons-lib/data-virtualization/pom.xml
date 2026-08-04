@@ -16,7 +16,7 @@
     <name>commons-lib-data-virtualization</name>
 
     <properties>
-        <commons.lib.data.virtualization.version>1.0.0-SNAPSHOT</commons.lib.data.virtualization.version>
+        <commons.lib.data.virtualization.version>0.1.0</commons.lib.data.virtualization.version>
     </properties>
 
     <dependencyManagement>

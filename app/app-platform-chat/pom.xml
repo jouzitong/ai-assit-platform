@@ -16,7 +16,7 @@
     <name>app-platform-chat</name>
 
     <properties>
-        <app.platform.chat.version>1.0.0-SNAPSHOT</app.platform.chat.version>
+        <app.platform.chat.version>0.1.0</app.platform.chat.version>
         <spring.ai.version>1.0.7</spring.ai.version>
     </properties>
 

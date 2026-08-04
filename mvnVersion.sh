@@ -24,9 +24,10 @@ Examples:
 
 Behavior:
   1. Update all Maven module versions.
-  2. Run Maven validate.
-  3. Commit the POM changes.
-  4. Create an annotated v<version> tag for stable versions.
+  2. Synchronize internal module version properties.
+  3. Run Maven package with tests skipped.
+  4. Commit the POM changes.
+  5. Create an annotated v<version> tag for stable versions.
 
 The script does not push commits or tags automatically.
 EOF
@@ -105,6 +106,32 @@ update_versions() {
     -DgenerateBackupPoms=false \
     -DprocessAllModules=true \
     -DprocessDependencies=true
+
+  TARGET_VERSION="$TARGET_VERSION" find "$ROOT_DIR" \
+    -type f \
+    -name pom.xml \
+    -not -path '*/target/*' \
+    -exec perl -0pi -e '
+      s{(<(?:app|commons)\.[A-Za-z0-9_.-]+\.version>\s*)[^<\s]+(\s*</(?:app|commons)\.[A-Za-z0-9_.-]+\.version>)}
+       {$1 . $ENV{TARGET_VERSION} . $2}ge;
+    ' {} +
+}
+
+validate_internal_version_properties() {
+  local stale_properties
+
+  stale_properties="$(TARGET_VERSION="$TARGET_VERSION" find "$ROOT_DIR" \
+    -type f \
+    -name pom.xml \
+    -not -path '*/target/*' \
+    -exec perl -0ne '
+      while (/<((?:app|commons)\.[A-Za-z0-9_.-]+\.version)>\s*([^<\s]+)\s*<\/\1>/g) {
+        print "$ARGV:$1=$2\n" if $2 ne $ENV{TARGET_VERSION};
+      }
+    ' {} +)"
+
+  [[ -z "$stale_properties" ]] \
+    || die "Internal module version properties are not synchronized:\n$stale_properties"
 }
 
 commit_changes() {
@@ -136,6 +163,7 @@ main() {
 
   require_cmd git
   require_cmd mvn
+  require_cmd perl
 
   cd "$ROOT_DIR"
 
@@ -157,8 +185,10 @@ main() {
   log "Updating Maven module versions"
   update_versions
 
-  log "Run Maven validate"
-  mvn -q -DskipTests validate
+  validate_internal_version_properties
+
+  log "Run Maven package"
+  mvn -q -DskipTests package
 
   commit_changes
   create_tag

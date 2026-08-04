@@ -16,7 +16,7 @@
     <name>app-platform-user</name>
 
     <properties>
-        <app.platform.user.version>1.0.0-SNAPSHOT</app.platform.user.version>
+        <app.platform.user.version>0.1.0</app.platform.user.version>
     </properties>
 
     <dependencyManagement>

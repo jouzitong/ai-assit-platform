@@ -16,7 +16,7 @@
     <name>app-platform-file</name>
 
     <properties>
-        <app.platform.file.version>1.0.0-SNAPSHOT</app.platform.file.version>
+        <app.platform.file.version>0.1.0</app.platform.file.version>
     </properties>
 
     <dependencyManagement>
