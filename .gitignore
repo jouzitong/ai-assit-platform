@@ -17,6 +17,7 @@ logs/
 */logs/
 *.log
 *.log.*
+releases/
 
 tools/service-manager/process-state.json
 

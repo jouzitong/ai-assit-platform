@@ -1,0 +1,19 @@
+{
+  "base_url": "http://localhost:8000",
+  "api_prefix": "/api/v1",
+  "project_id": null,
+  "endpoint": "preview",
+  "source": "workspace",
+  "language": {
+    "code": "zh-CN",
+    "label": "中文",
+    "source": "user_config",
+    "confidence": 1.0
+  },
+  "storage": {
+    "directory": "releases",
+    "versioned": true,
+    "manifest_filename": "qa-platform-import.json",
+    "archive_filename": "qa-platform-import.zip"
+  }
+}
