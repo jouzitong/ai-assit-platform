@@ -1,5 +1,5 @@
 {
-  "base_url": "http://localhost:8000",
+  "base_url": "https://qa-platform.pp5119259.chatgpt.site/",
   "variables": {
     "base_url": "127.0.0.1:9764"
   },
@@ -18,5 +18,65 @@
     "versioned": true,
     "manifest_filename": "qa-platform-import.json",
     "archive_filename": "qa-platform-import.zip"
+  },
+  "success_assertions": {
+    "default_profile": {
+      "http": "config:http-success",
+      "ws": "config:ws-success"
+    },
+    "definitions": [
+      {
+        "key": "config:http-success-status",
+        "name": "默认 HTTP 成功状态码",
+        "engine": "expression",
+        "description": "默认 HTTP 成功断言：响应状态码必须在 200–299 范围内。",
+        "config": {
+          "expression": "response.status_code >= 200 and response.status_code <= 299"
+        },
+        "default_params": {},
+        "severity": "success",
+        "message": "HTTP 状态码不在 200–299 范围内"
+      },
+      {
+        "key": "config:ws-success-messages",
+        "name": "默认 WebSocket 成功消息",
+        "engine": "expression",
+        "description": "默认 WebSocket 成功断言：至少收到一条消息。",
+        "config": {
+          "expression": "len(response.messages) >= params['minimum']"
+        },
+        "default_params": {
+          "minimum": 1
+        },
+        "severity": "success",
+        "message": "WebSocket 未收到成功消息"
+      }
+    ],
+    "profiles": [
+      {
+        "name": "config:http-success",
+        "protocol": "http",
+        "description": "项目配置初始化的 HTTP 默认成功断言集合。可由 AI 或人工按响应契约补充断言。",
+        "is_default": true,
+        "bindings": [
+          {
+            "assertion_id": "config:http-success-status",
+            "enabled": true
+          }
+        ]
+      },
+      {
+        "name": "config:ws-success",
+        "protocol": "ws",
+        "description": "项目配置初始化的 WebSocket 默认成功断言集合。可由 AI 或人工按消息契约补充断言。",
+        "is_default": true,
+        "bindings": [
+          {
+            "assertion_id": "config:ws-success-messages",
+            "enabled": true
+          }
+        ]
+      }
+    ]
   }
 }
