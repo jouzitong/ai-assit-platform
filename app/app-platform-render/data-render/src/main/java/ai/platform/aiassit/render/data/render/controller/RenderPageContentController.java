@@ -14,6 +14,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.Collections;
 
+/**
+ * 渲染页面内容的只读查询接口。
+ *
+ * <p>以页面业务编码加载已持久化的内容 JSON；页面必须存在，未设置内容时返回空对象以便运行时稳定渲染。</p>
+ */
 @RestController
 @RequestMapping("/api/v1/renderPageContents")
 public class RenderPageContentController {
@@ -27,6 +32,12 @@ public class RenderPageContentController {
         this.renderPageContentService = renderPageContentService;
     }
 
+    /**
+     * 按页面编码获取当前渲染内容。
+     *
+     * @param code 页面业务编码
+     * @return 页面内容视图，包含已确认的页面编码和内容 JSON
+     */
     @GetMapping("/{code}")
     public RenderPageContentVO getByPageCode(@PathVariable("code") String code) {
         RenderPageDTO page = renderPageService.queryByCode(code);

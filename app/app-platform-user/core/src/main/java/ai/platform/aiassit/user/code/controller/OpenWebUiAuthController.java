@@ -30,7 +30,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
- * Exposes an OpenWebUI-compatible auth payload on top of Athena's auth pipeline.
+ * 基于 Athena 认证链路的 OpenWebUI 兼容认证接口。
+ *
+ * <p>将平台登录态、角色和权限快照投影为 OpenWebUI 所需的 Token 与用户结构；认证、令牌提取和登出失效仍由底层安全门面统一负责。</p>
  */
 @RestController
 @RequestMapping("/api/v1/auths")
@@ -47,6 +49,13 @@ public class OpenWebUiAuthController {
         this.credentialExtractor = credentialExtractor;
     }
 
+    /**
+     * 使用邮箱和密码登录，并返回 OpenWebUI 兼容的会话用户信息。
+     *
+     * @param command 登录请求体，包含邮箱与密码
+     * @param request 原始 HTTP 请求，用于记录客户端地址
+     * @return 未包装的会话响应，包含访问令牌、过期时间、用户展示信息、角色和权限快照
+     */
     @IgnoredResultWrapper
     @PostMapping("/signin")
     public SessionUserResponse signin(@RequestBody SigninForm command, HttpServletRequest request) {
@@ -64,6 +73,12 @@ public class OpenWebUiAuthController {
         return toSessionUserResponse(result.context(), result.context().session().tokenId(), false);
     }
 
+    /**
+     * 查询当前访问令牌对应的 OpenWebUI 用户资料。
+     *
+     * @param request 原始 HTTP 请求，用于提取当前访问令牌
+     * @return 未包装的用户资料，包含会话信息、角色权限和 OpenWebUI 扩展资料字段
+     */
     @IgnoredResultWrapper
     @GetMapping({"", "/"})
     public SessionUserInfoResponse getSessionUser(HttpServletRequest request) {
@@ -74,6 +89,12 @@ public class OpenWebUiAuthController {
         return toSessionUserResponse(userContext, credentialExtractor.extractToken(request), true);
     }
 
+    /**
+     * 注销当前访问令牌对应的会话。
+     *
+     * @param request 原始 HTTP 请求，用于提取并失效访问令牌
+     * @return 未包装的状态对象；{@code status=true} 表示注销处理已完成
+     */
     @IgnoredResultWrapper
     @PostMapping("/signout")
     public Map<String, Object> signout(HttpServletRequest request) {
@@ -176,6 +197,11 @@ public class OpenWebUiAuthController {
         return value == null ? null : String.valueOf(value);
     }
 
+    /**
+     * OpenWebUI 兼容登录请求体。
+     *
+     * <p>{@code email} 作为平台认证账号传入，{@code password} 为待验证的登录密码。</p>
+     */
     @Data
     public static class SigninForm {
 
@@ -184,6 +210,11 @@ public class OpenWebUiAuthController {
         private String password;
     }
 
+    /**
+     * OpenWebUI 兼容的基础会话响应体。
+     *
+     * <p>包含认证令牌、令牌类型、过期时间及由平台角色和权限快照转换后的用户信息。</p>
+     */
     @Data
     public static class SessionUserResponse {
 
@@ -209,6 +240,11 @@ public class OpenWebUiAuthController {
         private Map<String, Object> permissions;
     }
 
+    /**
+     * OpenWebUI 兼容的当前用户资料响应体。
+     *
+     * <p>在基础会话响应上补齐 OpenWebUI 资料字段；当前未由平台维护的资料字段以空值返回以保持协议兼容。</p>
+     */
     @Data
     @EqualsAndHashCode(callSuper = true)
     public static class SessionUserInfoResponse extends SessionUserResponse {

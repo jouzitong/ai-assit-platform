@@ -17,6 +17,11 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
+/**
+ * 聊天异步运行任务查询与停止接口。
+ *
+ * <p>任务定位可使用运行标识、会话编码或轮次编码，所有操作仅允许访问当前登录用户拥有的运行记录。</p>
+ */
 @RestController
 public class ConversationTaskController implements IConversationTaskController {
 
@@ -26,6 +31,12 @@ public class ConversationTaskController implements IConversationTaskController {
         this.runManager = runManager;
     }
 
+    /**
+     * 查询聊天异步运行的状态与生命周期信息。
+     *
+     * @param request 任务查询请求体，至少提供运行标识、会话编码或轮次编码之一
+     * @return 任务状态、执行节点、关联会话轮次、时间戳及失败信息；不存在时返回空状态对象
+     */
     @Override
     public ConversationTaskStatusResponse status(@RequestBody ConversationTaskQueryRequest request) {
         Long userId = resolveCurrentUserId();
@@ -38,6 +49,12 @@ public class ConversationTaskController implements IConversationTaskController {
         return run.map(this::toResponse).orElseGet(ConversationTaskStatusResponse::new);
     }
 
+    /**
+     * 请求停止当前用户拥有的聊天异步运行。
+     *
+     * @param request 停止请求体，包含运行、会话或轮次定位信息
+     * @return 是否成功提交或确认停止请求
+     */
     @Override
     public Boolean stop(@RequestBody ConversationTaskStopRequest request) {
         return runManager.cancel(

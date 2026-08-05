@@ -35,6 +35,11 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+/**
+ * 知识库提供方调用的统一执行入口。
+ *
+ * <p>在调用向量化、重排、文档写入、删除或检索前校验请求，并将本地知识库编码、客户端配置和认证快照合并为提供方请求；响应避免暴露提供方 Dataset 标识。</p>
+ */
 @RestController
 public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionService, AiVectorExecutionApi {
 
@@ -61,18 +66,36 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         this.knowledgeClientConfigService = knowledgeClientConfigService;
     }
 
+    /**
+     * 将输入文本转换为向量表示。
+     *
+     * @param request 向量化请求体，包含文本、可选客户端类型和调用元数据
+     * @return 向量化结果，包含每段文本对应的向量和执行信息
+     */
     @Override
     public EmbedResponse embed(@RequestBody EmbedRequest request) {
         validator.validateEmbed(request);
         return resolveKnowledgeService(request.getClientType()).embed(requestMapper.mapEmbed(request, properties));
     }
 
+    /**
+     * 根据查询文本对候选文本进行相关性重排。
+     *
+     * @param request 重排请求体，包含查询、候选文本、客户端选择和调用元数据
+     * @return 重排结果，包含候选项排序和相关性评分
+     */
     @Override
     public RerankResponse rerank(@RequestBody RerankRequest request) {
         validator.validateRerank(request);
         return resolveKnowledgeService(request.getClientType()).rerank(requestMapper.mapRerank(request, properties));
     }
 
+    /**
+     * 将本地知识库文档写入已绑定的提供方 Dataset。
+     *
+     * @param request 文档写入请求，使用本地知识库编码和待写入内容
+     * @return 提供方写入结果，已合并本地配置与认证信息
+     */
     @Override
     public KbUpsertResponse kbUpsert(KbUpsertRequest request) {
         validator.validateKbUpsert(request);
@@ -82,6 +105,12 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         return resolveKnowledgeService(requireConfiguredClientType()).kbUpsert(requestMapper.mapKbUpsert(request));
     }
 
+    /**
+     * 从已绑定的提供方 Dataset 删除文档。
+     *
+     * @param request 文档删除请求，使用本地知识库编码和待删除文档标识
+     * @return 提供方删除结果
+     */
     @Override
     public KbDeleteResponse kbDelete(KbDeleteRequest request) {
         validator.validateKbDelete(request);
@@ -91,6 +120,12 @@ public class DefaultAiKnowledgeExecutionService implements AiKnowledgeExecutionS
         return resolveKnowledgeService(requireConfiguredClientType()).kbDelete(requestMapper.mapKbDelete(request));
     }
 
+    /**
+     * 在本地知识库绑定的提供方 Dataset 中检索文档。
+     *
+     * @param request 检索请求，包含本地知识库编码、查询文本和召回参数
+     * @return 检索结果，返回本地知识库编码而非提供方 Dataset 标识
+     */
     @Override
     public KbSearchResponse kbSearch(KbSearchRequest request) {
         validator.validateKbSearch(request);

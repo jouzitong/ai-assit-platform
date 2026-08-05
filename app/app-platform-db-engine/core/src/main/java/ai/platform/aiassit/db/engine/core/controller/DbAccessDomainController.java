@@ -48,9 +48,9 @@ import java.util.Map;
 import java.util.Set;
 
 /**
+ * 物理数据源发现、受控预览与元数据同步接口。
  *
- * @author zhouzhitong
- * @since 2026/6/23
+ * <p>接口可测试连接并读取物理库结构，但数据预览只允许已登记表且不接收任意 SQL 或过滤条件；同步仅刷新数据库结构信息，保留本地人工配置。</p>
  */
 @RestController
 @RequestMapping("/api/v1/db/access")
@@ -76,11 +76,23 @@ public class DbAccessDomainController {
         this.tableIndexMetaService = tableIndexMetaService;
     }
 
+    /**
+     * 测试候选数据源的连通性。
+     *
+     * @param request 数据源配置请求体，包含连接地址、类型和认证信息
+     * @return 连通性测试结果，包含是否可连接及失败诊断
+     */
     @PostMapping("/test-connection")
     public R<TestConnectionResult> testConnection(@RequestBody DbDataSourceDTO request) {
         return R.ok(dbAccessService.testConnection(request));
     }
 
+    /**
+     * 拉取物理数据源中的表，并标识其是否已登记为本地元数据。
+     *
+     * @param request 表列表请求体，包含数据源标识和可选表名筛选集合
+     * @return 物理表列表及每张表对应的本地登记状态和元数据摘要
+     */
     @PostMapping("/tables")
     public R<DbAccessTableListResponse> tables(@RequestBody DbAccessTableListRequest request) {
         String sourceKey = requireSourceKey(request == null ? null : request.getSourceKey());
@@ -113,7 +125,12 @@ public class DbAccessDomainController {
     }
 
     /**
-     * 只读预览已登记的数据表；不接受 SQL 或过滤条件，避免页面能力越界为任意查询入口。
+     * 分页只读预览已登记数据表的样本记录。
+     *
+     * <p>请求不接受 SQL 或过滤条件，避免管理页面能力越界为任意查询入口；服务端额外读取一条记录以计算是否还有下一页，额外记录不会返回。</p>
+     *
+     * @param request 预览请求体，包含数据源、已登记表名和分页参数
+     * @return 表数据预览，包含列定义、当前页记录、执行耗时和下一页标识
      */
     @PostMapping("/table-data-preview")
     public R<DbAccessTableDataPreviewResponse> tableDataPreview(
@@ -155,6 +172,14 @@ public class DbAccessDomainController {
         return R.ok(response);
     }
 
+    /**
+     * 将物理库的表、字段和索引结构同步到本地元数据目录。
+     *
+     * <p>同步范围可限制为指定表；本地的启用状态、分层和备注等人工配置会被保留，仅更新物理结构派生字段。</p>
+     *
+     * @param request 同步请求体，包含数据源标识和可选表名集合
+     * @return 同步汇总结果，包含新增/更新计数和各表的明细
+     */
     @PostMapping("/sync/table-meta")
     public R<DbAccessTableSyncResponse> syncTableMeta(@RequestBody DbAccessTableSyncRequest request) {
         String sourceKey = requireSourceKey(request == null ? null : request.getSourceKey());

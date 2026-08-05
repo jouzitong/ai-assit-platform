@@ -22,7 +22,11 @@ import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 
-/** Deterministic retrieval facade. Open-ended analysis belongs to the Agent runtime. */
+/**
+ * 确定性知识库混合检索接口。
+ *
+ * <p>该入口只执行关键词/向量召回和可选重排，不承担开放式分析；复杂推理由 Agent 运行时处理。</p>
+ */
 @RestController
 public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService, AiRetrievalExecutionApi {
 
@@ -35,6 +39,12 @@ public class DefaultAiRetrievalDomainService implements AiRetrievalDomainService
         this.aiRequestValidator = aiRequestValidator;
     }
 
+    /**
+     * 执行关键词与向量组合的知识库检索，并按需重排结果。
+     *
+     * @param request 混合检索请求体，包含本地知识库、查询文本、召回开关、数量和重排选项
+     * @return 检索结果，包含召回命中、最终评分、实际检索模式及可能的降级说明
+     */
     @Override
     public HybridSearchResponse hybridSearch(@RequestBody HybridSearchRequest request) {
         aiRequestValidator.validateHybridSearch(request);

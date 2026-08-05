@@ -7,6 +7,12 @@ import org.athena.framework.data.jdbc.web.BaseController;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+/**
+ * 物理表索引元数据的通用 CRUD 接口。
+ *
+ * <p>复用 {@link BaseController} 的新增、详情、分页、更新和删除能力；请求体使用 {@link DbTableIndexMetaDTO}，查询条件使用
+ * {@link DbTableIndexMetaQueryRequest}，用于维护同步后的索引结构及其启用状态。</p>
+ */
 @RestController
 @RequestMapping("/api/v1/meta/index")
 public class DbTableIndexMetaController

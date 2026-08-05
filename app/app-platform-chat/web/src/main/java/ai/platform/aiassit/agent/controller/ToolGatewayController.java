@@ -23,7 +23,11 @@ import java.util.LinkedHashSet;
 import java.util.Set;
 import java.util.UUID;
 
-/** Authenticated runtime endpoint used by both Python and TypeScript Agent workers. */
+/**
+ * Python 与 TypeScript Agent Worker 共用的已认证工具调用网关。
+ *
+ * <p>接口从当前登录态提取用户、角色和权限快照，签发短期执行令牌后再调用目标工具，确保工具执行具有可追溯的主体与幂等边界。</p>
+ */
 @RestController
 @RequestMapping("/api/v1/ai/tool-gateway")
 public class ToolGatewayController {
@@ -37,6 +41,17 @@ public class ToolGatewayController {
         this.temporaryTokenIssuer = temporaryTokenIssuer;
     }
 
+    /**
+     * 以当前用户身份调用指定工具版本。
+     *
+     * @param toolCode       工具业务编码
+     * @param version        工具版本号
+     * @param request        工具调用请求体，包含符合工具契约的输入参数
+     * @param approvalToken  可选审批令牌，供需要人工确认的工具校验
+     * @param idempotencyKey 可选幂等键，避免重复提交产生重复副作用
+     * @param servletRequest 原始 HTTP 请求，用于读取追踪标识
+     * @return 未包装的工具调用响应，包含执行输出、状态和诊断信息
+     */
     @IgnoredResultWrapper
     @PostMapping("/{toolCode}/versions/{version}/invoke")
     public ToolGatewayResponse invoke(@PathVariable String toolCode,

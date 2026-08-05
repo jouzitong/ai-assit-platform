@@ -22,8 +22,9 @@ import java.util.Collections;
 import java.util.Map;
 
 /**
- * @author zhouzhitong
- * @since 2026/7/10
+ * 渲染页面运行元内容读写接口。
+ *
+ * <p>读取或保存页面的动态内容 JSON；每次保存都会在同一事务中生成内容快照，便于回溯页面运行元信息的历史版本。</p>
  */
 @RestController
 @RequestMapping("/api/v1/render/meta")
@@ -43,6 +44,12 @@ public class RenderMetaController {
         this.renderPageSnapshotService = renderPageSnapshotService;
     }
 
+    /**
+     * 读取指定页面的当前运行元内容。
+     *
+     * @param code 页面业务编码
+     * @return 标准化后的内容 JSON；页面存在但尚无内容时返回空对象
+     */
     @GetMapping("/{code}")
     public Map<String, Object> getContent(@PathVariable("code") String code) {
         String pageCode = requirePageCode(code);
@@ -51,6 +58,12 @@ public class RenderMetaController {
         return normalizeContent(content == null ? null : content.getContent());
     }
 
+    /**
+     * 新增或覆盖指定页面的运行元内容，并创建内容快照。
+     *
+     * @param request 保存请求体，包含页面编码和完整内容 JSON
+     * @return 已标准化并持久化的内容 JSON；同时已生成可追溯的快照版本
+     */
     @PostMapping
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> upsertContent(@RequestBody RenderMetaContentUpsertRequest request) {
