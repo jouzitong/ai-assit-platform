@@ -2,7 +2,7 @@
   "code": "render-json-generation",
   "version": 1,
   "name": "Render JSON Generation",
-  "description": "Materialize a validated Render JSON document from a frozen component test case and preview-approved datasource configuration.",
+  "description": "Materialize a validated Render JSON document from a frozen component test case and preview-approved datasource configuration and field metadata.",
   "files": [
     { "path": "SKILL.md", "mediaType": "text/markdown" },
     { "path": "assets/component-test-cases/combo-chart.json", "mediaType": "application/json" },

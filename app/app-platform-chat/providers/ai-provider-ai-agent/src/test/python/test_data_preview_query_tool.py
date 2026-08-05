@@ -4,12 +4,44 @@ import unittest
 from unittest.mock import patch
 
 from agent_provider.tools.data_preview_query_tool import (
+    _build_field_metadata,
     preview_data_contract,
     validate_data_contract,
 )
 
 
 class DataPreviewQueryToolTest(unittest.TestCase):
+    def test_builds_display_metadata_and_only_marks_actual_booleans(self) -> None:
+        metadata = _build_field_metadata(
+            [
+                {"key": "is_default", "field": "is_default", "label": "是否默认"},
+                {"key": "status", "field": "status", "label": "状态"},
+            ],
+            [
+                {"is_default": True, "status": "true"},
+                {"is_default": False, "status": "false"},
+            ],
+        )
+
+        self.assertEqual(
+            [
+                {"key": "is_default", "name": "是否默认", "data_type": "boolean"},
+                {"key": "status", "name": "状态", "data_type": "string"},
+            ],
+            metadata,
+        )
+
+    def test_prefers_published_column_type_over_sample_shape(self) -> None:
+        metadata = _build_field_metadata(
+            [{"key": "is_default", "field": "is_default", "label": "是否默认", "dataType": "boolean"}],
+            [{"is_default": 1}, {"is_default": 0}],
+        )
+
+        self.assertEqual(
+            [{"key": "is_default", "name": "是否默认", "data_type": "boolean"}],
+            metadata,
+        )
+
     def test_temporarily_bypasses_preview_validation_and_http(self) -> None:
         contract = {
             "model": "sales_order",
@@ -18,7 +50,9 @@ class DataPreviewQueryToolTest(unittest.TestCase):
             "sql": "select * from sales_order",
         }
 
-        with patch("agent_provider.tools.data_preview_query_tool.post_platform_json") as post:
+        with patch("agent_provider.tools.data_preview_query_tool.TEMPORARY_PREVIEW_BYPASS", True), patch(
+            "agent_provider.tools.data_preview_query_tool.post_platform_json"
+        ) as post:
             result = preview_data_contract({}, contract)
 
         self.assertTrue(result["success"])
@@ -70,7 +104,7 @@ class DataPreviewQueryToolTest(unittest.TestCase):
             "dimensions": [{"field": "region_name"}],
             "filters": [],
         }
-        with patch("agent_provider.tools.data_preview_query_tool.TEMPORARY_PREVIEW_BYPASS", False), patch.dict(os.environ, {
+        with patch("agent_provider.tools.data_preview_query_tool.TEMPORARY_PREVIEW_BYPASS", True), patch.dict(os.environ, {
             "AI_AGENT_CHAT_BASE_URL": "http://chat.internal:13103/chat/",
             "AI_AGENT_DATA_PREVIEW_URL": "http://db-engine/direct-preview",
         }, clear=False), patch(

@@ -28,6 +28,8 @@ public class DataPreviewQueryResponse {
         private String key;
         private String field;
         private String label;
+        /** 标准逻辑类型，供下游 Render JSON 生成使用。 */
+        private String dataType;
         private String aggregation;
     }
 }

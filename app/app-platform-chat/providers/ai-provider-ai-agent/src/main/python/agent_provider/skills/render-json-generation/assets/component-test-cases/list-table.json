@@ -4,7 +4,7 @@
   "componentVersion": "1.0.0",
   "materializer": "list-table",
   "minimumFields": 1,
-  "description": "A pageable table. The materializer derives every visible column from datasource.fields.",
+  "description": "A pageable table. The materializer derives every visible column from preview-approved datasource field metadata.",
   "document": {
     "protocol": "render-json",
     "protocolVersion": "1.0.0",

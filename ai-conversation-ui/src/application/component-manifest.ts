@@ -161,10 +161,10 @@ const listSchemaExample = {
     },
   ],
   fields: [
-    { key: 'id', name: 'id', label: '任务编号', field: ['id'], options: { styles: { width: 140 } } },
-    { key: 'name', name: 'name', label: '任务名称', field: ['name'] },
-    { key: 'owner', name: 'owner', label: '负责人', field: ['owner'] },
-    { key: 'status', name: 'status', label: '状态', field: ['status'] },
+    { key: 'id', name: '任务编号', field: ['id'], options: { styles: { width: 140 } } },
+    { key: 'name', name: '任务名称', field: ['name'] },
+    { key: 'owner', name: '负责人', field: ['owner'] },
+    { key: 'status', name: '状态', field: ['status'] },
   ],
   actions: [
     { key: 'create', name: '新建', action: 'CREATE', options: { type: 'primary' } },
@@ -435,8 +435,8 @@ export const APPLICATION_COMPONENT_MANIFEST: ApplicationComponentDefinition[] = 
     tags: ['list', 'schema', 'renderer'],
     documentation: {
       summary: '通用列表渲染器将页面标题、动作、页签、左侧树、筛选器、摘要卡片、数据表格和分页统一收敛到声明式 Schema 中。',
-      usageGuide: '先在 schema 中声明字段、筛选项、动作和分页策略，再通过 records、treeData 与 total 传入受控数据。actions 与 actionColumns 的每一项使用 { key, name, action, options? }；options 可省略，只承载 type、style、class、icon。type 支持 default、primary、success、warning、danger、info，icon 支持 download、fullscreen、operation、print、refresh。筛选、页签和分页变化通过 queryChange/reload 事件交给 Runtime 或页面服务重新取数。',
-      limitations: 'Renderer 不直接请求后端，也不执行 CREATE、VIEW、DELETE 等业务动作；外部必须监听语义事件并负责权限、请求、跳转和错误处理。',
+      usageGuide: '先在 schema 中声明字段、筛选项、动作和分页策略，再通过 records、treeData 与 total 传入受控数据。列表字段以 { key, name, field, options? } 为主，name 是字段说明而不是数据库 field key；历史 label 仅作兼容回退。布尔字段可在 options.mask 中声明 select 选项，表格和卡片都会显示 mask 后的文本。actions 与 actionColumns 的每一项使用 { key, name, action, options? }；筛选、页签和分页变化通过 queryChange/reload 事件交给 Runtime 或页面服务重新取数。',
+      limitations: 'Renderer 不直接请求后端，也不执行 CREATE、VIEW、DELETE 等业务动作；外部必须监听语义事件并负责权限、请求、跳转和错误处理。mask 只做声明式值到文本映射，不替代业务数据校验。',
       notes: '示例同时覆盖树分组、页签、筛选、摘要、行内动作和分页，可直接作为列表类 Render JSON 的起始模板。',
     },
     parameters: [

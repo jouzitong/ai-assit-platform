@@ -65,7 +65,8 @@ public class VirtualCatalogService implements VirtualCatalogGateway {
                 snapshot.entityCode(),
                 snapshot.catalogVersion(),
                 snapshot.fieldsByCode().values().stream()
-                        .map(field -> new VirtualCatalogDescriptor.Field(field.code(), field.primaryKey(), field.enabled()))
+                        .map(field -> new VirtualCatalogDescriptor.Field(
+                                field.code(), field.name(), field.logicalType(), field.primaryKey(), field.enabled()))
                         .toList(),
                 relations.stream().map(VirtualCatalogDescriptor.Relation::code).distinct().toList(),
                 relations

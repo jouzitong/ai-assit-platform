@@ -1,6 +1,7 @@
 package ai.platform.aiassit.data.virtualization.api.dto;
 
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.LogicalType;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -32,7 +33,20 @@ public record VirtualCatalogDescriptor(
         return fields.stream().filter(Field::enabled).filter(Field::primaryKey).toList();
     }
 
-    public record Field(String code, boolean primaryKey, boolean enabled) {
+    public record Field(
+            String code,
+            String name,
+            LogicalType logicalType,
+            boolean primaryKey,
+            boolean enabled
+    ) {
+        public Field(String code, boolean primaryKey, boolean enabled) {
+            this(code, code, null, primaryKey, enabled);
+        }
+
+        public Field {
+            name = name == null || name.isBlank() ? code : name;
+        }
     }
 
     /** 已发布关系的虚拟身份与字段映射，不暴露任何物理表信息。 */

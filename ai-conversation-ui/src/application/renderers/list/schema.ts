@@ -2,6 +2,7 @@ import { normalizeRendererActions } from '../../schema/action'
 import type {
   ListRendererSchema,
   RendererField,
+  RendererFieldMaskValue,
   RendererFilter,
   RendererQueryState,
 } from './types'
@@ -80,6 +81,10 @@ export function shouldShowTree(schema: ListRendererSchema) {
     || Boolean(normalized.tree?.component)
 }
 
+export function getFieldName(field: RendererField) {
+  return field.name || field.label || field.key
+}
+
 export function getFieldValue(row: Record<string, unknown>, field: RendererField) {
   const segments = field.field?.length ? field.field : [field.key]
   let current: unknown = row
@@ -96,6 +101,28 @@ export function getFieldValue(row: Record<string, unknown>, field: RendererField
   }
 
   return current ?? ''
+}
+
+export function getFieldDisplayValue(row: Record<string, unknown>, field: RendererField) {
+  const value = getFieldValue(row, field)
+  const mask = field.options?.mask
+  if (mask?.type === 'select') {
+    const option = mask.options.find(candidate => matchesMaskValue(candidate.value, value))
+    if (option) {
+      return option.label
+    }
+  }
+  return value
+}
+
+function matchesMaskValue(expected: RendererFieldMaskValue, actual: unknown) {
+  if (Object.is(expected, actual)) {
+    return true
+  }
+  return typeof expected === 'boolean'
+    && typeof actual === 'number'
+    && (actual === 0 || actual === 1)
+    && expected === (actual === 1)
 }
 
 export function getColumnMinWidth(field: RendererField) {

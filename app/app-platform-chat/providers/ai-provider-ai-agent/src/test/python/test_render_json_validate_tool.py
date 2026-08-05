@@ -11,6 +11,18 @@ from agent_provider.tools.render_json_validate_tool import (
 from agent_provider.tools.render_validation import validate_render_document
 
 
+def field_specs(keys: list[str], boolean_fields: set[str] | None = None) -> list[dict[str, str]]:
+    boolean_fields = boolean_fields or set()
+    return [
+        {
+            "key": key,
+            "name": f"{key}显示名称",
+            "data_type": "boolean" if key in boolean_fields else "string",
+        }
+        for key in keys
+    ]
+
+
 class RenderJsonValidateToolTest(unittest.TestCase):
     def test_accepts_a_complete_document_and_returns_validation_proof(self) -> None:
         document = {
@@ -58,6 +70,10 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             "array",
             schema["$defs"]["RenderDatasourceInput"]["properties"]["fields"]["type"],
         )
+        self.assertEqual(
+            "object",
+            schema["$defs"]["RenderDatasourceFieldInput"]["type"],
+        )
 
     def test_materializes_the_user_address_list_from_datasource_facts(self) -> None:
         result = generate_render_json_for_run(
@@ -66,14 +82,10 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             {
                 "key": "address-query",
                 "model": "ods_trade_account_user_address",
-                "fields": [
-                    "id",
-                    "userId",
-                    "addressType",
-                    "city",
-                    "detailAddress",
-                    "isDefault",
-                ],
+                "fields": field_specs(
+                    ["id", "userId", "addressType", "city", "detailAddress", "isDefault"],
+                    {"isDefault"},
+                ),
                 "filters": [],
                 "sorts": [],
                 "page": 1,
@@ -90,13 +102,35 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             ["id", "userId", "addressType", "city", "detailAddress", "isDefault"],
             [field["key"] for field in root["props"]["schema"]["fields"]],
         )
+        self.assertEqual(
+            [
+                "id显示名称",
+                "userId显示名称",
+                "addressType显示名称",
+                "city显示名称",
+                "detailAddress显示名称",
+                "isDefault显示名称",
+            ],
+            [field["name"] for field in root["props"]["schema"]["fields"]],
+        )
+        self.assertTrue(all("label" not in field for field in root["props"]["schema"]["fields"]))
+        self.assertEqual(
+            {
+                "type": "select",
+                "options": [
+                    {"label": "是", "value": True},
+                    {"label": "否", "value": False},
+                ],
+            },
+            root["props"]["schema"]["fields"][-1]["options"]["mask"],
+        )
         self.assertEqual(result["documentHash"], validate_render_document(document)["documentHash"])
 
     def test_rejects_a_filter_or_sort_field_not_projected_by_the_datasource(self) -> None:
         source = {
             "key": "address-query",
             "model": "ods_trade_account_user_address",
-            "fields": ["id"],
+            "fields": field_specs(["id"]),
             "filters": [{"field": "city", "operator": "eq", "value": "Shanghai"}],
             "sorts": [],
             "page": 1,
@@ -126,7 +160,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
                     {
                         "key": "fixture-source",
                         "model": "fixture_model",
-                        "fields": fields,
+                        "fields": field_specs(fields),
                         "filters": [],
                         "sorts": [],
                         "page": 1,
@@ -145,7 +179,7 @@ class RenderJsonValidateToolTest(unittest.TestCase):
             {
                 "key": "address-query",
                 "model": "ods_trade_account_user_address",
-                "fields": ["id", "city", "isDefault"],
+                "fields": field_specs(["id", "city", "isDefault"], {"isDefault"}),
                 "filters": [
                     {"field": "city", "operator": "eq", "value": "Shanghai"},
                     {"field": "isDefault", "operator": "eq", "value": True},

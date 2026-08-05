@@ -77,12 +77,25 @@ export type RendererFilter = RendererFilterBase & (
 export interface RendererFieldOptions {
   styles?: Record<string, string | number>
   className?: string
+  mask?: RendererFieldMask
+}
+
+export type RendererFieldMaskValue = string | number | boolean | null
+
+export interface RendererFieldMaskOption {
+  label: string
+  value: RendererFieldMaskValue
+}
+
+export interface RendererFieldMask {
+  type: 'select'
+  options: RendererFieldMaskOption[]
 }
 
 export interface RendererField {
   key: string
   name: string
-  label: string
+  label?: string
   field?: string[]
   options?: RendererFieldOptions
 }

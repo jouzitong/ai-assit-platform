@@ -97,8 +97,7 @@
   "fields": [
     {
       "key": "id",
-      "name": "id",
-      "label": "ID",
+      "name": "ID",
       "field": [
         "id"
       ],
@@ -112,8 +111,7 @@
     },
     {
       "key": "title",
-      "name": "title",
-      "label": "任务",
+      "name": "任务",
       "field": [
         "tag",
         "title"
@@ -128,24 +126,21 @@
     },
     {
       "key": "owner",
-      "name": "owner",
-      "label": "负责人",
+      "name": "负责人",
       "field": [
         "owner"
       ]
     },
     {
       "key": "deadline",
-      "name": "deadline",
-      "label": "截止时间",
+      "name": "截止时间",
       "field": [
         "deadline"
       ]
     },
     {
       "key": "priority",
-      "name": "priority",
-      "label": "优先级",
+      "name": "优先级",
       "field": [
         "priority"
       ]

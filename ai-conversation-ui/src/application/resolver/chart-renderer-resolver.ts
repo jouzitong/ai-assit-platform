@@ -77,7 +77,7 @@ function createListSchema(schema: ChartRendererSchema): ListRendererSchema {
     ...existingFields,
     ...bindingFields
       .filter(field => !existingKeys.has(field))
-      .map(field => ({ key: field, name: field, label: field, field: field.split('.') })),
+      .map(field => ({ key: field, name: field, field: field.split('.') })),
   ]
 
   return {

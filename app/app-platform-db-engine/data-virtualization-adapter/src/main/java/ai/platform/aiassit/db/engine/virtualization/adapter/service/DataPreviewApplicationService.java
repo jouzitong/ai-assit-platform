@@ -101,25 +101,62 @@ public class DataPreviewApplicationService {
         // set, so collect those references in a request-local mutable copy instead of
         // mutating the record component returned by buildShape().
         LinkedHashSet<String> referencedFields = new LinkedHashSet<>(shape.referencedFields());
-        FilterNode requestFilter = buildRequestFilter(source, referencedFields);
-        List<String> relationCodes = validatePublishedFields(catalog, referencedFields);
+        LinkedHashSet<String> filterFields = new LinkedHashSet<>();
+        FilterNode requestFilter = buildRequestFilter(source, filterFields);
+        referencedFields.addAll(filterFields);
+        PublishedFieldResolution publishedFields = validatePublishedFields(
+                catalog,
+                referencedFields,
+                optionalOutputFields(shape, filterFields)
+        );
+        List<String> executionFields = shape.queryType() == QueryType.LIST
+                ? executableListFields(shape, publishedFields.unknownOutputFields(), catalog)
+                : List.of();
+        List<VirtualGroupBy> executionGroupings = executableGroupings(
+                shape.groupings(), publishedFields.unknownOutputFields());
+        List<VirtualAggregate> executionAggregates = executableAggregates(
+                shape.aggregates(), publishedFields.unknownOutputFields());
+        String fallbackField = fallbackExecutionField(catalog);
+        boolean fallbackAggregate = shape.queryType() == QueryType.AGGREGATE
+                && executionAggregates.isEmpty()
+                && fallbackField != null;
+        if (fallbackAggregate) {
+            executionAggregates = List.of(fallbackCount(fallbackField));
+        }
+
+        LinkedHashSet<String> authorizedFields = new LinkedHashSet<>(publishedFields.knownFields());
+        authorizedFields.addAll(executionFields);
+        if (fallbackAggregate) {
+            authorizedFields.add(fallbackField);
+        }
 
         DataPreviewAccessPolicy.AccessDecision decision = accessPolicy.authorize(
-                new DataPreviewAccessPolicy.AccessRequest(userContext, catalog, referencedFields)
+                new DataPreviewAccessPolicy.AccessRequest(userContext, catalog, authorizedFields)
         );
-        enforceFieldDecision(referencedFields, decision);
+        enforceFieldDecision(authorizedFields, decision);
         validateEnforcedRowFilter(catalog, decision.enforcedRowFilter());
+
+        boolean executable = shape.queryType() == QueryType.LIST
+                ? !executionFields.isEmpty()
+                : !executionAggregates.isEmpty();
+        if (!executable) {
+            return response(catalog, shape, new VirtualQueryResponse());
+        }
 
         VirtualQueryRequest target = new VirtualQueryRequest();
         target.setEntityCode(catalog.entityCode());
         target.setCatalogVersion(catalog.catalogVersion());
         target.setQueryType(shape.queryType());
-        target.setFields(shape.fields());
-        target.setGroupings(shape.groupings());
-        target.setAggregates(shape.aggregates());
+        target.setFields(executionFields);
+        target.setGroupings(executionGroupings);
+        target.setAggregates(executionAggregates);
         target.setFilter(and(requestFilter, decision.enforcedRowFilter()));
-        target.setRelationCodes(relationCodes);
-        target.setSorts(buildSorts(source.getSorts(), shape.sortFields()));
+        target.setRelationCodes(publishedFields.relationCodes());
+        target.setSorts(buildSorts(
+                source.getSorts(),
+                shape.sortFields(),
+                unknownOutputSortReferences(shape, publishedFields.unknownOutputFields())
+        ));
         target.setPage(previewPage(normalizeLimit(source.getLimit())));
         target.setExactTotal(false);
         target.setTraceLabel("agent-data-preview");
@@ -238,7 +275,7 @@ public class DataPreviewApplicationService {
 
     private FilterNode buildRequestFilter(
             DataPreviewQueryRequest source,
-            Set<String> referencedFields
+            Set<String> filterFields
     ) {
         List<DataPreviewQueryRequest.Filter> filters = safe(source.getFilters());
         requireMaxSize(filters, MAX_FILTERS, "filters");
@@ -248,7 +285,7 @@ public class DataPreviewApplicationService {
                 throw error(DataPreviewErrorCode.FILTER_INVALID, "filter 不能为空");
             }
             String field = requireField(filter.getField());
-            referencedFields.add(field);
+            filterFields.add(field);
             FilterOperator operator = filterOperator(filter.getOperator());
             validateFilterValues(filter, operator);
             FilterNode node = predicate(field, operator, filter.getValue(), filter.getValues());
@@ -258,20 +295,20 @@ public class DataPreviewApplicationService {
             }
             nodes.add(node);
         }
-        appendTimeRange(nodes, source.getTimeRange(), referencedFields);
+        appendTimeRange(nodes, source.getTimeRange(), filterFields);
         return and(nodes);
     }
 
     private void appendTimeRange(
             List<FilterNode> nodes,
             DataPreviewQueryRequest.TimeRange timeRange,
-            Set<String> referencedFields
+            Set<String> filterFields
     ) {
         if (timeRange == null) {
             return;
         }
         String field = requireField(timeRange.getField());
-        referencedFields.add(field);
+        filterFields.add(field);
         Range range = resolveRange(timeRange);
         if (range.start() != null) {
             nodes.add(predicate(field, FilterOperator.GTE, range.start(), List.of()));
@@ -321,29 +358,44 @@ public class DataPreviewApplicationService {
         return new Range(start, end);
     }
 
-    private List<String> validatePublishedFields(
+    private PublishedFieldResolution validatePublishedFields(
             VirtualCatalogDescriptor catalog,
-            Set<String> requestedFields
+            Set<String> requestedFields,
+            Set<String> optionalOutputFields
     ) {
+        // 仅用于输出的未知字段允许软失败；过滤、时间范围等查询语义字段不会进入
+        // optionalOutputFields，仍必须通过已发布目录校验。
         Set<String> localFields = enabledFields(catalog);
         Map<String, List<VirtualCatalogDescriptor.Relation>> relationsByCode = new LinkedHashMap<>();
         for (VirtualCatalogDescriptor.Relation relation : catalog.relations()) {
             relationsByCode.computeIfAbsent(relation.code(), ignored -> new ArrayList<>()).add(relation);
         }
         LinkedHashSet<String> relationCodes = new LinkedHashSet<>();
+        LinkedHashSet<String> knownFields = new LinkedHashSet<>();
+        LinkedHashSet<String> unknownOutputFields = new LinkedHashSet<>();
         Map<String, Set<String>> remoteFields = new LinkedHashMap<>();
         for (String field : requestedFields) {
+            boolean optional = optionalOutputFields.contains(field);
             int separator = field.indexOf('.');
             if (separator < 0) {
                 if (!localFields.contains(field)) {
+                    if (optional) {
+                        unknownOutputFields.add(field);
+                        continue;
+                    }
                     throw error(DataPreviewErrorCode.FIELD_NOT_FOUND, "虚拟字段不存在或未启用: " + field);
                 }
+                knownFields.add(field);
                 continue;
             }
             String relationCode = field.substring(0, separator);
             String remoteField = field.substring(separator + 1);
             List<VirtualCatalogDescriptor.Relation> candidates = relationsByCode.getOrDefault(relationCode, List.of());
             if (candidates.isEmpty()) {
+                if (optional) {
+                    unknownOutputFields.add(field);
+                    continue;
+                }
                 throw error(DataPreviewErrorCode.RELATION_NOT_FOUND, "已发布虚拟关系不存在: " + relationCode);
             }
             if (candidates.size() > 1) {
@@ -354,11 +406,16 @@ public class DataPreviewApplicationService {
                     catalogGateway.describePublished(relation.targetEntityCode(), null)
             ));
             if (!enabledRemoteFields.contains(remoteField)) {
+                if (optional) {
+                    unknownOutputFields.add(field);
+                    continue;
+                }
                 throw error(DataPreviewErrorCode.FIELD_NOT_FOUND, "关系虚拟字段不存在或未启用: " + field);
             }
+            knownFields.add(field);
             relationCodes.add(relationCode);
         }
-        return List.copyOf(relationCodes);
+        return new PublishedFieldResolution(knownFields, unknownOutputFields, List.copyOf(relationCodes));
     }
 
     private void enforceFieldDecision(
@@ -425,7 +482,8 @@ public class DataPreviewApplicationService {
 
     private List<VirtualSort> buildSorts(
             List<DataPreviewQueryRequest.Sort> source,
-            Map<String, String> allowedSortFields
+            Map<String, String> allowedSortFields,
+            Set<String> ignoredOutputFields
     ) {
         List<DataPreviewQueryRequest.Sort> sorts = safe(source);
         requireMaxSize(sorts, MAX_SORTS, "sorts");
@@ -435,6 +493,9 @@ public class DataPreviewApplicationService {
                 throw error(DataPreviewErrorCode.SORT_INVALID, "sort 不能为空");
             }
             String requested = requireField(sort.getField());
+            if (ignoredOutputFields.contains(requested)) {
+                continue;
+            }
             String field = allowedSortFields.get(requested);
             if (field == null) {
                 throw error(DataPreviewErrorCode.SORT_INVALID, "排序字段必须是预览输出字段: " + requested);
@@ -453,6 +514,90 @@ public class DataPreviewApplicationService {
             result.add(target);
         }
         return result;
+    }
+
+    private Set<String> optionalOutputFields(QueryShape shape, Set<String> filterFields) {
+        LinkedHashSet<String> result = new LinkedHashSet<>(shape.outputFields());
+        result.removeAll(filterFields);
+        return result;
+    }
+
+    private List<String> executableListFields(
+            QueryShape shape,
+            Set<String> unknownOutputFields,
+            VirtualCatalogDescriptor catalog
+    ) {
+        List<String> fields = shape.fields().stream()
+                .filter(field -> !unknownOutputFields.contains(field))
+                .toList();
+        if (!fields.isEmpty()) {
+            return fields;
+        }
+        // 下游将空 fields 解释为“查询全部已启用字段”，这里用一个受控字段避免该退化。
+        String fallback = fallbackExecutionField(catalog);
+        return fallback == null ? List.of() : List.of(fallback);
+    }
+
+    private List<VirtualGroupBy> executableGroupings(
+            List<VirtualGroupBy> groupings,
+            Set<String> unknownOutputFields
+    ) {
+        return groupings.stream()
+                .filter(grouping -> !unknownOutputFields.contains(grouping.getField()))
+                .toList();
+    }
+
+    private List<VirtualAggregate> executableAggregates(
+            List<VirtualAggregate> aggregates,
+            Set<String> unknownOutputFields
+    ) {
+        return aggregates.stream()
+                .filter(aggregate -> !unknownOutputFields.contains(aggregate.getField()))
+                .toList();
+    }
+
+    private Set<String> unknownOutputSortReferences(
+            QueryShape shape,
+            Set<String> unknownOutputFields
+    ) {
+        LinkedHashSet<String> result = new LinkedHashSet<>();
+        for (DataPreviewQueryResponse.Column column : shape.columns()) {
+            if (unknownOutputFields.contains(column.getField())) {
+                result.add(column.getField());
+                result.add(column.getKey());
+            }
+        }
+        return result;
+    }
+
+    private String fallbackExecutionField(VirtualCatalogDescriptor catalog) {
+        if (catalog == null) {
+            return null;
+        }
+        String primaryKey = catalog.fields().stream()
+                .filter(VirtualCatalogDescriptor.Field::enabled)
+                .filter(VirtualCatalogDescriptor.Field::primaryKey)
+                .map(VirtualCatalogDescriptor.Field::code)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+        if (primaryKey != null) {
+            return primaryKey;
+        }
+        return catalog.fields().stream()
+                .filter(VirtualCatalogDescriptor.Field::enabled)
+                .map(VirtualCatalogDescriptor.Field::code)
+                .filter(StringUtils::hasText)
+                .findFirst()
+                .orElse(null);
+    }
+
+    private VirtualAggregate fallbackCount(String field) {
+        VirtualAggregate aggregate = new VirtualAggregate();
+        aggregate.setField(field);
+        aggregate.setFunction(AggregateFunction.COUNT);
+        aggregate.setAlias("__preview_fallback_count");
+        return aggregate;
     }
 
     private DataPreviewQueryResponse response(
@@ -478,7 +623,9 @@ public class DataPreviewApplicationService {
         response.setCatalogVersion(catalog.catalogVersion());
         response.setSourceRevision(SOURCE_REVISION_PREFIX + catalog.catalogVersion());
         response.setQueryType(shape.queryType().name());
-        response.setColumns(new ArrayList<>(shape.columns()));
+        response.setColumns(shape.columns().stream()
+                .map(column -> enrichColumn(catalog, column))
+                .toList());
         response.setRecords(records);
         response.setTotal(total);
         response.setTruncated(sourceExceededLimit || total > records.size());
@@ -542,6 +689,74 @@ public class DataPreviewApplicationService {
             return row.get(column.getKey());
         }
         return row.get(column.getField());
+    }
+
+    private DataPreviewQueryResponse.Column enrichColumn(
+            VirtualCatalogDescriptor catalog,
+            DataPreviewQueryResponse.Column source
+    ) {
+        DataPreviewQueryResponse.Column column = new DataPreviewQueryResponse.Column();
+        column.setKey(source.getKey());
+        column.setField(source.getField());
+        column.setAggregation(source.getAggregation());
+
+        VirtualCatalogDescriptor.Field field = findField(catalog, source.getField());
+        String catalogName = field == null ? null : field.name();
+        String sourceLabel = source.getLabel();
+        column.setLabel(StringUtils.hasText(sourceLabel)
+                && !sameText(sourceLabel, source.getField())
+                && !sameText(sourceLabel, source.getKey())
+                ? sourceLabel
+                : firstText(catalogName, sourceLabel, source.getField(), source.getKey()));
+        column.setDataType(resolveDataType(source, field));
+        return column;
+    }
+
+    private VirtualCatalogDescriptor.Field findField(
+            VirtualCatalogDescriptor catalog,
+            String fieldCode
+    ) {
+        if (catalog == null || !StringUtils.hasText(fieldCode)) {
+            return null;
+        }
+        return catalog.fields().stream()
+                .filter(field -> fieldCode.equals(field.code()))
+                .findFirst()
+                .orElse(null);
+    }
+
+    private String resolveDataType(
+            DataPreviewQueryResponse.Column column,
+            VirtualCatalogDescriptor.Field field
+    ) {
+        if (StringUtils.hasText(column.getAggregation())) {
+            return "number";
+        }
+        if (field == null || field.logicalType() == null) {
+            return null;
+        }
+        return switch (field.logicalType()) {
+            case BOOLEAN -> "boolean";
+            case INTEGER, LONG, DECIMAL -> "number";
+            case DATE -> "date";
+            case TIMESTAMP -> "datetime";
+            case STRING -> "string";
+            default -> "unknown";
+        };
+    }
+
+    private boolean sameText(String left, String right) {
+        return StringUtils.hasText(left) && StringUtils.hasText(right)
+                && left.trim().equalsIgnoreCase(right.trim());
+    }
+
+    private String firstText(String... values) {
+        for (String value : values) {
+            if (StringUtils.hasText(value)) {
+                return value.trim();
+            }
+        }
+        return "";
     }
 
     private Object projectedValue(Map<String, Object> row, String field) {
@@ -898,6 +1113,18 @@ public class DataPreviewApplicationService {
     private record Range(Object start, Object end) {
     }
 
+    private record PublishedFieldResolution(
+            Set<String> knownFields,
+            Set<String> unknownOutputFields,
+            List<String> relationCodes
+    ) {
+        private PublishedFieldResolution {
+            knownFields = Set.copyOf(knownFields);
+            unknownOutputFields = Set.copyOf(unknownOutputFields);
+            relationCodes = List.copyOf(relationCodes);
+        }
+    }
+
     private record QueryShape(
             QueryType queryType,
             List<String> fields,
@@ -914,6 +1141,12 @@ public class DataPreviewApplicationService {
             referencedFields = Set.copyOf(referencedFields);
             sortFields = Map.copyOf(sortFields);
             columns = List.copyOf(columns);
+        }
+
+        private Set<String> outputFields() {
+            LinkedHashSet<String> result = new LinkedHashSet<>();
+            columns.forEach(column -> result.add(column.getField()));
+            return result;
         }
     }
 }

@@ -94,8 +94,7 @@ const baseSchema: ListRendererSchema = {
   fields: [
     {
       key: 'id',
-      name: 'id',
-      label: 'ID',
+      name: '任务编号',
       field: ['id'],
       options: {
         styles: {
@@ -107,8 +106,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'title',
-      name: 'title',
-      label: '任务',
+      name: '任务名称',
       field: ['tag', 'title'],
       options: {
         styles: {
@@ -120,8 +118,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'owner',
-      name: 'owner',
-      label: '负责人',
+      name: '负责人',
       field: ['owner'],
       options: {
         styles: {
@@ -132,8 +129,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'deadline',
-      name: 'deadline',
-      label: '截止时间',
+      name: '截止时间',
       field: ['deadline'],
       options: {
         styles: {
@@ -144,8 +140,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'priority',
-      name: 'priority',
-      label: '优先级',
+      name: '优先级',
       field: ['priority'],
       options: {
         styles: {

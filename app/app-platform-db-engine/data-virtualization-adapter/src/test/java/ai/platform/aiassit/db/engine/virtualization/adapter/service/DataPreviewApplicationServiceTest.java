@@ -10,6 +10,7 @@ import ai.platform.aiassit.data.virtualization.api.dto.VirtualQueryResponse;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.AggregateFunction;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FilterOperator;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.FilterType;
+import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.LogicalType;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.QueryType;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.RelationResultMode;
 import ai.platform.aiassit.data.virtualization.api.enums.VirtualDataEnums.SortDirection;
@@ -112,6 +113,62 @@ class DataPreviewApplicationServiceTest {
     }
 
     @Test
+    void keepsUnknownListDimensionAsNullAndRemovesItFromQueryProjection() {
+        DataPreviewApplicationService service = service(allowRequestedFields());
+        queryGateway.response = response(1L, row("id", 1L, "physical_secret", "hidden"));
+
+        DataPreviewQueryRequest request = baseRequest();
+        request.setDimensions(List.of(
+                dimension("id", null, "编号"),
+                dimension("consignee", null, "收件人")
+        ));
+        request.setSorts(List.of(sort("consignee", "DESC")));
+
+        DataPreviewQueryResponse result = service.query(request);
+
+        assertThat(queryGateway.lastRequest.getFields()).containsExactly("id");
+        assertThat(queryGateway.lastRequest.getSorts()).isEmpty();
+        assertThat(result.getColumns()).extracting(DataPreviewQueryResponse.Column::getKey)
+                .containsExactly("id", "consignee");
+        assertThat(result.getRecords()).singleElement().satisfies(record -> {
+            assertThat(record).containsEntry("id", 1L);
+            assertThat(record.keySet()).contains("consignee");
+            assertThat(record.get("consignee")).isNull();
+            assertThat(record.keySet()).doesNotContain("physical_secret");
+        });
+    }
+
+    @Test
+    void usesSafeFallbackProjectionWhenAllListDimensionsAreUnknown() {
+        DataPreviewApplicationService service = service(allowRequestedFields());
+        queryGateway.response = response(1L, row("id", 1L));
+
+        DataPreviewQueryRequest request = baseRequest();
+        request.setDimensions(List.of(dimension("consignee", null, "收件人")));
+
+        DataPreviewQueryResponse result = service.query(request);
+
+        assertThat(queryGateway.lastRequest.getFields()).containsExactly("id");
+        assertThat(queryGateway.lastRequest.getFields()).doesNotContain("consignee");
+        assertThat(result.getRecords()).hasSize(1);
+        assertThat(result.getRecords().get(0).keySet()).contains("consignee");
+        assertThat(result.getRecords().get(0).get("consignee")).isNull();
+    }
+
+    @Test
+    void keepsUnknownOutputOptionalButRejectsUnknownFilter() {
+        DataPreviewApplicationService service = service(allowRequestedFields());
+        DataPreviewQueryRequest request = baseRequest();
+        request.setDimensions(List.of(dimension("consignee", null, "收件人")));
+        request.setFilters(List.of(filter("consignee", "EQ", "Alice")));
+
+        assertThatThrownBy(() -> service.query(request))
+                .isInstanceOfSatisfying(VirtualDataRuntimeException.class, exception ->
+                        assertThat(exception.getCode()).isEqualTo(DataPreviewErrorCode.FIELD_NOT_FOUND));
+        assertThat(queryGateway.callCount).isZero();
+    }
+
+    @Test
     void translatesMeasuresDimensionsTimeRangeAndSortToAggregatePreview() {
         DataPreviewApplicationService service = service(allowRequestedFields());
         queryGateway.response = response(1L, row("region", "CN", "sales", 100L));
@@ -150,6 +207,51 @@ class DataPreviewApplicationServiceTest {
         assertThat(result.getColumns()).extracting(DataPreviewQueryResponse.Column::getKey)
                 .containsExactly("region", "sales");
         assertThat(result.getRecords()).containsExactly(row("region", "CN", "sales", 100L));
+    }
+
+    @Test
+    void keepsUnknownAggregateAsNullAndRemovesItFromExecutionAggregates() {
+        DataPreviewApplicationService service = service(allowRequestedFields());
+        queryGateway.response = response(1L, row("region", "CN", "sales", 100L));
+
+        DataPreviewQueryRequest request = baseRequest();
+        request.setDimensions(List.of(dimension("region", null, "区域")));
+        request.setMeasures(List.of(
+                measure("amount", "SUM", "sales", "销售额"),
+                measure("missing_amount", "COUNT", "missing_count", "缺失金额")
+        ));
+
+        DataPreviewQueryResponse result = service.query(request);
+
+        assertThat(queryGateway.lastRequest.getAggregates()).extracting(aggregate -> aggregate.getField())
+                .containsExactly("amount");
+        assertThat(result.getColumns()).extracting(DataPreviewQueryResponse.Column::getKey)
+                .containsExactly("region", "sales", "missing_count");
+        assertThat(result.getRecords()).hasSize(1);
+        assertThat(result.getRecords().get(0)).containsEntry("region", "CN").containsEntry("sales", 100L);
+        assertThat(result.getRecords().get(0).get("missing_count")).isNull();
+    }
+
+    @Test
+    void enrichesPreviewColumnsWithCatalogNameAndLogicalType() {
+        catalogGateway.stub("orders", 17L, new VirtualCatalogDescriptor(
+                "orders",
+                17L,
+                List.of(new VirtualCatalogDescriptor.Field(
+                        "is_default", "是否默认", LogicalType.BOOLEAN, false, true)),
+                List.of()
+        ));
+        queryGateway.response = response(2L, row("is_default", 1), row("is_default", 0));
+
+        DataPreviewQueryRequest request = baseRequest();
+        request.setDimensions(List.of(dimension("is_default", null, null)));
+
+        DataPreviewQueryResponse result = service(allowRequestedFields()).query(request);
+
+        assertThat(result.getColumns()).singleElement().satisfies(column -> {
+            assertThat(column.getLabel()).isEqualTo("是否默认");
+            assertThat(column.getDataType()).isEqualTo("boolean");
+        });
     }
 
     @Test

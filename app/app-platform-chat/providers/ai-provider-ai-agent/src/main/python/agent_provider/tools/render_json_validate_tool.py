@@ -57,14 +57,24 @@ class DatasourceSortInput(BaseModel):
     direction: Literal["asc", "desc"]
 
 
+class RenderDatasourceFieldInput(BaseModel):
+    """Preview-approved display metadata for one projected field."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    key: str = Field(pattern=_IDENTIFIER_PATTERN)
+    name: str = Field(min_length=1, max_length=256)
+    data_type: Literal["boolean", "number", "string", "date", "datetime", "unknown"] = "unknown"
+
+
 class RenderDatasourceInput(BaseModel):
-    """Only datasource facts may cross the model/tool boundary."""
+    """Only preview-approved datasource facts and field metadata may cross the model/tool boundary."""
 
     model_config = ConfigDict(extra="forbid")
 
     key: str = Field(pattern=_IDENTIFIER_PATTERN)
     model: str = Field(pattern=_IDENTIFIER_PATTERN)
-    fields: list[str] = Field(min_length=1, max_length=100)
+    fields: list[RenderDatasourceFieldInput] = Field(min_length=1, max_length=100)
     filters: list[DatasourceFilterInput]
     sorts: list[DatasourceSortInput]
     page: int = Field(ge=1)
@@ -156,8 +166,9 @@ def build_render_json_validate_tool(run: dict[str, Any], function_tool_factory: 
         name_override=RENDER_JSON_VALIDATE_TOOL_CODE,
         description_override=(
             "Materialize and deterministically validate a Render JSON document from one approved component test case. "
-            "Pass only the successful preview's datasource configuration; never pass a hand-written RenderDocument. "
-            "The tool derives list columns and chart bindings from datasource.fields."
+            "Pass only the successful preview's datasource configuration and field metadata; never pass a hand-written RenderDocument. "
+            "For list-table, datasource.fields must be copied from the successful preview's fieldMetadata, including the display name and data type. "
+            "The tool derives list columns, boolean masks, and chart bindings from datasource.fields."
         ),
     )
     return decorator(validate_render_json)
@@ -209,6 +220,8 @@ def _materialize_case(
         )
     if component_test_case == "radar-chart" and len(fields) > 8:
         raise ValueError("radar-chart supports at most 8 datasource fields")
+    if component_test_case == "list-table":
+        _require_display_names(fields)
 
     document = deepcopy(case["document"])
     root = document["root"]
@@ -216,17 +229,14 @@ def _materialize_case(
 
     if component_test_case == "list-table":
         schema = _required_schema(root)
-        schema["fields"] = [
-            {"key": field, "name": field, "label": field, "field": [field]}
-            for field in fields
-        ]
+        schema["fields"] = [_materialize_list_field(field) for field in fields]
     elif component_test_case == "form-edit":
         schema = _required_schema(root)
         schema["fields"] = [
             {
-                "key": field,
-                "name": field,
-                "label": field,
+                "key": field.key,
+                "name": field.name,
+                "label": field.name,
                 "type": "text",
                 "options": {"span": 6, "labelPosition": "left"},
             }
@@ -243,18 +253,19 @@ def _materialize_case(
 
 def _materialize_datasource(source: RenderDatasourceInput) -> dict[str, Any]:
     fields = _validated_fields(source.fields)
+    field_keys = [field.key for field in fields]
     datasource: dict[str, Any] = {
         "key": source.key,
         "type": "db-query-list",
         "model": source.model,
         "page": source.page,
         "page_size": source.page_size,
-        "ext": {"fields": fields},
+        "ext": {"fields": field_keys},
     }
     if source.filters:
         filter_dict: dict[str, Any] = {}
         for item in source.filters:
-            if item.field not in fields:
+            if item.field not in field_keys:
                 raise ValueError(f"Filter field is not in datasource.fields: {item.field}")
             if item.operator in {"is_null", "is_not_null"}:
                 filter_dict[item.field] = {"op": item.operator}
@@ -268,7 +279,7 @@ def _materialize_datasource(source: RenderDatasourceInput) -> dict[str, Any]:
         datasource["filter_dict"] = filter_dict
     if source.sorts:
         for item in source.sorts:
-            if item.field not in fields:
+            if item.field not in field_keys:
                 raise ValueError(f"Sort field is not in datasource.fields: {item.field}")
         datasource["ext"]["sorts"] = [
             {"field": item.field, "order": item.direction}
@@ -277,24 +288,24 @@ def _materialize_datasource(source: RenderDatasourceInput) -> dict[str, Any]:
     return datasource
 
 
-def _materialize_line_bindings(root: dict[str, Any], fields: list[str]) -> None:
+def _materialize_line_bindings(root: dict[str, Any], fields: list[RenderDatasourceFieldInput]) -> None:
     root["bindings"] = {
-        "category": {"source": fields[0]},
-        "series": [{"source": field} for field in fields[1:]],
+        "category": {"source": fields[0].key},
+        "series": [{"source": field.key} for field in fields[1:]],
     }
 
 
-def _materialize_combo_bindings(root: dict[str, Any], fields: list[str]) -> None:
+def _materialize_combo_bindings(root: dict[str, Any], fields: list[RenderDatasourceFieldInput]) -> None:
     root["bindings"] = {
-        "category": {"source": fields[0]},
-        "barSeries": [{"source": fields[1]}],
-        "lineSeries": [{"source": field} for field in fields[2:]],
+        "category": {"source": fields[0].key},
+        "barSeries": [{"source": fields[1].key}],
+        "lineSeries": [{"source": field.key} for field in fields[2:]],
     }
 
 
-def _materialize_radar_bindings(root: dict[str, Any], fields: list[str]) -> None:
+def _materialize_radar_bindings(root: dict[str, Any], fields: list[RenderDatasourceFieldInput]) -> None:
     root["bindings"] = {
-        "indicators": [{"source": field} for field in fields],
+        "indicators": [{"source": field.key} for field in fields],
     }
 
 
@@ -305,14 +316,47 @@ def _required_schema(root: dict[str, Any]) -> dict[str, Any]:
     return props["schema"]
 
 
-def _validated_fields(value: list[str]) -> list[str]:
-    fields: list[str] = []
+def _validated_fields(value: list[RenderDatasourceFieldInput]) -> list[RenderDatasourceFieldInput]:
+    fields: list[RenderDatasourceFieldInput] = []
     seen: set[str] = set()
     for field in value:
-        if not isinstance(field, str) or not re.fullmatch(_IDENTIFIER_PATTERN, field):
-            raise ValueError(f"Invalid datasource field: {field}")
-        if field in seen:
-            raise ValueError(f"Duplicate datasource field: {field}")
-        seen.add(field)
-        fields.append(field)
+        if not isinstance(field, RenderDatasourceFieldInput):
+            raise ValueError(f"Invalid datasource field metadata: {field}")
+        key = field.key.strip()
+        name = field.name.strip()
+        if not re.fullmatch(_IDENTIFIER_PATTERN, key):
+            raise ValueError(f"Invalid datasource field: {field.key}")
+        if not name:
+            raise ValueError(f"Datasource field name is required: {key}")
+        if key in seen:
+            raise ValueError(f"Duplicate datasource field: {key}")
+        seen.add(key)
+        fields.append(field.model_copy(update={"key": key, "name": name}))
     return fields
+
+
+def _require_display_names(fields: list[RenderDatasourceFieldInput]) -> None:
+    for field in fields:
+        if field.name.casefold() == field.key.casefold():
+            raise ValueError(
+                f"List field {field.key} requires a preview-approved display name different from its field key"
+            )
+
+
+def _materialize_list_field(field: RenderDatasourceFieldInput) -> dict[str, Any]:
+    materialized: dict[str, Any] = {
+        "key": field.key,
+        "name": field.name,
+        "field": [field.key],
+    }
+    if field.data_type == "boolean":
+        materialized["options"] = {
+            "mask": {
+                "type": "select",
+                "options": [
+                    {"label": "是", "value": True},
+                    {"label": "否", "value": False},
+                ],
+            },
+        }
+    return materialized

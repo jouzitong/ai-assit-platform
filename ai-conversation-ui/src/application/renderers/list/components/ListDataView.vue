@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { resolveRendererActionIcon } from '../../action'
-import { getColumnMinWidth, getFieldValue } from '../schema'
+import { getColumnMinWidth, getFieldDisplayValue, getFieldName } from '../schema'
 import type { ListRendererSchema, RendererAction } from '../types'
 
 const props = defineProps<{
@@ -67,8 +67,8 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
       >
         <div class="list-data-view__card-content">
           <div v-for="field in fields" :key="field.key" class="list-data-view__card-field">
-            <span class="list-data-view__label">{{ field.label }}</span>
-            <span class="list-data-view__value">{{ getFieldValue(row, field) }}</span>
+            <span class="list-data-view__label">{{ getFieldName(field) }}</span>
+            <span class="list-data-view__value">{{ getFieldDisplayValue(row, field) }}</span>
           </div>
         </div>
         <div v-if="rowActions.length" class="list-data-view__card-actions">
@@ -100,7 +100,7 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
       <el-table-column
         v-for="field in fields"
         :key="field.key"
-        :label="field.label"
+        :label="getFieldName(field)"
         :prop="field.key"
         :min-width="getColumnMinWidth(field)"
         :class-name="field.options?.className"
@@ -108,7 +108,7 @@ const getRowStyle = ({ rowIndex }: { rowIndex: number }) => ({
         show-overflow-tooltip
       >
         <template #default="{ row }">
-          <span>{{ getFieldValue(row, field) }}</span>
+          <span>{{ getFieldDisplayValue(row, field) }}</span>
         </template>
       </el-table-column>
 

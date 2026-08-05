@@ -46,6 +46,8 @@ const EFFECTIVE_STATUS_DRAFT = 1
 const EFFECTIVE_STATUS_PUBLISHED = 2
 const EFFECTIVE_STATUS_DISABLED = 3
 const PREVIEW_MODEL_PAGE_SIZE = 500
+const METADATA_CODE_PREVIEW_HEAD_LENGTH = 12
+const METADATA_CODE_PREVIEW_TAIL_LENGTH = 9
 const previewLayoutOptions: Array<{
   value: RenderPreviewLayout
   label: string
@@ -174,6 +176,15 @@ function formatPreview(value?: RenderPageContent) {
   }
   const normalized = JSON.stringify(value).replace(/\s+/g, ' ').trim()
   return normalized.length > 120 ? `${normalized.slice(0, 120)}...` : normalized
+}
+
+function formatMetadataCode(value?: string) {
+  const normalized = value?.trim() || '-'
+  const previewLength = METADATA_CODE_PREVIEW_HEAD_LENGTH + METADATA_CODE_PREVIEW_TAIL_LENGTH + 3
+  if (normalized.length <= previewLength) {
+    return normalized
+  }
+  return `${normalized.slice(0, METADATA_CODE_PREVIEW_HEAD_LENGTH)}...${normalized.slice(-METADATA_CODE_PREVIEW_TAIL_LENGTH)}`
 }
 
 function formatStatus(status?: RenderPageStatus) {
@@ -862,9 +873,11 @@ onMounted(() => {
               class="component-manage-card"
             >
               <div class="component-manage-card__row">
-                <div>
+                <div class="component-manage-card__identity">
                   <div class="component-manage-card__name">{{ record.name }}</div>
-                  <div class="component-manage-card__meta">{{ record.code }}</div>
+                  <div class="component-manage-card__meta" :title="record.code">
+                    {{ formatMetadataCode(record.code) }}
+                  </div>
                 </div>
                 <div class="component-manage-card__actions">
                   <el-tag size="small" effect="plain" :type="record.statusType">
@@ -1345,10 +1358,22 @@ onMounted(() => {
   gap: 12px;
 }
 
+.component-manage-card__row {
+  min-width: 0;
+}
+
+.component-manage-card__identity {
+  min-width: 0;
+  flex: 1 1 auto;
+}
+
 .component-manage-card__name {
   color: var(--system-title);
   font-size: 16px;
   font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .component-manage-card__meta,
@@ -1358,13 +1383,34 @@ onMounted(() => {
 }
 
 .component-manage-card__meta {
+  display: block;
   margin-top: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .component-manage-card__actions {
   display: flex;
   align-items: center;
+  flex: 0 0 auto;
   gap: 4px;
+  min-width: max-content;
+}
+
+.component-manage-card__actions :deep(.el-tag) {
+  flex: 0 0 auto;
+}
+
+.component-manage-card__info {
+  min-width: 0;
+}
+
+.component-manage-card__info > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .component-manage-card__more {
@@ -1379,8 +1425,8 @@ onMounted(() => {
   background: transparent;
   color: var(--system-text-faint);
   cursor: pointer;
-  opacity: 0;
-  pointer-events: none;
+  opacity: 1;
+  pointer-events: auto;
   transition: opacity 0.2s ease, background-color 0.2s ease, color 0.2s ease;
 }
 

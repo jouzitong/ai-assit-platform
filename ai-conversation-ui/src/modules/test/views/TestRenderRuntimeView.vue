@@ -124,8 +124,7 @@ const baseSchema: ListRendererSchema = {
   fields: [
     {
       key: 'id',
-      name: 'id',
-      label: 'ID',
+      name: 'ID',
       field: ['id'],
       options: {
         styles: {
@@ -137,8 +136,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'config_key',
-      name: 'config_key',
-      label: '配置键',
+      name: '配置键',
       field: ['config_key'],
       options: {
         styles: {
@@ -149,8 +147,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'value_type',
-      name: 'value_type',
-      label: '值类型',
+      name: '值类型',
       field: ['value_type'],
       options: {
         styles: {
@@ -161,8 +158,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'config_value',
-      name: 'config_value',
-      label: '配置值',
+      name: '配置值',
       field: ['config_value'],
       options: {
         styles: {
@@ -173,8 +169,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'desc',
-      name: 'desc',
-      label: '备注',
+      name: '备注',
       field: ['desc'],
       options: {
         styles: {
@@ -185,8 +180,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'tags',
-      name: 'tags',
-      label: '标签',
+      name: '标签',
       field: ['tags'],
       options: {
         styles: {
@@ -197,8 +191,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'deleted',
-      name: 'deleted',
-      label: '删除',
+      name: '删除标记',
       field: ['deleted'],
       options: {
         styles: {
@@ -209,8 +202,7 @@ const baseSchema: ListRendererSchema = {
     },
     {
       key: 'update_time',
-      name: 'update_time',
-      label: '更新时间',
+      name: '更新时间',
       field: ['update_time'],
       options: {
         styles: {

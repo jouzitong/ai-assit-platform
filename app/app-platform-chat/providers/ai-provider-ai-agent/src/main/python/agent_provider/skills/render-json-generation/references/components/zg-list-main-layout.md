@@ -12,7 +12,9 @@ Render a pageable business table from a declarative list schema. Use this case f
 - Events: `action`, `itemAction`, `queryChange`, `reload`
 - Schema component: `zg-common-list` for a normal table or `zg-common-tree-list` for a tree table
 
-The generation fixture always uses a normal table, no filters, no row actions, and bounded pagination. The materializer fills `schema.fields` from the approved `datasource.fields` in the same order. Each generated field is `{ key, name, label, field: [key] }`.
+The generation fixture always uses a normal table, no filters, no row actions, and bounded pagination. The materializer fills `schema.fields` from the approved `datasource.fields` in the same order. Each generated field is `{ key, name, field: [key] }`; `label` is not emitted. `name` comes from preview `fieldMetadata[].name`, not from the database field key.
+
+For a preview-approved boolean field, the materializer adds `options.mask` with `type: "select"` and the two options `{ label: "是", value: true }` and `{ label: "否", value: false }`. The mask is generated only from `fieldMetadata[].data_type: "boolean"`.
 
 ## Datasource mapping
 
@@ -20,7 +22,7 @@ Use `db-query-list` at the node level. `model`, `filter_dict`, `page`, `page_siz
 
 ## Invariants
 
-- Keep every field a stable semantic identifier.
+- Keep every field key a stable semantic identifier and keep its preview-approved `name`/`data_type` pair unchanged.
 - Do not hand-edit `props.schema.fields`; change the datasource field list and let the tool derive columns.
 - Do not add SQL, URLs, headers, credentials, executable strings, or arbitrary actions.
 - Keep page and page size within the datasource limits.

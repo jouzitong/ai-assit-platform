@@ -163,6 +163,7 @@ def preview_data_contract(run: dict[str, Any], data_contract: str | dict[str, An
             "sourceRevision": "virtual-model/v1",
             "queryType": "LIST",
             "columns": ["preview"],
+            "fieldMetadata": [{"key": "preview", "name": "预览字段", "data_type": "unknown"}],
             "records": [],
             "total": 0,
             "truncated": False,
@@ -240,6 +241,7 @@ def preview_data_contract(run: dict[str, Any], data_contract: str | dict[str, An
             "errorCode": "DATA_PREVIEW_RESPONSE_INVALID",
             "error": "Data preview response did not contain a matching bounded preview proof.",
         }
+    columns = data.get("columns") if isinstance(data.get("columns"), list) else []
     return {
         "tool": "data_preview_query_tool",
         "success": True,
@@ -247,7 +249,8 @@ def preview_data_contract(run: dict[str, Any], data_contract: str | dict[str, An
         "catalogVersion": catalog_version,
         "sourceRevision": source_response,
         "queryType": query_type,
-        "columns": data.get("columns") if isinstance(data.get("columns"), list) else [],
+        "columns": columns,
+        "fieldMetadata": _build_field_metadata(columns, records),
         "records": records,
         "total": data.get("total"),
         "truncated": bool(data.get("truncated")),
@@ -271,10 +274,84 @@ def build_data_preview_query_tool(run: dict[str, Any], function_tool_factory: An
         name_override="data_preview_query_tool",
         description_override=(
             "Validate one DataContract against the published virtual catalog and return at most 100 read-only sample rows. "
+            "The result includes preview-approved fieldMetadata with human-readable names and normalized data types for downstream Render JSON generation. "
             "Pass the complete DataContract as a JSON string; SQL, physical tables, credentials, and arbitrary endpoints are forbidden."
         ),
     )
     return decorator(preview_data)
+
+
+def _build_field_metadata(columns: list[Any], records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Expose compact, preview-derived display metadata for Render JSON generation."""
+
+    result: list[dict[str, Any]] = []
+    for column in columns:
+        if isinstance(column, str):
+            key = column.strip()
+            name = key
+        elif isinstance(column, dict):
+            key = _preview_text(column.get("key")) or _preview_text(column.get("name")) or _preview_text(column.get("field"))
+            name = _preview_display_name(column, key)
+        else:
+            continue
+        if not key:
+            continue
+        result.append({
+            "key": key,
+            "name": name or key,
+            "data_type": _normalize_preview_data_type(column) or _infer_preview_data_type(key, records),
+        })
+    return result
+
+
+def _normalize_preview_data_type(column: Any) -> str | None:
+    if not isinstance(column, dict):
+        return None
+    value = _preview_text(column.get("data_type")) or _preview_text(column.get("dataType"))
+    if not value:
+        return None
+    normalized = value.casefold()
+    if normalized in {"bool", "boolean"}:
+        return "boolean"
+    if normalized in {"int", "integer", "long", "decimal", "number", "float", "double"}:
+        return "number"
+    if normalized in {"date"}:
+        return "date"
+    if normalized in {"datetime", "timestamp", "time"}:
+        return "datetime"
+    if normalized in {"string", "text", "varchar"}:
+        return "string"
+    return "unknown"
+
+
+def _preview_display_name(column: dict[str, Any], key: str | None) -> str | None:
+    candidates = [
+        _preview_text(column.get("name")),
+        _preview_text(column.get("label")),
+    ]
+    for candidate in candidates:
+        if candidate and key and candidate.casefold() != key.casefold():
+            return candidate
+    return next((candidate for candidate in candidates if candidate), key)
+
+
+def _infer_preview_data_type(key: str, records: list[dict[str, Any]]) -> str:
+    """Infer only types that are unambiguous in the bounded preview sample."""
+
+    values = [record[key] for record in records if key in record and record[key] is not None]
+    if not values:
+        return "unknown"
+    if all(type(value) is bool for value in values):
+        return "boolean"
+    if all(type(value) in {int, float} for value in values):
+        return "number"
+    if all(isinstance(value, str) for value in values):
+        return "string"
+    return "unknown"
+
+
+def _preview_text(value: Any) -> str | None:
+    return value.strip() if isinstance(value, str) and value.strip() else None
 
 
 @function_tool

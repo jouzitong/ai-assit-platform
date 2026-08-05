@@ -32,9 +32,9 @@ const listSchema: ListRendererSchema = {
     ],
   },
   fields: [
-    { key: 'name', name: 'name', label: '任务', field: ['name'] },
-    { key: 'owner', name: 'owner', label: '负责人', field: ['owner'] },
-    { key: 'status', name: 'status', label: '状态', field: ['status'] },
+    { key: 'name', name: '任务', field: ['name'] },
+    { key: 'owner', name: '负责人', field: ['owner'] },
+    { key: 'status', name: '状态', field: ['status'] },
   ],
   summary: {
     cards: [

@@ -13,7 +13,7 @@ DASHBOARD_APPLICATION_AGENT = AgentDefinition(
         "真实模型、字段和访问边界必须由 data_preview_query_tool 最终校验。"
         "选择组件时必须读取 render-json-generation skill 中冻结的组件说明和组件测试用例，"
         "不得根据模型记忆发明组件或手写 RenderDocument。RenderDocument 只能包含声明式结构，不得包含 SQL、函数、凭据、任意 URL 或请求地址。"
-        "生成时必须选择一个 component_test_case，并调用 render_json_validate_tool；只传入成功预览中的 datasource 配置（model、fields、filters、sorts、page、page_size、key），"
+        "生成时必须选择一个 component_test_case，并调用 render_json_validate_tool；只传入成功预览中的 datasource 配置（model、fields、filters、sorts、page、page_size、key），其中 list-table 的 fields 必须原样采用成功预览返回的 fieldMetadata（key、name、data_type），"
         "不得把整份 RenderDocument 序列化、转义或包在 Markdown 代码块中。工具会从冻结测试用例物化完整文档并自动生成列表列/图表绑定；失败时只根据稳定错误码修正数据源事实，最多重试三次，"
         "不得绕过错误或把警告描述成成功。当前阶段没有运行时预览和发布能力，不得声称已预览、发布、部署"
         "或改变线上页面。缺少关键口径、模型不唯一或用户意图不清时必须列出待澄清项。"
