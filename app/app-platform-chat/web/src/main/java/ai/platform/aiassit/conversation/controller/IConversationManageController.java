@@ -6,6 +6,11 @@ import ai.platform.aiassit.conversation.dto.conversation.ConversationRenameReque
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSearchRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSessionVO;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDeleteRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupAssignRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupCreateRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupDeleteRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupRenameRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupVO;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -64,4 +69,24 @@ public interface IConversationManageController {
      */
     @PostMapping("/delete")
     Boolean delete(@RequestBody ConversationDeleteRequest request);
+
+    /** 查询当前用户可用的会话分组。 */
+    @PostMapping("/group/list")
+    List<ConversationGroupVO> listGroups();
+
+    /** 创建当前用户的会话分组。 */
+    @PostMapping("/group/create")
+    ConversationGroupVO createGroup(@RequestBody(required = false) ConversationGroupCreateRequest request);
+
+    /** 重命名当前用户的会话分组。 */
+    @PostMapping("/group/rename")
+    ConversationGroupVO renameGroup(@RequestBody(required = false) ConversationGroupRenameRequest request);
+
+    /** 删除分组并将其中会话移动到未分组，不删除聊天历史。 */
+    @PostMapping("/group/delete")
+    Boolean deleteGroup(@RequestBody(required = false) ConversationGroupDeleteRequest request);
+
+    /** 将当前用户的会话移动到目标分组；目标为空表示未分组。 */
+    @PostMapping("/group/assign")
+    ConversationSessionVO assignGroup(@RequestBody(required = false) ConversationGroupAssignRequest request);
 }

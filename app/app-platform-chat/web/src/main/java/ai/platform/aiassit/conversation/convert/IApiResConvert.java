@@ -1,6 +1,8 @@
 package ai.platform.aiassit.conversation.convert;
 
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSessionVO;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupVO;
+import ai.platform.aiassit.conversation.data.entity.dto.ConversationGroupDTO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
 import org.mapstruct.Mapper;
 
@@ -13,5 +15,7 @@ import org.mapstruct.Mapper;
 public interface IApiResConvert {
 
     ConversationSessionVO toVO(ConversationSessionDTO dto);
+
+    ConversationGroupVO toGroupVO(ConversationGroupDTO dto);
 
 }

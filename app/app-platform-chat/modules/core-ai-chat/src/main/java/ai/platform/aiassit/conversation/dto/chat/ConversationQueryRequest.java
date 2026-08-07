@@ -36,6 +36,9 @@ public class ConversationQueryRequest extends BaseRequest {
      */
     private String sessionCode;
 
+    /** 新会话首条消息的可选分组编码；续聊时必须与服务端已有归属一致。 */
+    private String groupCode;
+
     /** 用户从系统已启用模型中选择的配置 ID，连接信息始终由服务端解析。 */
     private Long modelId;
 

@@ -62,6 +62,7 @@ public class DefaultConversationServiceImpl implements ConversationService {
         if (request != null) {
             query.setUserId(request.getUserId());
             query.setSessionCode(request.getSessionCode());
+            query.setGroupCode(request.getGroupCode());
             query.setBusinessType(request.getBusinessType());
         }
         List<ConversationSessionDTO> sessions = sessionService.queryAll(query);

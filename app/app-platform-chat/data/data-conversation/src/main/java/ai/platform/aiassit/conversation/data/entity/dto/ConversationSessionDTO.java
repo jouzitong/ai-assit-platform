@@ -13,6 +13,8 @@ public class ConversationSessionDTO extends AuditableDTO {
 
     private Long userId;
 
+    private String groupCode;
+
     private ConversationBusinessType businessType;
 
     private String sessionName;

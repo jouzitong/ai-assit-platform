@@ -31,6 +31,9 @@ public class ConversationQueryCommand {
      */
     private String sessionCode;
 
+    /** 新会话首条消息要绑定的分组编码；已有会话续聊时不得借此改组。 */
+    private String groupCode;
+
     /**
      * 客户端为当前新轮次提供的稳定编码；为空时由服务端生成。
      */
@@ -142,6 +145,7 @@ public class ConversationQueryCommand {
                 "traceId='" + traceId + '\'' +
                 ", userId=" + userId +
                 ", sessionCode='" + sessionCode + '\'' +
+                ", groupCode='" + groupCode + '\'' +
                 ", roundCode='" + roundCode + '\'' +
                 ", businessType=" + businessType +
                 ", modelId=" + modelId +

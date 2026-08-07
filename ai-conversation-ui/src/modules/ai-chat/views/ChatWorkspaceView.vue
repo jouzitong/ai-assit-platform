@@ -11,14 +11,18 @@ import {
   Microphone,
   MoreFilled,
   Operation,
+  Plus,
   Promotion,
+  ArrowDown,
   ArrowLeftBold,
+  ArrowRight,
   ArrowRightBold,
   Search,
   Setting,
+  StarFilled,
   SwitchButton,
 } from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, useTemplateRef, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import brandLogoDark from '../../../assets/icons/brand-logo-dark.svg'
@@ -28,6 +32,7 @@ import { applyTheme, getSavedTheme } from '../../../stores/theme'
 import { formatRelativeTime } from '../../../utils/date'
 import { getDeveloperModeEnabled, setDeveloperModeEnabled } from '../../../utils/developerMode'
 import { clearSession, getStoredUser } from '../../../utils/session'
+import { AppDialog, useAppConfirm } from '../../../components'
 import ChatMessageErrorCard from '../components/ChatMessageErrorCard.vue'
 import ChatArtifactList from '../components/ChatArtifactList.vue'
 import RunActivityTimeline from '../components/RunActivityTimeline.vue'
@@ -42,11 +47,16 @@ import {
 import { renderMarkdown } from '../utils/markdown'
 import {
   fetchConversationDetail,
+  fetchConversationGroups,
   fetchConversationList,
   fetchEnabledModels,
   createChatTransportRequest,
+  createConversationGroup,
+  deleteConversationGroup,
   deleteConversation,
+  assignConversationGroup,
   pinConversation,
+  renameConversationGroup,
   renameConversation,
   ChatStreamInterruptedError,
   fetchChatRunStatus,
@@ -58,6 +68,7 @@ import type {
   ChatArtifact,
   ChatConversationRound,
   ChatEnabledModel,
+  ChatGroupItem,
   ChatRunActivity,
   ChatSessionItem,
   ChatTransportEvent,
@@ -69,6 +80,7 @@ import type {
 const route = useRoute()
 const router = useRouter()
 const ASSISTANT_DISPLAY_NAME = '智能任务助手'
+const appConfirm = useAppConfirm()
 
 type CurrentUserProfile = {
   displayName?: string
@@ -76,6 +88,21 @@ type CurrentUserProfile = {
   username?: string
   avatarUrl?: string
   profileImageUrl?: string
+}
+
+type SidebarConversation = ChatSessionItem & {
+  id: string
+  title: string
+  meta: string
+}
+
+type SidebarConversationSection = {
+  key: string
+  groupCode: string
+  label: string
+  conversations: SidebarConversation[]
+  isPinned?: boolean
+  isRecent?: boolean
 }
 
 const prompt = ref('')
@@ -89,6 +116,9 @@ const activeUserMenu = ref<'topbar' | 'sidebar' | null>(null)
 const activeTheme = ref<'dark' | 'light'>('light')
 const developerModeEnabled = ref(false)
 const conversationList = ref<ChatSessionItem[]>([])
+const groupList = ref<ChatGroupItem[]>([])
+const isLoadingGroups = ref(false)
+const groupLoadError = ref('')
 const chatMessages = ref<ChatUiMessage[]>([])
 const currentRoundCode = ref('')
 const currentSessionName = ref('')
@@ -124,6 +154,21 @@ const renameSubmitting = ref(false)
 const renamingConversation = ref<ChatSessionItem | null>(null)
 const renameSessionName = ref('')
 const openConversationMenuCode = ref('')
+const openGroupMenuCode = ref('')
+const groupDialogVisible = ref(false)
+const groupDialogSubmitting = ref(false)
+const groupNameInput = ref('')
+const editingGroupCode = ref('')
+const editingGroupName = ref('')
+const groupRenameSubmitting = ref(false)
+const groupRenameInput = ref<HTMLInputElement | null>(null)
+const moveDialogVisible = ref(false)
+const moveDialogSubmitting = ref(false)
+const moveTargetGroupCode = ref('')
+const movingConversation = ref<ChatSessionItem | null>(null)
+const pinnedExpanded = ref(true)
+const recentExpanded = ref(true)
+const collapsedGroupCodes = ref<Set<string>>(new Set())
 const welcomeTextarea = useTemplateRef<HTMLTextAreaElement>('welcomeTextarea')
 const conversationTextarea = useTemplateRef<HTMLTextAreaElement>('conversationTextarea')
 
@@ -160,6 +205,8 @@ const currentSessionCode = computed(() =>
 const currentGroupId = computed(() =>
   typeof route.params.groupId === 'string' ? route.params.groupId.trim() : '',
 )
+const currentGroup = computed(() => groupList.value.find(group => group.groupCode === currentGroupId.value))
+const currentGroupName = computed(() => currentGroup.value?.groupName || currentGroupId.value)
 const activeConversation = computed(() => currentSessionCode.value)
 const currentUserProfile = getStoredUser<CurrentUserProfile>() || {}
 const currentUserName = computed(() =>
@@ -211,19 +258,48 @@ const isPrimaryActionDisabled = computed(() => {
   }
   return !prompt.value.trim() || !selectedModel.value || isLoadingModels.value
 })
-const sidebarConversationGroups = computed(() => {
-  const conversations = conversationList.value.map((conversation) => ({
+const sidebarConversationGroups = computed<SidebarConversationSection[]>(() => {
+  const conversations: SidebarConversation[] = conversationList.value.map((conversation) => ({
     ...conversation,
     id: conversation.sessionCode,
     title: conversation.sessionName || conversation.sessionCode,
     meta: formatRelativeTime(conversation.updateTime) || conversation.sessionCode.slice(-6),
   }))
-  const pinned = conversations.filter(conversation => Boolean(conversation.pinned))
-  const regular = conversations.filter(conversation => !conversation.pinned)
+  const sortConversations = (items: SidebarConversation[]) => items.sort((left, right) => {
+    const pinnedDifference = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned))
+    if (pinnedDifference !== 0) {
+      return pinnedDifference
+    }
+    return String(right.updateTime || '').localeCompare(String(left.updateTime || ''))
+  })
+  const pinnedConversations = sortConversations(conversations.filter(conversation => Boolean(conversation.pinned)))
+  const recentConversations = sortConversations(conversations.filter(conversation => !conversation.groupCode && !conversation.pinned))
 
   return [
-    ...(pinned.length > 0 ? [{ key: 'pinned', label: '置顶', conversations: pinned }] : []),
-    { key: 'regular', label: '对话', conversations: regular },
+    ...(pinnedConversations.length > 0
+      ? [{
+          key: '__pinned__',
+          groupCode: '',
+          label: '置顶',
+          conversations: pinnedConversations,
+          isPinned: true,
+        }]
+      : []),
+    ...groupList.value.map(group => ({
+      key: group.groupCode,
+      groupCode: group.groupCode,
+      label: group.groupName,
+      conversations: sortConversations(conversations.filter(
+        conversation => conversation.groupCode === group.groupCode && !conversation.pinned,
+      )),
+    })),
+    {
+      key: '__recent__',
+      groupCode: '',
+      label: '最近',
+      conversations: recentConversations,
+      isRecent: true,
+    },
   ]
 })
 
@@ -557,6 +633,34 @@ function normalizeStreamError(error: unknown): ChatUiError {
   }
 }
 
+function encodeRouteSegment(value: string) {
+  return encodeURIComponent(value)
+}
+
+function groupRoute(groupCode: string) {
+  return `/g/${encodeRouteSegment(groupCode)}`
+}
+
+function conversationRoute(conversation: Pick<ChatSessionItem, 'sessionCode' | 'groupCode'>) {
+  const sessionCode = encodeRouteSegment(conversation.sessionCode)
+  return conversation.groupCode
+    ? `${groupRoute(conversation.groupCode)}/c/${sessionCode}`
+    : `/c/${sessionCode}`
+}
+
+async function loadConversationGroups() {
+  isLoadingGroups.value = true
+  groupLoadError.value = ''
+  try {
+    groupList.value = await fetchConversationGroups()
+  } catch (error) {
+    groupList.value = []
+    groupLoadError.value = error instanceof Error ? error.message : '分组列表加载失败'
+  } finally {
+    isLoadingGroups.value = false
+  }
+}
+
 async function loadConversationList() {
   isLoadingList.value = true
   try {
@@ -570,10 +674,241 @@ async function loadConversationList() {
 function applyConversationUpdate(updated: ChatSessionItem) {
   conversationList.value = conversationList.value
     .map((conversation) => conversation.sessionCode === updated.sessionCode ? updated : conversation)
-    .sort((left, right) => Number(Boolean(right.pinned)) - Number(Boolean(left.pinned)))
+    .sort((left, right) => {
+      const pinnedDifference = Number(Boolean(right.pinned)) - Number(Boolean(left.pinned))
+      if (pinnedDifference !== 0) {
+        return pinnedDifference
+      }
+      return String(right.updateTime || '').localeCompare(String(left.updateTime || ''))
+    })
 
   if (currentSessionCode.value === updated.sessionCode) {
     currentSessionName.value = updated.sessionName || currentSessionName.value
+  }
+}
+
+function openCreateGroup() {
+  closeConversationMenu()
+  closeGroupMenu()
+  groupNameInput.value = ''
+  groupDialogVisible.value = true
+}
+
+function openRenameGroup(group: ChatGroupItem) {
+  closeConversationMenu()
+  closeGroupMenu()
+  editingGroupCode.value = group.groupCode
+  editingGroupName.value = group.groupName || ''
+  groupRenameSubmitting.value = false
+  void nextTick(() => groupRenameInput.value?.focus())
+}
+
+function resetGroupDialog() {
+  groupNameInput.value = ''
+  groupDialogSubmitting.value = false
+}
+
+function setGroupRenameInput(element: Element | null) {
+  groupRenameInput.value = element instanceof HTMLInputElement ? element : null
+}
+
+function cancelGroupRename() {
+  editingGroupCode.value = ''
+  editingGroupName.value = ''
+  groupRenameSubmitting.value = false
+  groupRenameInput.value = null
+}
+
+async function submitGroupRename(group: ChatGroupItem) {
+  if (groupRenameSubmitting.value) {
+    return
+  }
+  const groupName = editingGroupName.value.trim()
+  if (!groupName) {
+    ElMessage.warning('请输入分组名称')
+    void nextTick(() => groupRenameInput.value?.focus())
+    return
+  }
+  if (groupName.length > 128) {
+    ElMessage.warning('分组名称不能超过 128 个字符')
+    void nextTick(() => groupRenameInput.value?.focus())
+    return
+  }
+
+  groupRenameSubmitting.value = true
+  try {
+    const updated = await renameConversationGroup({
+      groupCode: group.groupCode,
+      groupName,
+    })
+    groupList.value = groupList.value.map(item => item.groupCode === updated.groupCode ? updated : item)
+    cancelGroupRename()
+    ElMessage.success('分组已重命名')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存分组失败')
+  } finally {
+    groupRenameSubmitting.value = false
+  }
+}
+
+async function submitGroupDialog() {
+  if (groupDialogSubmitting.value) {
+    return
+  }
+  const groupName = groupNameInput.value.trim()
+  if (!groupName) {
+    ElMessage.warning('请输入分组名称')
+    return
+  }
+  if (groupName.length > 128) {
+    ElMessage.warning('分组名称不能超过 128 个字符')
+    return
+  }
+
+  groupDialogSubmitting.value = true
+  try {
+    const created = await createConversationGroup({ groupName })
+    groupList.value = [...groupList.value, created]
+    groupDialogVisible.value = false
+    ElMessage.success('分组已创建')
+    await router.push(groupRoute(created.groupCode))
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '保存分组失败')
+  } finally {
+    groupDialogSubmitting.value = false
+  }
+}
+
+async function removeGroup(group: ChatGroupItem) {
+  try {
+    const confirmed = await appConfirm(
+      `确定删除分组“${group.groupName}”吗？其中的会话会保留并移到未分组。`,
+      {
+        title: '删除分组',
+        danger: true,
+        confirmButtonText: '删除分组',
+        cancelButtonText: '取消',
+      },
+    )
+    if (!confirmed) {
+      return
+    }
+    await deleteConversationGroup({ groupCode: group.groupCode })
+    groupList.value = groupList.value.filter(item => item.groupCode !== group.groupCode)
+    conversationList.value = conversationList.value.map(conversation => (
+      conversation.groupCode === group.groupCode
+        ? { ...conversation, groupCode: null }
+        : conversation
+    ))
+    closeGroupMenu()
+    ElMessage.success('分组已删除，会话已移到未分组')
+
+    if (currentGroupId.value === group.groupCode) {
+      const currentConversation = conversationList.value.find(item => item.sessionCode === currentSessionCode.value)
+      await router.replace(currentConversation ? conversationRoute(currentConversation) : '/')
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '删除分组失败')
+  }
+}
+
+function toggleGroupMenu(groupCode: string) {
+  openConversationMenuCode.value = ''
+  openGroupMenuCode.value = openGroupMenuCode.value === groupCode ? '' : groupCode
+}
+
+function closeGroupMenu() {
+  openGroupMenuCode.value = ''
+}
+
+function toggleRecent() {
+  recentExpanded.value = !recentExpanded.value
+}
+
+function togglePinned() {
+  pinnedExpanded.value = !pinnedExpanded.value
+}
+
+function isGroupExpanded(groupCode: string) {
+  return !collapsedGroupCodes.value.has(groupCode)
+}
+
+function groupConversationListId(groupCode: string) {
+  return `chat-home-group-${encodeURIComponent(groupCode)}`
+}
+
+function isSidebarSectionExpanded(section: SidebarConversationSection) {
+  if (section.isRecent) {
+    return recentExpanded.value
+  }
+  if (section.isPinned) {
+    return pinnedExpanded.value
+  }
+  return isGroupExpanded(section.groupCode)
+}
+
+function toggleGroup(groupCode: string) {
+  const nextCollapsedGroupCodes = new Set(collapsedGroupCodes.value)
+  const isCurrentGroup = currentGroupId.value === groupCode
+
+  if (isCurrentGroup) {
+    if (nextCollapsedGroupCodes.has(groupCode)) {
+      nextCollapsedGroupCodes.delete(groupCode)
+    } else {
+      nextCollapsedGroupCodes.add(groupCode)
+    }
+  } else {
+    nextCollapsedGroupCodes.delete(groupCode)
+  }
+
+  collapsedGroupCodes.value = nextCollapsedGroupCodes
+  closeConversationMenu()
+  closeGroupMenu()
+
+  if (!isCurrentGroup) {
+    void router.push(groupRoute(groupCode))
+  }
+}
+
+function openMoveConversation(conversation: ChatSessionItem) {
+  closeConversationMenu()
+  closeGroupMenu()
+  movingConversation.value = conversation
+  moveTargetGroupCode.value = conversation.groupCode || ''
+  moveDialogVisible.value = true
+}
+
+function resetMoveConversation() {
+  movingConversation.value = null
+  moveTargetGroupCode.value = ''
+  moveDialogSubmitting.value = false
+}
+
+async function submitMoveConversation() {
+  if (moveDialogSubmitting.value) {
+    return
+  }
+  const conversation = movingConversation.value
+  if (!conversation) {
+    return
+  }
+
+  moveDialogSubmitting.value = true
+  try {
+    const updated = await assignConversationGroup({
+      sessionCode: conversation.sessionCode,
+      groupCode: moveTargetGroupCode.value || null,
+    })
+    applyConversationUpdate(updated)
+    moveDialogVisible.value = false
+    ElMessage.success(updated.groupCode ? '会话已移动到分组' : '会话已移到未分组')
+    if (currentSessionCode.value === updated.sessionCode) {
+      await router.replace(conversationRoute(updated))
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '移动会话失败')
+  } finally {
+    moveDialogSubmitting.value = false
   }
 }
 
@@ -589,6 +924,9 @@ function resetRenameConversation() {
 }
 
 async function submitRenameConversation() {
+  if (renameSubmitting.value) {
+    return
+  }
   const conversation = renamingConversation.value
   const sessionName = renameSessionName.value.trim()
   if (!conversation) {
@@ -630,11 +968,18 @@ async function toggleConversationPin(conversation: ChatSessionItem) {
 
 async function removeConversation(conversation: ChatSessionItem) {
   try {
-    await ElMessageBox.confirm(`确定删除会话“${conversation.sessionName || conversation.sessionCode}”吗？此操作不可恢复。`, '删除会话', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
+    const confirmed = await appConfirm(
+      `确定删除会话“${conversation.sessionName || conversation.sessionCode}”吗？此操作不可恢复。`,
+      {
+        title: '删除会话',
+        danger: true,
+        confirmButtonText: '删除',
+        cancelButtonText: '取消',
+      },
+    )
+    if (!confirmed) {
+      return
+    }
     await deleteConversation({ sessionCode: conversation.sessionCode })
     conversationList.value = conversationList.value.filter((item) => item.sessionCode !== conversation.sessionCode)
     ElMessage.success('会话已删除')
@@ -642,9 +987,6 @@ async function removeConversation(conversation: ChatSessionItem) {
       await router.replace('/')
     }
   } catch (error) {
-    if (error === 'cancel' || error === 'close') {
-      return
-    }
     ElMessage.error(error instanceof Error ? error.message : '删除会话失败')
   }
 }
@@ -657,6 +999,10 @@ function handleConversationCommand(command: string, conversation: ChatSessionIte
   }
   if (command === 'pin') {
     void toggleConversationPin(conversation)
+    return
+  }
+  if (command === 'move') {
+    openMoveConversation(conversation)
     return
   }
   if (command === 'delete') {
@@ -745,7 +1091,9 @@ function handleStreamEvent(
 
   if (data.sessionCode && !currentSessionCode.value) {
     pendingSessionCode.value = data.sessionCode
-    void router.replace(`/c/${data.sessionCode}`)
+    void router.replace(currentGroupId.value
+      ? `${groupRoute(currentGroupId.value)}/c/${encodeRouteSegment(data.sessionCode)}`
+      : `/c/${encodeRouteSegment(data.sessionCode)}`)
   }
   if (data.sessionCode) {
     pendingSessionCode.value = data.sessionCode
@@ -1067,6 +1415,7 @@ async function submitChatMessage(message: string) {
     const result = await streamWithRecovery(
       createChatTransportRequest({
         sessionCode: currentSessionCode.value || undefined,
+        groupCode: currentSessionCode.value ? undefined : currentGroupId.value || null,
         modelId: selectedModel.value,
         message,
       }, route.path),
@@ -1245,7 +1594,7 @@ async function handleLogout() {
 }
 
 function handleDocumentClick(event: MouseEvent) {
-  if (!activeUserMenu.value && !openConversationMenuCode.value) {
+  if (!activeUserMenu.value && !openConversationMenuCode.value && !openGroupMenuCode.value) {
     return
   }
 
@@ -1262,8 +1611,13 @@ function handleDocumentClick(event: MouseEvent) {
     return
   }
 
+  if (target instanceof Element && target.closest('.chat-home-group-wrap')) {
+    return
+  }
+
   closeUserMenu()
   closeConversationMenu()
+  closeGroupMenu()
 }
 
 onMounted(() => {
@@ -1271,6 +1625,7 @@ onMounted(() => {
   developerModeEnabled.value = getDeveloperModeEnabled()
   activeTheme.value = getSavedTheme()
   void loadEnabledModelList()
+  void loadConversationGroups()
   void loadConversationList()
 })
 
@@ -1357,56 +1712,190 @@ watch(route, () => {
         </button>
       </nav>
 
-      <div v-if="sidebarExpanded" class="chat-home-sidebar__section chat-home-sidebar__section--models">
-        <div v-if="sidebarExpanded" class="chat-home-sidebar__header">
-          <span>模型</span>
-        </div>
-        <div class="chat-home-model-inline">
-          <span class="chat-home-model-inline__dot"></span>
-          <span>{{ selectedModelLabel }}</span>
-        </div>
-      </div>
-
       <div v-if="sidebarExpanded" class="chat-home-sidebar__section chat-home-sidebar__section--conversations">
+        <div class="chat-home-sidebar__header chat-home-sidebar__header--actions">
+          <button
+            class="chat-home-sidebar__header-action"
+            type="button"
+            aria-label="新建分组"
+            title="新建分组"
+            :disabled="isStreaming"
+            @click="openCreateGroup"
+          >
+            <el-icon><Plus /></el-icon>
+          </button>
+        </div>
+        <div v-if="groupLoadError" class="chat-home-thread-empty chat-home-thread-empty--error">
+          {{ groupLoadError }}
+        </div>
+        <div v-else-if="isLoadingGroups" class="chat-home-thread-empty">分组加载中...</div>
         <template v-for="group in sidebarConversationGroups" :key="group.key">
-          <div class="chat-home-group-label">{{ group.label }}</div>
-          <div v-if="group.key === 'regular'" class="chat-home-group-label chat-home-group-label--muted">
-            {{ isLoadingList ? '加载中...' : `共 ${group.conversations.length} 个会话` }}
+          <div :class="['chat-home-group-wrap', { 'chat-home-group-wrap--recent': group.isRecent }]">
+            <button
+              v-if="group.isPinned"
+              class="chat-home-group-label chat-home-group-label--button chat-home-group-label--heading chat-home-group-label--pinned"
+              type="button"
+              :aria-expanded="pinnedExpanded"
+              aria-controls="chat-home-pinned-list"
+              :disabled="isStreaming"
+              @click="togglePinned"
+            >
+              <el-icon class="chat-home-group-label__toggle chat-home-group-label__toggle--leading">
+                <ArrowDown v-if="pinnedExpanded" />
+                <ArrowRight v-else />
+              </el-icon>
+              <el-icon><StarFilled /></el-icon>
+              <span>{{ group.label }}</span>
+              <small>{{ group.conversations.length }}</small>
+            </button>
+            <button
+              v-else-if="group.isRecent"
+              class="chat-home-group-label chat-home-group-label--button chat-home-group-label--collapsible"
+              type="button"
+              :aria-expanded="recentExpanded"
+              aria-controls="chat-home-recent-list"
+              :disabled="isStreaming"
+              @click="toggleRecent"
+            >
+              <el-icon><Clock /></el-icon>
+              <span>{{ group.label }}</span>
+              <small>{{ group.conversations.length }}</small>
+              <el-icon class="chat-home-group-label__toggle">
+                <ArrowDown v-if="recentExpanded" />
+                <ArrowRight v-else />
+              </el-icon>
+            </button>
+            <div
+              v-else-if="editingGroupCode === group.groupCode"
+              class="chat-home-group-label chat-home-group-label--heading chat-home-group-label--editing"
+            >
+              <el-icon class="chat-home-group-label__toggle chat-home-group-label__toggle--leading">
+                <ArrowDown v-if="isGroupExpanded(group.groupCode)" />
+                <ArrowRight v-else />
+              </el-icon>
+              <el-icon><FolderOpened /></el-icon>
+              <input
+                :ref="setGroupRenameInput"
+                v-model="editingGroupName"
+                class="chat-home-group-rename-input"
+                type="text"
+                maxlength="128"
+                aria-label="分组名称"
+                :disabled="groupRenameSubmitting"
+                @click.stop
+                @keydown.enter.prevent="submitGroupRename(group)"
+                @keydown.esc.prevent="cancelGroupRename"
+              />
+              <small>{{ group.conversations.length }}</small>
+              <button
+                class="chat-home-group-rename-action"
+                type="button"
+                aria-label="保存分组名称"
+                title="保存"
+                :disabled="groupRenameSubmitting"
+                @click.stop="submitGroupRename(group)"
+              >
+                <el-icon><Check /></el-icon>
+              </button>
+              <button
+                class="chat-home-group-rename-action"
+                type="button"
+                aria-label="取消重命名"
+                title="取消"
+                :disabled="groupRenameSubmitting"
+                @click.stop="cancelGroupRename"
+              >
+                <el-icon><CloseBold /></el-icon>
+              </button>
+            </div>
+            <template v-else>
+              <button
+                :class="[
+                  'chat-home-group-label',
+                  'chat-home-group-label--button',
+                  { 'is-current': currentGroupId === group.groupCode && !isConversationMode },
+                ]"
+                type="button"
+                :disabled="isStreaming"
+                :aria-expanded="isGroupExpanded(group.groupCode)"
+                :aria-controls="groupConversationListId(group.groupCode)"
+                @click="toggleGroup(group.groupCode)"
+              >
+                <el-icon class="chat-home-group-label__toggle chat-home-group-label__toggle--leading">
+                  <ArrowDown v-if="isGroupExpanded(group.groupCode)" />
+                  <ArrowRight v-else />
+                </el-icon>
+                <el-icon><FolderOpened /></el-icon>
+                <span>{{ group.label }}</span>
+                <small>{{ group.conversations.length }}</small>
+              </button>
+              <button
+                class="chat-home-group__more"
+                type="button"
+                aria-label="分组操作"
+                :disabled="isStreaming"
+                @click.stop="toggleGroupMenu(group.groupCode)"
+              >
+                <el-icon><MoreFilled /></el-icon>
+              </button>
+              <div
+                v-if="openGroupMenuCode === group.groupCode"
+                class="chat-home-group__action-menu"
+                @click.stop
+              >
+                <button type="button" @click="openRenameGroup(group)">重命名</button>
+                <button class="is-danger" type="button" @click="removeGroup(group)">删除分组</button>
+              </div>
+            </template>
           </div>
 
           <div
-            v-for="conversation in group.conversations"
-            :key="conversation.id"
-            class="chat-home-thread-wrap"
+            v-if="isSidebarSectionExpanded(group)"
+            :id="group.groupCode
+              ? groupConversationListId(group.groupCode)
+              : (group.isPinned ? 'chat-home-pinned-list' : (group.isRecent ? 'chat-home-recent-list' : undefined))"
           >
-            <button
-              :class="['chat-home-thread', { 'is-current': activeConversation === conversation.id }]"
-              type="button"
-              :disabled="isStreaming"
-              @click="router.push(`/c/${conversation.id}`)"
+            <div
+              v-for="conversation in group.conversations"
+              :key="conversation.id"
+              class="chat-home-thread-wrap"
             >
-              <div class="chat-home-thread__leading">
-                <div class="chat-home-thread__copy">
-                  <strong>{{ conversation.title }}</strong>
+              <button
+                :class="[
+                  'chat-home-thread',
+                  {
+                    'is-current': activeConversation === conversation.id,
+                    'chat-home-thread--nested': Boolean(group.groupCode),
+                  },
+                ]"
+                type="button"
+                :disabled="isStreaming"
+                @click="router.push(conversationRoute(conversation))"
+              >
+                <div class="chat-home-thread__leading">
+                  <div class="chat-home-thread__copy">
+                    <span class="chat-home-thread__title">{{ conversation.title }}</span>
+                  </div>
                 </div>
-              </div>
-              <span class="chat-home-thread__meta">{{ conversation.meta }}</span>
-            </button>
-            <button
-              class="chat-home-thread__more"
-              type="button"
-              aria-label="会话操作"
-              :disabled="isStreaming"
-              @click.stop="toggleConversationMenu(conversation.id)"
-            >
-              <el-icon><MoreFilled /></el-icon>
-            </button>
-            <div v-if="openConversationMenuCode === conversation.id" class="chat-home-thread__action-menu" @click.stop>
-              <button type="button" @click="handleConversationCommand('pin', conversation)">
-                {{ conversation.pinned ? '取消置顶' : '置顶' }}
+                <span class="chat-home-thread__meta">{{ conversation.meta }}</span>
               </button>
-              <button type="button" @click="handleConversationCommand('rename', conversation)">重命名</button>
-              <button class="is-danger" type="button" @click="handleConversationCommand('delete', conversation)">删除</button>
+              <button
+                class="chat-home-thread__more"
+                type="button"
+                aria-label="会话操作"
+                :disabled="isStreaming"
+                @click.stop="toggleConversationMenu(conversation.id)"
+              >
+                <el-icon><MoreFilled /></el-icon>
+              </button>
+              <div v-if="openConversationMenuCode === conversation.id" class="chat-home-thread__action-menu" @click.stop>
+                <button type="button" @click="handleConversationCommand('pin', conversation)">
+                  {{ conversation.pinned ? '取消置顶' : '置顶' }}
+                </button>
+                <button type="button" @click="handleConversationCommand('rename', conversation)">重命名</button>
+                <button type="button" @click="handleConversationCommand('move', conversation)">移动到分组</button>
+                <button class="is-danger" type="button" @click="handleConversationCommand('delete', conversation)">删除</button>
+              </div>
             </div>
           </div>
         </template>
@@ -1598,6 +2087,10 @@ watch(route, () => {
 
       <section v-if="!isConversationMode" class="chat-home-welcome">
         <div class="chat-home-welcome-stage">
+          <div v-if="currentGroupId" class="chat-home-group-context">
+            <el-icon><FolderOpened /></el-icon>
+            <span>分组：{{ currentGroupName }}</span>
+          </div>
           <div class="chat-home-welcome-model chat-home-welcome-model--auto-routing">
             <div class="chat-home-welcome-model__avatar">AI</div>
             <div class="chat-home-welcome-model__copy">
@@ -1704,8 +2197,6 @@ watch(route, () => {
               </div>
             </div>
           </div>
-
-          <div v-if="currentGroupId" class="chat-home-group-pill">Group · {{ currentGroupId }}</div>
 
           <div v-if="chatMessages.length === 0 && !isLoadingDetail" class="chat-home-followups">
             <button
@@ -1860,7 +2351,18 @@ watch(route, () => {
     </main>
   </div>
 
-  <el-dialog v-model="renameDialogVisible" title="重命名会话" width="420px" @closed="resetRenameConversation">
+  <AppDialog
+    v-model="renameDialogVisible"
+    title="重命名会话"
+    size="small"
+    action-mode="confirm"
+    confirm-text="保存"
+    :confirming="renameSubmitting"
+    :close-on-press-escape="!renameSubmitting"
+    :show-close="!renameSubmitting"
+    @confirm="submitRenameConversation"
+    @closed="resetRenameConversation"
+  >
     <el-input
       v-model="renameSessionName"
       maxlength="100"
@@ -1868,11 +2370,52 @@ watch(route, () => {
       autofocus
       @keyup.enter="submitRenameConversation"
     />
-    <template #footer>
-      <el-button @click="renameDialogVisible = false">取消</el-button>
-      <el-button type="primary" :loading="renameSubmitting" @click="submitRenameConversation">保存</el-button>
-    </template>
-  </el-dialog>
+  </AppDialog>
+
+  <AppDialog
+    v-model="groupDialogVisible"
+    title="新建分组"
+    size="small"
+    action-mode="confirm"
+    confirm-text="保存"
+    :confirming="groupDialogSubmitting"
+    :close-on-press-escape="!groupDialogSubmitting"
+    :show-close="!groupDialogSubmitting"
+    @confirm="submitGroupDialog"
+    @closed="resetGroupDialog"
+  >
+    <el-input
+      v-model="groupNameInput"
+      maxlength="128"
+      show-word-limit
+      autofocus
+      placeholder="例如：数据分析、项目规划"
+      @keyup.enter="submitGroupDialog"
+    />
+  </AppDialog>
+
+  <AppDialog
+    v-model="moveDialogVisible"
+    title="移动会话"
+    size="small"
+    action-mode="confirm"
+    confirm-text="移动"
+    :confirming="moveDialogSubmitting"
+    :close-on-press-escape="!moveDialogSubmitting"
+    :show-close="!moveDialogSubmitting"
+    @confirm="submitMoveConversation"
+    @closed="resetMoveConversation"
+  >
+    <el-select v-model="moveTargetGroupCode" class="chat-home-move-select" placeholder="选择目标分组">
+      <el-option label="未分组" value="" />
+      <el-option
+        v-for="group in groupList"
+        :key="group.groupCode"
+        :label="group.groupName"
+        :value="group.groupCode"
+      />
+    </el-select>
+  </AppDialog>
 </template>
 
 <style scoped lang="scss">

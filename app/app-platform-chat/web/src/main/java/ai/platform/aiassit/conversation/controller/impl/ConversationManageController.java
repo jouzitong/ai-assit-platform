@@ -1,6 +1,7 @@
 package ai.platform.aiassit.conversation.controller.impl;
 
 import ai.platform.aiassit.conversation.service.ConversationService;
+import ai.platform.aiassit.conversation.service.ConversationGroupService;
 import ai.platform.aiassit.conversation.controller.IConversationManageController;
 import ai.platform.aiassit.conversation.convert.IApiResConvert;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationPinRequest;
@@ -9,6 +10,11 @@ import ai.platform.aiassit.conversation.dto.conversation.ConversationRenameReque
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSearchRequest;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationSessionVO;
 import ai.platform.aiassit.conversation.dto.conversation.ConversationDeleteRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupAssignRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupCreateRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupDeleteRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupRenameRequest;
+import ai.platform.aiassit.conversation.dto.conversation.ConversationGroupVO;
 import ai.platform.aiassit.conversation.data.entity.dto.ConversationSessionDTO;
 import lombok.AllArgsConstructor;
 import org.arthena.framework.common.constant.ErrCodeConstant;
@@ -32,6 +38,8 @@ import java.util.Locale;
 public class ConversationManageController implements IConversationManageController {
 
     private final ConversationService service;
+
+    private final ConversationGroupService groupService;
 
     private final IApiResConvert apiResConvert;
 
@@ -99,6 +107,33 @@ public class ConversationManageController implements IConversationManageControll
     public Boolean delete(@RequestBody ConversationDeleteRequest request) {
         request.setUserId(resolveCurrentUserId());
         return service.deleteConversation(request);
+    }
+
+    @Override
+    public List<ConversationGroupVO> listGroups() {
+        return groupService.listGroups(resolveCurrentUserId()).stream()
+                .map(apiResConvert::toGroupVO)
+                .toList();
+    }
+
+    @Override
+    public ConversationGroupVO createGroup(@RequestBody(required = false) ConversationGroupCreateRequest request) {
+        return apiResConvert.toGroupVO(groupService.createGroup(resolveCurrentUserId(), request));
+    }
+
+    @Override
+    public ConversationGroupVO renameGroup(@RequestBody(required = false) ConversationGroupRenameRequest request) {
+        return apiResConvert.toGroupVO(groupService.renameGroup(resolveCurrentUserId(), request));
+    }
+
+    @Override
+    public Boolean deleteGroup(@RequestBody(required = false) ConversationGroupDeleteRequest request) {
+        return groupService.deleteGroup(resolveCurrentUserId(), request);
+    }
+
+    @Override
+    public ConversationSessionVO assignGroup(@RequestBody(required = false) ConversationGroupAssignRequest request) {
+        return apiResConvert.toVO(groupService.assignSession(resolveCurrentUserId(), request));
     }
 
     private List<ConversationSessionVO> toVOList(List<ConversationSessionDTO> sessions) {

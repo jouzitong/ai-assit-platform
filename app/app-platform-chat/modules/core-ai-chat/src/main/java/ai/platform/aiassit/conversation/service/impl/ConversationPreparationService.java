@@ -9,6 +9,7 @@ import ai.platform.aiassit.conversation.data.enums.ConversationRoundType;
 import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
+import ai.platform.aiassit.conversation.service.ConversationGroupService;
 import ai.platform.aiassit.conversation.workflow.context.ConversationRuntimeContext;
 import ai.platform.aiassit.conversation.workflow.dto.chat.ConversationQueryCommand;
 import ai.platform.aiassit.conversation.workflow.support.AgentConversationHistoryRecorder;
@@ -38,15 +39,18 @@ public class ConversationPreparationService {
     private final ConversationMessageService messageService;
     private final ConversationRoundService roundService;
     private final AgentConversationHistoryRecorder historyRecorder;
+    private final ConversationGroupService groupService;
 
     public ConversationPreparationService(ConversationSessionService sessionService,
                                           ConversationMessageService messageService,
                                           ConversationRoundService roundService,
-                                          AgentConversationHistoryRecorder historyRecorder) {
+                                          AgentConversationHistoryRecorder historyRecorder,
+                                          ConversationGroupService groupService) {
         this.sessionService = sessionService;
         this.messageService = messageService;
         this.roundService = roundService;
         this.historyRecorder = historyRecorder;
+        this.groupService = groupService;
     }
 
     public void prepare(ConversationRuntimeContext context) {
@@ -79,6 +83,8 @@ public class ConversationPreparationService {
                 throw BizException.of(AiChatBizCodeConstant.CONVERSATION_NOT_FOUND, sessionCode);
             }
             validateSessionBusinessType(session, command);
+            groupService.validateExistingSessionGroup(
+                    userId, session, command.getGroupCode(), command.getBusinessType());
             sessionMessages = loadSessionMessages(sessionCode, userId);
         }
 
@@ -113,7 +119,10 @@ public class ConversationPreparationService {
         ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode(generateCode("session"));
         session.setUserId(userId);
-        session.setBusinessType(resolveBusinessType(command.getBusinessType()));
+        ConversationBusinessType businessType = resolveBusinessType(command.getBusinessType());
+        session.setBusinessType(businessType);
+        session.setGroupCode(groupService.validateNewSessionGroup(
+                userId, command.getGroupCode(), businessType));
         session.setSessionName(resolveSessionName(command));
         session.setPinned(Boolean.FALSE);
         return sessionService.add(session);

@@ -73,6 +73,7 @@ class ConversationCommandFactoryTest {
         ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of(42L, config)));
         ChatTransportRequest request = protocolRequest("hello");
         request.setModelId(42L);
+        request.setGroupCode("group-1");
 
         ConversationQueryCommand command = factory.fromProtocol(request, null, 7L, "trace-1");
 
@@ -82,6 +83,7 @@ class ConversationCommandFactoryTest {
         assertThat(command.getScene()).isEqualTo("ai-chat-query");
         assertThat(command.getAgentEntryCode()).isEqualTo("HOME_CHAT");
         assertThat(command.getBusinessType()).isEqualTo(ConversationBusinessType.CUSTOM);
+        assertThat(command.getGroupCode()).isEqualTo("group-1");
     }
 
     @Test
@@ -111,6 +113,17 @@ class ConversationCommandFactoryTest {
         ChatTransportRequest.Target target = new ChatTransportRequest.Target();
         target.setAgentCode("home-assistant");
         request.setTarget(target);
+
+        assertThatThrownBy(() -> factory.fromSettingsAssistantProtocol(
+                request, null, 7L, "trace-settings", false))
+                .isInstanceOf(BizException.class);
+    }
+
+    @Test
+    void rejectsGroupAssignmentOnSettingsAssistantChannel() {
+        ConversationCommandFactory factory = new ConversationCommandFactory(modelService(Map.of()));
+        ChatTransportRequest request = protocolRequest("help");
+        request.setGroupCode("group-1");
 
         assertThatThrownBy(() -> factory.fromSettingsAssistantProtocol(
                 request, null, 7L, "trace-settings", false))

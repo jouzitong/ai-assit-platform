@@ -50,6 +50,17 @@ public class ConversationSessionEntity extends LogicalDeleteEntity {
     @TableField("user_id")
     private Long userId;
 
+    /** 所属分组编码；为空表示未分组。 */
+    @JdbcColumn(
+            name = "group_code",
+            dataType = "VARCHAR(64)",
+            length = 64,
+            nullable = true,
+            comment = "所属分组编码，NULL表示未分组"
+    )
+    @TableField("group_code")
+    private String groupCode;
+
     /**
      * 业务类型，用于区分不同业务场景下的 AI 对话，例如普通对话、智能问数、流程编排等。
      */

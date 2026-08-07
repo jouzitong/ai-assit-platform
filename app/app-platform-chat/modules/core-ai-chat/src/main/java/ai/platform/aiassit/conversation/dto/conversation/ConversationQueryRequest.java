@@ -10,5 +10,8 @@ public class ConversationQueryRequest {
 
     private String sessionCode;
 
+    /** 会话分组编码；为空表示不按分组筛选。 */
+    private String groupCode;
+
     private ConversationBusinessType businessType;
 }

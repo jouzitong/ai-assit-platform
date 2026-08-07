@@ -4,6 +4,11 @@ import type {
   ChatConversationDetailPayload,
   ChatConversationDetailResponse,
   ChatConversationDeletePayload,
+  ChatGroupAssignPayload,
+  ChatGroupCreatePayload,
+  ChatGroupDeletePayload,
+  ChatGroupItem,
+  ChatGroupRenamePayload,
   ChatConversationPinPayload,
   ChatConversationQueryPayload,
   ChatConversationRenamePayload,
@@ -24,6 +29,41 @@ import type {
 
 const CHAT_API_PREFIX = getBackendService(SERVICE_NAMES.CHAT).gatewayPrefix
 export const PAGE_ASSISTANT_BUSINESS_TYPE = 3
+
+export function fetchConversationGroups() {
+  return request<ChatGroupItem[]>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/group/list`, {
+    method: 'POST',
+    body: JSON.stringify({}),
+  }).then((groups) => Array.isArray(groups) ? groups : [])
+}
+
+export function createConversationGroup(payload: ChatGroupCreatePayload) {
+  return request<ChatGroupItem>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/group/create`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function renameConversationGroup(payload: ChatGroupRenamePayload) {
+  return request<ChatGroupItem>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/group/rename`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function deleteConversationGroup(payload: ChatGroupDeletePayload) {
+  return request<boolean>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/group/delete`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function assignConversationGroup(payload: ChatGroupAssignPayload) {
+  return request<ChatSessionItem>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/group/assign`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
 
 export function fetchConversationList(payload: ChatConversationQueryPayload = {}) {
   return request<ChatSessionItem[]>(`${CHAT_API_PREFIX}/api/v1/chat/conversation/list`, {
@@ -234,6 +274,7 @@ export function createChatTransportRequest(payload: ChatQueryPayload, route: str
     type: 'chat.user_message',
     requestId,
     sessionCode: payload.sessionCode,
+    groupCode: payload.groupCode || undefined,
     target: payload.target,
     modelId: payload.modelId,
     modelOverrideId: payload.modelOverrideId,

@@ -42,11 +42,14 @@ public interface AiChatBizCodeConstant {
     Integer REQUIRED_AI_CLIENT_NAME = 53_01_0027;
     Integer REQUIRED_EMBEDDING_MODEL = 53_01_0028;
     Integer REQUIRED_CHUNK_METHOD = 53_01_0029;
+    Integer REQUIRED_GROUP_NAME = 53_01_0030;
+    Integer REQUIRED_GROUP_CODE = 53_01_0031;
 
     // 53_02_xxxx 参数取值非法
     Integer INVALID_WORKFLOW_OUTPUT = 53_02_0001;
     Integer INVALID_KB_SEARCH_OPTIONS = 53_02_0002;
     Integer INVALID_TOOL_INPUT = 53_02_0003;
+    Integer INVALID_GROUP_NAME = 53_02_0004;
 
     // 53_03_xxxx 资源不存在
     Integer CONVERSATION_NOT_FOUND = 53_03_0001;
@@ -56,11 +59,13 @@ public interface AiChatBizCodeConstant {
     Integer MODEL_CONFIG_NOT_FOUND = 53_03_0005;
     Integer AI_CLIENT_CONFIG_NOT_FOUND = 53_03_0006;
     Integer TOOL_NOT_FOUND = 53_03_0007;
+    Integer GROUP_NOT_FOUND = 53_03_0008;
 
     // 53_04_xxxx 状态或约束冲突
     Integer AI_CLIENT_IN_USE = 53_04_0001;
     Integer TOOL_PERMISSION_DENIED = 53_04_0002;
     Integer TOOL_APPROVAL_REQUIRED = 53_04_0003;
+    Integer GROUP_ASSIGNMENT_NOT_ALLOWED = 53_04_0004;
 
     // 53_06_xxxx 系统处理异常
     Integer WORKFLOW_EXECUTION_FAILED = 53_06_0001;

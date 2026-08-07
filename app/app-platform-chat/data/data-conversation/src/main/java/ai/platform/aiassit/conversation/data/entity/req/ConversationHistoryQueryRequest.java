@@ -20,6 +20,10 @@ public class ConversationHistoryQueryRequest extends BaseRequest {
     @IgnoredQuery
     private Long userId;
 
+    /** 仅由 ConversationSessionService 显式追加，不能污染 round/message 等共享查询。 */
+    @IgnoredQuery
+    private String groupCode;
+
     private String role;
 
     private String roundType;

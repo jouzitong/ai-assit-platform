@@ -14,6 +14,12 @@ export const aiRoutes: RouteRecordRaw[] = [
     component: () => import('../../modules/ai-chat/views/ChatWorkspaceView.vue'),
   },
   {
+    path: '/g/:groupId',
+    name: 'chat-group-home',
+    meta: { title: 'AI Chat Group' },
+    component: () => import('../../modules/ai-chat/views/ChatWorkspaceView.vue'),
+  },
+  {
     path: '/g/:groupId/c/:sessionId',
     name: 'chat-group-session',
     meta: { title: 'AI Chat Group Session' },

@@ -32,6 +32,7 @@ public class ConversationCommandFactory {
     public ConversationQueryCommand fromLegacy(ConversationQueryRequest request, Long userId, String traceId) {
         ConversationQueryCommand command = base(userId, traceId);
         command.setSessionCode(request == null ? null : request.getSessionCode());
+        command.setGroupCode(request == null ? null : request.getGroupCode());
         applyModel(command, request == null ? null : request.getModelId());
         command.setAgentEntryCode(HOME_CHAT_ENTRY);
         command.setMessage(request == null ? null : request.getMessage());
@@ -78,6 +79,10 @@ public class ConversationCommandFactory {
         if (request != null && request.getTarget() != null) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_QUERY_COMMAND);
         }
+        if (request != null && StringUtils.hasText(request.getGroupCode())) {
+            throw BizException.of(AiChatBizCodeConstant.GROUP_ASSIGNMENT_NOT_ALLOWED,
+                    request.getGroupCode().trim());
+        }
         ConversationQueryCommand command = fromProtocol(
                 request, pathSessionCode, userId, fallbackTraceId, allowModelOverride);
         command.setScene(SETTINGS_ASSISTANT_SCENE);
@@ -98,6 +103,7 @@ public class ConversationCommandFactory {
         command.setSessionCode(StringUtils.hasText(pathSessionCode)
                 ? pathSessionCode
                 : request == null ? null : request.getSessionCode());
+        command.setGroupCode(request == null ? null : request.getGroupCode());
         command.setRoundCode(request == null ? null : request.getRoundCode());
         Long modelId = request == null ? null : request.getModelId();
         Long modelOverrideId = request == null ? null : request.getModelOverrideId();

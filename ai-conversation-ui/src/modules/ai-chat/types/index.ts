@@ -1,6 +1,15 @@
+export interface ChatGroupItem {
+  groupCode: string
+  userId?: number
+  groupName: string
+  createTime?: string | null
+  updateTime?: string | null
+}
+
 export interface ChatSessionItem {
   sessionCode: string
   userId?: number
+  groupCode?: string | null
   businessType?: number
   sessionName: string
   pinned?: boolean
@@ -9,7 +18,26 @@ export interface ChatSessionItem {
 
 export interface ChatConversationQueryPayload {
   sessionCode?: string
+  groupCode?: string | null
   businessType?: number
+}
+
+export interface ChatGroupCreatePayload {
+  groupName: string
+}
+
+export interface ChatGroupRenamePayload {
+  groupCode: string
+  groupName: string
+}
+
+export interface ChatGroupDeletePayload {
+  groupCode: string
+}
+
+export interface ChatGroupAssignPayload {
+  sessionCode: string
+  groupCode?: string | null
 }
 
 export interface ChatConversationRenamePayload {
@@ -75,6 +103,7 @@ export interface ChatMessageItem {
 
 export interface ChatQueryPayload {
   sessionCode?: string
+  groupCode?: string | null
   target?: ChatAgentTarget
   /** User-selected enabled model. Agent routing remains server-owned. */
   modelId?: number
@@ -196,6 +225,7 @@ export interface ChatTransportRequest {
   type: 'chat.user_message'
   requestId: string
   sessionCode?: string
+  groupCode?: string
   roundCode?: string
   target?: ChatAgentTarget
   modelId?: number

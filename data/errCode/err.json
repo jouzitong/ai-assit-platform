@@ -1039,6 +1039,42 @@
     ]
   },
   {
+    "code": 53010030,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：分组名称不能为空",
+        "description": "参数缺失：分组名称不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: group name is required",
+        "description": "Missing parameter: group name is required"
+      }
+    ]
+  },
+  {
+    "code": 53010031,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：分组编码不能为空",
+        "description": "参数缺失：分组编码不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: group code is required",
+        "description": "Missing parameter: group code is required"
+      }
+    ]
+  },
+  {
     "code": 53020001,
     "httpStatus": 200,
     "description": "AI 聊天：参数取值非法",
@@ -1053,6 +1089,24 @@
         "locale": "en-US",
         "messageTemplate": "Workflow output is invalid: {}",
         "description": "Workflow output is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 53020004,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数取值非法",
+    "tags": "AI 聊天,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "分组名称非法：{}",
+        "description": "分组名称非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Group name is invalid: {}",
+        "description": "Group name is invalid: {}"
       }
     ]
   },
@@ -1165,6 +1219,24 @@
     ]
   },
   {
+    "code": 53030008,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "会话分组不存在：{}",
+        "description": "会话分组不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Conversation group not found: {}",
+        "description": "Conversation group not found: {}"
+      }
+    ]
+  },
+  {
     "code": 53040001,
     "httpStatus": 200,
     "description": "AI 聊天：状态或约束冲突",
@@ -1179,6 +1251,24 @@
         "locale": "en-US",
         "messageTemplate": "AI client is in use: {}",
         "description": "AI client is in use: {}"
+      }
+    ]
+  },
+  {
+    "code": 53040004,
+    "httpStatus": 200,
+    "description": "AI 聊天：状态或约束冲突",
+    "tags": "AI 聊天,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "当前会话不允许加入该分组：{}",
+        "description": "当前会话不允许加入该分组：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "This conversation cannot be assigned to the group: {}",
+        "description": "This conversation cannot be assigned to the group: {}"
       }
     ]
   },

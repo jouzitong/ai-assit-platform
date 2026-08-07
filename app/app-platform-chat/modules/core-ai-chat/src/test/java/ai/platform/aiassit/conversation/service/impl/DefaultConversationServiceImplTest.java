@@ -33,6 +33,22 @@ class DefaultConversationServiceImplTest {
                 .containsExactly("assistant");
     }
 
+    @Test
+    void listAppliesGroupCodeAfterTheUserScopeIsBuilt() {
+        ConversationSessionDTO grouped = session("grouped", ConversationBusinessType.CUSTOM);
+        grouped.setGroupCode("group-a");
+        ConversationSessionDTO ungrouped = session("ungrouped", ConversationBusinessType.CUSTOM);
+        DefaultConversationServiceImpl service = new DefaultConversationServiceImpl(
+                sessionService(List.of(grouped, ungrouped)), null, null, null, null);
+
+        ConversationQueryRequest request = new ConversationQueryRequest();
+        request.setGroupCode("group-a");
+
+        assertThat(service.listConversations(request))
+                .extracting(ConversationSessionDTO::getSessionCode)
+                .containsExactly("grouped");
+    }
+
     private ConversationSessionDTO session(String code, ConversationBusinessType businessType) {
         ConversationSessionDTO session = new ConversationSessionDTO();
         session.setSessionCode(code);
@@ -47,6 +63,11 @@ class DefaultConversationServiceImplTest {
                 (proxy, method, args) -> {
                     if ("queryAll".equals(method.getName())) {
                         ConversationHistoryQueryRequest query = (ConversationHistoryQueryRequest) args[0];
+                        if (query.getGroupCode() != null) {
+                            return sessions.stream()
+                                    .filter(session -> query.getGroupCode().equals(session.getGroupCode()))
+                                    .toList();
+                        }
                         if (query.getBusinessType() == null) {
                             return sessions;
                         }

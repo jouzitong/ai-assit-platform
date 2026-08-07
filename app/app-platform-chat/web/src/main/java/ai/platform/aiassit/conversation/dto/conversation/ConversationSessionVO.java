@@ -12,6 +12,8 @@ public class ConversationSessionVO {
 
     private Long userId;
 
+    private String groupCode;
+
     private ConversationBusinessType businessType;
 
     private String sessionName;

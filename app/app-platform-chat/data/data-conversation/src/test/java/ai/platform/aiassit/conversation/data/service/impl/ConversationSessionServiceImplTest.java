@@ -22,6 +22,30 @@ class ConversationSessionServiceImplTest {
     }
 
     @Test
+    void sessionQueryAppliesGroupCodeOnlyToTheSessionTable() {
+        ConversationSessionServiceImpl service = new ConversationSessionServiceImpl(null);
+        ConversationHistoryQueryRequest request = new ConversationHistoryQueryRequest();
+        request.setUserId(7L);
+        request.setGroupCode(" group-1 ");
+
+        QueryWrapper<?> wrapper = service.buildQuery(request);
+
+        assertThat(wrapper.getSqlSegment()).contains("group_code", "user_id");
+        assertThat(wrapper.getParamNameValuePairs()).containsValue("group-1");
+    }
+
+    @Test
+    void sessionQueryDoesNotApplyGroupCodeWithoutOwnerScope() {
+        ConversationSessionServiceImpl service = new ConversationSessionServiceImpl(null);
+        ConversationHistoryQueryRequest request = new ConversationHistoryQueryRequest();
+        request.setGroupCode("group-1");
+
+        QueryWrapper<?> wrapper = service.buildQuery(request);
+
+        assertThat(wrapper.getSqlSegment()).doesNotContain("group_code");
+    }
+
+    @Test
     void sessionQueryDoesNotInventOwnerWhenCallerHasNoAuthenticatedUser() {
         ConversationSessionServiceImpl service = new ConversationSessionServiceImpl(null);
         ConversationHistoryQueryRequest request = new ConversationHistoryQueryRequest();

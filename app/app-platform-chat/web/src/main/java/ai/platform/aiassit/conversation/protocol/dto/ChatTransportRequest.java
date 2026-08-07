@@ -22,6 +22,9 @@ public class ChatTransportRequest {
 
     private String sessionCode;
 
+    /** New sessions may carry a user-owned group; existing sessions keep persisted ownership. */
+    private String groupCode;
+
     private String roundCode;
 
     /** User-selected enabled model. The server resolves connection details by this ID. */
