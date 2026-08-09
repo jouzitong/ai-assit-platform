@@ -13,6 +13,7 @@ import java.util.Map;
 public class ChatWebSocketHandshakeInterceptor implements HandshakeInterceptor {
 
     public static final String USER_ID_ATTRIBUTE = "chatUserId";
+    public static final String TENANT_ID_ATTRIBUTE = "chatTenantId";
 
     private final ConversationRequestContextResolver contextResolver;
 
@@ -26,6 +27,7 @@ public class ChatWebSocketHandshakeInterceptor implements HandshakeInterceptor {
                                    WebSocketHandler wsHandler,
                                    Map<String, Object> attributes) {
         attributes.put(USER_ID_ATTRIBUTE, contextResolver.currentUserId());
+        attributes.put(TENANT_ID_ATTRIBUTE, contextResolver.currentTenantId());
         return true;
     }
 

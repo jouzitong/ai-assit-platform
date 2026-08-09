@@ -30,6 +30,7 @@ import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
 import ai.platform.aiassit.knowledge.manage.service.AiKbStoreService;
+import ai.platform.aiassit.conversation.memory.ConversationMemoryBridge;
 import ai.platform.aiassit.render.api.RenderInternalApi;
 import ai.platform.aiassit.render.api.dto.RenderUpsertRequest;
 import ai.platform.aiassit.render.api.enums.EffectiveStatus;
@@ -48,7 +49,6 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -75,6 +75,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     private final ConversationRoundService roundService;
     private final ConversationMessageService messageService;
     private final AiKbStoreService kbStoreService;
+    private final ConversationMemoryBridge memoryBridge;
     private final RenderInternalApi renderInternalApi;
     private final ObjectMapper objectMapper;
 
@@ -85,6 +86,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
                                                    ConversationRoundService roundService,
                                                    ConversationMessageService messageService,
                                                    AiKbStoreService kbStoreService,
+                                                   ConversationMemoryBridge memoryBridge,
                                                    RenderInternalApi renderInternalApi,
                                                    ObjectMapper objectMapper) {
         this.agentConversationRunner = agentConversationRunner;
@@ -94,6 +96,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         this.roundService = roundService;
         this.messageService = messageService;
         this.kbStoreService = kbStoreService;
+        this.memoryBridge = memoryBridge;
         this.renderInternalApi = renderInternalApi;
         this.objectMapper = objectMapper;
     }
@@ -116,6 +119,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
             context.checkCancellation();
             preparationService.prepare(context);
             log.info("对话流上下文准备完成，context={}", context);
+            memoryBridge.assembleContext(context);
             publishInitEvent(context);
             context.checkCancellation();
             AgentConversationRequest request = buildAgentRequest(context);
@@ -206,6 +210,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
     private ConversationRuntimeContext buildConversationRuntimeContext(ConversationQueryCommand command) {
         ConversationRuntimeContext context = new ConversationRuntimeContext();
         context.setCommand(command);
+        context.setTenantId(command == null ? null : command.getTenantId());
         return context;
     }
 
@@ -216,6 +221,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         request.setTraceId(command.getTraceId());
         request.setSessionCode(context.getSession().getSessionCode());
         request.setRoundCode(context.getRound().getRoundCode());
+        request.setTenantId(context.getTenantId());
         request.setUserId(context.getSession().getUserId());
         request.setModelId(command.getModelId());
         request.setInput(command.getMessage());
@@ -235,6 +241,11 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         runContext.put("userId", context.getSession().getUserId());
         if (command.getExt() != null && command.getExt().get("clientContext") instanceof Map<?, ?> clientContext) {
             runContext.put("clientContext", clientContext);
+        }
+        if (context.getContextPackage() != null && context.getContextPackage().isInjectionEnabled()
+                && (!context.getContextPackage().getSessionMemories().isEmpty()
+                || !context.getContextPackage().getLongTermMemories().isEmpty())) {
+            runContext.put("memoryContext", context.getContextPackage().toAgentData());
         }
         runContext.put("knowledgeBases", kbStoreService.availableKnowledgeBases());
         request.setContext(runContext);
@@ -358,6 +369,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         );
         persistArtifacts(context, outcome);
         updateRoundAgentSnapshot(context, outcome);
+        memoryBridge.enqueueCompletedRound(context, outcome);
         if (!"INPUT_REQUIRED".equalsIgnoreCase(outcome.getStatus())) {
             context.publishEvent("answer", ConversationEventSources.AI_AGENT, ConversationEventPhases.READY,
                     "agent final answer", answer, null, "SUCCESS", agentTrace(outcome));
@@ -710,7 +722,7 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         }
         ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
         query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
+        query.setUserId(userId);
         return sessionService.get(query);
     }
 
@@ -718,24 +730,13 @@ public class DefaultConversationExecutionServiceImpl implements ConversationExec
         if (!StringUtils.hasText(roundCode)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_ROUND_CODE);
         }
-        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
-        query.setRoundCode(roundCode);
-        query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
-        return roundService.queryAll(query).stream()
-                .max(Comparator.comparing(ConversationRoundDTO::getId, Comparator.nullsLast(Long::compareTo)))
-                .orElse(null);
+        return roundService.queryOwned(roundCode, sessionCode, userId);
     }
 
     private String loadLatestAssistantAnswer(String roundCode, String sessionCode, Long userId) {
-        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
-        query.setRoundCode(roundCode);
-        query.setSessionCode(sessionCode);
-        query.setCreatedBy(userId);
-        List<ConversationMessageDTO> messages = messageService.queryAll(query).stream()
+        List<ConversationMessageDTO> messages = messageService.queryByRoundCode(roundCode).stream()
                 .filter(message -> message != null && StringUtils.hasText(message.getContent()))
                 .filter(message -> "ASSISTANT".equalsIgnoreCase(message.getRole()))
-                .sorted(Comparator.comparing(ConversationMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
                 .toList();
         return messages.isEmpty() ? null : messages.get(messages.size() - 1).getContent();
     }

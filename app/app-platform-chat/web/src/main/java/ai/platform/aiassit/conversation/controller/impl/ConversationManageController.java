@@ -105,8 +105,10 @@ public class ConversationManageController implements IConversationManageControll
      */
     @Override
     public Boolean delete(@RequestBody ConversationDeleteRequest request) {
-        request.setUserId(resolveCurrentUserId());
-        return service.deleteConversation(request);
+        ConversationDeleteRequest actualRequest = request == null ? new ConversationDeleteRequest() : request;
+        actualRequest.setTenantId(resolveCurrentTenantId());
+        actualRequest.setUserId(resolveCurrentUserId());
+        return service.deleteConversation(actualRequest);
     }
 
     @Override
@@ -164,6 +166,15 @@ public class ConversationManageController implements IConversationManageControll
         UserContext userContext = SystemContext.getUserContext();
         if (userContext != null && userContext.subject() != null) {
             return userContext.subject().userId();
+        }
+        throw BizException.of(ErrCodeConstant.UNAUTHORIZED);
+    }
+
+    private String resolveCurrentTenantId() {
+        UserContext userContext = SystemContext.getUserContext();
+        if (userContext != null && userContext.subject() != null
+                && StringUtils.hasText(userContext.subject().tenantId())) {
+            return userContext.subject().tenantId().trim();
         }
         throw BizException.of(ErrCodeConstant.UNAUTHORIZED);
     }

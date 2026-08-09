@@ -20,7 +20,7 @@ class DefaultConversationServiceImplTest {
         ConversationSessionDTO general = session("general", ConversationBusinessType.GENERAL);
         ConversationSessionDTO assistant = session("assistant", ConversationBusinessType.PAGE_ASSISTANT);
         DefaultConversationServiceImpl service = new DefaultConversationServiceImpl(
-                sessionService(List.of(custom, general, assistant)), null, null, null, null);
+                sessionService(List.of(custom, general, assistant)), null, null, null, null, null);
 
         assertThat(service.listConversations(new ConversationQueryRequest()))
                 .extracting(ConversationSessionDTO::getSessionCode)
@@ -39,7 +39,7 @@ class DefaultConversationServiceImplTest {
         grouped.setGroupCode("group-a");
         ConversationSessionDTO ungrouped = session("ungrouped", ConversationBusinessType.CUSTOM);
         DefaultConversationServiceImpl service = new DefaultConversationServiceImpl(
-                sessionService(List.of(grouped, ungrouped)), null, null, null, null);
+                sessionService(List.of(grouped, ungrouped)), null, null, null, null, null);
 
         ConversationQueryRequest request = new ConversationQueryRequest();
         request.setGroupCode("group-a");

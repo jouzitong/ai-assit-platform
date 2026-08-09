@@ -72,7 +72,8 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
 
     private void start(WebSocketSession session, ChatTransportRequest request) throws IOException {
         ConversationQueryCommand command = commandFactory.fromProtocol(
-                request, null, userId(session), contextResolver.newTraceId(), contextResolver.canOverrideModel());
+                request, null, tenantId(session), userId(session), contextResolver.newTraceId(),
+                contextResolver.canOverrideModel());
         ConversationRunSnapshot run = runManager.start(command);
         subscribe(session, run.runId(), null);
     }
@@ -141,6 +142,14 @@ public class ChatWebSocketHandler extends TextWebSocketHandler {
             return number.longValue();
         }
         throw new IllegalStateException("authenticated chat user is required");
+    }
+
+    private String tenantId(WebSocketSession session) {
+        Object value = session.getAttributes().get(ChatWebSocketHandshakeInterceptor.TENANT_ID_ATTRIBUTE);
+        if (value instanceof String tenantId && StringUtils.hasText(tenantId)) {
+            return tenantId.trim();
+        }
+        throw new IllegalStateException("authenticated chat tenant is required");
     }
 
     @Override

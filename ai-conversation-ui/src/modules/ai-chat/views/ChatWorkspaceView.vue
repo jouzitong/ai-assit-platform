@@ -35,6 +35,8 @@ import { clearSession, getStoredUser } from '../../../utils/session'
 import { AppDialog, useAppConfirm } from '../../../components'
 import ChatMessageErrorCard from '../components/ChatMessageErrorCard.vue'
 import ChatArtifactList from '../components/ChatArtifactList.vue'
+import ConversationContextDrawer from '../components/ConversationContextDrawer.vue'
+import ConversationContextSummaryBar from '../components/ConversationContextSummaryBar.vue'
 import RunActivityTimeline from '../components/RunActivityTimeline.vue'
 import {
   activityFromTransportEvent,
@@ -44,9 +46,10 @@ import {
   upsertArtifact,
   upsertRunActivity,
 } from '../composables/useChatRun'
+import { useConversationContext } from '../composables/useConversationContext'
+import { useConversationHistory } from '../composables/useConversationHistory'
 import { renderMarkdown } from '../utils/markdown'
 import {
-  fetchConversationDetail,
   fetchConversationGroups,
   fetchConversationList,
   fetchEnabledModels,
@@ -69,6 +72,7 @@ import type {
   ChatConversationRound,
   ChatEnabledModel,
   ChatGroupItem,
+  ChatMemoryItem,
   ChatRunActivity,
   ChatSessionItem,
   ChatTransportEvent,
@@ -81,6 +85,36 @@ const route = useRoute()
 const router = useRouter()
 const ASSISTANT_DISPLAY_NAME = '智能任务助手'
 const appConfirm = useAppConfirm()
+const {
+  context: conversationContext,
+  longTermList: conversationLongTermList,
+  counts: conversationContextCounts,
+  isLoading: isLoadingConversationContext,
+  isLoadingLongTerm: isLoadingLongTermMemories,
+  error: conversationContextError,
+  isOpen: contextDrawerVisible,
+  actionLoading: conversationContextActionLoading,
+  clear: clearConversationContext,
+  load: loadConversationContext,
+  loadLongTerm: loadLongTermMemories,
+  refresh: refreshConversationContext,
+  open: openConversationContextState,
+  disable: disableMemory,
+  restore: restoreMemory,
+  correct: correctMemory,
+  promote: promoteMemory,
+  excludeFromSession: excludeMemoryFromSession,
+  forget: forgetMemory,
+  clearLongTerm: clearLongTermMemory,
+} = useConversationContext()
+const {
+  hasMore: hasOlderHistory,
+  isLoading: isLoadingHistory,
+  reset: resetConversationHistory,
+  loadInitial: loadInitialConversationHistory,
+  loadOlder: loadOlderConversationHistoryPage,
+  loadWindow: loadConversationHistoryWindow,
+} = useConversationHistory()
 
 type CurrentUserProfile = {
   displayName?: string
@@ -149,6 +183,7 @@ const stopRequested = ref(false)
 let activeStreamController: AbortController | null = null
 let activeSeenEventIds = new Set<string>()
 let stopRequestInFlight = false
+let detailRequestSequence = 0
 const renameDialogVisible = ref(false)
 const renameSubmitting = ref(false)
 const renamingConversation = ref<ChatSessionItem | null>(null)
@@ -166,11 +201,17 @@ const moveDialogVisible = ref(false)
 const moveDialogSubmitting = ref(false)
 const moveTargetGroupCode = ref('')
 const movingConversation = ref<ChatSessionItem | null>(null)
+const memoryCorrectionDialogVisible = ref(false)
+const memoryCorrectionSubmitting = ref(false)
+const memoryCorrectionTarget = ref<ChatMemoryItem | null>(null)
+const memoryCorrectionContent = ref('')
+const pendingMemorySource = ref<{ sessionCode: string; roundCode: string } | null>(null)
 const pinnedExpanded = ref(true)
 const recentExpanded = ref(true)
 const collapsedGroupCodes = ref<Set<string>>(new Set())
 const welcomeTextarea = useTemplateRef<HTMLTextAreaElement>('welcomeTextarea')
 const conversationTextarea = useTemplateRef<HTMLTextAreaElement>('conversationTextarea')
+const conversationScrollContainer = useTemplateRef<HTMLElement>('conversationScrollContainer')
 
 const welcomeCards = [
   '帮我分析本周核心业务波动，并给出三条解释假设',
@@ -1047,25 +1088,37 @@ function handleModelDropdownVisible(visible: boolean) {
 }
 
 async function loadConversationDetail(sessionCode: string, preserveMessagesOnError = false) {
-  if (!sessionCode) {
+  const normalizedSessionCode = sessionCode.trim()
+  const sequence = ++detailRequestSequence
+  if (!normalizedSessionCode) {
     chatMessages.value = []
     currentRoundCode.value = ''
     currentSessionName.value = ''
+    resetConversationHistory()
+    isLoadingDetail.value = false
     return
   }
 
   isLoadingDetail.value = true
   conversationError.value = ''
   try {
-    const detail = await fetchConversationDetail({ sessionCode })
-    currentSessionName.value = detail.session?.sessionName || ''
-    const persistedMessages = flattenRoundsToMessages(detail.rounds || [])
+    const page = await loadInitialConversationHistory(normalizedSessionCode, 20)
+    if (!page || sequence !== detailRequestSequence
+      || currentSessionCode.value !== normalizedSessionCode) {
+      return
+    }
+    const conversation = conversationList.value.find(item => item.sessionCode === normalizedSessionCode)
+    currentSessionName.value = conversation?.sessionName || ''
+    const persistedMessages = flattenRoundsToMessages(page.rounds || [])
     chatMessages.value = preserveMessagesOnError
       ? mergeConversationMessages(chatMessages.value, persistedMessages)
       : persistedMessages
-    const lastRound = [...(detail.rounds || [])].reverse().find((item) => item.round?.roundCode)
+    const lastRound = [...(page.rounds || [])].reverse().find((item) => item.round?.roundCode)
     currentRoundCode.value = lastRound?.round?.roundCode || ''
   } catch (error) {
+    if (sequence !== detailRequestSequence || currentSessionCode.value !== normalizedSessionCode) {
+      return
+    }
     if (!preserveMessagesOnError) {
       chatMessages.value = []
       currentRoundCode.value = ''
@@ -1073,8 +1126,253 @@ async function loadConversationDetail(sessionCode: string, preserveMessagesOnErr
     }
     conversationError.value = error instanceof Error ? error.message : '会话详情加载失败'
   } finally {
-    isLoadingDetail.value = false
+    if (sequence === detailRequestSequence) {
+      isLoadingDetail.value = false
+    }
   }
+}
+
+async function loadOlderConversationHistory() {
+  if (isLoadingHistory.value || !hasOlderHistory.value) {
+    return
+  }
+  const targetSessionCode = currentSessionCode.value
+  if (!targetSessionCode) {
+    return
+  }
+  const container = conversationScrollContainer.value
+  const previousScrollHeight = container?.scrollHeight || 0
+  const previousScrollTop = container?.scrollTop || 0
+  try {
+    const response = await loadOlderConversationHistoryPage(targetSessionCode)
+    if (!response || currentSessionCode.value !== targetSessionCode) {
+      return
+    }
+    const olderMessages = flattenRoundsToMessages(response.rounds || [])
+    if (olderMessages.length) {
+      // The history endpoint is chronological. Seed the merge with the older page so
+      // the in-flight local SSE message remains at the end of the timeline.
+      chatMessages.value = mergeConversationMessages(
+        [...olderMessages, ...chatMessages.value],
+        olderMessages,
+      )
+    }
+    await nextTick()
+    if (container) {
+      container.scrollTop = container.scrollHeight - previousScrollHeight + previousScrollTop
+    }
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '更早的会话记录加载失败')
+  }
+}
+
+async function openConversationHistoryWindow(sessionCode: string, roundCode: string) {
+  const targetSessionCode = sessionCode.trim()
+  const targetRoundCode = roundCode.trim()
+  if (!targetSessionCode || !targetRoundCode) {
+    return
+  }
+  try {
+    const response = await loadConversationHistoryWindow(targetSessionCode, targetRoundCode)
+    if (!response || currentSessionCode.value !== targetSessionCode) {
+      return
+    }
+    const windowMessages = flattenRoundsToMessages(response.rounds || [])
+    if (windowMessages.length) {
+      chatMessages.value = mergeConversationMessages(chatMessages.value, windowMessages)
+    }
+    await nextTick()
+    const target = Array.from(
+      conversationScrollContainer.value?.querySelectorAll<HTMLElement>('[data-round-code]') || [],
+    ).find(element => element.dataset.roundCode === targetRoundCode)
+    target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '来源记录加载失败')
+  }
+}
+
+function openConversationContext() {
+  if (!currentSessionCode.value) {
+    return
+  }
+  void openConversationContextState(currentSessionCode.value).catch(() => undefined)
+  void loadLongTermMemories().catch(() => undefined)
+}
+
+function refreshConversationContextView() {
+  void refreshConversationContext().catch((error) => {
+    ElMessage.error(error instanceof Error ? error.message : '上下文刷新失败')
+  })
+  void loadLongTermMemories().catch((error) => {
+    ElMessage.error(error instanceof Error ? error.message : '长期记忆刷新失败')
+  })
+}
+
+async function handleMemorySource(item: ChatMemoryItem) {
+  const sourceSessionCode = item.sourceSessionCode?.trim()
+  const sourceRoundCode = item.sourceRoundCode?.trim()
+  if (!sourceSessionCode || !sourceRoundCode) {
+    ElMessage.info('这条记忆没有可定位的会话来源。')
+    return
+  }
+  if (sourceSessionCode === currentSessionCode.value) {
+    await openConversationHistoryWindow(sourceSessionCode, sourceRoundCode)
+    return
+  }
+  const sourceConversation = conversationList.value.find(
+    conversation => conversation.sessionCode === sourceSessionCode,
+  )
+  if (!sourceConversation) {
+    ElMessage.warning('来源会话不在当前会话列表中，暂时无法跳转。')
+    return
+  }
+  pendingMemorySource.value = { sessionCode: sourceSessionCode, roundCode: sourceRoundCode }
+  await router.push(conversationRoute(sourceConversation))
+}
+
+async function runMemoryAction(
+  action: () => Promise<unknown>,
+  successMessage: string,
+  fallbackMessage: string,
+) {
+  try {
+    await action()
+    ElMessage.success(successMessage)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : fallbackMessage)
+  }
+}
+
+function handleDisableMemory(item: ChatMemoryItem) {
+  void runMemoryAction(
+    () => disableMemory(item.memoryRef),
+    '记忆已停用',
+    '停用记忆失败',
+  )
+}
+
+function handleRestoreMemory(item: ChatMemoryItem) {
+  void runMemoryAction(
+    () => restoreMemory(item.memoryRef),
+    '记忆已恢复',
+    '恢复记忆失败',
+  )
+}
+
+function openMemoryCorrection(item: ChatMemoryItem) {
+  memoryCorrectionTarget.value = item
+  memoryCorrectionContent.value = item.content || ''
+  memoryCorrectionSubmitting.value = false
+  memoryCorrectionDialogVisible.value = true
+}
+
+function resetMemoryCorrection() {
+  memoryCorrectionTarget.value = null
+  memoryCorrectionContent.value = ''
+  memoryCorrectionSubmitting.value = false
+}
+
+async function submitMemoryCorrection() {
+  if (memoryCorrectionSubmitting.value) {
+    return
+  }
+  const target = memoryCorrectionTarget.value
+  const content = memoryCorrectionContent.value.trim()
+  if (!target) {
+    return
+  }
+  if (!content) {
+    ElMessage.warning('请输入修正后的记忆内容')
+    return
+  }
+  memoryCorrectionSubmitting.value = true
+  try {
+    await correctMemory(target.memoryRef, content)
+    memoryCorrectionDialogVisible.value = false
+    ElMessage.success('已提交记忆修正，正在重新整理')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '修正记忆失败')
+  } finally {
+    memoryCorrectionSubmitting.value = false
+  }
+}
+
+async function handlePromoteMemory(item: ChatMemoryItem) {
+  const confirmed = await appConfirm(
+    '确认将这条会话记忆保存为长期记忆吗？保存后可能在其他会话中被召回。',
+    {
+      title: '保存为长期记忆',
+      confirmButtonText: '确认保存',
+      cancelButtonText: '取消',
+    },
+  )
+  if (!confirmed) {
+    return
+  }
+  await runMemoryAction(
+    () => promoteMemory(item.memoryRef),
+    '已提交长期记忆保存',
+    '保存长期记忆失败',
+  )
+}
+
+async function handleExcludeMemory(item: ChatMemoryItem) {
+  const confirmed = await appConfirm(
+    '确认让本次会话不再使用这条长期记忆吗？不会影响其他会话。',
+    {
+      title: '当前会话排除',
+      confirmButtonText: '确认排除',
+      cancelButtonText: '取消',
+    },
+  )
+  if (!confirmed) {
+    return
+  }
+  await runMemoryAction(
+    () => excludeMemoryFromSession(item.memoryRef, currentSessionCode.value),
+    '已从当前会话排除',
+    '排除长期记忆失败',
+  )
+}
+
+async function handleForgetMemory(item: ChatMemoryItem) {
+  const confirmed = await appConfirm(
+    '永久删除后将无法恢复这条记忆。会话历史和消息不会被删除。',
+    {
+      title: '永久删除记忆',
+      danger: true,
+      confirmButtonText: '永久删除',
+      cancelButtonText: '取消',
+    },
+  )
+  if (!confirmed) {
+    return
+  }
+  await runMemoryAction(
+    () => forgetMemory(item.memoryRef),
+    '记忆已删除',
+    '删除记忆失败',
+  )
+}
+
+async function handleClearLongTermMemory() {
+  const confirmed = await appConfirm(
+    '确认清空全部长期记忆吗？会话、消息、产物和活动记录会保留。',
+    {
+      title: '清空长期记忆',
+      danger: true,
+      confirmButtonText: '清空长期记忆',
+      cancelButtonText: '取消',
+    },
+  )
+  if (!confirmed) {
+    return
+  }
+  await runMemoryAction(
+    () => clearLongTermMemory(),
+    '长期记忆清空任务已提交',
+    '清空长期记忆失败',
+  )
 }
 
 function handleStreamEvent(
@@ -1432,6 +1730,7 @@ async function submitChatMessage(message: string) {
     }
     if (finalSessionCode && result.terminalEventName === 'round.completed') {
       await loadConversationDetail(finalSessionCode, true)
+      await loadConversationContext(finalSessionCode, { preserve: true }).catch(() => undefined)
     }
   } catch (error) {
     if (isAbortError(error) && interactionState.value === 'cancelled') {
@@ -1642,21 +1941,41 @@ watch(isConversationMode, () => {
   void syncTextareaHeights()
 }, { immediate: true })
 
-watch(currentSessionCode, (sessionCode) => {
-  if (!sessionCode) {
+async function handleSessionChange(sessionCode: string) {
+  const normalizedSessionCode = sessionCode.trim()
+  if (!normalizedSessionCode) {
+    detailRequestSequence += 1
     chatMessages.value = []
     currentRoundCode.value = ''
     currentSessionName.value = ''
     pendingSessionCode.value = ''
     conversationError.value = ''
     interactionState.value = 'idle'
+    resetConversationHistory()
+    clearConversationContext()
+    isLoadingDetail.value = false
     return
   }
-  if (isStreaming.value && sessionCode === pendingSessionCode.value) {
+
+  void loadConversationContext(normalizedSessionCode, { preserve: true }).catch(() => undefined)
+  if (isStreaming.value && normalizedSessionCode === pendingSessionCode.value) {
     return
   }
   interactionState.value = 'idle'
-  void loadConversationDetail(sessionCode)
+  await loadConversationDetail(normalizedSessionCode)
+
+  if (currentSessionCode.value !== normalizedSessionCode) {
+    return
+  }
+  const pendingSource = pendingMemorySource.value
+  if (pendingSource?.sessionCode === normalizedSessionCode) {
+    pendingMemorySource.value = null
+    await openConversationHistoryWindow(normalizedSessionCode, pendingSource.roundCode)
+  }
+}
+
+watch(currentSessionCode, (sessionCode) => {
+  void handleSessionChange(sessionCode)
 }, { immediate: true })
 
 watch(route, () => {
@@ -2178,7 +2497,16 @@ watch(route, () => {
       </section>
 
       <section v-else class="chat-home-conversation">
-        <div class="chat-home-center-column chat-home-center-column--conversation">
+        <div
+          ref="conversationScrollContainer"
+          class="chat-home-center-column chat-home-center-column--conversation"
+        >
+          <ConversationContextSummaryBar
+            :context="conversationContext"
+            :counts="conversationContextCounts"
+            :loading="isLoadingConversationContext"
+            @open="openConversationContext"
+          />
           <div v-if="chatMessages.length === 0 && !isLoadingDetail" class="chat-home-assistant">
             <div class="chat-home-assistant__avatar">AI</div>
             <div class="chat-home-assistant__body">
@@ -2219,11 +2547,22 @@ watch(route, () => {
             <span>{{ conversationError }}</span>
           </div>
           <div v-else-if="isLoadingDetail" class="chat-home-feedback">会话加载中...</div>
+          <div v-if="hasOlderHistory" class="chat-history-loader">
+            <el-button
+              link
+              size="small"
+              :loading="isLoadingHistory"
+              @click="loadOlderConversationHistory"
+            >
+              加载更早记录
+            </el-button>
+          </div>
           <div class="chat-home-message-list">
             <article
               v-for="message in chatMessages"
               :key="message.id"
               :class="['chat-home-message', `is-${message.role}`]"
+              :data-round-code="message.roundCode || undefined"
             >
               <template v-if="message.role === 'assistant'">
                 <div class="chat-home-message__assistant-row">
@@ -2416,6 +2755,49 @@ watch(route, () => {
       />
     </el-select>
   </AppDialog>
+
+  <AppDialog
+    v-model="memoryCorrectionDialogVisible"
+    title="纠正记忆"
+    description="提交后，记忆平台会以新内容重新整理这条记忆。"
+    size="medium"
+    action-mode="confirm"
+    confirm-text="提交纠正"
+    :confirming="memoryCorrectionSubmitting"
+    :close-on-press-escape="!memoryCorrectionSubmitting"
+    :show-close="!memoryCorrectionSubmitting"
+    @confirm="submitMemoryCorrection"
+    @closed="resetMemoryCorrection"
+  >
+    <el-input
+      v-model="memoryCorrectionContent"
+      type="textarea"
+      :rows="6"
+      maxlength="2000"
+      show-word-limit
+      autofocus
+      placeholder="输入希望记忆平台保留的内容"
+    />
+  </AppDialog>
+
+  <ConversationContextDrawer
+    v-model="contextDrawerVisible"
+    :session-code="currentSessionCode"
+    :context="conversationContext"
+    :long-term-list="conversationLongTermList"
+    :loading="isLoadingConversationContext || isLoadingLongTermMemories"
+    :error="conversationContextError"
+    :action-loading="conversationContextActionLoading"
+    @refresh="refreshConversationContextView"
+    @disable="handleDisableMemory"
+    @restore="handleRestoreMemory"
+    @correct="openMemoryCorrection"
+    @promote="handlePromoteMemory"
+    @exclude="handleExcludeMemory"
+    @forget="handleForgetMemory"
+    @source="handleMemorySource"
+    @clear-long-term="handleClearLongTermMemory"
+  />
 </template>
 
 <style scoped lang="scss">
@@ -2453,6 +2835,23 @@ watch(route, () => {
 
 .chat-home-welcome-stage > .chat-workspace-alert {
   align-self: center;
+}
+
+.chat-history-loader {
+  display: flex;
+  justify-content: center;
+  width: min(760px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 0 0 var(--app-space-2);
+}
+
+.chat-history-loader :deep(.el-button) {
+  color: var(--chat-text-muted);
+}
+
+.chat-history-loader :deep(.el-button:hover),
+.chat-history-loader :deep(.el-button:focus-visible) {
+  color: var(--app-accent);
 }
 
 .composer-send-button.is-stop {

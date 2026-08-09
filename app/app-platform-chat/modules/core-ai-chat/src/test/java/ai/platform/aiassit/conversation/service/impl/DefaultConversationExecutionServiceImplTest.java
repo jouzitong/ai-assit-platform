@@ -96,6 +96,7 @@ class DefaultConversationExecutionServiceImplTest {
                 null,
                 null,
                 null,
+                null,
                 renderInternalApi,
                 new ObjectMapper()
         );
@@ -264,6 +265,7 @@ class DefaultConversationExecutionServiceImplTest {
                 null,
                 null,
                 historyRecorder,
+                null,
                 null,
                 null,
                 null,

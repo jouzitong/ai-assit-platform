@@ -4,6 +4,12 @@ import type {
   ChatConversationDetailPayload,
   ChatConversationDetailResponse,
   ChatConversationDeletePayload,
+  ChatMemoryConfirmPayload,
+  ChatMemoryContextResponse,
+  ChatMemoryCorrectionPayload,
+  ChatMemoryListResponse,
+  ChatMemoryOperationResponse,
+  ChatMemorySessionPolicyPayload,
   ChatGroupAssignPayload,
   ChatGroupCreatePayload,
   ChatGroupDeletePayload,
@@ -16,6 +22,8 @@ import type {
   ChatEnabledModel,
   ChatQueryPayload,
   ChatRoundThinkingDetail,
+  ConversationHistoryPageResponse,
+  ConversationHistoryWindowResponse,
   ChatRunStatus,
   ChatSessionItem,
   ChatStreamEvent,
@@ -103,6 +111,95 @@ export function fetchConversationDetail(payload: ChatConversationDetailPayload) 
     method: 'POST',
     body: JSON.stringify(payload),
   })
+}
+
+export function fetchConversationContext(sessionCode: string) {
+  return request<ChatMemoryContextResponse>(
+    `${CHAT_API_PREFIX}/api/chat/sessions/${encodeURIComponent(sessionCode)}/context`,
+    { method: 'GET' },
+  )
+}
+
+export function fetchLongTermMemories() {
+  return request<ChatMemoryListResponse>(`${CHAT_API_PREFIX}/api/chat/memories/long-term`, {
+    method: 'GET',
+  })
+}
+
+export function disableConversationMemory(memoryRef: string) {
+  return request<ChatMemoryOperationResponse>(
+    `${CHAT_API_PREFIX}/api/chat/memories/${encodeURIComponent(memoryRef)}/disable`,
+    { method: 'POST' },
+  )
+}
+
+export function restoreConversationMemory(memoryRef: string) {
+  return request<ChatMemoryOperationResponse>(
+    `${CHAT_API_PREFIX}/api/chat/memories/${encodeURIComponent(memoryRef)}/restore`,
+    { method: 'POST' },
+  )
+}
+
+export function correctConversationMemory(memoryRef: string, payload: ChatMemoryCorrectionPayload) {
+  return request<ChatMemoryOperationResponse>(
+    `${CHAT_API_PREFIX}/api/chat/memories/${encodeURIComponent(memoryRef)}/correct`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function promoteConversationMemory(memoryRef: string, payload: ChatMemoryConfirmPayload = { confirmed: true }) {
+  return request<ChatMemoryOperationResponse>(
+    `${CHAT_API_PREFIX}/api/chat/memories/${encodeURIComponent(memoryRef)}/promote`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function excludeConversationMemoryFromSession(
+  memoryRef: string,
+  payload: ChatMemorySessionPolicyPayload,
+) {
+  return request<ChatMemoryOperationResponse>(
+    `${CHAT_API_PREFIX}/api/chat/memories/${encodeURIComponent(memoryRef)}/exclude-from-session`,
+    { method: 'POST', body: JSON.stringify(payload) },
+  )
+}
+
+export function forgetConversationMemory(memoryRef: string) {
+  return request<ChatMemoryOperationResponse>(
+    `${CHAT_API_PREFIX}/api/chat/memories/${encodeURIComponent(memoryRef)}`,
+    { method: 'DELETE' },
+  )
+}
+
+export function clearLongTermMemories(payload: ChatMemoryConfirmPayload = { confirmed: true }) {
+  return request<ChatMemoryOperationResponse>(`${CHAT_API_PREFIX}/api/chat/memories/long-term/clear`, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  })
+}
+
+export function fetchConversationHistoryPage(
+  sessionCode: string,
+  before?: string,
+  limit = 20,
+) {
+  return request<ConversationHistoryPageResponse>(
+    `${CHAT_API_PREFIX}/api/chat/sessions/${encodeURIComponent(sessionCode)}/rounds`,
+    {
+      method: 'GET',
+      query: { before, limit },
+    },
+  )
+}
+
+export function fetchConversationHistoryWindow(sessionCode: string, aroundRoundCode: string) {
+  return request<ConversationHistoryWindowResponse>(
+    `${CHAT_API_PREFIX}/api/chat/sessions/${encodeURIComponent(sessionCode)}/rounds/window`,
+    {
+      method: 'GET',
+      query: { aroundRoundCode },
+    },
+  )
 }
 
 export function fetchEnabledModels() {

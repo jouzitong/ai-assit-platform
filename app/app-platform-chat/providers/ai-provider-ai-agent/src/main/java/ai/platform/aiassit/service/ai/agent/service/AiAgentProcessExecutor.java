@@ -469,6 +469,7 @@ public class AiAgentProcessExecutor {
         run.put("traceId", command.getTraceId());
         run.put("sessionCode", command.getSessionCode());
         run.put("roundCode", command.getRoundCode());
+        run.put("tenantId", command.getTenantId());
         run.put("userId", command.getUserId());
         run.put("input", command.getInput());
         run.put("context", sanitizeStructuredValue(command.getContext()));

@@ -18,13 +18,11 @@ import ai.platform.aiassit.conversation.data.enums.ConversationContentFormat;
 import ai.platform.aiassit.conversation.data.enums.ConversationDisplayLevel;
 import ai.platform.aiassit.conversation.data.enums.ConversationMessageType;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
-import org.apache.commons.collections4.CollectionUtils;
 import org.arthena.framework.common.exception.BizException;
 import org.athena.framework.security.auth.core.context.SecurityContextHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
-import java.util.Comparator;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,6 +32,7 @@ public class ConversationPreparationService {
 
     private static final String STATUS_SUCCESS = "SUCCESS";
     private static final String STATUS_RUNNING = "RUNNING";
+    private static final int RECENT_HISTORY_ROUNDS = 6;
 
     private final ConversationSessionService sessionService;
     private final ConversationMessageService messageService;
@@ -70,6 +69,7 @@ public class ConversationPreparationService {
 
         String sessionCode = command.getSessionCode();
         Long userId = resolveUserId(command.getUserId());
+        context.setTenantId(command.getTenantId());
 
         ConversationSessionDTO session;
         List<ConversationMessageDTO> sessionMessages;
@@ -136,12 +136,11 @@ public class ConversationPreparationService {
     }
 
     private List<ConversationMessageDTO> loadSessionMessages(String sessionCode, Long userId) {
-        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
-        query.setSessionCode(sessionCode);
-        query.setUserId(userId);
-        return messageService.queryAll(query).stream()
-                .sorted(Comparator.comparing(ConversationMessageDTO::getSortNo, Comparator.nullsLast(Integer::compareTo)))
+        List<String> roundCodes = roundService.queryRecent(sessionCode, userId, RECENT_HISTORY_ROUNDS)
+                .stream()
+                .map(ConversationRoundDTO::getRoundCode)
                 .toList();
+        return messageService.queryByRoundCodes(roundCodes);
     }
 
     private ConversationRoundDTO createRound(ConversationSessionDTO session, ConversationQueryCommand command, Long userId) {
@@ -215,14 +214,8 @@ public class ConversationPreparationService {
     }
 
     private String resolveParentRoundCode(String sessionCode, Long userId) {
-        ConversationHistoryQueryRequest query = new ConversationHistoryQueryRequest();
-        query.setSessionCode(sessionCode);
-        query.setUserId(userId);
-        List<ConversationRoundDTO> rounds = roundService.queryAll(query);
-        if (CollectionUtils.isEmpty(rounds)) {
-            return null;
-        }
-        return rounds.get(rounds.size() - 1).getRoundCode();
+        ConversationRoundDTO latest = roundService.queryLatest(sessionCode, userId);
+        return latest == null ? null : latest.getRoundCode();
     }
 
     private String resolveModelCode(String apiModel) {

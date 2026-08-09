@@ -5,6 +5,7 @@ import ai.platform.aiassit.service.ai.api.dto.AiKbAuthConfig;
 import ai.platform.aiassit.service.ai.api.dto.RequestMeta;
 import ai.platform.aiassit.service.ai.api.enums.AiKbAuthType;
 import ai.platform.aiassit.service.ai.api.enums.AiKnowledgeClientType;
+import ai.platform.aiassit.service.ai.spi.config.ProviderClientConfigurationResolver;
 import ai.platform.aiassit.user.system.settings.api.SystemSettingInternalApi;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -28,7 +29,7 @@ import java.util.Map;
  * 管理端只会得到非敏感摘要。</p>
  */
 @Service
-public class KnowledgeClientConfigService {
+public class KnowledgeClientConfigService implements ProviderClientConfigurationResolver {
 
     public static final String SETTING_KEY = "chat.engine.kb.client.list";
     public static final String CLIENT_KEY_EXT = "knowledgeClientKey";
@@ -77,6 +78,7 @@ public class KnowledgeClientConfigService {
     /**
      * 使用所选系统客户端覆盖调用地址与认证信息，并校验本地 KB 保存的 Provider 类型。
      */
+    @Override
     public RequestMeta apply(String clientKey, AiKnowledgeClientType expectedClientType, RequestMeta requestMeta) {
         ConfiguredClient client = requireClient(clientKey);
         if (expectedClientType != null && client.clientType != expectedClientType) {

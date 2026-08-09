@@ -21,6 +21,7 @@ import ai.platform.aiassit.conversation.data.service.ConversationActivityService
 import ai.platform.aiassit.conversation.data.service.ConversationMessageService;
 import ai.platform.aiassit.conversation.data.service.ConversationRoundService;
 import ai.platform.aiassit.conversation.data.service.ConversationSessionService;
+import ai.platform.aiassit.conversation.memory.ConversationMemoryBridge;
 import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import org.arthena.framework.common.exception.BizException;
 import org.springframework.stereotype.Service;
@@ -43,17 +44,20 @@ public class DefaultConversationServiceImpl implements ConversationService {
     private final ConversationMessageService messageService;
     private final ConversationArtifactService artifactService;
     private final ConversationActivityService activityService;
+    private final ConversationMemoryBridge memoryBridge;
 
     public DefaultConversationServiceImpl(ConversationSessionService sessionService,
                                          ConversationRoundService roundService,
                                          ConversationMessageService messageService,
                                          ConversationArtifactService artifactService,
-                                         ConversationActivityService activityService) {
+                                         ConversationActivityService activityService,
+                                         ConversationMemoryBridge memoryBridge) {
         this.sessionService = sessionService;
         this.roundService = roundService;
         this.messageService = messageService;
         this.artifactService = artifactService;
         this.activityService = activityService;
+        this.memoryBridge = memoryBridge;
     }
 
     @Override
@@ -140,6 +144,9 @@ public class DefaultConversationServiceImpl implements ConversationService {
         ConversationSessionDTO session = loadConversationSession(request == null ? null : request.getSessionCode(),
                 request == null ? null : request.getUserId());
         deleteConversationHistory(session.getSessionCode(), session.getUserId());
+        if (memoryBridge != null) {
+            memoryBridge.enqueueSessionDeletion(request.getTenantId(), session.getUserId(), session.getSessionCode());
+        }
         return sessionService.delete(session.getId());
     }
 

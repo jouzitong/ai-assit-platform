@@ -627,6 +627,7 @@ public class DefaultAgentConversationRunner implements AgentConversationRunner {
         command.setTraceId(request.getTraceId());
         command.setSessionCode(request.getSessionCode());
         command.setRoundCode(request.getRoundCode());
+        command.setTenantId(request.getTenantId());
         command.setUserId(request.getUserId());
         command.setInput(request.getInput());
         command.setMessages(request.getMessages());

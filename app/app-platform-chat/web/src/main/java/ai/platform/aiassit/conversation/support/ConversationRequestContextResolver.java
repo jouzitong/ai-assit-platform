@@ -16,8 +16,19 @@ public class ConversationRequestContextResolver {
 
     public Long currentUserId() {
         UserContext userContext = SystemContext.getUserContext();
-        if (userContext != null && userContext.subject() != null) {
+        if (userContext != null && userContext.subject() != null && userContext.subject().userId() != null) {
             return userContext.subject().userId();
+        }
+        throw BizException.of(ErrCodeConstant.LOGIN_FAILED);
+    }
+
+    /** Returns the tenant from the authenticated subject; request data is never consulted. */
+    public String currentTenantId() {
+        UserContext userContext = SystemContext.getUserContext();
+        if (userContext != null && userContext.subject() != null
+                && userContext.subject().tenantId() != null
+                && !userContext.subject().tenantId().isBlank()) {
+            return userContext.subject().tenantId().trim();
         }
         throw BizException.of(ErrCodeConstant.LOGIN_FAILED);
     }

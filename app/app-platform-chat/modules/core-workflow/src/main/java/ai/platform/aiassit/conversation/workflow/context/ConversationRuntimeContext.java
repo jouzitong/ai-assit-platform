@@ -33,9 +33,12 @@ public class ConversationRuntimeContext implements Serializable {
     private static final String STATUS_RUNNING = "RUNNING";
 
     private ConversationQueryCommand command;
+    /** Trusted tenant copied from the server-built command for this round. */
+    private String tenantId;
     private ConversationSessionDTO session;
     private ConversationRoundDTO round;
     private List<ConversationArtifactDTO> sessionArtifacts = new ArrayList<>();
+    private ConversationContextPackage contextPackage = new ConversationContextPackage();
     private UserMessageContext userMessageContext = new UserMessageContext();
     private String renderedAnswer;
     private transient ConversationEventPublisher eventPublisher = ConversationEventPublisher.NOOP;

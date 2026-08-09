@@ -1075,6 +1075,42 @@
     ]
   },
   {
+    "code": 53010032,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "参数缺失：记忆引用不能为空",
+        "description": "参数缺失：记忆引用不能为空"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Missing parameter: memory reference is required",
+        "description": "Missing parameter: memory reference is required"
+      }
+    ]
+  },
+  {
+    "code": 53010033,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数缺失",
+    "tags": "AI 聊天,参数缺失",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "请明确确认本次记忆操作",
+        "description": "请明确确认本次记忆操作"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Explicit confirmation is required for this memory operation",
+        "description": "Explicit confirmation is required for this memory operation"
+      }
+    ]
+  },
+  {
     "code": 53020001,
     "httpStatus": 200,
     "description": "AI 聊天：参数取值非法",
@@ -1093,6 +1129,42 @@
     ]
   },
   {
+    "code": 53020002,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数取值非法",
+    "tags": "AI 聊天,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "知识库检索参数非法：{}",
+        "description": "知识库检索参数非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Knowledge base search parameter is invalid: {}",
+        "description": "Knowledge base search parameter is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 53020003,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数取值非法",
+    "tags": "AI 聊天,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "Tool 输入参数非法：{}",
+        "description": "Tool 输入参数非法：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Tool input is invalid: {}",
+        "description": "Tool input is invalid: {}"
+      }
+    ]
+  },
+  {
     "code": 53020004,
     "httpStatus": 200,
     "description": "AI 聊天：参数取值非法",
@@ -1107,6 +1179,24 @@
         "locale": "en-US",
         "messageTemplate": "Group name is invalid: {}",
         "description": "Group name is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 53020005,
+    "httpStatus": 200,
+    "description": "AI 聊天：参数取值非法",
+    "tags": "AI 聊天,参数取值非法",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "历史游标非法",
+        "description": "历史游标非法"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "History cursor is invalid",
+        "description": "History cursor is invalid"
       }
     ]
   },
@@ -1219,6 +1309,24 @@
     ]
   },
   {
+    "code": 53030007,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "已发布 Tool 不存在：{}",
+        "description": "已发布 Tool 不存在：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Published Tool not found: {}",
+        "description": "Published Tool not found: {}"
+      }
+    ]
+  },
+  {
     "code": 53030008,
     "httpStatus": 200,
     "description": "AI 聊天：资源不存在",
@@ -1233,6 +1341,24 @@
         "locale": "en-US",
         "messageTemplate": "Conversation group not found: {}",
         "description": "Conversation group not found: {}"
+      }
+    ]
+  },
+  {
+    "code": 53030009,
+    "httpStatus": 200,
+    "description": "AI 聊天：资源不存在",
+    "tags": "AI 聊天,资源不存在",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "记忆不存在或无权访问",
+        "description": "记忆不存在或无权访问"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Memory not found or inaccessible",
+        "description": "Memory not found or inaccessible"
       }
     ]
   },
@@ -1255,6 +1381,42 @@
     ]
   },
   {
+    "code": 53040002,
+    "httpStatus": 200,
+    "description": "AI 聊天：状态或约束冲突",
+    "tags": "AI 聊天,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "无权调用 Tool：{}",
+        "description": "无权调用 Tool：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Tool invocation is not permitted: {}",
+        "description": "Tool invocation is not permitted: {}"
+      }
+    ]
+  },
+  {
+    "code": 53040003,
+    "httpStatus": 200,
+    "description": "AI 聊天：状态或约束冲突",
+    "tags": "AI 聊天,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "Tool 调用需要有效审批：{}",
+        "description": "Tool 调用需要有效审批：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Tool invocation requires a valid approval: {}",
+        "description": "Tool invocation requires a valid approval: {}"
+      }
+    ]
+  },
+  {
     "code": 53040004,
     "httpStatus": 200,
     "description": "AI 聊天：状态或约束冲突",
@@ -1269,6 +1431,42 @@
         "locale": "en-US",
         "messageTemplate": "This conversation cannot be assigned to the group: {}",
         "description": "This conversation cannot be assigned to the group: {}"
+      }
+    ]
+  },
+  {
+    "code": 53040005,
+    "httpStatus": 200,
+    "description": "AI 聊天：状态或约束冲突",
+    "tags": "AI 聊天,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "当前记忆状态不允许执行该操作：{}",
+        "description": "当前记忆状态不允许执行该操作：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "The memory state does not allow this operation: {}",
+        "description": "The memory state does not allow this operation: {}"
+      }
+    ]
+  },
+  {
+    "code": 53040006,
+    "httpStatus": 200,
+    "description": "AI 聊天：状态或约束冲突",
+    "tags": "AI 聊天,状态或约束冲突",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "记忆来源无效或归属校验失败",
+        "description": "记忆来源无效或归属校验失败"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Memory source is invalid or ownership validation failed",
+        "description": "Memory source is invalid or ownership validation failed"
       }
     ]
   },
@@ -1395,6 +1593,96 @@
         "locale": "en-US",
         "messageTemplate": "Provider response is invalid: {}",
         "description": "Provider response is invalid: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060008,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "Tool 调用失败：{}",
+        "description": "Tool 调用失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Tool invocation failed: {}",
+        "description": "Tool invocation failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060009,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "Agent 执行失败：{}",
+        "description": "Agent 执行失败：{}"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Agent execution failed: {}",
+        "description": "Agent execution failed: {}"
+      }
+    ]
+  },
+  {
+    "code": 53060010,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "记忆操作失败，请稍后重试",
+        "description": "记忆操作失败，请稍后重试"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Memory operation failed. Please try again later",
+        "description": "Memory operation failed. Please try again later"
+      }
+    ]
+  },
+  {
+    "code": 53060011,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "记忆服务暂时不可用",
+        "description": "记忆服务暂时不可用"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Memory provider is temporarily unavailable",
+        "description": "Memory provider is temporarily unavailable"
+      }
+    ]
+  },
+  {
+    "code": 53060012,
+    "httpStatus": 200,
+    "description": "AI 聊天：系统处理异常",
+    "tags": "AI 聊天,系统处理异常",
+    "value": [
+      {
+        "locale": "zh-CN",
+        "messageTemplate": "记忆绑定暂时不可用",
+        "description": "记忆绑定暂时不可用"
+      },
+      {
+        "locale": "en-US",
+        "messageTemplate": "Memory binding is temporarily unavailable",
+        "description": "Memory binding is temporarily unavailable"
       }
     ]
   },

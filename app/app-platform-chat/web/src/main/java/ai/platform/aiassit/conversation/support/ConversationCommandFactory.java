@@ -29,8 +29,11 @@ public class ConversationCommandFactory {
         this.modelConfigService = modelConfigService;
     }
 
-    public ConversationQueryCommand fromLegacy(ConversationQueryRequest request, Long userId, String traceId) {
-        ConversationQueryCommand command = base(userId, traceId);
+    public ConversationQueryCommand fromLegacy(ConversationQueryRequest request,
+                                                String tenantId,
+                                                Long userId,
+                                                String traceId) {
+        ConversationQueryCommand command = base(tenantId, userId, traceId);
         command.setSessionCode(request == null ? null : request.getSessionCode());
         command.setGroupCode(request == null ? null : request.getGroupCode());
         applyModel(command, request == null ? null : request.getModelId());
@@ -60,9 +63,10 @@ public class ConversationCommandFactory {
 
     public ConversationQueryCommand fromProtocol(ChatTransportRequest request,
                                                  String pathSessionCode,
+                                                 String tenantId,
                                                  Long userId,
                                                  String fallbackTraceId) {
-        return fromProtocol(request, pathSessionCode, userId, fallbackTraceId, false);
+        return fromProtocol(request, pathSessionCode, tenantId, userId, fallbackTraceId, false);
     }
 
     /**
@@ -73,6 +77,7 @@ public class ConversationCommandFactory {
      */
     public ConversationQueryCommand fromSettingsAssistantProtocol(ChatTransportRequest request,
                                                                    String pathSessionCode,
+                                                                   String tenantId,
                                                                    Long userId,
                                                                    String fallbackTraceId,
                                                                    boolean allowModelOverride) {
@@ -84,7 +89,7 @@ public class ConversationCommandFactory {
                     request.getGroupCode().trim());
         }
         ConversationQueryCommand command = fromProtocol(
-                request, pathSessionCode, userId, fallbackTraceId, allowModelOverride);
+                request, pathSessionCode, tenantId, userId, fallbackTraceId, allowModelOverride);
         command.setScene(SETTINGS_ASSISTANT_SCENE);
         command.setAgentEntryCode(SETTINGS_ASSISTANT_ENTRY);
         command.setBusinessType(ConversationBusinessType.PAGE_ASSISTANT);
@@ -93,10 +98,11 @@ public class ConversationCommandFactory {
 
     public ConversationQueryCommand fromProtocol(ChatTransportRequest request,
                                                   String pathSessionCode,
+                                                  String tenantId,
                                                   Long userId,
                                                   String fallbackTraceId,
                                                   boolean allowModelOverride) {
-        ConversationQueryCommand command = base(userId,
+        ConversationQueryCommand command = base(tenantId, userId,
                 request != null && StringUtils.hasText(request.getRequestId())
                         ? request.getRequestId()
                         : fallbackTraceId);
@@ -143,12 +149,13 @@ public class ConversationCommandFactory {
         command.setActualModel(config.getApiModel());
     }
 
-    private ConversationQueryCommand base(Long userId, String traceId) {
+    private ConversationQueryCommand base(String tenantId, Long userId, String traceId) {
         ConversationQueryCommand command = new ConversationQueryCommand();
         command.setScene(DEFAULT_SCENE);
         command.setAgentEntryCode(HOME_CHAT_ENTRY);
         command.setBusinessType(ConversationBusinessType.CUSTOM);
         command.setTraceId(traceId);
+        command.setTenantId(tenantId);
         command.setUserId(userId);
         return command;
     }

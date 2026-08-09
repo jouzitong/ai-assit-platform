@@ -17,6 +17,7 @@ public class AgentRunCommand implements Serializable {
     private String traceId;
     private String sessionCode;
     private String roundCode;
+    private String tenantId;
     private Long userId;
     private String input;
     private List<ChatMessage> messages = new ArrayList<>();

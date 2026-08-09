@@ -57,6 +57,14 @@ public class ConversationQueryCommand {
     private Long userId;
 
     /**
+     * 当前租户标识。
+     *
+     * <p>该字段只能由 Web/Transport 层从 Athena 安全上下文写入，前端请求、模型输出和
+     * {@code ext} 都不能覆盖。Memory 绑定、召回和写入使用 tenantId + userId 做平台侧所有权校验。</p>
+     */
+    private String tenantId;
+
+    /**
      * 业务类型。
      *
      * <p>用于标识当前会话所属的业务域，例如通用对话、智能问数等。</p>
@@ -143,7 +151,6 @@ public class ConversationQueryCommand {
     public String toString() {
         return "ConversationQueryCommand{" +
                 "traceId='" + traceId + '\'' +
-                ", userId=" + userId +
                 ", sessionCode='" + sessionCode + '\'' +
                 ", groupCode='" + groupCode + '\'' +
                 ", roundCode='" + roundCode + '\'' +

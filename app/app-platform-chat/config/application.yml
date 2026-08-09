@@ -25,6 +25,41 @@ ai:
       max-replay-events: 512
       redis:
         key-prefix: ai:chat:runtime
+    memory:
+      enabled: ${AI_CHAT_MEMORY_ENABLED:false}
+      provider-type: RAGFLOW
+      client-key: ${AI_CHAT_MEMORY_CLIENT_KEY:ragflow}
+      # Required when Memory is enabled. It protects the stable tenant/user key sent to RAGFlow.
+      identity-salt: ${AI_CHAT_MEMORY_IDENTITY_SALT:}
+      schema-version: ${AI_CHAT_MEMORY_SCHEMA_VERSION:1}
+      session-enabled: ${AI_CHAT_MEMORY_SESSION_ENABLED:true}
+      long-term-enabled: ${AI_CHAT_MEMORY_LONG_TERM_ENABLED:true}
+      embedding-model: ${AI_CHAT_MEMORY_EMBEDDING_MODEL:}
+      extraction-model: ${AI_CHAT_MEMORY_EXTRACTION_MODEL:}
+      memory-size: ${AI_CHAT_MEMORY_SIZE:5242880}
+      forgetting-policy: FIFO
+      recall:
+        enabled: ${AI_CHAT_MEMORY_RECALL_ENABLED:true}
+        # Keep shadow-only until deployed RAGFlow write idempotency has passed the Phase 0 contract gate.
+        injection-enabled: ${AI_CHAT_MEMORY_RECALL_INJECTION_ENABLED:false}
+        session-top-n: ${AI_CHAT_MEMORY_RECALL_SESSION_TOP_N:12}
+        long-term-top-n: ${AI_CHAT_MEMORY_RECALL_LONG_TERM_TOP_N:6}
+        similarity-threshold: ${AI_CHAT_MEMORY_RECALL_SIMILARITY_THRESHOLD:0.2}
+        keyword-weight: ${AI_CHAT_MEMORY_RECALL_KEYWORD_WEIGHT:0.7}
+        timeout-ms: ${AI_CHAT_MEMORY_RECALL_TIMEOUT_MS:800}
+        token-budget: ${AI_CHAT_MEMORY_RECALL_TOKEN_BUDGET:3000}
+        per-item-token-limit: ${AI_CHAT_MEMORY_RECALL_PER_ITEM_TOKEN_LIMIT:600}
+      sync:
+        shadow-write-enabled: ${AI_CHAT_MEMORY_SHADOW_WRITE_ENABLED:true}
+        provider-idempotency-enabled: ${AI_CHAT_MEMORY_PROVIDER_IDEMPOTENCY_ENABLED:false}
+        batch-size: ${AI_CHAT_MEMORY_SYNC_BATCH_SIZE:10}
+        max-retries: ${AI_CHAT_MEMORY_SYNC_MAX_RETRIES:5}
+        lease-timeout: ${AI_CHAT_MEMORY_SYNC_LEASE_TIMEOUT:2m}
+        retry-base-delay: ${AI_CHAT_MEMORY_SYNC_RETRY_BASE_DELAY:10s}
+        fixed-delay-ms: ${AI_CHAT_MEMORY_SYNC_FIXED_DELAY_MS:5000}
+      provision:
+        lease-timeout: ${AI_CHAT_MEMORY_PROVISION_LEASE_TIMEOUT:3m}
+        verify-ttl: ${AI_CHAT_MEMORY_PROVISION_VERIFY_TTL:6h}
   provider:
     ai-agent:
       enabled: ${AI_PROVIDER_AI_AGENT_ENABLED:true}

@@ -63,6 +63,86 @@ export interface ChatConversationDetailResponse {
   rounds: ChatConversationRound[]
 }
 
+export type ChatMemoryScope = 'SESSION' | 'LONG_TERM' | string
+
+export type ChatMemoryType = 'RAW' | 'SEMANTIC' | 'EPISODIC' | 'PROCEDURAL' | string
+
+export type ChatMemoryItemStatus = 'ACTIVE' | 'DISABLED' | 'PROCESSING' | 'FAILED' | 'FORGOTTEN' | string
+
+export interface ChatMemoryItem {
+  memoryRef: string
+  scope?: ChatMemoryScope | null
+  memoryType?: ChatMemoryType | null
+  status?: ChatMemoryItemStatus | null
+  content?: string | null
+  sourceSessionCode?: string | null
+  sourceRoundCode?: string | null
+  createdAt?: string | null
+  excludedFromSession?: boolean
+}
+
+export interface ChatMemoryCounts {
+  sessionMemories: number
+  longTermMemories: number
+  processing: number
+  disabled: number
+}
+
+export interface ChatMemoryContextResponse {
+  sessionCode: string
+  generatedAt?: string | null
+  providerStatus?: string | null
+  memoryLag?: boolean
+  counts?: Partial<ChatMemoryCounts> | null
+  sessionMemories?: ChatMemoryItem[] | null
+  longTermMemories?: ChatMemoryItem[] | null
+  processingMemories?: ChatMemoryItem[] | null
+  disabledMemories?: ChatMemoryItem[] | null
+}
+
+export interface ChatMemoryListResponse {
+  generatedAt?: string | null
+  providerStatus?: string | null
+  memoryLag?: boolean
+  items?: ChatMemoryItem[] | null
+  processingItems?: ChatMemoryItem[] | null
+}
+
+export interface ChatMemoryOperationResponse {
+  memoryRef?: string | null
+  status?: ChatMemoryItemStatus | null
+  accepted?: boolean
+}
+
+export interface ChatMemoryConfirmPayload {
+  confirmed: boolean
+}
+
+export interface ChatMemoryCorrectionPayload extends ChatMemoryConfirmPayload {
+  content: string
+}
+
+export interface ChatMemorySessionPolicyPayload {
+  sessionCode: string
+}
+
+export interface ConversationHistoryPageResponse {
+  sessionCode: string
+  rounds: ChatConversationRound[]
+  nextCursor?: string | null
+  hasMore?: boolean
+}
+
+export interface ConversationHistoryWindowResponse {
+  sessionCode: string
+  aroundRoundCode?: string | null
+  rounds: ChatConversationRound[]
+  beforeCursor?: string | null
+  afterCursor?: string | null
+  hasEarlier?: boolean
+  hasLater?: boolean
+}
+
 export interface ChatConversationRound {
   round?: ChatRoundInfo | null
   messages: ChatMessageItem[]

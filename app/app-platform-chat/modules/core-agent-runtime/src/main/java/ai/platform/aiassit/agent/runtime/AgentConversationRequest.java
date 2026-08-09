@@ -16,6 +16,7 @@ public class AgentConversationRequest {
     private String traceId;
     private String sessionCode;
     private String roundCode;
+    private String tenantId;
     private Long userId;
     private Long modelId;
     private String input;
