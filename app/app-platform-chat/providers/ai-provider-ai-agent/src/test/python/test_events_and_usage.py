@@ -8,6 +8,7 @@ from agent_provider.artifacts import (
     merge_authoritative_artifacts,
     render_document_hash,
 )
+from agent_provider.capability_identity import runtime_tool_identity
 from agent_provider.events import EventEmitter, emit_sdk_event, map_run_item_event
 from agent_provider.runtime import extract_artifacts, extract_usage
 from agent_provider.runtime import runner
@@ -55,11 +56,55 @@ class EventsAndUsageTest(unittest.TestCase):
             lambda name: {
                 "code": "issue-create",
                 "version": 4,
+                "name": "创建事项",
             } if name == "gateway_issue_create_v4" else None,
         )
 
+        self.assertEqual("issue-create", mapped[3]["toolKey"])
         self.assertEqual("issue-create", mapped[3]["toolCode"])
+        self.assertEqual("创建事项", mapped[3]["toolName"])
         self.assertEqual(4, mapped[3]["toolVersion"])
+
+    def test_maps_builtin_tool_key_to_a_chinese_display_name(self) -> None:
+        raw = SimpleNamespace(name="load_skill_resource", call_id="call-skill")
+        item = SimpleNamespace(raw_item=raw)
+
+        mapped = map_run_item_event(SimpleNamespace(name="tool_called", item=item))
+
+        self.assertEqual("load_skill_resource", mapped[3]["toolKey"])
+        self.assertEqual("读取技能资源", mapped[3]["toolName"])
+        self.assertEqual("调用工具：读取技能资源", mapped[3]["activityName"])
+        self.assertEqual("需要读取已选技能的执行规范和资源内容。", mapped[3]["callReason"])
+
+    def test_maps_collaboration_tool_key_to_the_target_agent_name(self) -> None:
+        target = SimpleNamespace(code="dashboard-application-builder", name="看板与应用构建 Agent")
+        owner = SimpleNamespace(
+            agent_tools=[
+                SimpleNamespace(
+                    target_key="builder",
+                    tool_name="ask_dashboard_application_builder",
+                )
+            ]
+        )
+        graph = SimpleNamespace(
+            gateway_tools={},
+            agents={"owner": owner, "builder": target},
+        )
+        raw = SimpleNamespace(name="ask_dashboard_application_builder", call_id="call-agent")
+        item = SimpleNamespace(raw_item=raw)
+
+        mapped = map_run_item_event(
+            SimpleNamespace(name="tool_called", item=item),
+            lambda name: runtime_tool_identity(graph, name),
+        )
+
+        self.assertEqual("ask_dashboard_application_builder", mapped[3]["toolKey"])
+        self.assertEqual("看板与应用构建 Agent", mapped[3]["toolName"])
+        self.assertEqual("调用工具：看板与应用构建 Agent", mapped[3]["activityName"])
+        self.assertEqual(
+            "当前任务需要“看板与应用构建 Agent”的专业能力，因此发起协作。",
+            mapped[3]["callReason"],
+        )
 
     def test_tool_lifecycle_keeps_one_code_and_real_summaries(self) -> None:
         started_item = SimpleNamespace(
@@ -77,6 +122,10 @@ class EventsAndUsageTest(unittest.TestCase):
         self.assertEqual("call-3", completed[3]["activityCode"])
         self.assertEqual('{"value":1}', started[3]["inputSummary"])
         self.assertEqual('{"success": true, "count": 3}', completed[3]["outputSummary"])
+        self.assertEqual(
+            "当前步骤需要通过“validator”补充、验证或执行任务所需信息。",
+            started[3]["callReason"],
+        )
 
     def test_mapped_event_observer_receives_raw_tool_output_for_evidence_collection(self) -> None:
         observed: list[tuple[str, dict[str, object], object]] = []
@@ -105,6 +154,10 @@ class EventsAndUsageTest(unittest.TestCase):
 
         self.assertEqual("tool.completed", observed[0][0])
         self.assertEqual("call-kb", observed[0][1]["callId"])
+        self.assertEqual(
+            "当前任务需要补充已授权知识库中的业务语义和事实依据。",
+            observed[0][1]["callReason"],
+        )
         self.assertIs(item, observed[0][2])
         self.assertEqual("tool.completed", frames[0]["eventType"])
 

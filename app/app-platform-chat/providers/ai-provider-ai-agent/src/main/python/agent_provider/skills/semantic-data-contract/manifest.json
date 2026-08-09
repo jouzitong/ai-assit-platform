@@ -1,8 +1,8 @@
 {
   "code": "semantic-data-contract",
   "version": 1,
-  "name": "Semantic Data Contract",
-  "description": "Turn an application request into a clarified ApplicationBrief and an authorized semantic DataContract.",
+  "name": "语义数据契约",
+  "description": "将应用需求整理为明确的 ApplicationBrief 和经过授权的语义 DataContract。",
   "files": [
     {
       "path": "SKILL.md",

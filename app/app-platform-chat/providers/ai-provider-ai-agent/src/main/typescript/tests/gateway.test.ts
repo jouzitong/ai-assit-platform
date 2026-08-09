@@ -5,6 +5,7 @@ import { GatewayToolDescriptor, JsonRecord, NormalizedRun } from "../src/contrac
 import { invokeSkillGateway, invokeToolGateway } from "../src/gateway.js";
 
 const descriptor: GatewayToolDescriptor = {
+  key: "issue-create",
   code: "issue-create",
   version: 4,
   sdkName: "gateway_issue_create_v4",

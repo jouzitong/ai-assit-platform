@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any
 
 from ..artifacts import RunArtifactCollector, combine_event_observers
+from ..capability_identity import runtime_tool_identity
 from ..compiler import AgentLink, CompiledAgent, CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
 
@@ -67,7 +68,7 @@ class AgentDispatcher:
                     event,
                     self.emitter,
                     self.compiled_for,
-                    self._gateway_tool_identity,
+                    self._tool_identity,
                     emit_output_deltas=not confidence_policy.requires_guard,
                     mapped_event_observer=mapped_event_observer,
                 )
@@ -99,13 +100,8 @@ class AgentDispatcher:
         )
         return decorator(delegate)
 
-    def _gateway_tool_identity(self, sdk_name: str | None) -> dict[str, Any] | None:
-        if not sdk_name:
-            return None
-        for descriptor in self.graph.gateway_tools.values():
-            if descriptor.get("sdkName") == sdk_name:
-                return {"code": descriptor.get("code"), "version": descriptor.get("version")}
-        return None
+    def _tool_identity(self, sdk_name: str | None) -> dict[str, Any] | None:
+        return runtime_tool_identity(self.graph, sdk_name)
 
 
 def _safe_identifier(value: str) -> str:

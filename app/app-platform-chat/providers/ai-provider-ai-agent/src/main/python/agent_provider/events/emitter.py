@@ -7,6 +7,8 @@ import threading
 from datetime import datetime, timezone
 from typing import Any, Callable
 
+from ..capability_identity import BUILTIN_TOOL_DISPLAY_NAMES, tool_call_reason
+
 
 class EventEmitter:
     """Emits the platform event contract without leaking SDK-specific objects."""
@@ -158,21 +160,34 @@ def _item_ext(
     if _is_generic_output_type(tool_name):
         tool_name = None
     call_id = getattr(raw_item, "call_id", None) or getattr(item, "call_id", None)
-    gateway_identity = tool_lookup(str(tool_name) if tool_name else None) if tool_lookup else None
-    platform_tool_code = gateway_identity.get("code") if gateway_identity else tool_name
-    display_name = gateway_identity.get("name") if gateway_identity else platform_tool_code
+    tool_identity = tool_lookup(str(tool_name) if tool_name else None) if tool_lookup else None
+    platform_tool_key = tool_name
+    if tool_identity:
+        platform_tool_key = tool_identity.get("key") or tool_identity.get("code") or tool_name
+    display_name = (
+        tool_identity.get("name")
+        if tool_identity and tool_identity.get("name")
+        else BUILTIN_TOOL_DISPLAY_NAMES.get(str(platform_tool_key or ""), platform_tool_key)
+    )
     ext: dict[str, Any] = {
-        "activityCode": call_id or _fallback_activity_code(event_name, platform_tool_code),
+        "activityCode": call_id or _fallback_activity_code(event_name, platform_tool_key),
         "activityType": "TOOL_CALL" if "tool" in event_name else "AGENT_HANDOFF",
-        "toolCode": platform_tool_code,
+        "toolKey": platform_tool_key,
+        # Compatibility alias for collectors and persisted activities created before key/name identity.
+        "toolCode": platform_tool_key,
+        "toolName": display_name,
         "callId": call_id,
     }
     if "tool" in event_name and display_name:
         ext["activityName"] = f"调用工具：{display_name}"
     elif "handoff" in event_name:
         ext["activityName"] = "智能体协作交接"
-    if gateway_identity:
-        ext["toolVersion"] = gateway_identity.get("version")
+    if "tool" in event_name:
+        call_reason = tool_call_reason(platform_tool_key, display_name)
+        if call_reason:
+            ext["callReason"] = call_reason
+    if tool_identity:
+        ext["toolVersion"] = tool_identity.get("version")
     input_summary = _summary(raw_item, "arguments", "input")
     output_summary = _summary(item, "output", "result") or _summary(raw_item, "output", "result")
     if input_summary:

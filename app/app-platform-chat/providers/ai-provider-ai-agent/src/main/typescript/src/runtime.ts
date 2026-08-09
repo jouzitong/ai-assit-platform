@@ -3,7 +3,7 @@ import { resolve, relative, isAbsolute } from "node:path";
 import { createHash } from "node:crypto";
 import * as openAiAgents from "@openai/agents";
 
-import { CompiledAgent, CompiledGraph, JsonRecord } from "./contracts.js";
+import { CompiledAgent, CompiledGraph, JsonRecord, ToolIdentityDescriptor } from "./contracts.js";
 import { buildApplicationInput } from "./compiler.js";
 import { mapSdkStreamEvent, platformEvent } from "./events.js";
 import { buildGatewayTool, invokeSkillGateway } from "./gateway.js";
@@ -16,9 +16,22 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
   const compiledBySdk = new Map<any, CompiledAgent>();
   const byKey = new Map(graph.agents.map((agent) => [agent.key, agent]));
   const functionTools = buildFunctionToolRegistry(sdk, graph);
-  const gatewayBySdkName = new Map(
+  const toolBySdkName = new Map<string, ToolIdentityDescriptor>(
     Object.values(graph.gatewayTools).map((descriptor) => [descriptor.sdkName, descriptor]),
   );
+  for (const spec of graph.agents) {
+    for (const link of spec.agentTools) {
+      const target = byKey.get(link.target);
+      if (!target) continue;
+      const toolKey = link.toolName ?? `ask_${safeIdentifier(target.code)}`;
+      toolBySdkName.set(toolKey, {
+        key: toolKey,
+        code: toolKey,
+        sdkName: toolKey,
+        name: target.name,
+      });
+    }
+  }
 
   const build = (key: string): any => {
     const existing = agentsByKey.get(key);
@@ -82,7 +95,7 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
   let analysisCompleted = false;
   for await (const event of result) {
     if (!analysisCompleted) {
-      const decisionSummary = analysisDecisionSummary(event, gatewayBySdkName);
+      const decisionSummary = analysisDecisionSummary(event, toolBySdkName);
       if (decisionSummary) {
         write(platformEvent(graph, "thinking.analysis.completed", {
           status: "SUCCESS",
@@ -102,7 +115,7 @@ export async function runGraph(graph: CompiledGraph, write: Writer): Promise<Jso
       graph,
       event,
       (agent) => compiledBySdk.get(agent),
-      (name) => name ? gatewayBySdkName.get(name) : undefined,
+      (name) => name ? toolBySdkName.get(name) : undefined,
     );
     if (mapped) write(mapped);
   }
@@ -190,7 +203,7 @@ function requestAnalysisResult(graph: CompiledGraph, root: CompiledAgent): strin
 
 function analysisDecisionSummary(
   event: unknown,
-  gatewayBySdkName: Map<string, JsonRecord>,
+  toolBySdkName: Map<string, ToolIdentityDescriptor>,
 ): string | undefined {
   const value = asRecord(event);
   const eventType = String(value.type ?? "");
@@ -200,7 +213,7 @@ function analysisDecisionSummary(
     const rawItem = asRecord(item.rawItem ?? item.raw_item);
     if (name === "tool_called" || name === "tool_search_called") {
       const sdkName = text(rawItem.name, item.name);
-      const descriptor = sdkName ? gatewayBySdkName.get(sdkName) : undefined;
+      const descriptor = sdkName ? toolBySdkName.get(sdkName) : undefined;
       const toolName = text(descriptor?.name, descriptor?.code, sdkName) ?? "可用工具";
       return `分析结果：本轮需要调用“${toolName}”获取或校验必要信息，然后再形成回答。`;
     }
@@ -270,24 +283,24 @@ function buildFunctionToolRegistry(sdk: any, graph: CompiledGraph): Map<string, 
 function buildSkillTool(sdk: any, graph: CompiledGraph, write: Writer, owner: CompiledAgent): any {
   return sdk.tool({
     name: "load_skill_resource",
-    description: "Load an approved skill package resource only after selecting it from skill metadata.",
+    description: "Load an approved skill package resource by its metadata key, never by its display name.",
     strict: false,
     parameters: {
       type: "object",
       properties: {
-        skill_ref: { type: "string" },
+        skill_key: { type: "string" },
         resource_path: { type: "string", default: "SKILL.md" },
       },
-      required: ["skill_ref"],
+      required: ["skill_key"],
       additionalProperties: false,
     },
     execute: async (input: JsonRecord) => {
-      const skillRef = String(input.skill_ref ?? "").trim();
+      const skillKey = String(input.skill_key ?? "").trim();
       const resourcePath = safeRelativePath(String(input.resource_path ?? "SKILL.md"));
-      const skill = findSkill(graph, skillRef);
-      const canonicalRef = text(skill.ref) ?? skillRef;
+      const skill = findSkill(graph, skillKey);
+      const canonicalRef = text(skill.ref) ?? skillKey;
       if (!owner.skills.some((candidate) => candidate.ref === canonicalRef)) {
-        throw new Error(`Skill is not assigned to this Agent: ${skillRef}`);
+        throw new Error(`Skill is not assigned to this Agent: ${skillKey}`);
       }
       const manifest = asRecord(skill.manifest);
       const files = normalizedInlineFiles(
@@ -332,16 +345,18 @@ function buildSkillTool(sdk: any, graph: CompiledGraph, write: Writer, owner: Co
         message: `已加载技能：${text(skill.name, skill.ref)}`,
         agent: owner,
         ext: {
-          activityCode: `skill:${text(skill.ref) ?? skillRef}:${resourcePath}`,
+          activityCode: `skill:${text(skill.ref) ?? skillKey}:${resourcePath}`,
           activityType: "SKILL_LOAD",
           activityName: `加载技能：${text(skill.name, skill.ref)}`,
+          skillKey: text(skill.key, skill.code, skill.ref),
           skillRef: text(skill.ref), skillName: text(skill.name), resourcePath,
           contentHash: text(skill.contentHash, skill.checksum),
           outputSummary: `已加载技能“${text(skill.name, skill.ref)}”的资源：${resourcePath}。`,
         },
       }));
       return {
-        skillRef: text(skill.ref), resourcePath,
+        skillKey: text(skill.key, skill.code, skill.ref),
+        skillRef: text(skill.ref), skillName: text(skill.name), resourcePath,
         contentHash: text(skill.contentHash, skill.checksum), content,
         ...gatewayMetadata,
       };
@@ -349,7 +364,7 @@ function buildSkillTool(sdk: any, graph: CompiledGraph, write: Writer, owner: Co
   });
 }
 
-function findSkill(graph: CompiledGraph, ref: string): JsonRecord {
+function findSkill(graph: CompiledGraph, key: string): JsonRecord {
   const source = graph.payload.resolvedCapabilities.skills;
   const records: JsonRecord[] = Array.isArray(source)
     ? source.filter(isRecord)
@@ -362,13 +377,13 @@ function findSkill(graph: CompiledGraph, ref: string): JsonRecord {
     const version = optionalInteger(item.version ?? manifest.version);
     const canonicalRef = text(item.ref)
       ?? (code ? version === undefined ? `skill://${code}` : `skill://${code}/v${version}` : undefined);
-    return { ...item, code, version, ref: canonicalRef, manifest };
+    return { ...item, key: text(item.key, code, canonicalRef), code, version, ref: canonicalRef, manifest };
   });
   const found = normalized.find((item) => [
-    text(item.ref), text(item.name), text(item.code), terminalRef(text(item.ref) ?? ""),
+    text(item.key), text(item.ref), text(item.name), text(item.code), terminalRef(text(item.ref) ?? ""),
     item.code && item.version !== undefined ? `skill://${item.code}@${item.version}` : undefined,
-  ].includes(ref));
-  if (!found) throw new Error(`Unknown skill reference: ${ref}`);
+  ].includes(key));
+  if (!found) throw new Error(`Unknown skill key: ${key}`);
   return found;
 }
 

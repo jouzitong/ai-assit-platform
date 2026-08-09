@@ -32,6 +32,7 @@ export interface CompiledAgentLink {
 }
 
 export interface SkillMetadata {
+  key: string;
   ref: string;
   name: string;
   description: string;
@@ -63,11 +64,18 @@ export interface CompiledGraph {
   gatewayTools: Record<string, GatewayToolDescriptor>;
 }
 
-export interface GatewayToolDescriptor extends JsonRecord {
+export interface ToolIdentityDescriptor extends JsonRecord {
+  key: string;
+  name: string;
+  code?: string;
+  version?: number;
+  sdkName?: string;
+}
+
+export interface GatewayToolDescriptor extends ToolIdentityDescriptor {
   code: string;
   version: number;
   sdkName: string;
-  name: string;
   description: string;
   adapterType: string;
   inputSchema: JsonRecord;

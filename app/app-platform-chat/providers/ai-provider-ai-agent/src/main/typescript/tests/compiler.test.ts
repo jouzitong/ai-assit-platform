@@ -137,6 +137,7 @@ test("compiles a versioned JAVA_INTERNAL Tool to the Tool Gateway", () => {
   const graph = compileSnapshot(payload);
   const compiledRoot = graph.agents.find((agent) => agent.key === graph.rootAgent)!;
   assert.deepEqual(compiledRoot.tools, ["gateway::issue-create::v4"]);
+  assert.equal(graph.gatewayTools["gateway::issue-create::v4"]?.key, "issue-create");
   assert.equal(graph.gatewayTools["gateway::issue-create::v4"]?.code, "issue-create");
 });
 
@@ -196,6 +197,7 @@ test("resolves the backend database Skill snapshot by canonical /v ref", () => {
 
   const graph = compileSnapshot(payload);
   const compiledRoot = graph.agents.find((agent) => agent.key === graph.rootAgent)!;
+  assert.deepEqual(compiledRoot.skills.map((skill) => skill.key), ["database-skill"]);
   assert.deepEqual(compiledRoot.skills.map((skill) => skill.ref), ["skill://database-skill/v3"]);
 });
 

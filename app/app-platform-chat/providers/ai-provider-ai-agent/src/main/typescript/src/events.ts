@@ -1,4 +1,22 @@
-import { CompiledAgent, CompiledGraph, GatewayToolDescriptor, JsonRecord, PlatformEvent } from "./contracts.js";
+import { CompiledAgent, CompiledGraph, JsonRecord, PlatformEvent, ToolIdentityDescriptor } from "./contracts.js";
+
+const BUILTIN_TOOL_DISPLAY_NAMES: Record<string, string> = {
+  data_preview_query_tool: "查询数据预览",
+  data_format_validate_tool: "校验数据格式",
+  knowledge_base_search_tool: "检索知识库",
+  load_skill_resource: "读取技能资源",
+  render_json_validate_tool: "校验 Render JSON",
+  web_search_tool: "搜索网页",
+};
+
+const BUILTIN_TOOL_CALL_REASONS: Record<string, string> = {
+  data_preview_query_tool: "需要核对授权数据的字段、结构和实际记录。",
+  data_format_validate_tool: "需要确认数据格式符合后续处理要求。",
+  knowledge_base_search_tool: "当前任务需要补充已授权知识库中的业务语义和事实依据。",
+  load_skill_resource: "需要读取已选技能的执行规范和资源内容。",
+  render_json_validate_tool: "需要确认生成内容符合页面渲染结构与组件契约。",
+  web_search_tool: "当前任务需要补充公开网页中的最新信息或事实依据。",
+};
 
 export function platformEvent(
   graph: CompiledGraph,
@@ -38,7 +56,7 @@ export function mapSdkStreamEvent(
   graph: CompiledGraph,
   event: unknown,
   agentLookup: (agent: unknown) => CompiledAgent | undefined,
-  toolLookup: (sdkName: string | undefined) => GatewayToolDescriptor | undefined = () => undefined,
+  toolLookup: (sdkName: string | undefined) => ToolIdentityDescriptor | undefined = () => undefined,
 ): PlatformEvent | undefined {
   const value = asRecord(event);
   const eventType = String(value.type ?? "");
@@ -66,19 +84,28 @@ export function mapSdkStreamEvent(
   const agent = agentLookup(value.agent ?? item.agent ?? item.sourceAgent ?? item.source_agent);
   const rawToolCode = text(rawItem.name, item.name, rawItem.type);
   const toolCode = isGenericOutputType(rawToolCode) ? undefined : rawToolCode;
-  const gatewayTool = toolLookup(toolCode);
+  const toolIdentity = toolLookup(toolCode);
   const callId = text(rawItem.callId, rawItem.call_id, item.callId, item.call_id);
-  const platformToolCode = gatewayTool?.code ?? toolCode;
-  const displayName = gatewayTool?.name ?? platformToolCode ?? "未命名工具";
+  const platformToolKey = text(toolIdentity?.key, toolIdentity?.code, toolCode);
+  const displayName = toolIdentity?.name
+    ?? BUILTIN_TOOL_DISPLAY_NAMES[platformToolKey ?? ""]
+    ?? platformToolKey
+    ?? "未命名工具";
   const ext: JsonRecord = {
-    activityCode: callId ?? fallbackActivityCode(name, platformToolCode),
+    activityCode: callId ?? fallbackActivityCode(name, platformToolKey),
     activityType: name.includes("tool") ? "TOOL_CALL" : "AGENT_HANDOFF",
-    toolCode: platformToolCode,
+    toolKey: platformToolKey,
+    // Compatibility alias for consumers created before key/name identity.
+    toolCode: platformToolKey,
+    toolName: displayName,
     callId,
   };
-  if (name.includes("tool") && platformToolCode) ext.activityName = `调用工具：${displayName}`;
+  if (name.includes("tool") && platformToolKey) ext.activityName = `调用工具：${displayName}`;
   else if (name.includes("handoff")) ext.activityName = "智能体协作交接";
-  if (gatewayTool) ext.toolVersion = gatewayTool.version;
+  if (name.includes("tool") && platformToolKey) {
+    ext.callReason = toolCallReason(platformToolKey, displayName);
+  }
+  if (toolIdentity?.version !== undefined) ext.toolVersion = toolIdentity.version;
   const inputSummary = summary(rawItem.arguments ?? rawItem.input ?? item.input);
   const outputSummary = summary(item.output ?? item.result ?? rawItem.output ?? rawItem.result);
   if (inputSummary) ext.inputSummary = inputSummary;
@@ -106,6 +133,18 @@ export function mapSdkStreamEvent(
     return platformEvent(graph, "handoff.completed", { status: "SUCCESS", message: "协作智能体交接完成", agent, ext });
   }
   return undefined;
+}
+
+function toolCallReason(toolKey: string, displayName: string): string {
+  const builtInReason = BUILTIN_TOOL_CALL_REASONS[toolKey];
+  if (builtInReason) return builtInReason;
+  if (toolKey.startsWith("ask_") && displayName) {
+    return `当前任务需要“${displayName}”的专业能力，因此发起协作。`;
+  }
+  if (displayName) {
+    return `当前步骤需要通过“${displayName}”补充、验证或执行任务所需信息。`;
+  }
+  return "当前步骤需要调用工具补充、验证或执行任务所需信息。";
 }
 
 function fallbackActivityCode(eventName: string, toolCode: string | undefined): string {

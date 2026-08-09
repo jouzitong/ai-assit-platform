@@ -78,9 +78,9 @@ athena:
       logger-level: FULL
   security:
     enabled: true
-    requireToken: false
     auth:
       enabled: true
+      require-token: true
     token:
       type: jwt
       jwt:

@@ -64,6 +64,7 @@ def built_in_skill_capabilities(base_dir: Path | None = None) -> list[dict[str, 
         seen_refs.add(ref)
 
         capabilities.append({
+            "key": code,
             "ref": ref,
             "code": code,
             "version": version,

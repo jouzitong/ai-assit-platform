@@ -121,11 +121,12 @@ export async function requestRaw(input: string, config: ApiRequestConfig = {}) {
 
   const response = await fetch(url, finalConfig)
   if (!response.ok) {
-    const errorPayload = await readResponsePayload(response).catch(() => '')
-    const message = resolveBusinessMessage(errorPayload, resolveStatusFallback(response.status))
     if (response.status === 401) {
       redirectToLogin()
     }
+
+    const errorPayload = await readResponsePayload(response).catch(() => '')
+    const message = resolveBusinessMessage(errorPayload, resolveStatusFallback(response.status))
     throw new Error(message)
   }
 

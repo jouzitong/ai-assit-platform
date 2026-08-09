@@ -171,6 +171,7 @@ export interface ChatRunActivity {
   detail?: string
   inputSummary?: string
   outputSummary?: string
+  callReason?: string
   status?: 'pending' | 'running' | 'success' | 'failed' | 'cancelled' | string
   agentCode?: string
   agentVersion?: number
@@ -182,6 +183,10 @@ export interface ChatRunActivity {
   confidenceThreshold?: number
   confidenceBasis?: string[]
   executionReadiness?: number
+  toolKey?: string
+  toolName?: string
+  skillKey?: string
+  skillName?: string
   analysis?: Record<string, unknown>
   metadata?: Record<string, unknown>
 }

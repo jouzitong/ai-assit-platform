@@ -154,7 +154,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .collapsible-markdown {
-  --collapsible-markdown-action-surface: var(--chat-main-bg, var(--app-surface-solid));
+  --collapsible-markdown-action-surface: var(
+    --collapsible-markdown-surface,
+    var(--chat-main-bg, var(--app-surface-solid))
+  );
   position: relative;
   min-width: 0;
   color: var(--chat-text-muted, var(--app-text-muted));

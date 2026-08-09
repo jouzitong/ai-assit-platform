@@ -9,6 +9,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from pydantic import BaseModel, Field
 
+from ..capability_identity import BUILTIN_TOOL_DISPLAY_NAMES
 from ..language import response_language_instruction, resolve_response_language
 from ..tools.knowledge_base_search_tool import available_knowledge_bases
 
@@ -178,13 +179,17 @@ class RequestRoute:
     knowledge_base_codes: tuple[str, ...]
     rationale: str
 
-    def audit_dict(self) -> dict[str, Any]:
+    def audit_dict(self, graph: CompiledGraph | None = None) -> dict[str, Any]:
         return {
             "mode": self.mode,
+            "agentKey": self.agent_code,
             "agentCode": self.agent_code,
+            "toolKeys": list(self.tool_codes),
             "toolCodes": list(self.tool_codes),
             "knowledgeBaseCodes": list(self.knowledge_base_codes),
             "rationale": self.rationale,
+            "agent": _agent_identity(graph, self.agent_code),
+            "tools": [_tool_identity(graph, key) for key in self.tool_codes],
         }
 
 
@@ -255,11 +260,11 @@ class RequestAnalysis:
     # policy may authorize the runner to apply a specialist route.
     route_validated: bool = False
 
-    def output_summary(self) -> str:
+    def output_summary(self, graph: CompiledGraph | None = None) -> str:
         sections = [
             f"目标：{self.goal}",
             f"交付物：{self.deliverable}",
-            f"建议路线：{_route_summary(self.route)}",
+            f"建议路线：{_route_summary(self.route, graph)}",
             f"理解置信度：{_percentage(self.confidence.overall)}",
             (
                 f"执行就绪度：{_percentage(self.execution_readiness.score)}"
@@ -285,14 +290,14 @@ class RequestAnalysis:
             sections.insert(0, "结构化分析已降级，主智能体将继续处理")
         return _bounded_text("。".join(sections), 1_600, "请求分析已完成")
 
-    def audit_dict(self) -> dict[str, Any]:
+    def audit_dict(self, graph: CompiledGraph | None = None) -> dict[str, Any]:
         value: dict[str, Any] = {
             "status": self.status,
             "goal": self.goal,
             "deliverable": self.deliverable,
             "constraints": list(self.constraints),
             "gaps": list(self.gaps),
-            "route": self.route.audit_dict(),
+            "route": self.route.audit_dict(graph),
             "confidence": self.confidence.audit_dict(),
             "executionReadiness": self.execution_readiness.audit_dict(),
             "successCriteria": list(self.success_criteria),
@@ -306,9 +311,9 @@ class RequestAnalysis:
             value["degradedReason"] = self.degraded_reason
         return value
 
-    def event_ext(self) -> dict[str, Any]:
+    def event_ext(self, graph: CompiledGraph | None = None) -> dict[str, Any]:
         return {
-            "analysisSchemaVersion": 1,
+            "analysisSchemaVersion": 2,
             "analysisStatus": self.status,
             "routeNature": "RECOMMENDATION",
             "confidenceKind": "REQUEST_ROUTING",
@@ -318,7 +323,7 @@ class RequestAnalysis:
             "executionReadinessLevel": self.execution_readiness.level,
             "durationMs": self.duration_ms,
             "analysisUsage": dict(self.usage),
-            "analysis": self.audit_dict(),
+            "analysis": self.audit_dict(graph),
         }
 
 
@@ -385,12 +390,16 @@ async def _run_analysis_agent(
 def _analysis_input(graph: CompiledGraph, request: str) -> dict[str, Any]:
     run = graph.payload.get("run") if isinstance(graph.payload.get("run"), dict) else {}
     allowed_kb_codes = _allowed_knowledge_base_codes(graph)
+    allowed_tool_keys = sorted(_allowed_tool_codes(graph))
     return {
         "currentRequest": _bounded_untrusted_text(request, MAX_MESSAGE_CHARS * 2),
         "recentConversation": _recent_conversation(graph.payload.get("messages")),
         "pageContextJson": _page_context_json(run.get("context")),
         "allowedAgents": _agent_catalog(graph),
-        "allowedToolCodes": sorted(_allowed_tool_codes(graph)),
+        "allowedTools": [_tool_identity(graph, key) for key in allowed_tool_keys],
+        "allowedToolKeys": allowed_tool_keys,
+        # Compatibility field for the current analysis output schema. Values are canonical keys.
+        "allowedToolCodes": allowed_tool_keys,
         "allowedKnowledgeBases": [
             item
             for item in available_knowledge_bases(run)
@@ -575,8 +584,8 @@ def _apply_deterministic_route_policy(
     )
     if target is None:
         return analysis
-    installed_tools = _installed_tool_names(graph, target)
-    if not RENDER_APPLICATION_REQUIRED_TOOLS.issubset(installed_tools):
+    installed_tool_keys = _installed_tool_keys(graph, target)
+    if not RENDER_APPLICATION_REQUIRED_TOOLS.issubset(installed_tool_keys):
         return analysis
     knowledge_bases = tuple(
         code
@@ -588,7 +597,7 @@ def _apply_deterministic_route_policy(
     route = RequestRoute(
         mode="DELEGATE",
         agent_code=target.code,
-        tool_codes=tuple(sorted(installed_tools)),
+        tool_codes=tuple(sorted(installed_tool_keys)),
         knowledge_base_codes=knowledge_bases,
         rationale=(
             "用户已同时明确要求数据库实际记录和列表化展示；必须使用受控数据预览、"
@@ -762,10 +771,80 @@ def _default_remediations(
     return tuple(result)
 
 
+def _agent_identity(
+    graph: CompiledGraph | None,
+    key: str | None,
+) -> dict[str, str]:
+    normalized = _optional_text(key) or ""
+    if graph is not None:
+        for agent in graph.agents.values():
+            aliases = {
+                value
+                for value in (
+                    _optional_text(getattr(agent, "key", None)),
+                    _optional_text(getattr(agent, "code", None)),
+                )
+                if value
+            }
+            if normalized in aliases:
+                canonical = _optional_text(getattr(agent, "code", None)) or normalized
+                name = _optional_text(getattr(agent, "name", None)) or canonical
+                return {"key": canonical, "name": name}
+    return {"key": normalized, "name": normalized}
+
+
+def _tool_identity(
+    graph: CompiledGraph | None,
+    key: str | None,
+) -> dict[str, str]:
+    normalized = _optional_text(key) or ""
+    if graph is not None:
+        for runtime_key, descriptor in graph.gateway_tools.items():
+            aliases = {
+                value
+                for value in (
+                    _optional_text(runtime_key),
+                    _optional_text(descriptor.get("key")),
+                    _optional_text(descriptor.get("code")),
+                    _optional_text(descriptor.get("sdkName")),
+                )
+                if value
+            }
+            if normalized in aliases:
+                canonical = (
+                    _optional_text(descriptor.get("key"))
+                    or _optional_text(descriptor.get("code"))
+                    or normalized
+                )
+                name = (
+                    _optional_text(descriptor.get("name"))
+                    or BUILTIN_TOOL_DISPLAY_NAMES.get(canonical)
+                    or canonical
+                )
+                return {"key": canonical, "name": name}
+    canonical = _terminal_capability_key(normalized)
+    return {
+        "key": canonical,
+        "name": BUILTIN_TOOL_DISPLAY_NAMES.get(canonical, canonical),
+    }
+
+
+def _terminal_capability_key(value: str) -> str:
+    if "://" not in value:
+        return re.sub(r"@v?\d+$", "", value, flags=re.IGNORECASE)
+    path = value.split("://", 1)[1]
+    parts = [part for part in path.split("/") if part]
+    if parts and re.fullmatch(r"v\d+", parts[-1], flags=re.IGNORECASE):
+        parts.pop()
+    terminal = parts[-1] if parts else value
+    return re.sub(r"@v?\d+$", "", terminal, flags=re.IGNORECASE)
+
+
 def _agent_catalog(graph: CompiledGraph) -> list[dict[str, Any]]:
     result: list[dict[str, Any]] = []
     for key in _reachable_agent_keys(graph):
         agent = graph.agents[key]
+        tool_keys = sorted(_installed_tool_keys(graph, agent))
         targets: list[str] = []
         for link in [*agent.agent_tools, *agent.handoffs]:
             target = graph.agents.get(link.target_key)
@@ -773,10 +852,13 @@ def _agent_catalog(graph: CompiledGraph) -> list[dict[str, Any]]:
                 targets.append(target.code)
         result.append(
             {
+                "key": agent.code,
                 "code": agent.code,
                 "name": agent.name,
                 "description": _bounded_untrusted_text(agent.description, 500),
-                "toolCodes": sorted(_installed_tool_names(graph, agent)),
+                "tools": [_tool_identity(graph, tool_key) for tool_key in tool_keys],
+                "toolKeys": tool_keys,
+                "toolCodes": tool_keys,
                 "delegationTargets": targets,
             }
         )
@@ -793,19 +875,8 @@ def _allowed_agent_codes(graph: CompiledGraph) -> set[str]:
 
 def _allowed_tool_codes(graph: CompiledGraph) -> set[str]:
     result: set[str] = set()
-    installed_names: set[str] = set()
     for key in _reachable_agent_keys(graph):
-        installed_names.update(_installed_tool_names(graph, graph.agents[key]))
-    result.update(installed_names)
-    for key, descriptor in graph.gateway_tools.items():
-        if key not in installed_names:
-            continue
-        if key:
-            result.add(key)
-        for field in ("code", "sdkName"):
-            value = descriptor.get(field)
-            if isinstance(value, str) and value.strip():
-                result.add(value.strip())
+        result.update(_installed_tool_keys(graph, graph.agents[key]))
     return result
 
 
@@ -820,16 +891,7 @@ def _allowed_tool_codes_for_agent(graph: CompiledGraph, agent_code: str) -> set[
     )
     if agent is None:
         return set()
-    installed_names = _installed_tool_names(graph, agent)
-    result = set(installed_names)
-    for key, descriptor in graph.gateway_tools.items():
-        if key not in installed_names:
-            continue
-        for field_name in ("code", "sdkName"):
-            value = descriptor.get(field_name)
-            if isinstance(value, str) and value.strip():
-                result.add(value.strip())
-    return result
+    return _installed_tool_keys(graph, agent)
 
 
 def _installed_tool_names(graph: CompiledGraph, agent: Any) -> set[str]:
@@ -837,6 +899,14 @@ def _installed_tool_names(graph: CompiledGraph, agent: Any) -> set[str]:
     if not _raw_knowledge_base_codes(graph):
         names.discard("knowledge_base_search_tool")
     return names
+
+
+def _installed_tool_keys(graph: CompiledGraph, agent: Any) -> set[str]:
+    return {
+        identity["key"]
+        for name in _installed_tool_names(graph, agent)
+        if (identity := _tool_identity(graph, name))["key"]
+    }
 
 
 def _reachable_agent_keys(graph: CompiledGraph) -> tuple[str, ...]:
@@ -930,14 +1000,22 @@ def _request_goal(request: str) -> str:
     return f"理解并完成用户请求：{normalized}"
 
 
-def _route_summary(route: RequestRoute) -> str:
+def _route_summary(
+    route: RequestRoute,
+    graph: CompiledGraph | None = None,
+) -> str:
+    agent_name = _agent_identity(graph, route.agent_code)["name"] or route.agent_code
     if route.mode == "DELEGATE":
-        return f"由协作智能体“{route.agent_code}”处理"
+        return f"由协作智能体“{agent_name}”处理"
     if route.mode == "TOOL":
-        return f"由“{route.agent_code}”调用 {'、'.join(route.tool_codes) or '已授权工具'}"
+        tool_names = [
+            _tool_identity(graph, key)["name"]
+            for key in route.tool_codes
+        ]
+        return f"由“{agent_name}”调用 {'、'.join(tool_names) or '已授权工具'}"
     if route.mode == "CLARIFY":
         return "先补齐关键信息，再由主智能体继续"
-    return f"由“{route.agent_code}”直接处理"
+    return f"由“{agent_name}”直接处理"
 
 
 def _remediation_description(action: str, target: str | None) -> str:

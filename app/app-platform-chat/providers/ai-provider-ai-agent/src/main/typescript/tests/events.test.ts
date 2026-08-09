@@ -76,6 +76,7 @@ test("maps a Gateway SDK name back to versioned platform Tool identity", () => {
     },
     () => undefined,
     (name) => name === "gateway_issue_create_v4" ? {
+      key: "issue-create",
       code: "issue-create",
       version: 4,
       sdkName: name,
@@ -86,8 +87,72 @@ test("maps a Gateway SDK name back to versioned platform Tool identity", () => {
       timeoutMs: 5000,
     } : undefined,
   );
+  assert.equal(event?.ext.toolKey, "issue-create");
   assert.equal(event?.ext.toolCode, "issue-create");
+  assert.equal(event?.ext.toolName, "Issue Create");
   assert.equal(event?.ext.toolVersion, 4);
+});
+
+test("maps a built-in Tool key to its Chinese display name", () => {
+  const event = mapSdkStreamEvent(
+    graph,
+    {
+      type: "run_item_stream_event",
+      name: "tool_called",
+      item: { rawItem: { name: "load_skill_resource", callId: "call-skill" } },
+    },
+    () => undefined,
+  );
+
+  assert.equal(event?.ext.toolKey, "load_skill_resource");
+  assert.equal(event?.ext.toolName, "读取技能资源");
+  assert.equal(event?.ext.activityName, "调用工具：读取技能资源");
+  assert.equal(event?.ext.callReason, "需要读取已选技能的执行规范和资源内容。");
+});
+
+test("explains why an authorized knowledge base search is needed", () => {
+  const event = mapSdkStreamEvent(
+    graph,
+    {
+      type: "run_item_stream_event",
+      name: "tool_called",
+      item: {
+        rawItem: {
+          name: "knowledge_base_search_tool",
+          callId: "call-kb",
+          arguments: '{"kb_code":"data-semantic-catalog","query":"用户地址字段"}',
+        },
+      },
+    },
+    () => undefined,
+  );
+
+  assert.equal(event?.ext.toolName, "检索知识库");
+  assert.equal(event?.ext.callReason, "当前任务需要补充已授权知识库中的业务语义和事实依据。");
+  assert.equal(event?.ext.inputSummary, '{"kb_code":"data-semantic-catalog","query":"用户地址字段"}');
+});
+
+test("maps a collaboration Tool key to the target Agent name", () => {
+  const event = mapSdkStreamEvent(
+    graph,
+    {
+      type: "run_item_stream_event",
+      name: "tool_called",
+      item: { rawItem: { name: "ask_dashboard_application_builder", callId: "call-agent" } },
+    },
+    () => undefined,
+    (name) => name === "ask_dashboard_application_builder" ? {
+      key: name,
+      code: name,
+      sdkName: name,
+      name: "看板与应用构建 Agent",
+    } : undefined,
+  );
+
+  assert.equal(event?.ext.toolKey, "ask_dashboard_application_builder");
+  assert.equal(event?.ext.toolName, "看板与应用构建 Agent");
+  assert.equal(event?.ext.activityName, "调用工具：看板与应用构建 Agent");
+  assert.equal(event?.ext.callReason, "当前任务需要“看板与应用构建 Agent”的专业能力，因此发起协作。");
 });
 
 test("keeps one tool activity identity and returns useful input/output summaries", () => {
@@ -114,4 +179,5 @@ test("keeps one tool activity identity and returns useful input/output summaries
   assert.equal(completed?.ext.activityCode, "call-3");
   assert.equal(started?.ext.inputSummary, '{"value":1}');
   assert.equal(completed?.ext.outputSummary, '{"success":true,"count":3}');
+  assert.equal(started?.ext.callReason, "当前步骤需要通过“validator”补充、验证或执行任务所需信息。");
 });

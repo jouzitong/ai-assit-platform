@@ -15,6 +15,7 @@ from ..artifacts import (
     merge_authoritative_artifacts,
     merge_artifacts,
 )
+from ..capability_identity import runtime_tool_identity
 from ..compiler import CompiledGraph
 from ..events import EventEmitter, emit_sdk_event
 from ..protocol import build_application_input
@@ -63,7 +64,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         request_analysis,
     )
     artifact_transport = execution_agent.code == RENDER_APPLICATION_AGENT_CODE
-    analysis_ext = request_analysis.event_ext()
+    analysis_ext = request_analysis.event_ext(graph)
     analysis_ext.update(
         {
             "routeApplied": route_applied,
@@ -78,7 +79,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
         status="SUCCESS",
         activity_code=analysis_activity_code,
         activity_name="分析用户请求",
-        output_summary=request_analysis.output_summary(),
+        output_summary=request_analysis.output_summary(graph),
         ext=analysis_ext,
     )
     application_input = build_application_input(
@@ -102,7 +103,7 @@ async def run_graph(graph: CompiledGraph, emitter: EventEmitter) -> dict[str, An
             event,
             emitter,
             sdk_graph.compiled_for,
-            lambda name: _gateway_tool_identity(graph, name),
+            lambda name: runtime_tool_identity(graph, name),
             hidden_agent_codes={root.code},
             # A directly routed builder returns an artifact transport envelope,
             # not chat prose. Never stream that JSON into the conversation.
@@ -795,12 +796,3 @@ def _sdk_version() -> str:
         return importlib.metadata.version("openai-agents")
     except importlib.metadata.PackageNotFoundError:
         return "unknown"
-
-
-def _gateway_tool_identity(graph: CompiledGraph, sdk_name: str | None) -> dict[str, Any] | None:
-    if not sdk_name:
-        return None
-    for descriptor in graph.gateway_tools.values():
-        if descriptor.get("sdkName") == sdk_name:
-            return descriptor
-    return None

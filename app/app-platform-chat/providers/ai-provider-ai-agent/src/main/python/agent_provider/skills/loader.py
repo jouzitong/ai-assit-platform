@@ -9,12 +9,12 @@ def build_skill_tool(
     function_tool: Any,
     allowed_refs: list[str],
 ) -> Any:
-    def load_skill_resource(skill_ref: str, resource_path: str = "SKILL.md") -> dict[str, Any]:
+    def load_skill_resource(skill_key: str, resource_path: str = "SKILL.md") -> dict[str, Any]:
         """Load an approved skill resource only when the current task needs it."""
 
-        canonical = graph.skill_catalog.resolve(skill_ref).ref
+        canonical = graph.skill_catalog.resolve(skill_key).ref
         if canonical not in allowed_refs:
-            raise ValueError(f"Skill is not assigned to this Agent: {skill_ref}")
+            raise ValueError(f"Skill is not assigned to this Agent: {skill_key}")
 
         def loaded(record: Any, relative: str) -> None:
             emitter.event(
@@ -25,6 +25,7 @@ def build_skill_tool(
                     "activityCode": f"skill:{record.ref}:{relative}",
                     "activityType": "SKILL_LOAD",
                     "activityName": f"加载技能：{record.name}",
+                    "skillKey": record.key,
                     "skillRef": record.ref,
                     "skillName": record.name,
                     "resourcePath": relative,
@@ -39,7 +40,7 @@ def build_skill_tool(
         name_override="load_skill_resource",
         description_override=(
             "Load SKILL.md, data, templates, or another resource from an approved skill package. "
-            "Call only after selecting a skill from the metadata in the Agent instructions."
+            "Use the skill key from the Agent metadata; never use the display name as the identity."
         ),
     )
     return decorator(load_skill_resource)

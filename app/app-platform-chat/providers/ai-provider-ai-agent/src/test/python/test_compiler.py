@@ -130,6 +130,7 @@ class CompilerTest(unittest.TestCase):
 
         runtime_name = graph.root.tool_names[0]
         self.assertEqual("gateway::issue-create::v4", runtime_name)
+        self.assertEqual("issue-create", graph.gateway_tools[runtime_name]["key"])
         self.assertEqual("issue-create", graph.gateway_tools[runtime_name]["code"])
         self.assertEqual(4, graph.gateway_tools[runtime_name]["version"])
 

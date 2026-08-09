@@ -17,6 +17,7 @@ MAX_RESOURCE_BYTES = 256 * 1024
 @dataclass(frozen=True)
 class SkillRecord:
     ref: str
+    key: str
     name: str
     description: str
     content_hash: str | None = None
@@ -28,6 +29,7 @@ class SkillRecord:
 
     def metadata(self) -> dict[str, Any]:
         return {
+            "key": self.key,
             "ref": self.ref,
             "name": self.name,
             "description": self.description,
@@ -49,7 +51,13 @@ class SkillCatalog:
         self._snapshot_hash = snapshot_hash
         self._aliases: dict[str, SkillRecord] = {}
         for record in records:
-            aliases = {record.ref, record.name, record.code, _terminal_ref(record.ref)}
+            aliases = {
+                record.key,
+                record.ref,
+                record.name,
+                record.code,
+                _terminal_ref(record.ref),
+            }
             if record.code and record.version is not None:
                 aliases.update({
                     f"skill://{record.code}/v{record.version}",
@@ -95,6 +103,7 @@ class SkillCatalog:
             records.append(
                 SkillRecord(
                     ref=ref,
+                    key=_text(item.get("key"), code, ref) or ref,
                     name=name,
                     description=description,
                     content_hash=_text(item.get("contentHash"), item.get("checksum")),
@@ -160,6 +169,7 @@ class SkillCatalog:
         if on_loaded is not None:
             on_loaded(record, relative)
         return {
+            "skillKey": record.key,
             "skillRef": record.ref,
             "skillName": record.name,
             "resourcePath": relative,

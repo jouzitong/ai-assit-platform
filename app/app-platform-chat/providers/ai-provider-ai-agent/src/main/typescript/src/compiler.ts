@@ -185,7 +185,7 @@ function compileAgent(
   instructions = appendJsonInstruction(instructions, payload.responseFormat);
   if (skillMetadata.length > 0) {
     instructions += `\n\nAvailable skills (metadata only): ${JSON.stringify(skillMetadata)}`;
-    instructions += "\nRead SKILL.md or another resource with load_skill_resource only when it is needed.";
+    instructions += "\nRead SKILL.md or another resource with load_skill_resource only when it is needed, and pass the exact skill key rather than its display name.";
   }
   const modelDeclaration = record(agentSpec.model);
   const model = text(
@@ -236,13 +236,14 @@ function resolveSkills(value: unknown, records: Array<[string | undefined, JsonR
       ?? text(item.name);
     if (!ref) continue;
     const metadata: SkillMetadata = {
+      key: text(item.key, code, ref) ?? ref,
       ref,
       name: text(item.name, manifest.name, code, terminalRef(ref)) ?? ref,
       description: text(item.description, item.summary, manifest.description) ?? "",
       contentHash: text(item.contentHash, item.checksum),
     };
     for (const alias of [
-      ref, metadata.name, code, terminalRef(ref),
+      metadata.key, ref, metadata.name, code, terminalRef(ref),
       code && version !== undefined ? `skill://${code}/v${version}` : undefined,
       code && version !== undefined ? `skill://${code}@${version}` : undefined,
       code ? `skill://${code}` : undefined,
@@ -331,6 +332,7 @@ function resolveToolCatalog(value: unknown): {
       if (!code || version === undefined) throw new Error("Versioned gateway Tool requires code and version");
       resolvedName = `gateway::${code}::v${version}`;
       gatewayTools.set(resolvedName, {
+        key: code,
         code,
         version,
         sdkName: `gateway_${safeToolName(code)}_v${version}`,

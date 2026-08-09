@@ -1,8 +1,8 @@
 {
   "code": "application-build-release",
   "version": 1,
-  "name": "Application Build Release",
-  "description": "Orchestrate the gated data-application build and report the Phase 1 static-validation result.",
+  "name": "应用构建与发布",
+  "description": "编排带门禁的数据应用构建流程，并报告第一阶段静态校验结果。",
   "files": [
     {
       "path": "SKILL.md",

@@ -11,3 +11,4 @@ Each skill package should be a directory with a `SKILL.md` file. Optional folder
 
 Skill packages are not enabled just because they exist here. A run must still assign
 the skill through the frozen agent snapshot before `load_skill_resource` can read it.
+The loader accepts the assigned `skill_key`; `name` is display-only metadata.

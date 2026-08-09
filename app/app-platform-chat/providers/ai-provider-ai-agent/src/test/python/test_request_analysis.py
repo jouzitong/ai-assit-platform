@@ -261,7 +261,8 @@ class RequestAnalysisContractTest(unittest.TestCase):
         self.assertEqual([], second.basis)
 
     def test_exposes_auditable_value_and_confidence_basis(self) -> None:
-        analysis = _validate_analysis(draft(), graph(), "分析订单异常并给出可验证结论")
+        runtime_graph = graph()
+        analysis = _validate_analysis(draft(), runtime_graph, "分析订单异常并给出可验证结论")
 
         self.assertEqual("SUCCESS", analysis.status)
         self.assertEqual("PARTIAL", analysis.execution_readiness.level)
@@ -277,12 +278,20 @@ class RequestAnalysisContractTest(unittest.TestCase):
         self.assertIn("验证计划", summary)
         self.assertIn("就绪度不足时", summary)
 
-        event_ext = analysis.event_ext()
-        self.assertEqual(1, event_ext["analysisSchemaVersion"])
+        event_ext = analysis.event_ext(runtime_graph)
+        self.assertEqual(2, event_ext["analysisSchemaVersion"])
         self.assertEqual("RECOMMENDATION", event_ext["routeNature"])
         self.assertEqual("REQUEST_ROUTING", event_ext["confidenceKind"])
         self.assertEqual(0.86, event_ext["confidence"])
         self.assertEqual("识别订单异常的原因与影响范围", event_ext["analysis"]["goal"])
+        self.assertEqual(
+            {"key": "root-agent", "name": "主智能体"},
+            event_ext["analysis"]["route"]["agent"],
+        )
+        self.assertEqual(
+            [{"key": "local-validator", "name": "local-validator"}],
+            event_ext["analysis"]["route"]["tools"],
+        )
 
     def test_filters_unreachable_or_uninstalled_capabilities(self) -> None:
         unsafe = draft(
@@ -323,6 +332,9 @@ class RequestAnalysisContractTest(unittest.TestCase):
         )
         self.assertNotIn("unreachable-tool", payload["allowedToolCodes"])
         self.assertNotIn("knowledge_base_search_tool", payload["allowedToolCodes"])
+        tools = {item["key"]: item["name"] for item in payload["allowedTools"]}
+        self.assertEqual("查询数据预览", tools["data_preview_query_tool"])
+        self.assertEqual("local-validator", tools["local-validator"])
         self.assertEqual([], payload["allowedKnowledgeBases"])
 
     def test_render_application_classifier_excludes_schema_only_requests(self) -> None:
@@ -392,6 +404,12 @@ class RequestAnalysisContractTest(unittest.TestCase):
         self.assertIn("data_preview_query_tool", analysis.route.tool_codes)
         self.assertIn("render_json_validate_tool", analysis.route.tool_codes)
         self.assertIn("不能退化为字段说明", analysis.route.rationale)
+        tools = {
+            item["key"]: item["name"]
+            for item in analysis.event_ext(runtime_graph)["analysis"]["route"]["tools"]
+        }
+        self.assertEqual("查询数据预览", tools["data_preview_query_tool"])
+        self.assertEqual("校验 Render JSON", tools["render_json_validate_tool"])
 
     def test_named_warehouse_table_list_data_is_routed_to_render_builder(self) -> None:
         runtime_graph = graph(

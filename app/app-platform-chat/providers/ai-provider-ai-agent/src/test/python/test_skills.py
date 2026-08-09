@@ -6,7 +6,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from agent_provider.compiler import compile_snapshot
-from agent_provider.skills import SkillCatalog
+from agent_provider.events import EventEmitter
+from agent_provider.skills import SkillCatalog, build_skill_tool
 
 
 FIXTURE = Path(__file__).resolve().parents[1] / "fixtures" / "agent-runtime-v2.json"
@@ -24,7 +25,29 @@ class SkillCatalogTest(unittest.TestCase):
         )
 
         self.assertIn("Acceptance criteria", result["content"])
+        self.assertEqual("product-analysis", result["skillKey"])
         self.assertEqual([("product-analysis", "templates/checklist.md")], loaded)
+
+    def test_skill_tool_uses_key_and_emits_key_name_identity(self) -> None:
+        graph = compile_snapshot(json.loads(FIXTURE.read_text(encoding="utf-8")))
+        frames: list[dict[str, object]] = []
+
+        def function_tool(**_kwargs):
+            return lambda function: function
+
+        tool = build_skill_tool(
+            graph,
+            EventEmitter(graph.payload, frames.append),
+            function_tool,
+            graph.root.skill_refs,
+        )
+
+        result = tool("product-analysis", "templates/checklist.md")
+
+        self.assertEqual("product-analysis", result["skillKey"])
+        self.assertEqual("product-analysis", result["skillName"])
+        self.assertEqual("product-analysis", frames[0]["ext"]["skillKey"])
+        self.assertEqual("product-analysis", frames[0]["ext"]["skillName"])
 
     def test_rejects_path_traversal(self) -> None:
         graph = compile_snapshot(json.loads(FIXTURE.read_text(encoding="utf-8")))

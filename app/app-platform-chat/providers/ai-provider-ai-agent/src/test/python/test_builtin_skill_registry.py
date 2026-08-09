@@ -41,6 +41,7 @@ class BuiltInSkillRegistryTest(unittest.TestCase):
                 f"skill://{capability['code']}/v{capability['version']}",
                 capability["ref"],
             )
+            self.assertEqual(capability["code"], capability["key"])
             self.assertRegex(capability["contentHash"], r"^sha256:[a-f0-9]{64}$")
             root = Path(capability["rootPath"])
             self.assertEqual(root.name, capability["code"])
@@ -52,6 +53,9 @@ class BuiltInSkillRegistryTest(unittest.TestCase):
                 resource = root / item["path"]
                 self.assertEqual(resource.stat().st_size, item["size"])
                 self.assertRegex(item["checksum"], r"^sha256:[a-f0-9]{64}$")
+
+        display_names = {item["code"]: item["name"] for item in capabilities}
+        self.assertEqual("语义数据契约", display_names["semantic-data-contract"])
 
     def test_content_hash_is_independent_of_manifest_file_order(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

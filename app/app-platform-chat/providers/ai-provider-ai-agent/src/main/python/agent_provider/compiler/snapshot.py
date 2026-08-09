@@ -196,7 +196,8 @@ def _compile_agent(
             instructions
             + "\n\nAvailable skills (metadata only): "
             + metadata_text
-            + "\nRead SKILL.md or another resource with load_skill_resource only when it is needed."
+            + "\nRead SKILL.md or another resource with load_skill_resource only when it is needed, "
+            + "and pass the exact skill key rather than its display name."
         ).strip()
 
     model_value = spec.get("model")
@@ -371,6 +372,7 @@ def _tool_catalog(capabilities: dict[str, Any]) -> tuple[dict[str, str], dict[st
                 raise ValueError("Versioned gateway Tool requires code and version")
             resolved_name = f"gateway::{code}::v{version}"
             gateway_tools[resolved_name] = {
+                "key": code,
                 "code": code,
                 "version": version,
                 "sdkName": f"gateway_{_safe_tool_name(code)}_v{version}",

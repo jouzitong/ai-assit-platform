@@ -1,4 +1,5 @@
 import type { ChatArtifact, ChatRunActivity, ChatRunActivityKind } from '../types'
+import { skillIdentity, toolIdentity } from '../utils/capabilityIdentity'
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === 'object' && !Array.isArray(value)
@@ -164,6 +165,14 @@ function activityKind(eventName: string, activity: Record<string, unknown>): Cha
 function activityTitle(kind: ChatRunActivityKind, eventName: string, source: Record<string, unknown>) {
   const localized = activityCopy(eventName, source)
   if (eventName.toLowerCase().startsWith('confidence.') && localized) return localized.title
+  if (kind === 'skill') {
+    const name = skillIdentity(source).name
+    if (name) return `加载技能：${name}`
+  }
+  if (kind === 'tool') {
+    const name = toolIdentity(source).name
+    if (name) return `调用工具：${name}`
+  }
   const stableName = text(source.activityName, source.title)
   if (stableName) return stableName
   if (localized) return localized.title
@@ -244,6 +253,8 @@ export function activityFromTransportEvent(
   const effectiveEventName = text(source.platformEventType) || eventName
   const kind = activityKind(effectiveEventName.toLowerCase(), source)
   if (!kind) return undefined
+  const tool = toolIdentity(source)
+  const skill = skillIdentity(source)
 
   const analysis = {
     ...parsedRecord(persistedDetail.analysis),
@@ -280,7 +291,12 @@ export function activityFromTransportEvent(
   ) as string
   const localized = activityCopy(effectiveEventName, source)
   const inputSummary = safeDetail(text(source.inputSummary))
-  const outputSummary = safeDetail(text(source.outputSummary))
+  const rawOutputSummary = safeDetail(text(source.outputSummary))
+  const callReason = safeDetail(text(source.callReason))
+  const skillResourcePath = text(source.resourcePath)
+  const outputSummary = kind === 'skill' && skill.name
+    ? `已加载技能“${skill.name}”${skillResourcePath ? `的资源：${skillResourcePath}` : ''}。`
+    : rawOutputSummary
   const detail = safeDetail(text(
     outputSummary,
     inputSummary,
@@ -319,6 +335,7 @@ export function activityFromTransportEvent(
     detail,
     inputSummary,
     outputSummary,
+    callReason,
     status,
     agentCode,
     agentVersion: numberValue(source.agentVersion),
@@ -330,6 +347,10 @@ export function activityFromTransportEvent(
     confidenceThreshold: numberValue(source.threshold),
     confidenceBasis,
     executionReadiness,
+    toolKey: tool.key,
+    toolName: tool.name,
+    skillKey: skill.key,
+    skillName: skill.name,
     analysis: Object.keys(analysis).length ? analysis : undefined,
     metadata,
   }
@@ -409,6 +430,11 @@ export function upsertRunActivity(items: ChatRunActivity[], next: ChatRunActivit
     title: text(next.metadata?.activityName, next.metadata?.title) ? next.title : current.title || next.title,
     inputSummary: next.inputSummary || current.inputSummary,
     outputSummary: next.outputSummary || current.outputSummary,
+    callReason: next.callReason || current.callReason,
+    toolKey: next.toolKey || current.toolKey,
+    toolName: next.toolName || current.toolName,
+    skillKey: next.skillKey || current.skillKey,
+    skillName: next.skillName || current.skillName,
     startedAt,
     finishedAt,
     timestamp: startedAt,

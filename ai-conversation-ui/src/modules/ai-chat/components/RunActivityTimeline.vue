@@ -2,7 +2,9 @@
 import { ArrowRight, Close } from '@element-plus/icons-vue'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import CollapsibleMarkdown from './CollapsibleMarkdown.vue'
+import ToolActivityFlow from './ToolActivityFlow.vue'
 import type { ChatRunActivity } from '../types'
+import { toolCallReason, toolDisplayName } from '../utils/capabilityIdentity'
 
 type ActivityFact = {
   label: string
@@ -15,11 +17,19 @@ type ActivityList = {
   ordered?: boolean
 }
 
+type ToolActivityView = {
+  name: string
+  reason: string
+  inputSummary: string
+  outputSummary: string
+}
+
 type ActivityView = {
   activity: ChatRunActivity
   detail: string
   facts: ActivityFact[]
   lists: ActivityList[]
+  toolCall?: ToolActivityView
 }
 
 const props = defineProps<{
@@ -185,11 +195,20 @@ function routeModeLabel(mode: string) {
 
 function routeSummary(route: Record<string, unknown>) {
   const parts = [routeModeLabel(textValue(route.mode) || 'DIRECT')]
-  const agentCode = textValue(route.agentCode)
-  const toolCodes = stringValues(route.toolCodes)
+  const agent = asRecord(route.agent)
+  const agentName = textValue(agent.name, route.agentName, agent.key, route.agentKey, route.agentCode)
+  const toolKeys = stringValues(route.toolKeys).length
+    ? stringValues(route.toolKeys)
+    : stringValues(route.toolCodes)
+  const toolNames = recordValues(route.tools)
+    .map(item => toolDisplayName(textValue(item.key), textValue(item.name)) || '')
+    .filter(Boolean)
+  const displayedTools = toolNames.length
+    ? toolNames
+    : toolKeys.map(key => toolDisplayName(key) || key)
   const knowledgeBaseCodes = stringValues(route.knowledgeBaseCodes)
-  if (agentCode) parts.push(`Agent：${agentCode}`)
-  if (toolCodes.length) parts.push(`工具：${toolCodes.join('、')}`)
+  if (agentName) parts.push(`智能体：${agentName}`)
+  if (displayedTools.length) parts.push(`工具：${displayedTools.join('、')}`)
   if (knowledgeBaseCodes.length) parts.push(`知识库：${knowledgeBaseCodes.join('、')}`)
   return parts.join('；')
 }
@@ -263,6 +282,28 @@ function issueItems(value: unknown) {
   }).filter(Boolean)
 }
 
+function buildToolActivityView(activity: ChatRunActivity, metadata: Record<string, unknown>): ToolActivityView {
+  const toolKey = textValue(activity.toolKey, metadata.toolKey, metadata.toolCode)
+  const configuredName = textValue(activity.toolName, metadata.toolName)
+  const name = toolDisplayName(toolKey, configuredName) || '未命名工具'
+  const inputSummary = textValue(activity.inputSummary, metadata.inputSummary)
+  const legacyDetail = textValue(activity.detail)
+  return {
+    name,
+    reason: textValue(
+      activity.callReason,
+      metadata.callReason,
+      toolCallReason(toolKey, name),
+    ),
+    inputSummary,
+    outputSummary: textValue(
+      activity.outputSummary,
+      metadata.outputSummary,
+      legacyDetail !== inputSummary ? legacyDetail : '',
+    ),
+  }
+}
+
 function buildActivityView(activity: ChatRunActivity): ActivityView {
   const metadata = asRecord(activity.metadata)
   const analysis = Object.keys(asRecord(activity.analysis)).length
@@ -271,6 +312,9 @@ function buildActivityView(activity: ChatRunActivity): ActivityView {
   const facts: ActivityFact[] = []
   const lists: ActivityList[] = []
   let detail = activityDetail(activity)
+  const toolCall = activity.kind === 'tool' ? buildToolActivityView(activity, metadata) : undefined
+
+  if (toolCall) detail = ''
 
   if (Object.keys(analysis).length) {
     detail = ''
@@ -369,7 +413,7 @@ function buildActivityView(activity: ChatRunActivity): ActivityView {
     )
   }
 
-  return { activity, detail, facts, lists }
+  return { activity, detail, facts, lists, toolCall }
 }
 
 function activityTimeText(activity: ChatRunActivity) {
@@ -480,11 +524,19 @@ function confidenceLabel(activity: ChatRunActivity) {
         >
           <span class="run-activity-drawer__marker" aria-hidden="true"></span>
           <div class="run-activity-drawer__item-header">
-            <strong>{{ view.activity.title }}</strong>
+            <strong>{{ view.toolCall?.name || view.activity.title }}</strong>
             <span class="run-activity-drawer__status">{{ statusLabel(displayedStatus(view.activity)) }}</span>
           </div>
+          <ToolActivityFlow
+            v-if="view.toolCall"
+            :tool-name="view.toolCall.name"
+            :reason="view.toolCall.reason"
+            :input-summary="view.toolCall.inputSummary"
+            :output-summary="view.toolCall.outputSummary"
+            :status="displayedStatus(view.activity)"
+          />
           <CollapsibleMarkdown
-            v-if="view.detail"
+            v-else-if="view.detail"
             class="run-activity-drawer__detail"
             :content="view.detail"
           />
