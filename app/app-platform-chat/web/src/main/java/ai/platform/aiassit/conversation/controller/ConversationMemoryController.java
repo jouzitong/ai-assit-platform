@@ -4,6 +4,7 @@ import ai.platform.aiassit.conversation.memory.ConversationMemoryManagementServi
 import ai.platform.aiassit.conversation.support.ConversationRequestContextResolver;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryConfirmRequest;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCorrectionRequest;
+import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCreateRequest;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryListResponse;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryOperationResponse;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemorySessionPolicyRequest;
@@ -35,6 +36,12 @@ public class ConversationMemoryController {
     @GetMapping("/long-term")
     public ConversationMemoryListResponse longTermMemories() {
         return memoryService.longTermMemories(tenantId(), userId());
+    }
+
+    @PostMapping("/long-term")
+    public ConversationMemoryOperationResponse createLongTerm(
+            @RequestBody ConversationMemoryCreateRequest request) {
+        return memoryService.createLongTerm(tenantId(), userId(), request);
     }
 
     @PostMapping("/long-term/clear")

@@ -14,6 +14,13 @@ import java.util.Set;
 @Component
 public class ConversationRequestContextResolver {
 
+    /**
+     * The current platform is single-tenant. This server-owned compatibility scope keeps the
+     * Memory control-plane tables and external Provider identity stable without requiring a
+     * tenant claim in every authenticated token.
+     */
+    public static final String SINGLE_TENANT_SCOPE = "single-tenant";
+
     public Long currentUserId() {
         UserContext userContext = SystemContext.getUserContext();
         if (userContext != null && userContext.subject() != null && userContext.subject().userId() != null) {
@@ -22,7 +29,11 @@ public class ConversationRequestContextResolver {
         throw BizException.of(ErrCodeConstant.LOGIN_FAILED);
     }
 
-    /** Returns the tenant from the authenticated subject; request data is never consulted. */
+    /**
+     * Resolves an optional tenant claim into the server-owned storage scope. Request data is
+     * never consulted. Until multi-tenancy is introduced, authenticated users without a tenant
+     * claim share the stable single-tenant compatibility scope.
+     */
     public String currentTenantId() {
         UserContext userContext = SystemContext.getUserContext();
         if (userContext != null && userContext.subject() != null
@@ -30,7 +41,7 @@ public class ConversationRequestContextResolver {
                 && !userContext.subject().tenantId().isBlank()) {
             return userContext.subject().tenantId().trim();
         }
-        throw BizException.of(ErrCodeConstant.LOGIN_FAILED);
+        return SINGLE_TENANT_SCOPE;
     }
 
     public String traceId() {

@@ -57,6 +57,22 @@ public class RagflowMemoryResponseMapper {
         return result;
     }
 
+    /**
+     * Extracts the message body returned by the detail endpoint.
+     *
+     * <p>RAGFlow deployments may omit {@code content} from the paged Memory response and expose
+     * it only through {@code /api/v1/messages/{memory_id}:{message_id}/content}. The vector from
+     * that response is intentionally ignored; the provider-neutral contract carries text only.
+     */
+    public String content(JsonNode data) {
+        if (data == null || data.isNull()) {
+            return null;
+        }
+        JsonNode message = data.isObject() ? data.get("message") : null;
+        String value = firstText(data, "content", "text");
+        return StringUtils.hasText(value) || message == null ? value : firstText(message, "content", "text");
+    }
+
     public long total(JsonNode data, int fallback) {
         JsonNode container = data;
         if (container != null && container.isObject() && container.get("messages") != null) {

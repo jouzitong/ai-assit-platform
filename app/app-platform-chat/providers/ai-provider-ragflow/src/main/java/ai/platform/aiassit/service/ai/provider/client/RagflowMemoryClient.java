@@ -6,6 +6,7 @@ import ai.platform.aiassit.service.ai.provider.config.RagflowProperties;
 import ai.platform.aiassit.service.ai.provider.dto.RagflowMemoryResponseMapper;
 import ai.platform.aiassit.service.ai.spi.memory.MemoryProviderException;
 import ai.platform.aiassit.service.ai.spi.memory.dto.MemoryDescriptor;
+import ai.platform.aiassit.service.ai.spi.memory.dto.MemoryMessage;
 import ai.platform.aiassit.service.ai.spi.memory.dto.MemoryPageResponse;
 import ai.platform.aiassit.service.ai.spi.memory.dto.MemoryRecentResponse;
 import ai.platform.aiassit.service.ai.spi.memory.dto.MemorySearchResponse;
@@ -153,9 +154,38 @@ public class RagflowMemoryClient {
         JsonNode data = data(call("GET", queryPath("/api/v1/memories/" + encodePath(memoryId), query),
                 null, request.getMeta(), false));
         MemoryPageResponse result = new MemoryPageResponse();
-        result.setItems(responseMapper.messages(data));
+        result.setItems(hydrateMissingContent(responseMapper.messages(data), request.getMeta()));
         result.setTotal(responseMapper.total(data, result.getItems().size()));
         return result;
+    }
+
+    /**
+     * RAGFlow's paged Memory endpoint can return message metadata without the message body.
+     * Retrieve the body for extracted messages before crossing the provider boundary so callers
+     * can apply their own visibility and ownership rules to actual content. Raw parent messages
+     * remain metadata-only because they are not exposed as user-facing memory items.
+     */
+    private List<MemoryMessage> hydrateMissingContent(List<MemoryMessage> messages, RequestMeta meta) {
+        for (MemoryMessage message : messages) {
+            if (message == null || message.getMemoryType() == MemoryType.RAW
+                    || StringUtils.hasText(message.getContent())
+                    || !StringUtils.hasText(message.getMemoryId())
+                    || !StringUtils.hasText(message.getMessageId())) {
+                continue;
+            }
+            JsonNode contentData = data(call("GET", messageContentPath(
+                    message.getMemoryId(), message.getMessageId()), null, meta, false));
+            String content = responseMapper.content(contentData);
+            if (StringUtils.hasText(content)) {
+                message.setContent(content);
+            }
+        }
+        return messages;
+    }
+
+    private String messageContentPath(String memoryId, String messageId) {
+        return "/api/v1/messages/" + encodePath(requireText(memoryId, "memoryId")) + ":"
+                + encodePath(requireText(messageId, "messageId")) + "/content";
     }
 
     public MemorySearchResponse search(ProviderMemorySearchRequest request) {

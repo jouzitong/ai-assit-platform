@@ -26,16 +26,16 @@ ai:
       redis:
         key-prefix: ai:chat:runtime
     memory:
-      enabled: ${AI_CHAT_MEMORY_ENABLED:false}
+      enabled: ${AI_CHAT_MEMORY_ENABLED:true}
       provider-type: RAGFLOW
       client-key: ${AI_CHAT_MEMORY_CLIENT_KEY:ragflow}
       # Required when Memory is enabled. It protects the stable tenant/user key sent to RAGFlow.
-      identity-salt: ${AI_CHAT_MEMORY_IDENTITY_SALT:}
+      identity-salt: ${AI_CHAT_MEMORY_IDENTITY_SALT:51af82d606d1215e86431888fc7f950702e18134cc374cc2dc9cb1324538b191}
       schema-version: ${AI_CHAT_MEMORY_SCHEMA_VERSION:1}
       session-enabled: ${AI_CHAT_MEMORY_SESSION_ENABLED:true}
       long-term-enabled: ${AI_CHAT_MEMORY_LONG_TERM_ENABLED:true}
-      embedding-model: ${AI_CHAT_MEMORY_EMBEDDING_MODEL:}
-      extraction-model: ${AI_CHAT_MEMORY_EXTRACTION_MODEL:}
+      embedding-model: ${AI_CHAT_MEMORY_EMBEDDING_MODEL:text-embedding-v3}
+      extraction-model: ${AI_CHAT_MEMORY_EXTRACTION_MODEL:qwen3.6-plus}
       memory-size: ${AI_CHAT_MEMORY_SIZE:5242880}
       forgetting-policy: FIFO
       recall:
@@ -73,9 +73,9 @@ ai:
 #      timeout-ms: ${AI_PROVIDER_AI_AGENT_TIMEOUT_MS:120000}
       chat-base-url: ${AI_PROVIDER_AI_AGENT_CHAT_BASE_URL:http://127.0.0.1:13103/chat}
     ragflow:
-      enabled: ${AI_PROVIDER_RAGFLOW_ENABLED:false}
-      base-url: ${AI_PROVIDER_RAGFLOW_BASE_URL:${RAGFLOW_BASE_URL:}}
-      api-key: ${AI_PROVIDER_RAGFLOW_API_KEY:${RAGFLOW_API_KEY:}}
+      enabled: ${AI_PROVIDER_RAGFLOW_ENABLED:true}
+      base-url: ${AI_PROVIDER_RAGFLOW_BASE_URL:${RAGFLOW_BASE_URL:http://43.142.108.229:18080}}
+      api-key: ${AI_PROVIDER_RAGFLOW_API_KEY:${RAGFLOW_API_KEY:ragflow-bC7uuvWLU2P3ErUbj6OJ6CcNVizzLmSZw25avidPRn0}}
       timeout-ms: ${AI_PROVIDER_RAGFLOW_TIMEOUT_MS:30000}
     bailian-kb:
       workspace-id: ${AI_PROVIDER_BAILIAN_KB_WORKSPACE_ID:}

@@ -14,6 +14,7 @@ import ai.platform.aiassit.service.ai.api.constant.AiChatBizCodeConstant;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryConfirmRequest;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryContextResponse;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCorrectionRequest;
+import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCreateRequest;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCounts;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryItem;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryListResponse;
@@ -167,6 +168,30 @@ public class DefaultConversationMemoryManagementService implements ConversationM
     }
 
     @Override
+    public ConversationMemoryOperationResponse createLongTerm(String tenantId,
+                                                               Long userId,
+                                                               ConversationMemoryCreateRequest request) {
+        requireConfirmed(request == null ? null : request.getConfirmed());
+        String content = normalizeContent(request == null ? null : request.getContent());
+        if (!properties.isLongTermEnabled()) {
+            throw BizException.of(AiChatBizCodeConstant.MEMORY_BINDING_UNAVAILABLE);
+        }
+        ConversationMemoryBindingEntity binding = requireBinding(tenantId, userId);
+        ProviderMemoryWriteRequest write = new ProviderMemoryWriteRequest();
+        write.setMemoryIds(List.of(binding.getLongTermMemoryId()));
+        write.setAgentId("platform-memory-manager");
+        write.setSessionId(resolveWriteSession(null, MemoryScope.LONG_TERM));
+        write.setUserId(providerAccess.providerUserId(tenantId, userId));
+        write.setUserInput(content);
+        write.setAgentResponse("已根据用户确认新增长期记忆。");
+        MemoryWriteResponse result = callProviderWrite(() -> providerAccess.addConversation(tenantId, write));
+        if (result == null || !result.isAccepted()) {
+            throw BizException.of(AiChatBizCodeConstant.MEMORY_OPERATION_FAILED);
+        }
+        return ConversationMemoryOperationResponse.accepted(null, MemoryItemStatus.PROCESSING);
+    }
+
+    @Override
     public ConversationMemoryOperationResponse clearLongTerm(
             String tenantId, Long userId, ConversationMemoryConfirmRequest request) {
         requireConfirmed(request == null ? null : request.getConfirmed());
@@ -246,7 +271,7 @@ public class DefaultConversationMemoryManagementService implements ConversationM
                                                         String memoryRef,
                                                         ConversationMemoryCorrectionRequest request) {
         requireConfirmed(request == null ? null : request.getConfirmed());
-        String content = normalizeCorrection(request == null ? null : request.getContent());
+        String content = normalizeContent(request == null ? null : request.getContent());
         OwnedMemory owned = ownedMemory(tenantId, userId, memoryRef);
         MemoryMessage source = requireProviderMessage(owned);
         runProviderWrite(() -> providerAccess.updateStatus(
@@ -493,7 +518,7 @@ public class DefaultConversationMemoryManagementService implements ConversationM
         return value.substring(0, value.offsetByCodePoints(0, MAX_VISIBLE_CONTENT_CODEPOINTS)) + "…";
     }
 
-    private String normalizeCorrection(String content) {
+    private String normalizeContent(String content) {
         String value = limitContent(content);
         if (!StringUtils.hasText(value)) {
             throw BizException.illegalParam(AiChatBizCodeConstant.REQUIRED_CONTENT);

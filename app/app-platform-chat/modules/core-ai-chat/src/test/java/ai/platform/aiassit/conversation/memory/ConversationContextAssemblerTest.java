@@ -57,9 +57,37 @@ class ConversationContextAssemblerTest {
     }
 
     @Test
-    void rejectsAllCandidatesWhenProviderReturnsAnotherUsersMessage() {
+    void acceptsProviderInternalUserIdAndDropsRecordsFromAnotherSession() {
         Fixture fixture = fixture();
-        MemoryMessage foreign = message("别的用户私密事实", "foreign", "session-1", "provider-user-other", MemoryType.SEMANTIC);
+        MemoryMessage currentSession = message(
+                "当前会话记忆", "current-session-message", "session-1", "ragflow-internal-user", MemoryType.EPISODIC);
+        MemoryMessage anotherSession = message(
+                "其他会话记忆", "other-session-message", "session-2", "ragflow-internal-user", MemoryType.EPISODIC);
+        MemoryMessage longTerm = message(
+                "长期记忆", "long-term-message", "historical-session", "ragflow-internal-user", MemoryType.PROCEDURAL);
+        when(fixture.provider.searchMessages(any())).thenAnswer(invocation -> {
+            ProviderMemorySearchRequest request = invocation.getArgument(0);
+            return response("session-1".equals(request.getSessionId())
+                    ? List.of(currentSession, anotherSession) : List.of(longTerm));
+        });
+
+        fixture.assembler.assemble(fixture.context);
+
+        assertThat(fixture.context.getContextPackage().getSessionMemories())
+                .extracting(item -> item.getContent())
+                .containsExactly("当前会话记忆");
+        assertThat(fixture.context.getContextPackage().getLongTermMemories())
+                .extracting(item -> item.getContent())
+                .containsExactly("长期记忆");
+        assertThat(fixture.context.getContextPackage().getDegradedReason()).isNull();
+    }
+
+    @Test
+    void rejectsAllCandidatesWhenProviderReturnsAnotherMemory() {
+        Fixture fixture = fixture();
+        MemoryMessage foreign = message("另一个Memory的私密事实", "foreign", "session-1",
+                "ragflow-internal-user", MemoryType.SEMANTIC);
+        foreign.setMemoryId("memory-owned-by-someone-else");
         when(fixture.provider.searchMessages(any())).thenReturn(response(List.of(foreign)));
 
         fixture.assembler.assemble(fixture.context);

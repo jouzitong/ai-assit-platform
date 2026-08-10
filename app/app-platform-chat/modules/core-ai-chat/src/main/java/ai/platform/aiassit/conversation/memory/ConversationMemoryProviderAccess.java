@@ -62,7 +62,7 @@ public class ConversationMemoryProviderAccess {
         MemoryPageResponse response = provider().listMessages(request);
         List<MemoryMessage> items = response == null || response.getItems() == null
                 ? List.of() : response.getItems();
-        return validateItems(items, memoryId, identity.providerUserId(tenantId, userId), scope, sessionCode);
+        return validateItems(items, memoryId, scope, sessionCode);
     }
 
     /**
@@ -90,8 +90,7 @@ public class ConversationMemoryProviderAccess {
         MemoryPageResponse response = provider().listMessages(request);
         List<MemoryMessage> items = response == null || response.getItems() == null
                 ? List.of() : response.getItems();
-        List<MemoryMessage> validated = validateItems(
-                items, memoryId, identity.providerUserId(tenantId, userId), scope, sessionCode);
+        List<MemoryMessage> validated = validateItems(items, memoryId, scope, sessionCode);
         MemoryMessage found = null;
         for (MemoryMessage item : validated) {
             if (!lookupId.equals(item.getExternalId())) {
@@ -233,9 +232,19 @@ public class ConversationMemoryProviderAccess {
         return provisionService.providerMeta(tenantId);
     }
 
+    /**
+     * Validates the resource boundary and removes records outside the requested session.
+     *
+     * <p>The bound Memory ID is created and stored by the platform for one trusted owner, so it
+     * is the authoritative ownership boundary. RAGFlow deployments may rewrite the request's
+     * user_id to an internal UUID and may return records from other sessions despite a
+     * session_id filter. Treating those provider fields as hard ownership proofs would reject
+     * valid records or allow a provider filtering defect to fail the whole read. A different
+     * Memory ID remains a hard security violation; a missing Memory ID is filled from the
+     * resource-scoped request, as older RAGFlow responses omit it.
+     */
     private List<MemoryMessage> validateItems(List<MemoryMessage> source,
                                               String expectedMemoryId,
-                                              String expectedUserId,
                                               MemoryScope scope,
                                               String expectedSessionId) {
         List<MemoryMessage> validated = new ArrayList<>();
@@ -246,12 +255,9 @@ public class ConversationMemoryProviderAccess {
             if (StringUtils.hasText(item.getMemoryId()) && !expectedMemoryId.equals(item.getMemoryId())) {
                 throw new MemoryOwnershipViolationException();
             }
-            if (!StringUtils.hasText(item.getUserId()) || !expectedUserId.equals(item.getUserId())) {
-                throw new MemoryOwnershipViolationException();
-            }
             if (scope == MemoryScope.SESSION
                     && (!StringUtils.hasText(item.getSessionId()) || !expectedSessionId.equals(item.getSessionId()))) {
-                throw new MemoryOwnershipViolationException();
+                continue;
             }
             if (!StringUtils.hasText(item.getMemoryId())) {
                 item.setMemoryId(expectedMemoryId);

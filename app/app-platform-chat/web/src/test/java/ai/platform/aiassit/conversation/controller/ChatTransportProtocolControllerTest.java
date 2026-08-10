@@ -63,6 +63,8 @@ class ChatTransportProtocolControllerTest {
         assertThat(result).isSameAs(transport.emitter);
         assertThat(commandFactory.settingsRequest).isSameAs(request);
         assertThat(commandFactory.settingsSessionCode).isEqualTo("settings-session");
+        assertThat(commandFactory.settingsTenantId)
+                .isEqualTo(ConversationRequestContextResolver.SINGLE_TENANT_SCOPE);
         assertThat(commandFactory.settingsUserId).isEqualTo(7L);
         assertThat(commandFactory.settingsTraceId).isEqualTo("trace-settings");
         assertThat(commandFactory.settingsAllowModelOverride).isFalse();
@@ -135,6 +137,7 @@ class ChatTransportProtocolControllerTest {
         private ConversationQueryCommand settingsCommand;
         private ChatTransportRequest settingsRequest;
         private String settingsSessionCode;
+        private String settingsTenantId;
         private Long settingsUserId;
         private String settingsTraceId;
         private boolean settingsAllowModelOverride;
@@ -146,11 +149,13 @@ class ChatTransportProtocolControllerTest {
         @Override
         public ConversationQueryCommand fromSettingsAssistantProtocol(ChatTransportRequest request,
                                                                        String pathSessionCode,
+                                                                       String tenantId,
                                                                        Long userId,
                                                                        String fallbackTraceId,
                                                                        boolean allowModelOverride) {
             this.settingsRequest = request;
             this.settingsSessionCode = pathSessionCode;
+            this.settingsTenantId = tenantId;
             this.settingsUserId = userId;
             this.settingsTraceId = fallbackTraceId;
             this.settingsAllowModelOverride = allowModelOverride;

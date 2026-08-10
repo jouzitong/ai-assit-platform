@@ -25,6 +25,7 @@ import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,6 +34,8 @@ class RagflowMemoryClientTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
     private final AtomicBoolean failWrites = new AtomicBoolean();
+    private final AtomicBoolean listIncludesExtractedMessage = new AtomicBoolean();
+    private final AtomicInteger contentLookups = new AtomicInteger();
     private HttpServer server;
     private RagflowMemoryClient client;
 
@@ -96,12 +99,14 @@ class RagflowMemoryClientTest {
                 .satisfies(item -> {
                     assertThat(item.getMessageId()).isEqualTo("message-1");
                     assertThat(item.getMemoryType()).isEqualTo(MemoryType.SEMANTIC);
+                    assertThat(item.getContent()).isEqualTo("用户偏好表格展示");
                     assertThat(item.getUserId()).isEqualTo("platform-user-owner");
                     assertThat(item.getExternalId()).isEqualTo("round-idempotency-1");
                     assertThat(item.getProcessingStatus()).isEqualTo("COMPLETED");
                     assertThat(item).hasNoNullFieldsOrPropertiesExcept(
                             "similarity", "sourceId", "createdAt");
                 });
+        assertThat(contentLookups).hasValue(1);
 
         ProviderMemorySearchRequest search = new ProviderMemorySearchRequest();
         search.setMeta(new RequestMeta());
@@ -116,6 +121,21 @@ class RagflowMemoryClientTest {
         recent.setMemoryIds(List.of("memory-session-1"));
         recent.setSessionId("session-1");
         assertThat(client.recent(recent).getItems()).singleElement();
+    }
+
+    @Test
+    void hydratesExtractedMemoryContentWhenPagedResponseOnlyContainsMetadata() {
+        listIncludesExtractedMessage.set(true);
+        ProviderMemoryListRequest list = new ProviderMemoryListRequest();
+        list.setMeta(new RequestMeta());
+        list.setMemoryId("memory-session-1");
+
+        assertThat(client.list(list).getItems())
+                .extracting(item -> item.getMemoryType(), item -> item.getContent())
+                .containsExactly(
+                        org.assertj.core.groups.Tuple.tuple(MemoryType.RAW, null),
+                        org.assertj.core.groups.Tuple.tuple(MemoryType.PROCEDURAL, "提炼出的工作方式"));
+        assertThat(contentLookups).hasValue(1);
     }
 
     @Test
@@ -166,7 +186,7 @@ class RagflowMemoryClientTest {
         }
         if ("GET".equals(exchange.getRequestMethod())) {
             assertThat(exchange.getRequestURI().getPath()).isEqualTo("/api/v1/memories/memory-session-1");
-            respond(exchange, 200, messagesResponse());
+            respond(exchange, 200, listResponse());
             return;
         }
         respond(exchange, 405, "{\"code\":405}");
@@ -192,6 +212,18 @@ class RagflowMemoryClientTest {
             assertThat(exchange.getRequestURI().getRawQuery())
                     .contains("session_id=session-1", "user_id=platform-user-owner");
             respond(exchange, 200, messagesResponse());
+            return;
+        }
+        if ("GET".equals(exchange.getRequestMethod()) && path.endsWith("/content")) {
+            contentLookups.incrementAndGet();
+            if (path.endsWith("message-1/content")) {
+                respond(exchange, 200, contentResponse("message-1", "semantic", "用户偏好表格展示"));
+            } else if (path.endsWith("message-procedural/content")) {
+                respond(exchange, 200, contentResponse(
+                        "message-procedural", "procedural", "提炼出的工作方式"));
+            } else {
+                respond(exchange, 404, "{\"code\":404}");
+            }
             return;
         }
         if ("GET".equals(exchange.getRequestMethod()) && "/api/v1/messages".equals(path)) {
@@ -222,6 +254,31 @@ class RagflowMemoryClientTest {
                 + "\"agent_id\":\"platform-chat\",\"session_id\":\"session-1\","
                 + "\"user_id\":\"platform-user-owner\",\"external_id\":\"round-idempotency-1\",\"status\":true,"
                 + "\"content_embed\":[0.1,0.2],\"task\":{\"progress\":1.0}}]}}";
+    }
+
+    private String listResponse() {
+        if (listIncludesExtractedMessage.get()) {
+            return "{\"code\":0,\"data\":{\"total\":1,\"message_list\":[{"
+                    + "\"memory_id\":\"memory-session-1\",\"message_id\":\"message-raw\","
+                    + "\"message_type\":\"raw\",\"agent_id\":\"platform-chat\","
+                    + "\"session_id\":\"session-1\",\"user_id\":\"platform-user-owner\","
+                    + "\"status\":true,\"task\":{\"progress\":1.0},\"extract\":[{"
+                    + "\"memory_id\":\"memory-session-1\",\"message_id\":\"message-procedural\","
+                    + "\"message_type\":\"procedural\",\"status\":true}]}]}}";
+        }
+        return "{\"code\":0,\"data\":{\"total\":1,\"message_list\":[{"
+                + "\"memory_id\":\"memory-session-1\",\"message_id\":\"message-1\","
+                + "\"message_type\":\"semantic\",\"agent_id\":\"platform-chat\","
+                + "\"session_id\":\"session-1\",\"user_id\":\"platform-user-owner\","
+                + "\"external_id\":\"round-idempotency-1\",\"status\":true,"
+                + "\"task\":{\"progress\":1.0}}]}}";
+    }
+
+    private String contentResponse(String messageId, String messageType, String content) {
+        return "{\"code\":0,\"data\":{\"memory_id\":\"memory-session-1\","
+                + "\"message_id\":\"" + messageId + "\",\"message_type\":\""
+                + messageType + "\",\"content\":\"" + content + "\","
+                + "\"content_embed\":[0.1,0.2]}}";
     }
 
     private void respond(HttpExchange exchange, int status, String body) throws IOException {

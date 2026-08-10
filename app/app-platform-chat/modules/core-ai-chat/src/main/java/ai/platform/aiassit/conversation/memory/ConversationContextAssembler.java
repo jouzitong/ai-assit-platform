@@ -106,9 +106,9 @@ public class ConversationContextAssembler {
             Set<String> excluded = policyService.excludedMessageKeys(tenantId, userId, sessionCode);
             Set<String> recentContent = recentContent(context);
             List<MemoryMessage> sessionCandidates = filter(sessionResult.items(), MemoryScope.SESSION,
-                    binding.getSessionMemoryId(), sessionCode, providerUserId, excluded, recentContent);
+                    binding.getSessionMemoryId(), sessionCode, excluded, recentContent);
             List<MemoryMessage> longTermCandidates = filter(longTermResult.items(), MemoryScope.LONG_TERM,
-                    binding.getLongTermMemoryId(), null, providerUserId, excluded, recentContent);
+                    binding.getLongTermMemoryId(), null, excluded, recentContent);
             preferLongTermDuplicates(sessionCandidates, longTermCandidates);
             result.setSessionCandidateCount(sessionCandidates.size());
             result.setLongTermCandidateCount(longTermCandidates.size());
@@ -168,27 +168,22 @@ public class ConversationContextAssembler {
         List<MemoryMessage> items = response == null || response.getItems() == null
                 ? List.of() : response.getItems();
         boolean mismatch = items.stream().anyMatch(item -> ownershipMismatch(
-                item, memoryId, sessionId, providerUserId));
+                item, memoryId));
         return mismatch ? ScopeResult.mismatch() : ScopeResult.success(items);
     }
 
     private boolean ownershipMismatch(MemoryMessage item,
-                                      String memoryId,
-                                      String sessionId,
-                                      String providerUserId) {
+                                      String memoryId) {
         if (item == null) {
             return false;
         }
-        return (StringUtils.hasText(item.getMemoryId()) && !memoryId.equals(item.getMemoryId()))
-                || !providerUserId.equals(item.getUserId())
-                || (StringUtils.hasText(sessionId) && !sessionId.equals(item.getSessionId()));
+        return StringUtils.hasText(item.getMemoryId()) && !memoryId.equals(item.getMemoryId());
     }
 
     private List<MemoryMessage> filter(List<MemoryMessage> items,
                                        MemoryScope scope,
                                        String expectedMemoryId,
                                        String expectedSessionId,
-                                       String expectedUserId,
                                        Set<String> excluded,
                                        Set<String> recentContent) {
         if (items == null || items.isEmpty()) {
@@ -203,7 +198,6 @@ public class ConversationContextAssembler {
                 continue;
             }
             if ((StringUtils.hasText(item.getMemoryId()) && !expectedMemoryId.equals(item.getMemoryId()))
-                    || !expectedUserId.equals(item.getUserId())
                     || (StringUtils.hasText(expectedSessionId) && !expectedSessionId.equals(item.getSessionId()))) {
                 continue;
             }

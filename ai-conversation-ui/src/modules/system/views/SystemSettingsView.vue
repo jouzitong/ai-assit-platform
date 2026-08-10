@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ArrowLeftBold, ArrowRightBold, Coin, Connection, Cpu, DataAnalysis, Grid, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
+import { ArrowLeftBold, ArrowRightBold, ChatDotRound, Coin, Connection, Cpu, DataAnalysis, Grid, Setting, Share, Tickets, UserFilled } from '@element-plus/icons-vue'
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import AgentAssistantHost from '../../ai-assistant/components/AgentAssistantHost.vue'
@@ -19,6 +19,7 @@ import DataSourceSection from '../components/sections/DataSourceSection.vue'
 import DataSourceTableSection from '../components/sections/DataSourceTableSection.vue'
 import ErrorCodeSection from '../components/sections/ErrorCodeSection.vue'
 import KbDocumentManageSection from '../components/sections/KbDocumentManageSection.vue'
+import MemoryManagementSection from '../components/sections/MemoryManagementSection.vue'
 import MetadataConfigSection from '../components/sections/MetadataConfigSection.vue'
 import SystemParamsSection from '../components/sections/SystemParamsSection.vue'
 import UserManagementSection from '../components/sections/UserManagementSection.vue'
@@ -129,6 +130,14 @@ const sections: SettingsSection[] = [
         description: '维护知识库客户端、数据集和文档。',
         component: AiPlatformSection,
       },
+      {
+        key: 'ai-platform-memory',
+        label: '记忆管理',
+        icon: ChatDotRound,
+        title: '记忆管理',
+        description: '维护当前账号在 RAGFlow 中的长期记忆。',
+        component: MemoryManagementSection,
+      },
     ],
   },
   {
@@ -182,9 +191,15 @@ const routeSection = computed(() => typeof route.params.section === 'string' ? r
 const routeSourceKey = computed(() => typeof route.params.sourceKey === 'string' ? route.params.sourceKey : '')
 const navigableSections = computed(() => sections.flatMap(item => item.children?.length ? item.children : [item]))
 const isAiPlatformSection = computed(() => routeSection.value === 'ai-platform')
-const aiPlatformTab = computed<'model' | 'kb'>(() => {
+const aiPlatformTab = computed<'model' | 'kb' | 'memory'>(() => {
+  if (routeSourceKey.value === 'memory') {
+    return 'memory'
+  }
   if (routeSourceKey.value && routeSourceKey.value !== 'model') {
     return 'kb'
+  }
+  if (route.query.tab === 'memory') {
+    return 'memory'
   }
   return route.query.tab === 'kb' ? 'kb' : 'model'
 })
@@ -197,7 +212,7 @@ const activeSection = computed(() => {
 })
 
 const hasDataSourceDetail = computed(() => routeSection.value === 'data-source' && routeSourceKey.value.trim().length > 0)
-const hasAiPlatformKbDetail = computed(() => isAiPlatformSection.value && !['model', 'kb'].includes(routeSourceKey.value) && routeSourceKey.value.trim().length > 0)
+const hasAiPlatformKbDetail = computed(() => isAiPlatformSection.value && !['model', 'kb', 'memory'].includes(routeSourceKey.value) && routeSourceKey.value.trim().length > 0)
 const currentSection = computed(() => navigableSections.value.find(item => item.key === routeSection.value) || navigableSections.value[0])
 const managementEditors: Record<string, unknown> = {
   agents: AgentEditorView,
@@ -223,6 +238,10 @@ async function navigateToSection(sectionKey: string) {
   }
   if (sectionKey === 'ai-platform-kb') {
     await router.push('/settings/system/ai-platform/kb')
+    return
+  }
+  if (sectionKey === 'ai-platform-memory') {
+    await router.push('/settings/system/ai-platform/memory')
     return
   }
   await router.push(`/settings/system/${sectionKey}`)
@@ -258,7 +277,7 @@ onMounted(() => {
   }
 
   if (isAiPlatformSection.value && !routeSourceKey.value) {
-    const legacyTab = route.query.tab === 'kb' ? 'kb' : 'model'
+    const legacyTab = route.query.tab === 'memory' ? 'memory' : route.query.tab === 'kb' ? 'kb' : 'model'
     const { tab: _tab, ...query } = route.query
     void router.replace({
       path: `/settings/system/ai-platform/${legacyTab}`,
@@ -301,6 +320,7 @@ onMounted(() => {
     <main class="system-settings-content">
       <DataSourceTableSection v-if="hasDataSourceDetail" />
       <KbDocumentManageSection v-else-if="hasAiPlatformKbDetail" />
+      <MemoryManagementSection v-else-if="isAiPlatformSection && aiPlatformTab === 'memory'" />
       <AiModelManagementSection v-else-if="isAiPlatformSection && aiPlatformTab === 'model'" />
       <AiPlatformSection v-else-if="isAiPlatformSection" :active-tab="aiPlatformTab" />
       <component

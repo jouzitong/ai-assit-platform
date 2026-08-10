@@ -3,6 +3,7 @@ package ai.platform.aiassit.conversation.memory;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryConfirmRequest;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryContextResponse;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCorrectionRequest;
+import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryCreateRequest;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryListResponse;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemoryOperationResponse;
 import ai.platform.aiassit.service.ai.api.memory.dto.ConversationMemorySessionPolicyRequest;
@@ -12,6 +13,9 @@ public interface ConversationMemoryManagementService {
     ConversationMemoryContextResponse context(String tenantId, Long userId, String sessionCode);
 
     ConversationMemoryListResponse longTermMemories(String tenantId, Long userId);
+
+    ConversationMemoryOperationResponse createLongTerm(
+            String tenantId, Long userId, ConversationMemoryCreateRequest request);
 
     ConversationMemoryOperationResponse clearLongTerm(
             String tenantId, Long userId, ConversationMemoryConfirmRequest request);

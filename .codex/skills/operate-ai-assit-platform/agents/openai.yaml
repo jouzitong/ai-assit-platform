@@ -1,0 +1,4 @@
+interface:
+  display_name: "AI Assist Platform 运维策划"
+  short_description: "运维、规划、测试数据与 RAGFlow 的项目级执行助手"
+  default_prompt: "使用 $operate-ai-assit-platform 体检本地环境并给出安全的项目启动方案。"
