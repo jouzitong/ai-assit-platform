@@ -53,6 +53,16 @@ spring:
 
 
 gateway:
+  request-guard:
+    enabled: false
+    header-name: X-Frontend-Environment
+    # 为空时：生产 Profile 默认只允许 prod，其他已识别 Profile 默认允许自身值。
+    expected-value: []
+    ignore-urls:
+      - /actuator/**
+      - /health/**
+      - /error
+      - /favicon.ico
   security:
     enabled: true
     require-token: true

@@ -1,9 +1,10 @@
-import { GATEWAY_BASE_URL } from '../config/runtime'
+import { FRONTEND_ENVIRONMENT, GATEWAY_BASE_URL } from '../config/runtime'
 import { getToken, redirectToLogin } from '../utils/session'
 import { applyRequestInterceptor, applyResponseInterceptor } from './interceptor'
 import type { ApiRequestConfig, ApiResponse } from './types'
 
 const TRACE_HEADER = 'X-Trace-Id'
+const FRONTEND_ENVIRONMENT_HEADER = 'X-Frontend-Environment'
 
 function buildBaseUrl(path: string) {
   if (!path) {
@@ -89,6 +90,8 @@ function buildRequestHeaders(options: ApiRequestConfig = {}) {
     ...(token ? { Authorization: `Bearer ${token}` } : {}),
     [TRACE_HEADER]: generateTraceId(),
     ...(options.headers || {}),
+    // 环境门禁头必须最后写入，避免单个调用方意外覆盖统一环境标识。
+    [FRONTEND_ENVIRONMENT_HEADER]: FRONTEND_ENVIRONMENT,
   }
 }
 
