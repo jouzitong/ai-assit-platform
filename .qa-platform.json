@@ -8,6 +8,7 @@
   "variables": {
     "base_url": "127.0.0.1:9764"
   },
+  "version": "v0.1.0",
   "api_prefix": "/api/v1",
   "project_id": null,
   "endpoint": "preview",
