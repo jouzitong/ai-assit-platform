@@ -26,6 +26,131 @@
     "archive_filename": "qa-platform-import.zip"
   },
   "api_templates": [],
+  "api_template_discovery": {
+    "enabled": true
+  },
+  "api_grouping": {
+    "default_path": "/",
+    "rules": []
+  },
+  "service_topology": {
+    "gateway": {
+      "service_key": "app-gateway",
+      "name": "API 网关",
+      "base_url_variable": "base_url",
+      "source_root": "app/app-gateway"
+    },
+    "services": [
+      {
+        "key": "app-gateway",
+        "name": "API 网关",
+        "source_roots": [
+          "app/app-gateway"
+        ],
+        "application_name": "gateway",
+        "route_prefix": "/",
+        "group_path": "/API 网关",
+        "server": {
+          "port": 9764
+        }
+      },
+      {
+        "key": "app-platform-chat",
+        "name": "AI 会话服务",
+        "source_roots": [
+          "app/app-platform-chat"
+        ],
+        "application_name": "chat",
+        "route_prefix": "/chat",
+        "group_path": "/AI 会话服务",
+        "server": {
+          "context_path": "/chat",
+          "port": 13103
+        },
+        "gateway": {
+          "service_id": "chat",
+          "route_id": "ai-chat-service-route",
+          "path_prefix": "/chat"
+        }
+      },
+      {
+        "key": "app-platform-user",
+        "name": "用户服务",
+        "source_roots": [
+          "app/app-platform-user"
+        ],
+        "application_name": "user",
+        "route_prefix": "/user",
+        "group_path": "/用户服务",
+        "server": {
+          "context_path": "/user",
+          "port": 8082
+        },
+        "gateway": {
+          "service_id": "user",
+          "route_id": "user-service-route",
+          "path_prefix": "/user"
+        }
+      },
+      {
+        "key": "app-platform-db-engine",
+        "name": "数据库引擎服务",
+        "source_roots": [
+          "app/app-platform-db-engine"
+        ],
+        "application_name": "dbEngine",
+        "route_prefix": "/dbEngine",
+        "group_path": "/数据库引擎服务",
+        "server": {
+          "context_path": "/dbEngine",
+          "port": 14102
+        },
+        "gateway": {
+          "service_id": "dbEngine",
+          "route_id": "db-engine-service-route",
+          "path_prefix": "/dbEngine"
+        }
+      },
+      {
+        "key": "app-platform-file",
+        "name": "文件服务",
+        "source_roots": [
+          "app/app-platform-file"
+        ],
+        "application_name": "file",
+        "route_prefix": "/file",
+        "group_path": "/文件服务",
+        "server": {
+          "context_path": "/file",
+          "port": 14103
+        },
+        "gateway": {
+          "service_id": "file",
+          "route_id": "file-service-route",
+          "path_prefix": "/file"
+        }
+      },
+      {
+        "key": "app-platform-render",
+        "name": "渲染服务",
+        "source_roots": [
+          "app/app-platform-render"
+        ],
+        "application_name": "render",
+        "route_prefix": "/render",
+        "group_path": "/渲染服务",
+        "server": {
+          "context_path": "/render",
+          "port": 14401
+        },
+        "gateway": {
+          "service_id": "render",
+          "route_id": "render-service-route",
+          "path_prefix": "/render"
+        }
+      }
+    ]
+  },
   "success_assertions": {
     "default_assertion": {
       "http": "config:http-success-status",
