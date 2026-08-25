@@ -1,0 +1,4 @@
+interface:
+  display_name: "Agent Develop Debug"
+  short_description: "AI Assist Platform 开发与运行时调试闭环"
+  default_prompt: "Use $agent-develop-debug to diagnose and fix this ai-assit-platform issue with logs, database evidence, Arthas, and focused verification."
